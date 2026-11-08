@@ -527,7 +527,7 @@ const needsUpdate = (current: compute.HealthCheck, desired: compute.HealthCheck)
 const getByName = effect (project: string, region: string, healthCheck: string) =>
   compute
     .getRegionHealthChecks({ project, region, healthCheck }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -551,12 +551,15 @@ export const RegionHealthCheckProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.healthCheckName ?? output?.healthCheckName
-      const nextName = news.healthCheckName
+      const nextName = resolved.healthCheckName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? (previousRegion || env.region), env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? (previousRegion || env.region), env.region)
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
       const regionChanged = previousRegion.length > 0 && previousRegion !== nextRegion
       if (nameChanged || regionChanged) {
@@ -566,7 +569,7 @@ export const RegionHealthCheckProvider = (): infer _ =>
         }
       }
       const previousType = (olds !== undefined ? inferType(olds) : undefined) ?? output?.type
-      const nextType = inferType(news)
+      const nextType = inferType(resolved)
       if (previousType !== undefined && previousType !== nextType) {
         return {
           action: "replace" as const,
@@ -584,7 +587,9 @@ export const RegionHealthCheckProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -617,16 +622,18 @@ export const RegionHealthCheckProvider = (): infer _ =>
       let current = try getByName(env.project, region, healthCheckName)
 
       if (current === undefined) {
-        ;(try waitRegionOperation(
-          env.project,
-          region,
-          try compute
-            .insertRegionHealthChecks({
-              project: env.project,
-              region,
-              body: desired,
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitRegionOperation(
+            env.project,
+            region,
+            try compute
+              .insertRegionHealthChecks({
+                project: env.project,
+                region,
+                body: desired,
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, region, healthCheckName)
       }
 
@@ -664,20 +671,22 @@ export const RegionHealthCheckProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       const region = normalizeRegion(output.region, env.region)
-      const operation = (try (compute
-        .deleteRegionHealthChecks({
-          project: env.project,
-          region,
-          healthCheck: output.healthCheckName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteRegionHealthChecks({
+            project: env.project,
+            region,
+            healthCheck: output.healthCheckName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitRegionOperation(env.project, region, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

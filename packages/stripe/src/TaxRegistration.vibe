@@ -494,7 +494,7 @@ const isMissingRegistration = isMissingStripeResource
 
 const getById = effect (id: string) =>
   try (GetTaxRegistration({ id })
-    |> Effect.catchIf(%, isMissingRegistration, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingRegistration, effect () => undefined))
 
 const listByStatus = effect (status: "active" | "all" | "expired" | "scheduled") => {
   const registrations: StripeTaxRegistration[] = []
@@ -575,8 +575,9 @@ export const TaxRegistrationProvider = (): infer _ =>
     stables: ["id", "country", "countryOptions", "created", "livemode"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
+      if (shouldReplace(resolved_, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -632,9 +633,9 @@ export const TaxRegistrationProvider = (): infer _ =>
           active_from: desiredActiveFrom,
           ...(typeof news.expiresAt === "number" ? { expires_at: news.expiresAt } : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-tax-registration-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
       if (current === undefined) {
@@ -648,7 +649,7 @@ export const TaxRegistrationProvider = (): infer _ =>
       const expiresObserved = current.expires_at
       const expireNow = news.expiresAt === "now" && current.status !== "expired"
       const expiresChanged = expiresDesired !== undefined
-        && !deepEqual(expiresDesired, expiresObserved, { stripNullish: true })
+        && !(try Effect.orDie(Effect.try({ try: () => deepEqual(expiresDesired, expiresObserved, { stripNullish: true }), catch: (e) => e })))
 
       if (!activeFromChanged && !activateNow && !expireNow && !expiresChanged) {
         return toAttrs(current)
@@ -675,12 +676,12 @@ export const TaxRegistrationProvider = (): infer _ =>
       // future. `expires_at: "now"` fails when the registration was
       // created in the same unix second; `expires_at: nowSec` fails
       // when the clock ticks between compute and the request.
-      const nowSec = try Effect.sync(() => Math.floor(Date.now() / 1000))
+      const nowSec = Math.floor(Date.now() / 1000)
       const expiresAt = Math.max(nowSec + 1, existing.active_from + 1)
       try (UpdateTaxRegistration({
         id: existing.id,
         expires_at: expiresAt,
       })
-        |> Effect.catchIf(%, isMissingRegistration, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingRegistration, effect () => (undefined as void)))
     },
   })

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as iotw from "@distilled.cloud/aws/iot-wireless"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -160,7 +161,7 @@ export const DestinationProvider = (): infer _ =>
       const getDestination = effect (name: string) =>
         iotw
           .getDestination({ Name: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -208,13 +209,16 @@ export const DestinationProvider = (): infer _ =>
           if (destination === undefined) return undefined
           const attrs = try toAttrs(destination, name)
           const tags = try readIotWirelessTags(attrs.destinationArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // The name is the destination's identity — changing it replaces the
         // resource. Everything else updates in place via UpdateDestination.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -232,19 +236,21 @@ export const DestinationProvider = (): infer _ =>
           //    it concurrently, so fall through to the sync step.
           if (destination === undefined) {
             try session.note(`creating destination ${name}`)
-            ;(try (iotw
-              .createDestination({
-                Name: name,
-                ExpressionType: news.expressionType,
-                Expression: news.expression,
-                Description: news.description,
-                RoleArn: news.roleArn,
-                Tags: createTagsList(desiredTags),
-              })
-              |> Effect.asVoid(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (iotw
+                .createDestination({
+                  Name: name,
+                  ExpressionType: news.expressionType,
+                  Expression: news.expression,
+                  Description: news.description,
+                  RoleArn: news.roleArn,
+                  Tags: createTagsList(desiredTags),
+                })
+                |> Effect.asVoid(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             destination = try getDestination(name)
           }
           if (destination === undefined) {
@@ -284,11 +290,13 @@ export const DestinationProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (iotw.deleteDestination({ Name: output.destinationName })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (iotw.deleteDestination({ Name: output.destinationName })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

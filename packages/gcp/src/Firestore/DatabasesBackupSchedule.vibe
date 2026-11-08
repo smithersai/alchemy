@@ -151,12 +151,14 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   firestore
     .getProjectsDatabasesBackupSchedules({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOnDatabase = effect (parent: string) =>
-  ((try firestore.listProjectsDatabasesBackupSchedules({ parent })).backupSchedules ?? []) catch effect (e) => match (e) {
+  (effect {
+    return ((try firestore.listProjectsDatabasesBackupSchedules({ parent })).backupSchedules ?? [])
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as firestore.GoogleFirestoreAdminV1BackupSchedule[];
     default: throw e;
   }
@@ -190,20 +192,23 @@ export const DatabasesBackupScheduleProvider = (): infer _ =>
     stables: ["name", "backupScheduleId", "database", "databaseId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousDatabase = databaseIdOf(
         olds?.database ?? output?.database ?? output?.databaseId ?? "",
       )
-      const nextDatabase = databaseIdOf(news.database)
+      const nextDatabase = databaseIdOf(resolved.database)
       const previousWeekly = (
         olds?.weeklyRecurrence?.day
           ?? output?.weeklyRecurrenceDay
           ?? ""
       ).toUpperCase()
-      const nextWeekly = (news.weeklyRecurrence?.day ?? "").toUpperCase()
+      const nextWeekly = (resolved.weeklyRecurrence?.day ?? "").toUpperCase()
       const previousDaily = olds?.weeklyRecurrence === undefined
         && (olds?.dailyRecurrence !== false || output?.dailyRecurrence === true)
-      const nextDaily = desiredDaily(news)
+      const nextDaily = desiredDaily(resolved)
       if (
         (previousDatabase.length > 0 && previousDatabase !== nextDatabase)
         || previousWeekly !== nextWeekly
@@ -222,7 +227,9 @@ export const DatabasesBackupScheduleProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ news, output }) => {
@@ -247,7 +254,7 @@ export const DatabasesBackupScheduleProvider = (): infer _ =>
               dailyRecurrence: daily && weeklyDay === undefined ? {} : undefined,
               weeklyRecurrence: weeklyDay !== undefined ? { day: weeklyDay } : undefined,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created?.name !== undefined) {
           current = created
         } else {
@@ -279,7 +286,7 @@ export const DatabasesBackupScheduleProvider = (): infer _ =>
     delete: effect ({ output }) => {
       firestore
         .deleteProjectsDatabasesBackupSchedules({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       try waitUntilGone(output.name)

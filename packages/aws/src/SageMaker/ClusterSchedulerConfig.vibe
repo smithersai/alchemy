@@ -117,7 +117,7 @@ const createConfigName = effect (
 const describeConfigOrUndefined = effect (configId: string) =>
   sagemaker
     .describeClusterSchedulerConfig({ ClusterSchedulerConfigId: configId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFound" }: try Effect.undefined;
+      when { _tag: "ResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -136,7 +136,7 @@ const findConfigByName = effect (name: string) => {
 const fetchConfigTags = effect (arn: string) => {
   const response = sagemaker
     .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      when { _tag: "AccessDeniedException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -193,8 +193,8 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(60)]),
   })
 
-const waitForConfig = (configId: string, target: "Ready" | "Gone") =>
-  retryWhileNotReady(
+const waitForConfig = effect (configId: string, target: "Ready" | "Gone") =>
+  try retryWhileNotReady(
     effect {
       const described = try describeConfigOrUndefined(configId)
       if (target === "Gone") {
@@ -258,15 +258,16 @@ export const ClusterSchedulerConfigProvider = (): infer _ =>
           }
           const attrs = toAttrs(described)
           const tags = try fetchConfigTags(attrs.clusterSchedulerConfigArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           const oldName = try createConfigName(id, olds)
-          const newName = try createConfigName(id, news)
+          const newName = try createConfigName(id, resolved)
           // The name and target cluster are fixed at creation.
-          if (oldName !== newName || olds.clusterArn !== news.clusterArn) {
+          if (oldName !== newName || olds.clusterArn !== resolved.clusterArn) {
             return { action: "replace" } as const
           }
         },
@@ -304,7 +305,7 @@ export const ClusterSchedulerConfigProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             configId = created?.ClusterSchedulerConfigId
@@ -348,7 +349,7 @@ export const ClusterSchedulerConfigProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchConfigTags(attrs.clusterSchedulerConfigArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: attrs.clusterSchedulerConfigArn,
@@ -369,7 +370,7 @@ export const ClusterSchedulerConfigProvider = (): infer _ =>
           sagemaker
             .deleteClusterSchedulerConfig({
               ClusterSchedulerConfigId: output.clusterSchedulerConfigId,
-            }) catch effect (e) => match (e) { when { _tag: "ResourceNotFound" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) { when { _tag: "ResourceNotFound" }: (undefined as void); default: throw e; }
           try waitForConfig(output.clusterSchedulerConfigId, "Gone")
         },
       }

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as servicecatalog from "@distilled.cloud/aws/service-catalog"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -166,7 +167,7 @@ export const ProductProvider = (): infer _ =>
       const observe = effect (selector: { Id: string } | { Name: string }) =>
         servicecatalog
           .describeProductAsAdmin(selector) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -196,19 +197,21 @@ export const ProductProvider = (): infer _ =>
                 || d.ProductARN === undefined
                 || d.ProductViewSummary?.Name === undefined
               ) {
-                return try Effect.undefined
+                return undefined
               }
               // Hydrate the artifact ID; a product can vanish between
               // enumeration and hydration, so tolerate NotFound per item.
-              return ({
-                productId,
-                productArn: d.ProductARN!,
-                productName: d.ProductViewSummary!.Name!,
-                provisioningArtifactId:
-                  (try servicecatalog.listProvisioningArtifacts({ ProductId: productId })).ProvisioningArtifactDetails
+              return effect {
+                return ({
+                  productId,
+                  productArn: d.ProductARN!,
+                  productName: d.ProductViewSummary!.Name!,
+                  provisioningArtifactId: (try servicecatalog.listProvisioningArtifacts({ ProductId: productId }))
+                    .ProvisioningArtifactDetails
                     ?.[0]?.Id ?? "",
-              }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                })
+              } catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             },
@@ -224,10 +227,13 @@ export const ProductProvider = (): infer _ =>
             return undefined
           }
           const attrs = toAttributes(described)
-          return (try hasAlchemyTags(id, tagRecord(described.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tagRecord(described.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           // The initial provisioning artifact's template and the product
           // type are immutable — changing either replaces the product.
           if (olds.provisioningArtifact?.templateUrl !== news.provisioningArtifact.templateUrl) {
@@ -363,7 +369,7 @@ export const ProductProvider = (): infer _ =>
           retryWhileResourceInUse(
             servicecatalog.deleteProduct({ Id: output.productId }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

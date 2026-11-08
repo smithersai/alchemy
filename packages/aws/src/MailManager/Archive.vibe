@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -114,11 +115,13 @@ export const ArchiveProvider = (): infer _ =>
       // A PENDING_DELETION archive is irrevocably deleted (contents already
       // inaccessible) — treat it as gone everywhere.
       const getById = effect (archiveId: string) =>
-        (try effect {
-          const a = try mm.getArchive({ ArchiveId: archiveId })
-          return (a.ArchiveState === "PENDING_DELETION" ? undefined : a)
+        (effect {
+          return (try effect {
+            const a = try mm.getArchive({ ArchiveId: archiveId })
+            return (a.ArchiveState === "PENDING_DELETION" ? undefined : a)
+          })
         }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -164,7 +167,7 @@ export const ArchiveProvider = (): infer _ =>
               .flatMap((page) => page.Archives ?? [])
               .filter((a) => a.ArchiveState !== "PENDING_DELETION")
               .map((a) => a.ArchiveId),
-            (archiveId) => getById(archiveId),
+            effect (archiveId) => try getById(archiveId),
           )).flatMap((a) => (a === undefined ? [] : [toAttrs(a)])),
 
         read: effect ({ id, olds, output }) => {
@@ -173,13 +176,16 @@ export const ArchiveProvider = (): infer _ =>
           if (archive === undefined) return undefined
           const attrs = toAttrs(archive)
           const tags = try readMailManagerTags(attrs.archiveArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // The KMS key is create-only — changing it replaces the archive.
         // Name and retention update in place via UpdateArchive.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds === undefined) return undefined
           if (olds.kmsKeyArn !== news.kmsKeyArn) {
             return { action: "replace" } as const
@@ -206,7 +212,7 @@ export const ArchiveProvider = (): infer _ =>
                 KmsKeyArn: news.kmsKeyArn,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             archive = created !== undefined

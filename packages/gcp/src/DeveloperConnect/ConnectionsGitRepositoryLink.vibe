@@ -296,17 +296,20 @@ export const ConnectionsGitRepositoryLinkProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       if (output === undefined && olds === undefined) return undefined
       const previousUri = olds?.cloneUri ?? output?.cloneUri ?? ""
-      const nextUri = news.cloneUri ?? previousUri
-      return replaceOnIdentity({
+      const nextUri = resolved.cloneUri ?? previousUri
+      const input = {
         previousId: olds?.gitRepositoryLinkId ?? output?.gitRepositoryLinkId,
-        nextId: news.gitRepositoryLinkId ?? olds?.gitRepositoryLinkId ?? output?.gitRepositoryLinkId,
+        nextId: resolved.gitRepositoryLinkId ?? olds?.gitRepositoryLinkId ?? output?.gitRepositoryLinkId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         previousParent: parentKey(
@@ -314,22 +317,39 @@ export const ConnectionsGitRepositoryLinkProvider = (): infer _ =>
           olds?.location ?? output?.location,
           env.region,
         ),
-        nextParent: news.connection !== undefined
+        nextParent: resolved.connection !== undefined
           ? parentKey(
-            news.connection,
-            news.location ?? olds?.location ?? output?.location,
+            resolved.connection,
+            resolved.location ?? olds?.location ?? output?.location,
             env.region,
           )
           : parentKey(
             olds?.connection ?? output?.connection,
-            news.location ?? olds?.location ?? output?.location,
+            resolved.location ?? olds?.location ?? output?.location,
             env.region,
           ),
         extra: (previousUri !== "" && nextUri !== previousUri)
-          || fingerprint(toLabels(olds?.labels ?? output?.labels))
-            !== fingerprint(toLabels(news.labels))
-          || fingerprint(olds?.annotations ?? output?.annotations) !== fingerprint(news.annotations),
-      })
+          || (try Effect.orDie(
+              Effect.try({
+                try: fingerprint.bind(undefined, toLabels(olds?.labels ?? output?.labels)),
+                catch: (e) => e,
+              }),
+            ))
+            !== (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, toLabels(resolved.labels)), catch: (e) => e }),
+            ))
+          || (try Effect.orDie(
+              Effect.try({
+                try: fingerprint.bind(undefined, olds?.annotations ?? output?.annotations),
+                catch: (e) => e,
+              }),
+            ))
+            !== (try Effect.orDie(Effect.try({
+              try: fingerprint.bind(undefined, resolved.annotations),
+              catch: (e) => e,
+            }))),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -357,7 +377,12 @@ export const ConnectionsGitRepositoryLinkProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -382,7 +407,7 @@ export const ConnectionsGitRepositoryLinkProvider = (): infer _ =>
       )
       const name = resourceName(parent.parent, gitRepositoryLinkId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 

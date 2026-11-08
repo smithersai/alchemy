@@ -153,9 +153,9 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : aiplatform
+const getByName = effect (name: string) => (name.length === 0 ? undefined : aiplatform
   .getProjectsLocationsSemanticGovernancePolicies({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -173,13 +173,15 @@ const waitUntilExists = effect (name: string) =>
     }))
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsSemanticGovernancePolicies.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.semanticGovernancePolicies ?? []))
-      |> Stream.filter(%, (policy) => hasOwnershipMarker(policy.description))
-      |> Stream.map(%, (policy) => toAttrs(policy, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsSemanticGovernancePolicies.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.semanticGovernancePolicies ?? []))
+        |> Stream.filter(%, (policy) => hasOwnershipMarker(policy.description))
+        |> Stream.map(%, (policy) => toAttrs(policy, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const mcpKey = (tools: McpTool[] | undefined): infer _ =>
   JSON.stringify(
@@ -194,17 +196,20 @@ export const SemanticGovernancePolicyProvider = (): infer _ =>
     stables: ["name", "semanticGovernancePolicyId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = news.location ?? previousLocation
+      const nextLocation = resolved.location ?? previousLocation
       if (previousLocation !== undefined && previousLocation !== nextLocation) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.semanticGovernancePolicyId ?? output?.semanticGovernancePolicyId
       if (
         previousId !== undefined
-        && news.semanticGovernancePolicyId !== undefined
-        && news.semanticGovernancePolicyId !== previousId
+        && resolved.semanticGovernancePolicyId !== undefined
+        && resolved.semanticGovernancePolicyId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -223,13 +228,17 @@ export const SemanticGovernancePolicyProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (try Effect.forEach(listLocations(env.region), effect (location) =>
-        try listAt(locationParent(env.project, location), env.project))).flat()
+      return (try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listAt(locationParent(env.project, location), env.project),
+      )).flat()
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -264,12 +273,15 @@ export const SemanticGovernancePolicyProvider = (): infer _ =>
               naturalLanguageConstraint: news.naturalLanguageConstraint,
               mcpTools,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           const done = try waitForOperation(created, {
             alreadyExistsOk: true,
           })
-          const createdName = resourceNameFromOperation(done) ?? name
+          const createdName = (try Effect.orDie(Effect.try({
+            try: () => resourceNameFromOperation(done),
+            catch: (e) => e,
+          }))) ?? name
           current = try waitUntilExists(createdName)
         } else {
           current = try getByName(name)
@@ -296,9 +308,7 @@ export const SemanticGovernancePolicyProvider = (): infer _ =>
             constraintChanged ? "naturalLanguageConstraint" : undefined,
             mcpChanged ? "mcpTools" : undefined,
           ]
-            .filter((field): field is string =>
-              field !== undefined
-            )
+            .filter((field): field is string => field !== undefined)
             .join(","),
           body: {
             name,
@@ -323,7 +333,7 @@ export const SemanticGovernancePolicyProvider = (): infer _ =>
       const operation = aiplatform
         .deleteProjectsLocationsSemanticGovernancePolicies({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

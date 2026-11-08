@@ -219,7 +219,12 @@ const readEnvironment = Query.fn((id: string, projectId?: string) =>
 )
 
 const projectEnvironments = (projectId: string): infer _ =>
-  Query.items(Railway.environments({ projectId, first: 50 }).pipe(Query.map(environmentFields)))
+  Stream.unwrap(
+    Effect.orDie(Effect.try({
+      try: () => Query.items(Railway.environments({ projectId, first: 50 }).pipe(Query.map(environmentFields))),
+      catch: (e) => e,
+    })),
+  )
 
 const environmentCreate = Query.fn(
   (
@@ -239,19 +244,23 @@ const environmentRename = Query.fn((id: string, name: string) =>
 const environmentDelete = Query.fn((id: string) => Railway.environmentDelete({ id }))
 
 const getById = effect (environmentId: string, projectId?: string) =>
-  (try effect {
-    const env = try readEnvironment(environmentId, projectId)
-    return (isGone(env) ? undefined : env)
-  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const env = try readEnvironment(environmentId, projectId)
+      return (isGone(env) ? undefined : env)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const findByName = effect (projectId: string, name: string) =>
-  (try effect {
-    const option = try (projectEnvironments(projectId)
-      |> Stream.filter(%, (env) => !isGone(env) && env.name === name)
-      |> Stream.take(%, 1)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (projectEnvironments(projectId)
+        |> Stream.filter(%, (env) => !isGone(env) && env.name === name)
+        |> Stream.take(%, 1)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 export const EnvironmentProvider = (): infer _ =>
   Provider.succeed(Environment, {
@@ -278,26 +287,30 @@ export const EnvironmentProvider = (): infer _ =>
       if (found === undefined) return undefined
       const attrs = toAttrs(found, { name, projectId })
       if (output !== undefined) return attrs
-      return matchesAlchemyPhysicalName(found.name) ? attrs : Unowned(attrs)
+      return matchesAlchemyPhysicalName(found.name)
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const projects = try ownedProjects()
       const rows = try Effect.forEach(projects, effect (project) =>
-        (Array.from(
-          try (projectEnvironments(project.projectId)
-            |> Stream.filter(%, (env) => env.deletedAt == null && matchesAlchemyPhysicalName(env.name))
-            |> Stream.runCollect(%)),
-        ).map((env) => {
-          const projectId = env.projectId || project.projectId
-          return {
-            environmentId: env.id,
-            name: env.name,
-            projectId,
-            isEphemeral: env.isEphemeral,
-            url: `https://railway.com/project/${projectId}?environmentId=${env.id}`,
-          }
-        })) catch effect (e) => match (e) {
+        (effect {
+          return (Array.from(
+            try (projectEnvironments(project.projectId)
+              |> Stream.filter(%, (env) => env.deletedAt == null && matchesAlchemyPhysicalName(env.name))
+              |> Stream.runCollect(%)),
+          ).map((env) => {
+            const projectId = env.projectId || project.projectId
+            return {
+              environmentId: env.id,
+              name: env.name,
+              projectId,
+              isEphemeral: env.isEphemeral,
+              url: `https://railway.com/project/${projectId}?environmentId=${env.id}`,
+            }
+          }))
+        }) catch effect (e) => match (e) {
           when { _tag: "RailwayNotFound" }: [] as Environment["Attributes"][];
           default: throw e;
         })
@@ -332,7 +345,7 @@ export const EnvironmentProvider = (): infer _ =>
               : {}),
           }),
         ) catch effect (e) => match (e) {
-          when { _tag: "RailwayValidationError" }: try Effect.undefined;
+          when { _tag: "RailwayValidationError" }: undefined;
           default: throw e;
         }
         current = created ?? (try findByName(projectId, name))
@@ -355,7 +368,7 @@ export const EnvironmentProvider = (): infer _ =>
         return
       }
       environmentDelete(environmentId) catch effect (e) => match (e) {
-        when { _tag: "RailwayNotFound" }: try Effect.void;
+        when { _tag: "RailwayNotFound" }: (undefined as void);
         default: throw e;
       }
       try waitUntilDeleted(

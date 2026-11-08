@@ -212,40 +212,44 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : integrations
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
   .getProjectsLocationsProductsIntegrationsVersions({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (integrations.listProjectsLocationsProductsIntegrationsVersions
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.integrationVersions ?? []))
-      |> Stream.filter(%, (version) => hasOwnershipMarker(version.description))
-      |> Stream.map(%, (version) => toAttrs(version, project, region))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsProductsIntegrationsVersions
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.integrationVersions ?? []))
+        |> Stream.filter(%, (version) => hasOwnershipMarker(version.description))
+        |> Stream.map(%, (version) => toAttrs(version, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, id: string) =>
-  (try effect {
-    const option = try (integrations.listProjectsLocationsProductsIntegrationsVersions
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.integrationVersions ?? []))
-      |> Stream.filterEffect(%, effect (version) => try ownedByAlchemy(id, version.description))
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsProductsIntegrationsVersions
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.integrationVersions ?? []))
+        |> Stream.filterEffect(%, effect (version) => try ownedByAlchemy(id, version.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const deleteIntegration = effect (
   name: string,
 ) => (name.length === 0
-  ? try Effect.void
+  ? (undefined as void)
   : integrations.deleteProjectsLocationsIntegrations({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.void;
-    when { _tag: "BadRequest" }: try Effect.void;
-    when { _tag: "Conflict" }: try Effect.void;
+    when { _tag: "NotFound" }: (undefined as void);
+    when { _tag: "BadRequest" }: (undefined as void);
+    when { _tag: "Conflict" }: (undefined as void);
     default: throw e;
   })
 
@@ -263,10 +267,13 @@ export const ProductsIntegrationsVersionProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = normalizeLocation(news.location, previousLocation ?? env.region)
+      const nextLocation = normalizeLocation(resolved.location, previousLocation ?? env.region)
       if (
         previousLocation !== undefined
         && normalizeLocation(previousLocation, env.region) !== nextLocation
@@ -274,23 +281,23 @@ export const ProductsIntegrationsVersionProvider = (): infer _ =>
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousProduct = olds?.product ?? output?.product
-      const nextProduct = normalizeProduct(news.product)
+      const nextProduct = normalizeProduct(resolved.product)
       if (previousProduct !== undefined && normalizeProduct(previousProduct) !== nextProduct) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousIntegration = olds?.integrationId ?? output?.integrationId
       if (
         previousIntegration !== undefined
-        && news.integrationId !== undefined
-        && news.integrationId !== previousIntegration
+        && resolved.integrationId !== undefined
+        && resolved.integrationId !== previousIntegration
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.versionId ?? output?.versionId
       if (
         previousId !== undefined
-        && news.versionId !== undefined
-        && news.versionId !== previousId
+        && resolved.versionId !== undefined
+        && resolved.versionId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -316,7 +323,9 @@ export const ProductsIntegrationsVersionProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -405,9 +414,9 @@ export const ProductsIntegrationsVersionProvider = (): infer _ =>
         .deleteProjectsLocationsProductsIntegrationsVersions({
           name: output.name,
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
-          when { _tag: "BadRequest" }: try Effect.void;
-          when { _tag: "Conflict" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
+          when { _tag: "BadRequest" }: (undefined as void);
+          when { _tag: "Conflict" }: (undefined as void);
           default: throw e;
         }
       const stripped = `${locationParent(output.project, output.location)}/integrations/${output.integrationId}`

@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import type { Credentials } from "@distilled.cloud/aws/Credentials"
 import type { Region } from "@distilled.cloud/aws/Region"
 import * as incidents from "@distilled.cloud/aws/ssm-incidents"
@@ -13,9 +16,14 @@ import type { Providers } from "../Providers.ts"
  * Raised when the replication set enters a terminal `FAILED` state (or does
  * not become `ACTIVE` within the bounded wait window) while reconciling.
  */
-export error ReplicationSetNotActive {
-  mutable message: string
-  mutable status: string
+export class ReplicationSetNotActive extends $MutableErrorBase("ReplicationSetNotActive")<{
+  message: string
+
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "ReplicationSetNotActive", true)
+  }
 }
 
 export interface ReplicationSetProps {
@@ -110,7 +118,7 @@ type IncidentsDeps = Credentials | Region | HttpClient
  */
 const waitForReplicationSetActive = effect (
   arn: string,
-): incidents.ReplicationSet!incidents.GetReplicationSetError | ReplicationSetNotActive!IncidentsDeps =>
+): incidents.ReplicationSet!(incidents.GetReplicationSetError | ReplicationSetNotActive)!IncidentsDeps =>
   try effect {
     const rs = try (effect {
       return (try incidents.getReplicationSet({ arn })).replicationSet
@@ -134,7 +142,9 @@ const waitForReplicationSetGone = effect (
   arn: string,
 ): void!incidents.GetReplicationSetError!IncidentsDeps =>
   try (effect {
-    return (try incidents.getReplicationSet({ arn })).replicationSet.status catch effect (e) => match (e) {
+    return (effect {
+      return (try incidents.getReplicationSet({ arn })).replicationSet.status
+    }) catch effect (e) => match (e) {
       when { _tag: "ResourceNotFoundException" }: "GONE" as const;
       default: throw e;
     }
@@ -155,18 +165,22 @@ export const ReplicationSetProvider = (): infer _ =>
         const listed = try incidents.listReplicationSets({})
         const arn = listed.replicationSetArns[0]
         if (arn === undefined) return undefined
-        return ({ ...(try incidents.getReplicationSet({ arn })).replicationSet, arn }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        return (effect {
+          return ({ ...(try incidents.getReplicationSet({ arn })).replicationSet, arn })
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       }
 
       const readTags = effect (arn: string) =>
-        (Object.fromEntries(
-          Object.entries((try incidents.listTagsForResource({ resourceArn: arn })).tags).filter((
-            e,
-          ): e is [string, string] => e[1] !== undefined),
-        ) as Record<string, string>) catch () => ({})
+        (effect {
+          return (Object.fromEntries(
+            Object.entries((try incidents.listTagsForResource({ resourceArn: arn })).tags).filter((
+              e,
+            ): e is [string, string] => e[1] !== undefined),
+          ) as Record<string, string>)
+        }) catch () => ({})
 
       const buildAttrs = (rs: incidents.ReplicationSet & { arn: string }): infer _ => ({
         arn: rs.arn,
@@ -194,7 +208,9 @@ export const ReplicationSetProvider = (): infer _ =>
           if (try hasAlchemyTags(id, tags)) return attrs
           // Tag-based ownership is best-effort — if we have prior state for
           // this exact singleton, it is ours; otherwise gate adoption.
-          return output !== undefined ? attrs : Unowned(attrs)
+          return output !== undefined
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Account/region singleton — report the single replication set, if any.
@@ -218,20 +234,22 @@ export const ReplicationSetProvider = (): infer _ =>
           //    by falling through to observation.
           if (live === undefined) {
             try session.note("creating Incident Manager replication set")
-            const created = (try incidents
-              .createReplicationSet({
-                regions: Object.fromEntries(
-                  Object.entries(regions).map(([name, cfg]) => [
-                    name,
-                    { sseKmsKeyId: cfg.sseKmsKeyId },
-                  ]),
-                ),
-                tags: desiredTags,
-              })).arn catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: (try incidents
-                  .listReplicationSets({})).replicationSetArns[0]!;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try incidents
+                .createReplicationSet({
+                  regions: Object.fromEntries(
+                    Object.entries(regions).map(([name, cfg]) => [
+                      name,
+                      { sseKmsKeyId: cfg.sseKmsKeyId },
+                    ]),
+                  ),
+                  tags: desiredTags,
+                })).arn
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (try incidents
+                .listReplicationSets({})).replicationSetArns[0]!;
+              default: throw e;
+            }
             try waitForReplicationSetActive(created)
             live = (try observe)!
           } else if (live.status === "CREATING" || live.status === "UPDATING") {
@@ -311,14 +329,16 @@ export const ReplicationSetProvider = (): infer _ =>
               arn: output.arn,
               deletionProtected: false,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
-          ;(try (incidents.deleteReplicationSet({ arn: output.arn })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (incidents.deleteReplicationSet({ arn: output.arn })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
           // Offboarding is asynchronous (~1-2 minutes); wait until fully gone
           // so an immediate re-create does not conflict.
           try waitForReplicationSetGone(output.arn)

@@ -172,24 +172,31 @@ export const RestoreChannelProvider = (): infer _ =>
     stables: ["name", "restoreChannelId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousDest = olds?.destinationProject ?? output?.destinationProject
-      const nextDest = news.destinationProject
-      return replaceOnIdentity({
-        previousId: olds?.restoreChannelId ?? output?.restoreChannelId,
-        nextId: news.restoreChannelId ?? olds?.restoreChannelId ?? output?.restoreChannelId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousDest !== undefined
-          && nextDest !== undefined
-          && previousDest !== nextDest
-          && !previousDest.endsWith(`/${nextDest}`)
-          && previousDest !== `projects/${nextDest}`,
-      })
+      const nextDest = resolved.destinationProject
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.restoreChannelId ?? output?.restoreChannelId,
+            nextId: resolved.restoreChannelId ?? olds?.restoreChannelId ?? output?.restoreChannelId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousDest !== undefined
+              && nextDest !== undefined
+              && previousDest !== nextDest
+              && !previousDest.endsWith(`/${nextDest}`)
+              && previousDest !== `projects/${nextDest}`,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -200,12 +207,19 @@ export const RestoreChannelProvider = (): infer _ =>
         output?.restoreChannelId,
         "restorechannel",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, restoreChannelId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -222,11 +236,15 @@ export const RestoreChannelProvider = (): infer _ =>
         output?.restoreChannelId,
         "restorechannel",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, restoreChannelId)
-      const destinationProject = projectName(news.destinationProject, env.project)
+      const destinationProject = try Effect.orDie(
+        Effect.try({ try: () => projectName(news.destinationProject, env.project), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -278,13 +296,15 @@ export const RestoreChannelProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (gkebackup
-        .deleteProjectsLocationsRestoreChannels({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (gkebackup
+          .deleteProjectsLocationsRestoreChannels({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

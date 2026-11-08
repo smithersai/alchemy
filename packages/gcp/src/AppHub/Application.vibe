@@ -199,20 +199,27 @@ export const ApplicationProvider = (): infer _ =>
     stables: ["name", "applicationId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousScope = olds?.scope?.type ?? output?.scope?.type
-      const nextScope = news.scope?.type ?? previousScope
-      return replaceOnIdentity({
-        previousId: olds?.applicationId ?? output?.applicationId,
-        nextId: news.applicationId ?? olds?.applicationId ?? output?.applicationId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousScope !== undefined && nextScope !== undefined && previousScope !== nextScope,
-      })
+      const nextScope = resolved.scope?.type ?? previousScope
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.applicationId ?? output?.applicationId,
+            nextId: resolved.applicationId ?? olds?.applicationId ?? output?.applicationId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousScope !== undefined && nextScope !== undefined && previousScope !== nextScope,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -223,12 +230,16 @@ export const ApplicationProvider = (): infer _ =>
         output?.applicationId,
         "app",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, applicationId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -245,12 +256,17 @@ export const ApplicationProvider = (): infer _ =>
         output?.applicationId,
         "app",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, applicationId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName ?? applicationId
-      const scope = news.scope ?? defaultScope(location)
+      const scope = news.scope
+        ?? (try Effect.orDie(Effect.try({ try: () => defaultScope(location), catch: (e) => e })))
 
       let current = try getByName(output?.name ?? name)
 
@@ -286,7 +302,9 @@ export const ApplicationProvider = (): infer _ =>
         !sameText(current.description, description) && "description",
         !sameText(current.displayName, displayName) && "displayName",
         news.attributes !== undefined
-        && !sameJson(current.attributes, news.attributes)
+        && !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.attributes, news.attributes), catch: (e) => e }),
+        ))
         && "attributes",
       ])
 
@@ -312,13 +330,15 @@ export const ApplicationProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apphub
-        .deleteProjectsLocationsApplications({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apphub
+          .deleteProjectsLocationsApplications({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

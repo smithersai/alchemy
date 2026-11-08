@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -160,7 +161,7 @@ export const GatewayProvider = (): infer _ =>
       const getGatewayOrUndefined = effect (gatewayIdentifier: string) =>
         control
           .getGateway({ gatewayIdentifier }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -196,7 +197,7 @@ export const GatewayProvider = (): infer _ =>
           const summaries = Array.from(pages).flatMap((page) => page.items ?? [])
           const hydrated = try Effect.forEach(
             summaries,
-            (s) => getGatewayOrUndefined(s.gatewayId),
+            effect (s) => try getGatewayOrUndefined(s.gatewayId),
             { concurrency: 5 },
           )
           return hydrated.filter((g) => g !== undefined).map(toAttributes)
@@ -211,11 +212,14 @@ export const GatewayProvider = (): infer _ =>
           }
           const attrs = toAttributes(gateway)
           const tags = try readAgentCoreTags(gateway.gatewayArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? ({} as GatewayProps))
           const newName = try createName(id, news ?? ({} as GatewayProps))
           if (oldName !== newName) {
@@ -248,23 +252,25 @@ export const GatewayProvider = (): infer _ =>
           // by the AgentCore service principal, so ride out the transient
           // ValidationException; tolerate the name-exists conflict race.
           if (gateway === undefined) {
-            const created = (try (control
-              .createGateway({
-                name,
-                description: props.description,
-                roleArn: props.roleArn,
-                protocolType,
-                protocolConfiguration: props.protocolConfiguration,
-                authorizerType,
-                authorizerConfiguration: props.authorizerConfiguration,
-                kmsKeyArn: props.kmsKeyArn,
-                exceptionLevel: props.exceptionLevel,
-                tags: desiredTags,
-              })
-              |> retryWhileValidation(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try findByName(name);
-                default: throw e;
-              }
+            const created = (effect {
+              return (try (control
+                .createGateway({
+                  name,
+                  description: props.description,
+                  roleArn: props.roleArn,
+                  protocolType,
+                  protocolConfiguration: props.protocolConfiguration,
+                  authorizerType,
+                  authorizerConfiguration: props.authorizerConfiguration,
+                  kmsKeyArn: props.kmsKeyArn,
+                  exceptionLevel: props.exceptionLevel,
+                  tags: desiredTags,
+                })
+                |> retryWhileValidation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try findByName(name);
+              default: throw e;
+            }
             gateway = created === undefined
               ? try findByName(name)
               : try getGatewayOrUndefined(created.gatewayId)
@@ -326,13 +332,17 @@ export const GatewayProvider = (): infer _ =>
         // ConflictException until they are gone — the engine deletes targets
         // first, but their teardown is eventually consistent.
         delete: effect ({ output }) => {
-          ;(try (control.deleteGateway({ gatewayIdentifier: output.gatewayId })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (control.deleteGateway({ gatewayIdentifier: output.gatewayId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           try (effect {
-            return ((try control.getGateway({ gatewayIdentifier: output.gatewayId })).status as string) catch effect (
+            return (effect {
+              return ((try control.getGateway({ gatewayIdentifier: output.gatewayId })).status as string)
+            }) catch effect (
               e,
             ) => match (e) { when { _tag: "ResourceNotFoundException" }: "GONE" as string; default: throw e; }
           }

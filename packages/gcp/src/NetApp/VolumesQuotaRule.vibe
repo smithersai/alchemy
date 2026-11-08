@@ -196,24 +196,31 @@ export const VolumesQuotaRuleProvider = (): infer _ =>
     stables: ["name", "quotaRuleId", "volume", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.type ?? output?.type
       const previousTarget = olds?.target ?? output?.target
-      const nextType = news.type ?? DEFAULT_TYPE
-      return replaceOnIdentity({
-        previousId: olds?.quotaRuleId ?? output?.quotaRuleId,
-        nextId: news.quotaRuleId ?? olds?.quotaRuleId ?? output?.quotaRuleId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.volume ?? output?.volume,
-        nextParent: news.volume,
-        extra: (previousType !== undefined && nextType !== previousType)
-          || (previousTarget ?? "") !== (news.target ?? previousTarget ?? ""),
-      })
+      const nextType = resolved.type ?? DEFAULT_TYPE
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.quotaRuleId ?? output?.quotaRuleId,
+            nextId: resolved.quotaRuleId ?? olds?.quotaRuleId ?? output?.quotaRuleId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.volume ?? output?.volume,
+            nextParent: resolved.volume,
+            extra: (previousType !== undefined && nextType !== previousType)
+              || (previousTarget ?? "") !== (resolved.target ?? previousTarget ?? ""),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -224,16 +231,25 @@ export const VolumesQuotaRuleProvider = (): infer _ =>
         output?.quotaRuleId,
         "quotarule",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const parent = olds?.volume ?? output?.volume
       // A row whose parent never resolved (failed create) has nothing to read.
       if (output?.name === undefined && !parent) return undefined
-      const volume = expandParent(parent ?? "", env.project, location, "volumes")
+      const volume = try Effect.orDie(
+        Effect.try({ try: () => expandParent(parent ?? "", env.project, location, "volumes"), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(volume, quotaRuleId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -250,13 +266,17 @@ export const VolumesQuotaRuleProvider = (): infer _ =>
         output?.quotaRuleId,
         "quotarule",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const volume = expandParent(news.volume, env.project, location, "volumes")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const volume = try Effect.orDie(
+        Effect.try({ try: () => expandParent(news.volume, env.project, location, "volumes"), catch: (e) => e }),
+      )
       const name = resourceName(volume, quotaRuleId)
       const type = news.type ?? DEFAULT_TYPE
       const diskLimitMib = news.diskLimitMib ?? DEFAULT_DISK_LIMIT_MIB
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -293,7 +313,9 @@ export const VolumesQuotaRuleProvider = (): infer _ =>
       )
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         (current.description ?? "") !== (news.description ?? "") && "description",
@@ -324,13 +346,15 @@ export const VolumesQuotaRuleProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (netapp
-        .deleteProjectsLocationsVolumesQuotaRules({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (netapp
+          .deleteProjectsLocationsVolumesQuotaRules({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

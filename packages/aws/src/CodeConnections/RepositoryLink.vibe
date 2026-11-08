@@ -98,7 +98,7 @@ export const RepositoryLinkProvider = (): infer _ =>
       const getById = effect (id: string) => {
         const response = codeconnections
           .getRepositoryLink({ RepositoryLinkId: id }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.RepositoryLinkInfo
@@ -138,12 +138,13 @@ export const RepositoryLinkProvider = (): infer _ =>
         ],
 
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // The linked repository is the link's identity — replace on change.
           // Connection and encryption key are mutable via UpdateRepositoryLink.
           if (
-            (news?.ownerId ?? undefined) !== (olds?.ownerId ?? undefined)
-            || (news?.repositoryName ?? undefined) !== (olds?.repositoryName ?? undefined)
+            (resolved?.ownerId ?? undefined) !== (olds?.ownerId ?? undefined)
+            || (resolved?.repositoryName ?? undefined) !== (olds?.repositoryName ?? undefined)
           ) {
             return { action: "replace" } as const
           }
@@ -158,7 +159,7 @@ export const RepositoryLinkProvider = (): infer _ =>
           if (link === undefined) return undefined
           const attrs = toAttrs(link)
           const tags = try fetchObservedTags(attrs.repositoryLinkArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -172,14 +173,14 @@ export const RepositoryLinkProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate the AlreadyExists race.
           if (observed === undefined) {
-            observed = (try codeconnections
+            observed = (effect { return (try codeconnections
               .createRepositoryLink({
                 ConnectionArn: news.connectionArn,
                 OwnerId: news.ownerId,
                 RepositoryName: news.repositoryName,
                 EncryptionKeyArn: news.encryptionKeyArn,
-                Tags: toTagList(desiredTags),
-              })).RepositoryLinkInfo catch effect (error) => match (error) {
+                Tags: try Effect.orDie(Effect.try({ try: () => toTagList(desiredTags), catch: (e) => e })),
+              })).RepositoryLinkInfo }) catch effect (error) => match (error) {
                 when { _tag: "ResourceAlreadyExistsException" }: try effect {
                   const link = try findByIdentity(news.ownerId, news.repositoryName)
                   return (link === undefined ? throw error : link)
@@ -212,7 +213,7 @@ export const RepositoryLinkProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Sync configurations on the link must be deleted first — retry
           // the dependency violation while downstream deletions land.
-          ;(try (codeconnections
+          ;(effect { return (try (codeconnections
             .deleteRepositoryLink({
               RepositoryLinkId: output.repositoryLinkId,
             })
@@ -220,8 +221,8 @@ export const RepositoryLinkProvider = (): infer _ =>
               while: (e): boolean => e._tag === "SyncConfigurationStillExistsException",
               schedule: Schedule.exponential("2 seconds"),
               times: 8,
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            }))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

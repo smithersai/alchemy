@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as smsvoice from "@distilled.cloud/aws/pinpoint-sms-voice-v2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -140,8 +142,14 @@ export const PhoneNumber = Resource<PhoneNumber>("AWS.PinpointSMSVoiceV2.PhoneNu
  * Raised when a phone number cannot be observed after `RequestPhoneNumber`
  * succeeded, or the API returned a number without its ID.
  */
-export error SmsVoicePhoneNumberMissing {
-  mutable message: string
+export class SmsVoicePhoneNumberMissing extends $MutableErrorBase("SmsVoicePhoneNumberMissing")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "SmsVoicePhoneNumberMissing", true);
+}
+
+
 }
 
 /**
@@ -149,8 +157,8 @@ export error SmsVoicePhoneNumberMissing {
  * (extracted so declaration emit keeps the provider layer type narrow).
  */
 const untilNotPending = effect <E, R>(
-  self: smsvoice.PhoneNumberInformation | undefined!E!R,
-): smsvoice.PhoneNumberInformation | undefined!E!R =>
+  self: (smsvoice.PhoneNumberInformation | undefined)!E!R,
+): (smsvoice.PhoneNumberInformation | undefined)!E!R =>
   try Effect.repeat(self, {
     until: (p) => p === undefined || p.Status !== "PENDING",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(20)]),
@@ -187,10 +195,10 @@ export const PhoneNumberProvider = (): infer _ =>
     PhoneNumber,
     effect {
       const getById = effect (phoneNumberId: string) => {
-        const result = (try (smsvoice
+        const result = (effect { return (try (smsvoice
           .describePhoneNumbers({ PhoneNumberIds: [phoneNumberId] })
-          |> retrySmsVoiceThrottled(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          |> retrySmsVoiceThrottled(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return result?.PhoneNumbers?.find((p) => p.PhoneNumberId === phoneNumberId)
@@ -207,17 +215,18 @@ export const PhoneNumberProvider = (): infer _ =>
           if (observed === undefined) return undefined
           const attrs = try toAttrs(observed)
           const tags = try readSmsVoiceTags(observed.PhoneNumberArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (olds === undefined) return undefined
           if (
-            olds.isoCountryCode !== news.isoCountryCode
-            || olds.messageType !== news.messageType
-            || olds.numberType !== news.numberType
-            || !sameCapabilities(olds.numberCapabilities ?? [], news.numberCapabilities)
+            olds.isoCountryCode !== resolved.isoCountryCode
+            || olds.messageType !== resolved.messageType
+            || olds.numberType !== resolved.numberType
+            || !sameCapabilities(olds.numberCapabilities ?? [], resolved.numberCapabilities)
           ) {
             return { action: "replace" } as const
           }
@@ -291,9 +300,9 @@ export const PhoneNumberProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           try (effect {
-            return (try (smsvoice.releasePhoneNumber({ PhoneNumberId: output.phoneNumberId })
-              |> retrySmsVoiceThrottled(%))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            return (effect { return (try (smsvoice.releasePhoneNumber({ PhoneNumberId: output.phoneNumberId })
+              |> retrySmsVoiceThrottled(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -308,7 +317,7 @@ export const PhoneNumberProvider = (): infer _ =>
               Effect.forEach(
                 effect (info) =>
                   toAttrs(info) catch effect (e) => match (e) {
-                    when { _tag: "SmsVoicePhoneNumberMissing" }: try Effect.undefined;
+                    when { _tag: "SmsVoicePhoneNumberMissing" }: undefined;
                     default: throw e;
                   },
                 { concurrency: 5 },

@@ -249,7 +249,7 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (cci.listProjectsLocationsConversations.pages({ parent, pageSize: 100, view: "BASIC" })
       |> Stream.flatMap(%, (page) => Stream.fromIterable(page.conversations ?? []))
       |> Stream.filter(%, (conversation) =>
@@ -257,32 +257,33 @@ const listAt = effect (parent: string, project: string) =>
       |> Stream.map(%, (conversation) =>
         toAttrs(conversation, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const ConversationProvider = (): infer _ =>
   Provider.succeed(Conversation, {
     stables: ["name", "conversationId", "location", "project", "medium", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
       if (
         previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        && resolved.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.conversationId ?? output?.conversationId
       if (
         previousId !== undefined
-        && news.conversationId !== undefined
-        && news.conversationId !== previousId
+        && resolved.conversationId !== undefined
+        && resolved.conversationId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousMedium = olds?.medium ?? output?.medium
-      const nextMedium = news.medium ?? DEFAULT_MEDIUM
+      const nextMedium = resolved.medium ?? DEFAULT_MEDIUM
       if (previousMedium !== undefined && previousMedium !== nextMedium) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -297,7 +298,7 @@ export const ConversationProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -312,7 +313,7 @@ export const ConversationProvider = (): infer _ =>
       const conversationId = try toResourceId(id, news.conversationId, output?.conversationId)
       const name = resourceName(env.project, location, conversationId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const medium = news.medium ?? DEFAULT_MEDIUM
@@ -347,7 +348,7 @@ export const ConversationProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const agentChanged = !sameText(current.agentId, news.agentId)
       const languageChanged = !sameText(current.languageCode, news.languageCode)

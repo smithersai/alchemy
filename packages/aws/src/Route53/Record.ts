@@ -338,11 +338,12 @@ export interface Record extends Resource<
 export const Record = Resource<Record>("AWS.Route53.Record");
 
 /** @internal shared with `Records.ts` — not exported from the barrel. */
-export const normalizeHostedZoneId = (hostedZoneId: string) =>
+export const normalizeHostedZoneId = /** @throws {never} */ (hostedZoneId: string) =>
   hostedZoneId.replace(/^\/hostedzone\//, "");
 
 /** @internal shared with `Records.ts` — not exported from the barrel. */
-export const normalizeName = (name: string) => (name.endsWith(".") ? name : `${name}.`);
+export const normalizeName = /** @throws {never} */ (name: string) =>
+  name.endsWith(".") ? name : `${name}.`;
 
 /**
  * Route 53 returns record names in lowercase with special characters as

@@ -131,7 +131,7 @@ const toAttrs = (
 const getPool = effect (name: string) =>
   iam
     .getProjectsLocationsWorkloadIdentityPools({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -158,14 +158,17 @@ export const WorkloadIdentityPoolProvider = (): infer _ =>
     stables: ["name", "project", "workloadIdentityPoolId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousProject = olds?.project ?? output?.project ?? env.project
       const previousPoolId = olds?.workloadIdentityPoolId ?? output?.workloadIdentityPoolId
       if (
-        (news.project !== undefined && news.project !== previousProject)
-        || (news.workloadIdentityPoolId !== undefined
-          && news.workloadIdentityPoolId !== previousPoolId)
+        (resolved.project !== undefined && resolved.project !== previousProject)
+        || (resolved.workloadIdentityPoolId !== undefined
+          && resolved.workloadIdentityPoolId !== previousPoolId)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -185,22 +188,26 @@ export const WorkloadIdentityPoolProvider = (): infer _ =>
       if (existing === undefined || existing.state === "DELETED") return undefined
       const attrs = toAttrs(existing, project, poolId)
       const { labels } = parseOwnedDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (iam.listProjectsLocationsWorkloadIdentityPools
-          .pages({
-            parent: `projects/${env.project}/locations/global`,
-            pageSize: 100,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.workloadIdentityPools ?? []))
-          |> Stream.filter(%, (pool) => pool.state !== "DELETED" && hasOwnedDescription(pool.description))
-          |> Stream.map(%, (pool) => toAttrs(pool, env.project, lastSegment(pool.name ?? "")))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (iam.listProjectsLocationsWorkloadIdentityPools
+            .pages({
+              parent: `projects/${env.project}/locations/global`,
+              pageSize: 100,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.workloadIdentityPools ?? []))
+            |> Stream.filter(%, (pool) => pool.state !== "DELETED" && hasOwnedDescription(pool.description))
+            |> Stream.map(%, (pool) => toAttrs(pool, env.project, lastSegment(pool.name ?? "")))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: [] as WorkloadIdentityPool["Attributes"][];
         default: throw e;
       }
@@ -291,7 +298,7 @@ export const WorkloadIdentityPoolProvider = (): infer _ =>
       if (current?.state === "DELETED") return
       const operation = iam
         .deleteProjectsLocationsWorkloadIdentityPools({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) try waitForPoolOperation(operation)

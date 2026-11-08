@@ -106,7 +106,7 @@ export const EventTrackerProvider = (): infer _ =>
       const describe = effect (eventTrackerArn: string) => {
         const response = personalize
           .describeEventTracker({ eventTrackerArn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.eventTracker
@@ -149,12 +149,13 @@ export const EventTrackerProvider = (): infer _ =>
         stables: ["eventTrackerArn", "trackingId", "name"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (
             oldName !== newName
-            || (olds.datasetGroupArn ?? undefined) !== (news.datasetGroupArn ?? undefined)
+            || (olds.datasetGroupArn ?? undefined) !== (resolved.datasetGroupArn ?? undefined)
           ) {
             return { action: "replace" } as const
           }
@@ -166,7 +167,7 @@ export const EventTrackerProvider = (): infer _ =>
           if (tracker === undefined) return undefined
           const attrs = toAttrs(tracker)
           const tags = try readPersonalizeTags(tracker.eventTrackerArn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -183,7 +184,7 @@ export const EventTrackerProvider = (): infer _ =>
           //    prior run may have left a same-named tracker behind with no
           //    persisted state — adopt it by name and converge.
           if (tracker === undefined) {
-            const arn = ((try personalize
+            const arn = (effect { return ((try personalize
               .createEventTracker({
                 name,
                 datasetGroupArn: news.datasetGroupArn,
@@ -191,7 +192,7 @@ export const EventTrackerProvider = (): infer _ =>
                   tagKey,
                   tagValue,
                 })),
-              })).eventTrackerArn!) catch effect (error) => match (error) {
+              })).eventTrackerArn!) }) catch effect (error) => match (error) {
                 when { _tag: "ResourceAlreadyExistsException" }: try effect {
                   const existing = try findArnByName(name, news.datasetGroupArn)
                   return (existing === undefined ? throw error : existing)
@@ -212,7 +213,7 @@ export const EventTrackerProvider = (): infer _ =>
         delete: effect ({ output }) => {
           try (effect {
             return personalize.deleteEventTracker({ eventTrackerArn: output.eventTrackerArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }

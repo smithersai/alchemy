@@ -168,34 +168,40 @@ const toAttrs = (feature: aiplatform.GoogleCloudAiplatformV1Feature, project: st
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsFeaturestoresEntityTypesFeatures({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listFeatures = effect (parent: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsFeaturestoresEntityTypesFeatures
-      .pages({ parent, pageSize: 100 })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.features ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsFeaturestoresEntityTypesFeatures
+        .pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.features ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Feature[];
     default: throw e;
   }
 
 const listEntityTypes = effect (parent: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsFeaturestoresEntityTypes.pages({ parent, pageSize: 100 })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.entityTypes ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsFeaturestoresEntityTypes.pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.entityTypes ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1EntityType[];
     default: throw e;
   }
 
 const listFeaturestores = effect (parent: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsFeaturestores.pages({ parent, pageSize: 100 })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.featurestores ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsFeaturestores.pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.featurestores ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Featurestore[];
     default: throw e;
   }
@@ -230,17 +236,20 @@ export const FeaturestoresEntityTypesFeatureProvider = (): infer _ =>
     stables: ["name", "featureId", "entityType", "project", "location", "valueType", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.entityType ?? output?.entityType
-      const nextParent = news.entityType ?? previousParent
+      const nextParent = resolved.entityType ?? previousParent
       const previousId = olds?.featureId ?? output?.featureId
-      const nextId = news.featureId ?? previousId
+      const nextId = resolved.featureId ?? previousId
       const previousType = (
         olds?.valueType
           ?? output?.valueType
           ?? DEFAULT_VALUE_TYPE
       ).toUpperCase()
-      const nextType = (news.valueType ?? previousType).toUpperCase()
+      const nextType = (resolved.valueType ?? previousType).toUpperCase()
       if (
         (previousParent !== undefined
           && nextParent !== undefined
@@ -265,7 +274,12 @@ export const FeaturestoresEntityTypesFeatureProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -297,7 +311,7 @@ export const FeaturestoresEntityTypesFeatureProvider = (): infer _ =>
       const entityType = news.entityType
       const name = resourceName(entityType, featureId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const valueType = (news.valueType ?? output?.valueType ?? DEFAULT_VALUE_TYPE).toUpperCase()
@@ -318,7 +332,7 @@ export const FeaturestoresEntityTypesFeatureProvider = (): infer _ =>
               pointOfContact: news.pointOfContact,
               versionColumnName: news.versionColumnName,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -361,15 +375,17 @@ export const FeaturestoresEntityTypesFeatureProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (aiplatform
-        .deleteProjectsLocationsFeaturestoresEntityTypesFeatures({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (aiplatform
+          .deleteProjectsLocationsFeaturestoresEntityTypesFeatures({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

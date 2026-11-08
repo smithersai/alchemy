@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as Neon from "@distilled.cloud/neon"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -5,7 +7,6 @@ import type { Input } from "alchemy/Input"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
 import type { Providers } from "./Providers.vibe"
 
 export interface FunctionTriggerCommonProps {
@@ -93,7 +94,13 @@ export interface FunctionTrigger extends
  * @product Function
  */
 export const FunctionTrigger = Resource<FunctionTrigger>("Neon.FunctionTrigger")
-export error FunctionTriggerConfigurationError { mutable message: string }
+export class FunctionTriggerConfigurationError extends $MutableErrorBase("FunctionTriggerConfigurationError")<{
+  message: string;
+}> {static {
+    $MutableErrorMatcher(this, "FunctionTriggerConfigurationError", true);
+} 
+
+}
 const scopeOf = (fn: { projectId: string; branchId: string }): infer _ => ({
   project_id: fn.projectId,
   branch_id: fn.branchId,
@@ -198,7 +205,7 @@ export const FunctionTriggerProvider = (): infer _ =>
       })
       if (!found) return undefined
       const result = attrs(fn, found)
-      return output ? result : Unowned(result)
+      return output ? result : try Effect.orDie(Effect.try({ try: () => Unowned(result), catch: (e) => e }))
     },
     reconcile: effect ({ id, news, output }) => {
       const scope = scopeOf(news.function)
@@ -206,10 +213,10 @@ export const FunctionTriggerProvider = (): infer _ =>
       let current = try observe(scope, { id: output?.triggerId, name })
       const desired = try desiredConfig(news, name, current?.inherited ?? false)
       if (!current) {
-        current = (try Neon.createProjectBranchTrigger({
+        current = (effect { return (try Neon.createProjectBranchTrigger({
           ...scope,
           body: desired,
-        })).trigger catch effect (error) => match (error) {
+        })).trigger }) catch effect (error) => match (error) {
           when { _tag: "Conflict" }: try effect {
             const trigger = try observe(scope, { name })
             return (trigger ? trigger : throw error)
@@ -244,6 +251,6 @@ export const FunctionTriggerProvider = (): infer _ =>
       Neon.deleteProjectBranchTrigger({
         ...scope,
         trigger_id: output.triggerId,
-      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

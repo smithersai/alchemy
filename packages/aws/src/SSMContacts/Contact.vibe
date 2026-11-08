@@ -163,18 +163,25 @@ export const ContactProvider = (): infer _ =>
       const getContact = effect (arn: string) =>
         contacts
           .getContact({ ContactId: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       const readTags = effect (arn: string) =>
-        (tagRecord(
-          ((try contacts.listTagsForResource({ ResourceARN: arn })).Tags ?? []).flatMap((t) =>
+        (effect {
+          const tags = ((try contacts.listTagsForResource({ ResourceARN: arn })).Tags ?? []).flatMap((t) =>
             t.Key !== undefined && t.Value !== undefined
               ? [{ Key: t.Key, Value: t.Value }]
               : []
-          ),
-        )) catch () => ({})
+          )
+          return (try Effect.orDie(Effect.try({
+            try: () =>
+              tagRecord(
+                tags,
+              ),
+            catch: (e) => e,
+          })))
+        }) catch () => ({})
 
       const buildAttrs = (contact: contacts.GetContactResult): infer _ => ({
         contactArn: contact.ContactArn,
@@ -204,13 +211,16 @@ export const ContactProvider = (): infer _ =>
           if (contact === undefined) return undefined
           const attrs = buildAttrs(contact)
           const tags = try readTags(contact.ContactArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Alias and type are create-only; display name, plan, and tags update
         // in place.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldAlias = try createAlias(id, olds)
           const newAlias = try createAlias(id, news)
           if (oldAlias !== newAlias) return { action: "replace" } as const
@@ -229,18 +239,20 @@ export const ContactProvider = (): infer _ =>
           // 2. ENSURE — create if missing; tolerate the already-exists race.
           if (contact === undefined) {
             try session.note(`creating contact ${alias}`)
-            ;(try (contacts
-              .createContact({
-                Alias: alias,
-                DisplayName: news.displayName,
-                Type: news.type,
-                Plan: news.plan ?? { Stages: [] },
-                Tags: createTagsList(desiredTags),
-              })
-              |> Effect.asVoid(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (contacts
+                .createContact({
+                  Alias: alias,
+                  DisplayName: news.displayName,
+                  Type: news.type,
+                  Plan: news.plan ?? { Stages: [] },
+                  Tags: createTagsList(desiredTags),
+                })
+                |> Effect.asVoid(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             contact = (try getContact(arn))!
           }
 
@@ -261,11 +273,13 @@ export const ContactProvider = (): infer _ =>
           //     when the prop is provided; there is no delete-policy API.
           if (news.policy !== undefined) {
             const desiredPolicy = typeof news.policy === "string" ? news.policy : JSON.stringify(news.policy)
-            const observedPolicy = (try contacts
-              .getContactPolicy({ ContactArn: contact.ContactArn })).Policy catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const observedPolicy = (effect {
+              return (try contacts
+                .getContactPolicy({ ContactArn: contact.ContactArn })).Policy
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
+              default: throw e;
+            }
             if (
               observedPolicy === undefined
               || !same(parsePolicy(observedPolicy), parsePolicy(desiredPolicy))
@@ -300,11 +314,13 @@ export const ContactProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (contacts.deleteContact({ ContactId: output.contactArn })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (contacts.deleteContact({ ContactId: output.contactArn })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

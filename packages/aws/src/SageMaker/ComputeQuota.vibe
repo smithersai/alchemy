@@ -151,7 +151,7 @@ const createQuotaName = effect (
 const describeQuotaOrUndefined = effect (quotaId: string) =>
   sagemaker
     .describeComputeQuota({ ComputeQuotaId: quotaId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFound" }: try Effect.undefined;
+      when { _tag: "ResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -170,7 +170,7 @@ const findQuotaByName = effect (name: string) => {
 const fetchQuotaTags = effect (arn: string) => {
   const response = sagemaker
     .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      when { _tag: "AccessDeniedException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -233,8 +233,8 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(60)]),
   })
 
-const waitForQuota = (quotaId: string, target: "Ready" | "Gone") =>
-  retryWhileNotReady(
+const waitForQuota = effect (quotaId: string, target: "Ready" | "Gone") =>
+  try retryWhileNotReady(
     effect {
       const described = try describeQuotaOrUndefined(quotaId)
       if (target === "Gone") {
@@ -302,15 +302,16 @@ export const ComputeQuotaProvider = (): infer _ =>
           }
           const attrs = toAttrs(described)
           const tags = try fetchQuotaTags(attrs.computeQuotaArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           const oldName = try createQuotaName(id, olds)
-          const newName = try createQuotaName(id, news)
+          const newName = try createQuotaName(id, resolved)
           // The name and target cluster are fixed at creation.
-          if (oldName !== newName || olds.clusterArn !== news.clusterArn) {
+          if (oldName !== newName || olds.clusterArn !== resolved.clusterArn) {
             return { action: "replace" } as const
           }
         },
@@ -350,7 +351,7 @@ export const ComputeQuotaProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             quotaId = created?.ComputeQuotaId ?? (try findQuotaByName(name))?.ComputeQuotaId
@@ -400,7 +401,7 @@ export const ComputeQuotaProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchQuotaTags(attrs.computeQuotaArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: attrs.computeQuotaArn,
@@ -420,7 +421,7 @@ export const ComputeQuotaProvider = (): infer _ =>
         delete: effect ({ output }) => {
           sagemaker
             .deleteComputeQuota({ ComputeQuotaId: output.computeQuotaId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFound" }: try Effect.void;
+              when { _tag: "ResourceNotFound" }: (undefined as void);
               default: throw e;
             }
           try waitForQuota(output.computeQuotaId, "Gone")

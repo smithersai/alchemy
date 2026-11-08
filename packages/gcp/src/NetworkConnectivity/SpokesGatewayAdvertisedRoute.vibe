@@ -214,32 +214,41 @@ export const SpokesGatewayAdvertisedRouteProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.gatewayAdvertisedRouteId ?? output?.gatewayAdvertisedRouteId
-      const nextId = news.gatewayAdvertisedRouteId
-        ? rfc1035(news.gatewayAdvertisedRouteId, "gateway-advertised-route")
-        : previousId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.gatewayAdvertisedRouteId
+            ? rfc1035(resolved.gatewayAdvertisedRouteId, "gateway-advertised-route")
+            : previousId,
+        catch: (e) => e,
+      }))
       const previousParent = olds?.parent ?? output?.parent
       const previousRange = olds?.ipRange ?? output?.ipRange
       const previousLabels = olds?.labels ?? output?.labels
       const previousDescription = olds?.description ?? output?.description
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
-      const parentChanged = previousParent !== undefined && previousParent !== news.parent
-      const rangeChanged = previousRange !== undefined && previousRange !== news.ipRange
+      const parentChanged = previousParent !== undefined && previousParent !== resolved.parent
+      const rangeChanged = previousRange !== undefined && previousRange !== resolved.ipRange
       // `labels` is not mutable on GatewayAdvertisedRoute (PATCH rejects the
       // path), so a labels change replaces the route.
-      const labels = diffLabels(toLabels(previousLabels), toLabels(news.labels))
+      const labels = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(toLabels(previousLabels), toLabels(resolved.labels)), catch: (e) => e }),
+      )
       const labelsChanged = previousLabels !== undefined && (labels.upsert.length > 0 || labels.removed.length > 0)
       // `description` is not mutable either.
       const descriptionChanged = (olds !== undefined || output !== undefined)
-        && (previousDescription ?? "") !== (news.description ?? "")
+        && (previousDescription ?? "") !== (resolved.description ?? "")
       if (idChanged || parentChanged || rangeChanged || labelsChanged || descriptionChanged) {
         return {
           action: "replace" as const,
           // A route with a pinned id, or the same CIDR on the same spoke,
           // collides with the old route; delete it first.
           deleteFirst: !parentChanged
-            && (!rangeChanged || (news.gatewayAdvertisedRouteId !== undefined && !idChanged)),
+            && (!rangeChanged || (resolved.gatewayAdvertisedRouteId !== undefined && !idChanged)),
         }
       }
       return undefined
@@ -260,7 +269,12 @@ export const SpokesGatewayAdvertisedRouteProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -300,7 +314,7 @@ export const SpokesGatewayAdvertisedRouteProvider = (): infer _ =>
       )
       const name = resourceNameOf(news.parent, gatewayAdvertisedRouteId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const priority = news.priority ?? DEFAULT_PRIORITY
@@ -308,23 +322,25 @@ export const SpokesGatewayAdvertisedRouteProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkconnectivity
-          .createProjectsLocationsSpokesGatewayAdvertisedRoutes({
-            parent: news.parent,
-            gatewayAdvertisedRouteId,
-            body: {
-              ipRange: news.ipRange,
-              priority,
-              recipient: news.recipient,
-              description: news.description,
-              labels: desiredLabels,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkconnectivity
+            .createProjectsLocationsSpokesGatewayAdvertisedRoutes({
+              parent: news.parent,
+              gatewayAdvertisedRouteId,
+              body: {
+                ipRange: news.ipRange,
+                priority,
+                recipient: news.recipient,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -339,10 +355,14 @@ export const SpokesGatewayAdvertisedRouteProvider = (): infer _ =>
       // when they change.
       const priorityChanged = (current.priority ?? DEFAULT_PRIORITY) !== priority
       const recipientChanged = (current.recipient ?? "") !== (news.recipient ?? "")
-      const updateMask = changedFields([
-        ["priority", priorityChanged],
-        ["recipient", recipientChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["priority", priorityChanged],
+            ["recipient", recipientChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkconnectivity.patchProjectsLocationsSpokesGatewayAdvertisedRoutes({
@@ -363,15 +383,17 @@ export const SpokesGatewayAdvertisedRouteProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkconnectivity
-        .deleteProjectsLocationsSpokesGatewayAdvertisedRoutes({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkconnectivity
+          .deleteProjectsLocationsSpokesGatewayAdvertisedRoutes({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

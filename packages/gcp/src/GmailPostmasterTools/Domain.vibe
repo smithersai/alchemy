@@ -119,12 +119,19 @@ export const DomainProvider = (): infer _ =>
     stables: ["name", "domainId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previous = olds?.domainId ?? output?.domainId
       if (
-        previous !== undefined
-        && news.domainId !== undefined
-        && domainIdOf(news.domainId) !== domainIdOf(previous)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previous !== undefined
+            && resolved.domainId !== undefined
+            && domainIdOf(resolved.domainId) !== domainIdOf(previous),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -134,11 +141,14 @@ export const DomainProvider = (): infer _ =>
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
       const domainId = olds?.domainId ?? output?.domainId ?? ""
-      const name = toDomainName(output?.name || domainId)
+      const name = try Effect.orDie(Effect.try({ try: () => toDomainName(output?.name || domainId), catch: (e) => e }))
       const existing = try getDomain(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, domainId)
-      return output !== undefined || isAlchemyDomain(existing.name) ? attrs : Unowned(attrs)
+      return output !== undefined
+          || (try Effect.orDie(Effect.try({ try: () => isAlchemyDomain(existing.name), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -150,7 +160,7 @@ export const DomainProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const domainId = try toGeneratedDomainId(id, news.domainId, output?.domainId)
-      const name = toDomainName(domainId)
+      const name = try Effect.orDie(Effect.try({ try: () => toDomainName(domainId), catch: (e) => e }))
 
       let current = try getDomain(output?.name || name)
 
@@ -183,7 +193,8 @@ export const DomainProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const name = output.name || toDomainName(output.domainId)
+      const name = output.name
+        || (try Effect.orDie(Effect.try({ try: () => toDomainName(output.domainId), catch: (e) => e })))
       if (name.length === 0) return
       try ignoreMissing(
         effect {

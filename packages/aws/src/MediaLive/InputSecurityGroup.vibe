@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as medialive from "@distilled.cloud/aws/medialive"
 import { Unowned } from "alchemy/AdoptPolicy"
 import * as Provider from "alchemy/Provider"
@@ -114,7 +115,7 @@ export const InputSecurityGroupProvider = (): infer _ =>
       const getGroup = effect (id: string) => {
         const isg = medialive
           .describeInputSecurityGroup({ InputSecurityGroupId: id }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
         if (isg === undefined || isg.State === "DELETED") return undefined
@@ -165,7 +166,9 @@ export const InputSecurityGroupProvider = (): infer _ =>
             : try findByTags(id)
           if (isg === undefined) return undefined
           const attrs = toAttrs(isg)
-          return (try hasAlchemyTags(id, toTagRecord(isg.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, toTagRecord(isg.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // No immutable props — every drift is an in-place update.
@@ -221,14 +224,16 @@ export const InputSecurityGroupProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (medialive
-            .deleteInputSecurityGroup({
-              InputSecurityGroupId: output.inputSecurityGroupId,
-            })
-            |> retryWhileInUse(%))) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (medialive
+              .deleteInputSecurityGroup({
+                InputSecurityGroupId: output.inputSecurityGroupId,
+              })
+              |> retryWhileInUse(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

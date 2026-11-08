@@ -145,8 +145,8 @@ const WebFunctionEndpointResource = Resource<WebFunctionEndpoint>(WebFunctionEnd
 
 /** Yield a `function` declaration so the endpoint references the resource. */
 /** The settings Lambda limits, as numbers (Outputs resolve at deploy). */
-const checkEndpointProps = (id: string, props: WebFunctionEndpointProps) =>
-  validateWebFunctionSettings(`AWS.Lambda.WebFunctionEndpoint "${id}"`, {
+const checkEndpointProps = effect (id: string, props: WebFunctionEndpointProps) =>
+  try validateWebFunctionSettings(`AWS.Lambda.WebFunctionEndpoint "${id}"`, {
     rateLimit: typeof props.rateLimit === "number" ? props.rateLimit : undefined,
     maxEnvironments: typeof props.maxEnvironments === "number" ? props.maxEnvironments : undefined,
     canary: typeof props.canary?.weight === "number" ? props.canary : undefined,
@@ -235,10 +235,10 @@ const resolveEndpointProps = effect (
  * @resource
  */
 export const WebFunctionEndpoint: typeof WebFunctionEndpointResource = Object.assign(
-  (
+  effect (
     id: string,
     props: WebFunctionEndpointProps | (WebFunctionEndpointProps!never!Providers),
-  ) => WebFunctionEndpointResource(id, resolveEndpointProps(id, props)),
+  ) => try WebFunctionEndpointResource(id, resolveEndpointProps(id, props)),
   WebFunctionEndpointResource,
 )
 
@@ -273,25 +273,26 @@ export const WebFunctionEndpointProvider = (): infer _ =>
       return {
         stables: ["functionName", "endpointName", "endpointArn"],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return
+          const resolved__ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved__ === undefined) return
           try validateWebFunctionSettings(`AWS.Lambda.WebFunctionEndpoint "${id}"`, {
-            rateLimit: news.rateLimit,
-            maxEnvironments: news.maxEnvironments,
-            canary: news.canary,
+            rateLimit: resolved__.rateLimit,
+            maxEnvironments: resolved__.maxEnvironments,
+            canary: resolved__.canary,
           })
           if (!output || !olds) return undefined
           // A different function, name, type, or Region set is a different
           // endpoint (and URL). The name is shared with the old endpoint on
           // the same function, so the old one must go first.
-          const sameFunction = functionOf(news).functionName === output.functionName
-          const sameName = nameOf(id, news) === output.endpointName
+          const sameFunction = functionOf(resolved__).functionName === output.functionName
+          const sameName = nameOf(id, resolved__) === output.endpointName
           if (!sameFunction || !sameName) {
             return { action: "replace" }
           }
-          if (endpointIdentityChanged(olds, news)) {
+          if (try Effect.orDie(Effect.try({ try: () => endpointIdentityChanged(olds, resolved__), catch: (e) => e }))) {
             return { action: "replace", deleteFirst: true }
           }
-          if (deepEqual(olds, news)) return { action: "noop" }
+          if (try Effect.orDie(Effect.try({ try: () => deepEqual(olds, resolved__), catch: (e) => e }))) return { action: "noop" }
         },
         read: effect ({ id, olds, output }) => {
           const functionName = output?.functionName ?? (olds ? functionOf(olds).functionName : undefined)
@@ -302,7 +303,7 @@ export const WebFunctionEndpointProvider = (): infer _ =>
           // function's.
           return endpoint === undefined
             ? undefined
-            : toAttributes(functionName, endpoint, latestRevisionId(endpoint, output?.revisionId))
+            : toAttributes(functionName, endpoint, try Effect.orDie(Effect.try({ try: () => latestRevisionId(endpoint, output?.revisionId), catch: (e) => e })))
         },
         reconcile: effect ({ id, news, output, session }) => {
           // Values that were Outputs at plan are resolved now.
@@ -328,10 +329,10 @@ export const WebFunctionEndpointProvider = (): infer _ =>
           })
           // Moving off a revision whose egress connector the new one no
           // longer uses (e.g. `vpc` removed) may leave it unused.
-          const stillServed = new Set(servedRevisions(endpoint).map((w) => w.revisionId))
+          const stillServed = new Set((try Effect.orDie(Effect.try({ try: () => servedRevisions(endpoint), catch: (e) => e }))).map((w) => w.revisionId))
           for (
             const { revisionId: previousRevisionId } of previous
-              ? servedRevisions(previous)
+              ? try Effect.orDie(Effect.try({ try: () => servedRevisions(previous), catch: (e) => e }))
               : []
           ) {
             if (stillServed.has(previousRevisionId)) continue
@@ -339,7 +340,7 @@ export const WebFunctionEndpointProvider = (): infer _ =>
             const currentConnector = try connectorOfRevision(functionName, revisionId)
             if (
               previousConnector !== undefined
-              && !sameConnector(previousConnector, currentConnector)
+              && !(try Effect.orDie(Effect.try({ try: () => sameConnector(previousConnector, currentConnector), catch: (e) => e })))
             ) {
               try releaseEgressConnector({
                 functionName,

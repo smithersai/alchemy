@@ -74,8 +74,9 @@ export const SSHPublicKeyProvider = (): infer _ =>
   Provider.succeed(SSHPublicKey, {
     stables: ["sshPublicKeyId"],
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return
-      if (olds.userName !== news.userName || olds.sshPublicKeyBody !== news.sshPublicKeyBody) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return
+      if (olds.userName !== resolved.userName || olds.sshPublicKeyBody !== resolved.sshPublicKeyBody) {
         return { action: "replace" } as const
       }
     },
@@ -89,7 +90,7 @@ export const SSHPublicKeyProvider = (): infer _ =>
           SSHPublicKeyId: output.sshPublicKeyId,
           Encoding: "SSH",
         }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
       if (!response?.SSHPublicKey?.SSHPublicKeyId) {
@@ -110,13 +111,13 @@ export const SSHPublicKeyProvider = (): infer _ =>
       // and identity are immutable (`diff` triggers replacement on body
       // change), so a missing key always means we need to upload.
       const observed = output
-        ? (try iam
+        ? (effect { return (try iam
           .getSSHPublicKey({
             UserName: output.userName,
             SSHPublicKeyId: output.sshPublicKeyId,
             Encoding: "SSH",
-          })).SSHPublicKey catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          })).SSHPublicKey }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           }
         : undefined
@@ -161,7 +162,7 @@ export const SSHPublicKeyProvider = (): infer _ =>
         .deleteSSHPublicKey({
           UserName: output.userName,
           SSHPublicKeyId: output.sshPublicKeyId,
-        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: (undefined as void); default: throw e; }
     },
     // IAM is a global service. `listSSHPublicKeys` requires a `UserName`, so we
     // enumerate every IAM user first (paginated) and then list each user's keys
@@ -176,19 +177,19 @@ export const SSHPublicKeyProvider = (): infer _ =>
       const perUser = try Effect.forEach(
         users,
         effect (user) =>
-          ((try Effect.forEach(
+          (effect { return ((try Effect.forEach(
             Array.from(
               try (iam.listSSHPublicKeys.pages({ UserName: user.UserName })
                 |> Stream.runCollect(%)),
             ).flatMap((page) => page.SSHPublicKeys ?? []),
             effect (meta) =>
-              (try iam
+              (effect { return (try iam
                 .getSSHPublicKey({
                   UserName: meta.UserName,
                   SSHPublicKeyId: meta.SSHPublicKeyId,
                   Encoding: "SSH",
-                })).SSHPublicKey catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+                })).SSHPublicKey }) catch effect (e) => match (e) {
+                  when { _tag: "NoSuchEntityException" }: undefined;
                   default: throw e;
                 },
             { concurrency: 10 },
@@ -201,7 +202,7 @@ export const SSHPublicKeyProvider = (): infer _ =>
               sshPublicKeyBody: key.SSHPublicKeyBody,
               status: key.Status,
               uploadDate: key.UploadDate,
-            }))) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
+            }))) }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
         { concurrency: 10 },
       )
       return perUser.flat()

@@ -141,12 +141,14 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   firestore
     .getProjectsDatabasesUserCreds({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOnDatabase = effect (parent: string) =>
-  ((try firestore.listProjectsDatabasesUserCreds({ parent })).userCreds ?? []) catch effect (e) => match (e) {
+  (effect {
+    return ((try firestore.listProjectsDatabasesUserCreds({ parent })).userCreds ?? [])
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as firestore.GoogleFirestoreAdminV1UserCreds[];
     default: throw e;
   }
@@ -178,13 +180,16 @@ export const DatabasesUserCredProvider = (): infer _ =>
     stables: ["name", "userCredsId", "database", "databaseId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.userCredsId ?? output?.userCredsId
-      const nextId = news.userCredsId ?? previousId
+      const nextId = resolved.userCredsId ?? previousId
       const previousDatabase = databaseIdOf(
         olds?.database ?? output?.database ?? output?.databaseId ?? "",
       )
-      const nextDatabase = databaseIdOf(news.database)
+      const nextDatabase = databaseIdOf(resolved.database)
       if (
         (previousId !== undefined && nextId !== undefined && previousId !== nextId)
         || (previousDatabase.length > 0 && previousDatabase !== nextDatabase)
@@ -207,7 +212,9 @@ export const DatabasesUserCredProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, output?.securePassword)
       // No labels field: without prior state they may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -251,7 +258,7 @@ export const DatabasesUserCredProvider = (): infer _ =>
     delete: effect ({ output }) => {
       firestore
         .deleteProjectsDatabasesUserCreds({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       try waitUntilGone(output.name)

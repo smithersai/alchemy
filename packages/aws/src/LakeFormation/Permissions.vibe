@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as lf from "@distilled.cloud/aws/lakeformation"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -130,7 +131,9 @@ export const PermissionsProvider = (): infer _ =>
 
         read: effect ({ olds, output }) => {
           const principal = output?.principal ?? olds?.principal
-          const resource = output?.resource ?? (olds !== undefined ? toWireResource(olds.resource) : undefined)
+          const resource = output?.resource ?? (olds !== undefined
+            ? try Effect.orDie(Effect.try({ try: () => toWireResource(olds.resource), catch: (e) => e }))
+            : undefined)
           if (principal === undefined || resource === undefined) {
             return undefined
           }
@@ -152,14 +155,20 @@ export const PermissionsProvider = (): infer _ =>
           }
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.principal !== olds.principal) {
             return { action: "replace" } as const
           }
           if (
-            JSON.stringify(toWireResource(news.resource))
-              !== JSON.stringify(toWireResource(olds.resource))
+            JSON.stringify(try Effect.orDie(Effect.try({ try: () => toWireResource(news.resource), catch: (e) => e })))
+              !== JSON.stringify(
+                try Effect.orDie(Effect.try({
+                  try: () => toWireResource(olds.resource),
+                  catch: (e) => e,
+                })),
+              )
           ) {
             return { action: "replace" } as const
           }
@@ -170,7 +179,7 @@ export const PermissionsProvider = (): infer _ =>
         },
 
         reconcile: effect ({ news, session }) => {
-          const resource = toWireResource(news.resource)
+          const resource = try Effect.orDie(Effect.try({ try: () => toWireResource(news.resource), catch: (e) => e }))
           const principal: lf.DataLakePrincipal = {
             DataLakePrincipalIdentifier: news.principal,
           }
@@ -263,20 +272,22 @@ export const PermissionsProvider = (): infer _ =>
             default: throw e;
           }
           if (current.permissions.length === 0) return
-          ;(try (lf
-            .revokePermissions({
-              CatalogId: output.catalogId,
-              Principal: { DataLakePrincipalIdentifier: output.principal },
-              Resource: output.resource,
-              Permissions: current.permissions,
-              PermissionsWithGrantOption: current.permissionsWithGrantOption.length > 0
-                ? current.permissionsWithGrantOption
-                : undefined,
-            })
-            |> retryWhileConcurrentModification(%))) catch effect (e) => match (e) {
-              when { _tag: "EntityNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (lf
+              .revokePermissions({
+                CatalogId: output.catalogId,
+                Principal: { DataLakePrincipalIdentifier: output.principal },
+                Resource: output.resource,
+                Permissions: current.permissions,
+                PermissionsWithGrantOption: current.permissionsWithGrantOption.length > 0
+                  ? current.permissionsWithGrantOption
+                  : undefined,
+              })
+              |> retryWhileConcurrentModification(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "EntityNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

@@ -49,7 +49,7 @@ import {
   HASHER_BINDING,
   InternalSecret,
 } from "./Hasher/Hasher.ts";
-import { decodeDeltaBatch, encodeDeltaResults } from "./Hasher/Protocol.vibe";
+import { decodeDeltaBatch, encodeDeltaResults } from "./Hasher/Protocol.ts";
 import * as ReceivePackHttp from "./Http/ReceivePack.ts";
 import { bundleCovers, type BundleInfo } from "./Jobs/Bundle.vibe";
 import { Operations } from "./Operations.ts";

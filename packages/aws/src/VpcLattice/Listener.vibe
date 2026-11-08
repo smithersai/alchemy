@@ -141,21 +141,21 @@ export const ListenerProvider = (): infer _ =>
       const observe = effect (serviceIdentifier: string, listenerIdentifier: string) =>
         vpclattice
           .getListener({ serviceIdentifier, listenerIdentifier }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       const findByName = effect (serviceIdentifier: string, name: string) =>
-        (try effect {
+        (effect { return (try effect {
           const summary = Array.from(
             try (vpclattice.listListeners.pages({ serviceIdentifier })
               |> Stream.runCollect(%)),
           )
             .flatMap((page) => page.items ?? [])
             .find((l) => l.name === name)
-          return (summary?.id ? try observe(serviceIdentifier, summary.id) : try Effect.undefined)
-        }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          return (summary?.id ? try observe(serviceIdentifier, summary.id) : undefined)
+        }) }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -163,7 +163,7 @@ export const ListenerProvider = (): infer _ =>
         const listed = try vpclattice.listTagsForResource({
           resourceArn: arn,
         })
-        const { removed, upsert } = diffTags(tagRecord(listed.tags), desiredTags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(tagRecord(listed.tags), desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try vpclattice.tagResource({
             resourceArn: arn,
@@ -181,14 +181,15 @@ export const ListenerProvider = (): infer _ =>
       return {
         stables: ["listenerId", "listenerArn", "name", "serviceId", "serviceArn"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           if (
-            olds?.serviceIdentifier !== news.serviceIdentifier
-            || olds?.protocol !== news.protocol
-            || (olds?.port ?? undefined) !== news.port
+            olds?.serviceIdentifier !== resolved.serviceIdentifier
+            || olds?.protocol !== resolved.protocol
+            || (olds?.port ?? undefined) !== resolved.port
           ) {
             return { action: "replace" } as const
           }
@@ -213,9 +214,9 @@ export const ListenerProvider = (): infer _ =>
             port: listener.port,
             serviceId: listener.serviceId,
             serviceArn: listener.serviceArn,
-            tags: tagRecord(listed.tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(listed.tags), catch: (e) => e })),
           }
-          return (try hasAlchemyTags(id, listed.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, listed.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, session }) => {
           const name = try toName(id, news)
@@ -283,7 +284,7 @@ export const ListenerProvider = (): infer _ =>
               listenerIdentifier: output.listenerId,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
           try waitUntilAbsent(observe(output.serviceId, output.listenerId))

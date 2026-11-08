@@ -47,10 +47,11 @@ export const rfc1035 = (name: string, fallback = "vm"): string => {
 export const normalizeLocation = (location: string | undefined, fallback: string) =>
   lastSegment(location ?? fallback).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
-export const globalParent = (project: string) => `projects/${project}/locations/${GLOBAL_LOCATION}`;
+export const globalParent = /** @throws {never} */ (project: string) =>
+  `projects/${project}/locations/${GLOBAL_LOCATION}`;
 
 export const parentOfName = (name: string) => {
   const parts = name.split("/").filter((part) => part.length > 0);
@@ -106,12 +107,13 @@ export const expandParent = (
 export const sourceOf = (value: string, project: string, location: string) =>
   expandParent(value, project, location, "sources");
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -136,7 +138,7 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
 export const replaceOnIdentity = (input: {

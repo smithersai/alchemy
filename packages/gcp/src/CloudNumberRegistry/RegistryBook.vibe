@@ -180,13 +180,20 @@ export const RegistryBookProvider = (): infer _ =>
     stables: ["name", "registryBookId", "project", "location", "isDefault", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousId: olds?.registryBookId ?? output?.registryBookId,
-        nextId: news.registryBookId ?? olds?.registryBookId ?? output?.registryBookId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location),
-        nextLocation: normalizeLocation(news.location ?? olds?.location ?? output?.location),
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.registryBookId ?? output?.registryBookId,
+            nextId: resolved.registryBookId ?? olds?.registryBookId ?? output?.registryBookId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location),
+            nextLocation: normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -197,12 +204,22 @@ export const RegistryBookProvider = (): infer _ =>
         output?.registryBookId,
         "book",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, registryBookId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, registryBookId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -219,10 +236,14 @@ export const RegistryBookProvider = (): infer _ =>
         output?.registryBookId,
         "book",
       )
-      const location = normalizeLocation(news.location ?? output?.location)
-      const name = resourceName(env.project, location, COLLECTION, registryBookId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, registryBookId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const claimedScopes = expandScopes(news.claimedScopes, env.project)
@@ -276,16 +297,18 @@ export const RegistryBookProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (cnr
-        .deleteProjectsLocationsRegistryBooks({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (cnr
+          .deleteProjectsLocationsRegistryBooks({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

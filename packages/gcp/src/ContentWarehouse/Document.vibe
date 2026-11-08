@@ -193,21 +193,30 @@ export const DocumentProvider = (): infer _ =>
     stables: ["name", "documentId", "referenceId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const schemaChanged = (olds?.documentSchemaName ?? output?.documentSchemaName) !== undefined
-        && news.documentSchemaName !== (olds?.documentSchemaName ?? output?.documentSchemaName)
-      return replaceOnIdentity({
-        previousId: olds?.referenceId ?? output?.referenceId,
-        nextId: news.referenceId,
-        previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
-        extra: schemaChanged,
-      })
+        && resolved.documentSchemaName !== (olds?.documentSchemaName ?? output?.documentSchemaName)
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.referenceId ?? output?.referenceId,
+            nextId: resolved.referenceId,
+            previousLocation: olds?.location ?? output?.location,
+            nextLocation: resolved.location ?? olds?.location ?? output?.location,
+            extra: schemaChanged,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const documentId = olds?.documentId ?? output?.documentId
       const referenceId = olds?.referenceId ?? output?.referenceId
       const name = output?.name
@@ -226,7 +235,9 @@ export const DocumentProvider = (): infer _ =>
         existing = try getByName(referenceName(env.project, location, referenceId ?? generated))
         if (existing === undefined) return undefined
         const attrs = toAttrs(existing, env.project)
-        return referenceId === undefined ? attrs : Unowned(attrs)
+        return referenceId === undefined
+          ? attrs
+          : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
       }
       if (existing === undefined) return undefined
       return toAttrs(existing, env.project)
@@ -234,8 +245,12 @@ export const DocumentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       try ensureProject(parent)
       const referenceId = try toPhysicalId(id, news.referenceId, output?.referenceId, "doc")
       const displayName = news.displayName ?? referenceId
@@ -249,27 +264,29 @@ export const DocumentProvider = (): infer _ =>
       }
 
       if (current === undefined) {
-        const created = (try cw
-          .createProjectsLocationsDocuments({
-            parent,
-            body: {
-              document: {
-                displayName,
-                title,
-                plainText: news.plainText ?? title,
-                documentSchemaName: news.documentSchemaName,
-                referenceId,
-                rawDocumentPath: news.rawDocumentPath,
-                displayUri: news.displayUri,
-                contentCategory: news.contentCategory,
-                textExtractionDisabled,
-                properties: news.properties,
+        const created = (effect {
+          return (try cw
+            .createProjectsLocationsDocuments({
+              parent,
+              body: {
+                document: {
+                  displayName,
+                  title,
+                  plainText: news.plainText ?? title,
+                  documentSchemaName: news.documentSchemaName,
+                  referenceId,
+                  rawDocumentPath: news.rawDocumentPath,
+                  displayUri: news.displayUri,
+                  contentCategory: news.contentCategory,
+                  textExtractionDisabled,
+                  properties: news.properties,
+                },
               },
-            },
-          })).document catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try getByName(referenceName(env.project, location, referenceId));
-            default: throw e;
-          }
+            })).document
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(referenceName(env.project, location, referenceId));
+          default: throw e;
+        }
         current = created
           ?? (try waitUntilExists(
             getByName(referenceName(env.project, location, referenceId)),
@@ -287,7 +304,9 @@ export const DocumentProvider = (): infer _ =>
       const textChanged = !sameText(current.plainText, news.plainText ?? title)
       const uriChanged = !sameText(current.displayUri, news.displayUri)
       const pathChanged = !sameText(current.rawDocumentPath, news.rawDocumentPath)
-      const propertiesChanged = !sameJson(current.properties, news.properties)
+      const propertiesChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.properties, news.properties), catch: (e) => e }),
+      ))
       if (
         displayChanged
         || titleChanged

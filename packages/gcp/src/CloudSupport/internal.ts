@@ -53,13 +53,16 @@ export const sameText = (left: string | undefined, right: string | undefined) =>
 export const isDeleted = (subscription: cloudsupport.SupportEventSubscription | undefined) =>
   subscription?.state === "DELETED";
 
-export const expandTopic = (value: string, project: string) => {
+export const expandTopic = /** @throws {never} */ (value: string, project: string) => {
   const trimmed = value.replace(/\/+$/, "");
   if (trimmed.includes("/topics/")) return trimmed;
   return `projects/${project}/topics/${lastSegment(trimmed)}`;
 };
 
-export const sameTopic = (left: string | undefined, right: string | undefined) => {
+export const sameTopic = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => {
   if (left === undefined || right === undefined) return left === right;
   return left === right || lastSegment(left) === lastSegment(right);
 };

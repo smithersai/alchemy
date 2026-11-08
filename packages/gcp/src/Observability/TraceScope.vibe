@@ -151,7 +151,7 @@ const toAttrs = (scope: observability.TraceScope, project: string, location: str
 const getByName = effect (name: string) =>
   observability
     .getProjectsLocationsTraceScopes({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -160,15 +160,18 @@ export const TraceScopeProvider = (): infer _ =>
     stables: ["name", "traceScopeId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.traceScopeId ?? output?.traceScopeId
       const idChanged = previousId !== undefined
-        && news.traceScopeId !== undefined
-        && news.traceScopeId !== previousId
+        && resolved.traceScopeId !== undefined
+        && resolved.traceScopeId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       if (!idChanged && !locationChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -182,22 +185,26 @@ export const TraceScopeProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, location)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (observability.listProjectsLocationsTraceScopes
-          .pages({
-            parent: `projects/${env.project}/locations/${DEFAULT_TRACE_LOCATION}`,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.traceScopes ?? []))
-          |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
-          |> Stream.map(%, (scope) => toAttrs(scope, env.project, DEFAULT_TRACE_LOCATION))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (observability.listProjectsLocationsTraceScopes
+            .pages({
+              parent: `projects/${env.project}/locations/${DEFAULT_TRACE_LOCATION}`,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.traceScopes ?? []))
+            |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
+            |> Stream.map(%, (scope) => toAttrs(scope, env.project, DEFAULT_TRACE_LOCATION))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
         default: throw e;
       }
@@ -256,7 +263,7 @@ export const TraceScopeProvider = (): infer _ =>
       if (output.traceScopeId === "_Default") return
       observability
         .deleteProjectsLocationsTraceScopes({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

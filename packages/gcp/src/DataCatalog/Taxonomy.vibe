@@ -176,7 +176,9 @@ const observe = effect (id: string, name: string | undefined, project: string, l
     const existing = try getByName(name)
     if (existing !== undefined) return existing
   }
-  const candidates = try listTaxonomiesAt(locationParent(project, location))
+  const candidates = try listTaxonomiesAt(
+    try Effect.orDie(Effect.try({ try: () => locationParent(project, location), catch: (e) => e })),
+  )
   return try findOwned(candidates, id, (item) => item.description)
 }
 
@@ -185,24 +187,35 @@ export const TaxonomyProvider = (): infer _ =>
     stables: ["name", "taxonomyId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const existing = try observe(id, output?.name, env.project, location)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -213,10 +226,16 @@ export const TaxonomyProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
       const activatedPolicyTypes = news.activatedPolicyTypes
 
@@ -252,11 +271,15 @@ export const TaxonomyProvider = (): infer _ =>
         current = try retryTransient(
           datacatalog.patchProjectsLocationsTaxonomies({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              descriptionChanged ? "description" : undefined,
-              policyChanged ? "activated_policy_types" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  policyChanged ? "activated_policy_types" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               name: currentName,
               displayName,

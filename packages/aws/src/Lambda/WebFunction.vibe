@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
 import type { Credentials } from "@distilled.cloud/aws/Credentials"
 import * as iam from "@distilled.cloud/aws/iam"
@@ -88,7 +90,14 @@ export interface WebFunctionVpc {
 }
 
 /** `vpc` was combined with `regions`; VPC egress works only in the home Region. */
-export error WebFunctionVpcRequiresHomeRegion { mutable functionId: string; mutable message: string }
+export class WebFunctionVpcRequiresHomeRegion extends $MutableErrorBase("WebFunctionVpcRequiresHomeRegion")<{
+  functionId: string
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "WebFunctionVpcRequiresHomeRegion", true)
+  }
+}
 
 export interface WebFunctionProps extends PlatformProps {
   /**
@@ -531,7 +540,7 @@ const requireHomeRegion = effect (
     message:
       `AWS.Lambda.WebFunction "${id}": \`vpc\` can't be combined with \`regions\`: Lambda routes VPC egress only for single-Region endpoints`,
   })
-  : try Effect.void)
+  : (undefined as void))
 
 /** The settings Lambda limits, as numbers (Outputs resolve at deploy). */
 const checkWebFunctionProps = effect (id: string, props: WebFunctionProps) => {
@@ -545,7 +554,10 @@ const checkWebFunctionProps = effect (id: string, props: WebFunctionProps) => {
     rateLimit: number(props.rateLimit),
     maxEnvironments: number(props.maxEnvironments),
     maxConcurrencyPerEnvironment: number(props.maxConcurrencyPerEnvironment),
-    timeoutSeconds: props.timeout === undefined || Output.isOutput(props.timeout)
+    timeoutSeconds: props.timeout === undefined || (try Effect.orDie(Effect.try({
+        try: () => Output.isOutput(props.timeout),
+        catch: (error) => error,
+      })))
       ? undefined
       : toTimeoutSeconds(props.timeout),
     canary: props.canary === undefined || number(props.canary.weight) === undefined
@@ -611,7 +623,7 @@ const toTimeoutSeconds = (timeout: Duration.Duration | undefined): number => {
     ? json._tag === "Millis"
       ? json.millis!
       : json._tag === "Nanos"
-      ? BigInt(json.nanos!)
+      ? $invoke(BigInt, json.nanos!)
       : "Infinity"
     : timeout
   return Math.max(1, Math.ceil(Duration.toSeconds(input)))
@@ -631,7 +643,8 @@ export const WebFunctionProvider = (): infer _ =>
         ALCHEMY_PHASE: "runtime",
       }
 
-      const bundle = (id: string, props: WebFunctionProps) => bundleCode(id, toZipProps(props), bundleOptions)
+      const bundle = effect (id: string, props: WebFunctionProps) =>
+        try bundleCode(id, toZipProps(props), bundleOptions)
 
       const createNames = effect (id: string, functionName: string | undefined) => ({
         functionName: functionName ?? (try createPhysicalName({ id, maxLength: 64 })),
@@ -642,7 +655,7 @@ export const WebFunctionProvider = (): infer _ =>
       const ensureRole = effect (id: string, roleName: string) => {
         const existing = iam
           .getRole({ RoleName: roleName }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+            when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           }
         const role = existing
@@ -708,7 +721,7 @@ export const WebFunctionProvider = (): infer _ =>
         } else {
           iam
             .deleteRolePolicy({ RoleName: roleName, PolicyName: policyName }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
         }
@@ -730,7 +743,8 @@ export const WebFunctionProvider = (): infer _ =>
       }
 
       /** Name shared by the egress connector and its operator role. */
-      const egressName = (id: string) => createPhysicalName({ id: `${id}-egress`, maxLength: 64, delimiter: "-" })
+      const egressName = effect (id: string) =>
+        try createPhysicalName({ id: `${id}-egress`, maxLength: 64, delimiter: "-" })
 
       /**
        * The role Lambda assumes to create and tag the connector's network
@@ -740,7 +754,7 @@ export const WebFunctionProvider = (): infer _ =>
       const ensureOperatorRole = effect (id: string, roleName: string) => {
         const existing = iam
           .getRole({ RoleName: roleName }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+            when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           }
         const role = existing
@@ -842,13 +856,13 @@ export const WebFunctionProvider = (): infer _ =>
 
       const getFunction = effect (functionName: string) =>
         LambdaWeb.getWebFunction({ functionName }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
       const getRevision = effect (functionName: string, revisionId: string) =>
         LambdaWeb.getWebFunctionRevision({ functionName, revisionId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -874,7 +888,7 @@ export const WebFunctionProvider = (): infer _ =>
         }
           |> Effect.tapError(
             %,
-            effect (e) => (e._tag === "WebFunctionNotReady" ? try session.note(e.message) : try Effect.void),
+            effect (e) => (e._tag === "WebFunctionNotReady" ? try session.note(e.message) : (undefined as void)),
           )
           |> Effect.retry(%, {
             while: (e) => e._tag === "WebFunctionNotReady",
@@ -910,7 +924,7 @@ export const WebFunctionProvider = (): infer _ =>
         }
           |> Effect.tapError(
             %,
-            effect (e) => (e._tag === "WebFunctionNotReady" ? try session.note(e.message) : try Effect.void),
+            effect (e) => (e._tag === "WebFunctionNotReady" ? try session.note(e.message) : (undefined as void)),
           )
           |> Effect.retry(%, {
             while: (e) => e._tag === "WebFunctionNotReady",
@@ -946,7 +960,7 @@ export const WebFunctionProvider = (): infer _ =>
         try (effect
           |> Effect.tapError(%, effect (e) => (e._tag === "ExecutionRoleNotAssumable"
             ? try session.note(`Waiting for execution role to propagate: ${functionName}`)
-            : try Effect.void))
+            : (undefined as void)))
           |> Effect.retry(%, {
             while: (e) => e._tag === "ExecutionRoleNotAssumable" || e._tag === "ConflictException",
             schedule: Schedule.spaced("3 seconds"),
@@ -1015,15 +1029,23 @@ export const WebFunctionProvider = (): infer _ =>
         policyName: string
       }) => {
         const readInlinePolicy = effect (PolicyName: string) =>
-          (JSON.parse(decodeURIComponent((try iam.getRolePolicy({ RoleName: roleName, PolicyName })).PolicyDocument)))
+          (effect {
+            const document = (try iam.getRolePolicy({ RoleName: roleName, PolicyName })).PolicyDocument
+            return try Effect.orDie(
+              Effect.try({ try: () => JSON.parse(decodeURIComponent(document)), catch: (e) => e }),
+            )
+          })
             catch effect (e) => match (e) {
-              when iam.NoSuchEntityException: try Effect.undefined;
+              when iam.NoSuchEntityException: undefined;
               default: throw e;
             }
         const [tags, bindingPolicy, guardPolicy] = try Effect.all(
           [
             effect {
-              return (tagRecord((try LambdaWeb.listTags({ resource: functionArn })).tags)) catch effect (e) => match (e) {
+              return (effect {
+                const tags2 = (try LambdaWeb.listTags({ resource: functionArn })).tags
+                return (try Effect.orDie(Effect.try({ try: () => tagRecord(tags2), catch: (e) => e })))
+              }) catch effect (e) => match (e) {
                 when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
                 default: throw e;
               }
@@ -1075,11 +1097,17 @@ export const WebFunctionProvider = (): infer _ =>
             },
           ],
         })
-        const observed = (decodeURIComponent(
-          (try iam
-            .getRolePolicy({ RoleName: roleName, PolicyName: LOG_GROUP_GUARD_POLICY })).PolicyDocument,
-        )) catch effect (e) => match (e) {
-          when iam.NoSuchEntityException: try Effect.undefined;
+        const observed = (effect {
+          const policyDocument = (try iam.getRolePolicy({
+            RoleName: roleName,
+            PolicyName: LOG_GROUP_GUARD_POLICY,
+          })).PolicyDocument
+          return try Effect.orDie(Effect.try({
+            try: () => decodeURIComponent(policyDocument),
+            catch: (error) => error,
+          }))
+        }) catch effect (e) => match (e) {
+          when iam.NoSuchEntityException: undefined;
           default: throw e;
         }
         if (observed !== document) {
@@ -1093,7 +1121,7 @@ export const WebFunctionProvider = (): infer _ =>
         try Effect.forEach(logGroupNames(functionName), effect (logGroupName) =>
           logs
             .createLogGroup({ logGroupName, tags }) catch effect (e) => match (e) {
-              when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+              when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
               default: throw e;
             })
       }
@@ -1104,22 +1132,31 @@ export const WebFunctionProvider = (): infer _ =>
           // Effect-native runtime exports remain unevaluated during
           // planning; the bundle hash below represents them.
           const news = typeof desired === "object" && desired !== null && "exports" in desired
-            ? ({ ...desired, exports: stripEffects(desired.exports) } as typeof desired)
+            ? ({
+              ...desired,
+              exports: try Effect.orDie(Effect.try({ try: () => stripEffects(desired.exports), catch: (e) => e })),
+            } as typeof desired)
             : desired
-          if (!isResolved(news)) return
-          try checkWebFunctionProps(id, news)
+          const resolved____ = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved____ === undefined) return
+          try checkWebFunctionProps(id, resolved____)
           // Creating, or adopted without prior props: reconcile converges.
           if (!output || !olds) return undefined
           // Generated names are engine-owned; only an explicit functionName
           // change replaces.
-          if ((news.functionName ?? output.functionName) !== output.functionName) {
+          if ((resolved____.functionName ?? output.functionName) !== output.functionName) {
             return { action: "replace" }
           }
-          if ((try bundle(id, news)).identityHash !== output.code.hash) {
+          if ((try bundle(id, resolved____)).identityHash !== output.code.hash) {
             return { action: "update" }
           }
-          if (!havePropsChanged(olds, news)) {
-            if (!isResolved(newBindings) || !deepEqual(oldBindings, newBindings)) {
+          if (!(try Effect.orDie(Effect.try({ try: () => havePropsChanged(olds, resolved____), catch: (e) => e })))) {
+            if (
+              !(try Effect.orDie(Effect.try({ try: () => isResolved(newBindings), catch: (e) => e })))
+              || !(try Effect.orDie(Effect.try({ try: () => deepEqual(oldBindings, newBindings), catch: (e) => e })))
+            ) {
               return undefined
             }
             return { action: "noop" }
@@ -1139,7 +1176,7 @@ export const WebFunctionProvider = (): infer _ =>
             // destroy instead of orphaning it.
             const role = iam
               .getRole({ RoleName: roleName }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+                when { _tag: "NoSuchEntityException" }: undefined;
                 default: throw e;
               }
             if (output !== undefined || role === undefined) return undefined
@@ -1152,14 +1189,18 @@ export const WebFunctionProvider = (): infer _ =>
               domainName: "",
               url: "",
               authType: olds?.authType ?? "IamAuth",
-              endpointType: endpointTypeOf(olds?.regions),
+              endpointType: try Effect.orDie(
+                Effect.try({ try: () => endpointTypeOf(olds?.regions), catch: (e) => e }),
+              ),
               revisionId: "",
               revisionWeights: [],
               roleName,
               roleArn: role.Role.Arn,
               code: { hash: "" },
             } satisfies WebFunction["Attributes"]
-            return (try hasAlchemyTags(id, role.Role.Tags)) ? attrs : Unowned(attrs)
+            return (try hasAlchemyTags(id, role.Role.Tags))
+              ? attrs
+              : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
           }
           // A missing built-in endpoint reports no address, revision or
           // traffic, so drift sees it is gone instead of the last persisted
@@ -1184,18 +1225,28 @@ export const WebFunctionProvider = (): infer _ =>
               ?? "IamAuth") as WebFunctionAuthType,
             endpointType: (endpoint?.endpointType
               ?? output?.endpointType
-              ?? endpointTypeOf(olds?.regions)) as WebFunctionEndpointType,
-            revisionId: endpoint ? latestRevisionId(endpoint, output?.revisionId) : "",
-            revisionWeights: endpoint ? servedRevisions(endpoint) : [],
+              ?? (try Effect.orDie(
+                Effect.try({ try: () => endpointTypeOf(olds?.regions), catch: (e) => e }),
+              ))) as WebFunctionEndpointType,
+            revisionId: endpoint
+              ? try Effect.orDie(
+                Effect.try({ try: () => latestRevisionId(endpoint, output?.revisionId), catch: (e) => e }),
+              )
+              : "",
+            revisionWeights: endpoint
+              ? try Effect.orDie(Effect.try({ try: () => servedRevisions(endpoint), catch: (e) => e }))
+              : [],
             roleName,
             roleArn: output?.roleArn ?? `arn:aws:iam::${accountId}:role/${roleName}`,
             code: output?.code ?? { hash: "" },
             ...(endpoint
-              ? endpointLimits(endpoint)
+              ? try Effect.orDie(Effect.try({ try: () => endpointLimits(endpoint), catch: (e) => e }))
               : { rateLimit: undefined, maxEnvironments: undefined }),
             ...extras,
           } satisfies WebFunction["Attributes"]
-          return (try hasAlchemyTags(id, extras.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, extras.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, bindings, session }) => {
           // Values that were Outputs at plan are resolved now.
@@ -1283,13 +1334,15 @@ export const WebFunctionProvider = (): infer _ =>
               LambdaWeb.createWebFunction({
                 functionName,
                 revisionConfig: desiredRevision,
-                endpointConfig: createEndpointConfig(endpoint),
+                endpointConfig: try Effect.orDie(
+                  Effect.try({ try: () => createEndpointConfig(endpoint), catch: (e) => e }),
+                ),
                 tags: desiredTags,
               }),
               session,
               functionName,
             ) catch effect (e) => match (e) {
-              when { _tag: "ConflictException" }: try Effect.undefined;
+              when { _tag: "ConflictException" }: undefined;
               default: throw e;
             }
           }
@@ -1340,17 +1393,23 @@ export const WebFunctionProvider = (): infer _ =>
           })
           // Moving off a revision whose egress connector the new one no
           // longer uses (e.g. `vpc` removed) may leave it unused.
-          const stillServed = new Set(servedRevisions(settled).map((w) => w.revisionId))
+          const stillServed = new Set(
+            (try Effect.orDie(Effect.try({ try: () => servedRevisions(settled), catch: (e) => e }))).map((w) =>
+              w.revisionId
+            ),
+          )
           for (
             const { revisionId: previous } of observedEndpoint
-              ? servedRevisions(observedEndpoint)
+              ? try Effect.orDie(Effect.try({ try: () => servedRevisions(observedEndpoint), catch: (e) => e }))
               : []
           ) {
             if (stillServed.has(previous)) continue
             const previousConnector = try connectorOfRevision(functionName, previous)
             if (
               previousConnector !== undefined
-              && !sameConnector(previousConnector, egressNetworkConnectorArn)
+              && !(try Effect.orDie(
+                Effect.try({ try: () => sameConnector(previousConnector, egressNetworkConnectorArn), catch: (e) => e }),
+              ))
             ) {
               try releaseEgressConnector({
                 functionName,
@@ -1369,14 +1428,18 @@ export const WebFunctionProvider = (): infer _ =>
 
           // Sync tags against the observed cloud tags.
           const observedTags = (try LambdaWeb.listTags({ resource: fn.functionArn })).tags ?? {}
-          const { removed, upsert } = diffTags(
-            Object.fromEntries(
-              Object.entries(observedTags).filter(
-                (entry): entry is [string, string] => entry[1] !== undefined,
+          const { removed, upsert } = try Effect.orDie(Effect.try({
+            try: () =>
+              diffTags(
+                Object.fromEntries(
+                  Object.entries(observedTags).filter(
+                    (entry): entry is [string, string] => entry[1] !== undefined,
+                  ),
+                ),
+                desiredTags,
               ),
-            ),
-            desiredTags,
-          )
+            catch: (e) => e,
+          }))
           if (upsert.length > 0) {
             try LambdaWeb.tagResource({
               resource: fn.functionArn,
@@ -1402,36 +1465,40 @@ export const WebFunctionProvider = (): infer _ =>
         delete: effect ({ id, output, session }) => {
           // The role may already be gone — every step is idempotent. Grants
           // go first; the log-group guard stays until the function is gone.
-          ;(try Effect.forEach(
-            ((try iam.listRolePolicies({ RoleName: output.roleName })).PolicyNames ?? []).filter((name) =>
-              name !== LOG_GROUP_GUARD_POLICY
-            ),
-            effect (policyName) =>
-              iam
-                .deleteRolePolicy({ RoleName: output.roleName, PolicyName: policyName }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                },
-          )) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.void;
+          ;(effect {
+            return (try Effect.forEach(
+              ((try iam.listRolePolicies({ RoleName: output.roleName })).PolicyNames ?? []).filter((name) =>
+                name !== LOG_GROUP_GUARD_POLICY
+              ),
+              effect (policyName) =>
+                iam
+                  .deleteRolePolicy({ RoleName: output.roleName, PolicyName: policyName }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  },
+            ))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
             default: throw e;
           }
-          ;(try Effect.forEach(
-            (try iam.listAttachedRolePolicies({ RoleName: output.roleName })).AttachedPolicies ?? [],
-            effect (policy) =>
-              iam
-                .detachRolePolicy({ RoleName: output.roleName, PolicyArn: policy.PolicyArn! }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                },
-          )) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.void;
+          ;(effect {
+            return (try Effect.forEach(
+              (try iam.listAttachedRolePolicies({ RoleName: output.roleName })).AttachedPolicies ?? [],
+              effect (policy) =>
+                iam
+                  .detachRolePolicy({ RoleName: output.roleName, PolicyArn: policy.PolicyArn! }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  },
+            ))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
             default: throw e;
           }
 
           try (effect {
             return LambdaWeb.deleteWebFunction({ functionName: output.functionName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }
@@ -1447,12 +1514,12 @@ export const WebFunctionProvider = (): infer _ =>
 
           iam
             .deleteRolePolicy({ RoleName: output.roleName, PolicyName: LOG_GROUP_GUARD_POLICY }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
           try (effect {
             return iam.deleteRole({ RoleName: output.roleName }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
           }
@@ -1469,7 +1536,7 @@ export const WebFunctionProvider = (): infer _ =>
           try Effect.forEach(logGroupNames(output.functionName), effect (logGroupName) =>
             logs
               .deleteLogGroup({ logGroupName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               })
         },
@@ -1482,7 +1549,7 @@ export const WebFunctionProvider = (): infer _ =>
               ],
             })
             if (!response.responseStream) {
-              return Stream.empty as Stream<LogLine>
+              return Stream.empty as Stream.Stream<LogLine>
             }
             return response.responseStream.pipe(
               Stream.flatMap((event) =>
@@ -1506,24 +1573,36 @@ export const WebFunctionProvider = (): infer _ =>
           return Stream.unwrap(session).pipe(Stream.retry(Schedule.spaced("1 second")))
         },
         logs: effect ({ output, options }: { output: WebFunction["Attributes"]; options: LogsInput }) =>
-          (((try logs
-            .filterLogEvents({
-              logGroupName: logGroupNames(output.functionName)[0],
-              startTime: options.since?.getTime(),
-              limit: options.limit ?? 100,
-            })).events ?? []).flatMap((event): LogLine[] =>
-              event.message
-                ? [
-                  {
-                    timestamp: new Date(event.timestamp ?? Date.now()),
-                    message: event.message.trimEnd(),
-                  },
-                ]
-                : []
-            )) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: [] as LogLine[];
-              default: throw e;
-            },
+          (effect {
+            return (((try logs
+              .filterLogEvents({
+                logGroupName: logGroupNames(output.functionName)[0],
+                startTime: options.since?.getTime(),
+                limit: options.limit ?? 100,
+              })).events ?? []).flatMap((event): LogLine[] =>
+                event.message
+                  ? [
+                    {
+                      timestamp: new Date(event.timestamp ?? Date.now()),
+                      message: event.message.trimEnd(),
+                    },
+                  ]
+                  : []
+              ))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: [] as LogLine[];
+            default: throw e;
+          },
       }
     },
   )
+
+module $call$ts {
+  export function invoke<T extends Function>(
+    target: T,
+    arg0: Parameters<Extract<T, (...args: any[]) => any>>[0],
+  ): ReturnType<Extract<T, (...args: any[]) => any>> {
+    return target(arg0)
+  }
+}
+import { invoke as $invoke } from $call$ts

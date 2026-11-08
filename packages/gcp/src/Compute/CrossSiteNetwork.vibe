@@ -158,7 +158,7 @@ const toAttrs = (
 const getByName = effect (project: string, crossSiteNetwork: string) =>
   compute
     .getCrossSiteNetworks({ project, crossSiteNetwork }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -181,9 +181,12 @@ export const CrossSiteNetworkProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.crossSiteNetworkName ?? output?.crossSiteNetworkName
-      const nextName = news.crossSiteNetworkName
+      const nextName = resolved.crossSiteNetworkName
       if (previousName !== undefined && nextName !== undefined && previousName !== nextName) {
         return { action: "replace" as const }
       }
@@ -201,7 +204,9 @@ export const CrossSiteNetworkProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -231,20 +236,22 @@ export const CrossSiteNetworkProvider = (): infer _ =>
       let current = try getByName(env.project, crossSiteNetworkName)
 
       if (current === undefined) {
-        ;(try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertCrossSiteNetworks({
-              project: env.project,
-              body: {
-                name: crossSiteNetworkName,
-                description,
-              },
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertCrossSiteNetworks({
+                project: env.project,
+                body: {
+                  name: crossSiteNetworkName,
+                  description,
+                },
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, crossSiteNetworkName)
       }
 
@@ -281,19 +288,21 @@ export const CrossSiteNetworkProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      const operation = (try (compute
-        .deleteCrossSiteNetworks({
-          project: env.project,
-          crossSiteNetwork: output.crossSiteNetworkName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteCrossSiteNetworks({
+            project: env.project,
+            crossSiteNetwork: output.crossSiteNetworkName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitGlobalOperation(env.project, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

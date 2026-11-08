@@ -45,7 +45,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const rfc1035 = (name: string, fallback = "beyondcorp"): string => {
+export const rfc1035 = /** @throws {never} */ (name: string, fallback = "beyondcorp"): string => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-")
@@ -61,10 +61,12 @@ export const rfc1035 = (name: string, fallback = "beyondcorp"): string => {
   return next.slice(0, MAX_NAME_LENGTH);
 };
 
-export const normalizeLocation = (location: string | undefined, fallback: string) =>
-  lastSegment(location ?? fallback).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  fallback: string,
+) => lastSegment(location ?? fallback).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
 export const parseName = (name: string, collection: string, fallbackLocation: string) => {
@@ -114,12 +116,13 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 const markerOf = (stack: string, stage: string, id: string) =>
   `[alchemy ${alchemyLabelKeys.stack}=${stack} ${alchemyLabelKeys.stage}=${stage} ${alchemyLabelKeys.id}=${id}]`;
@@ -239,19 +242,21 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const sameJson = (left: unknown, right: unknown) => fingerprint(left) === fingerprint(right);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>
   JSON.stringify([...(left ?? [])].map(lastSegment).sort()) ===
   JSON.stringify([...(right ?? [])].map(lastSegment).sort());
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
 export const replaceOnIdentity = (input: {

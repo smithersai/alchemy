@@ -135,19 +135,23 @@ const getByEntity = effect (bucketName: string, object: string, entity: string, 
       object,
       entity,
       generation,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const listOnObject = effect (bucketName: string, object: string) =>
-  ((try storage.listObjectAccessControls({ bucket: bucketName, object })).items ?? []) catch effect (e) => match (e) {
+  (effect {
+    return ((try storage.listObjectAccessControls({ bucket: bucketName, object })).items ?? [])
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as storage.ObjectAccessControl[];
     default: throw e;
   }
 
 const listObjectsOnBucket = effect (bucketName: string) =>
-  (Array.from(
-    try (storage.listObjects.items({ bucket: bucketName, maxResults: 1000 })
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.Storage_Object[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (storage.listObjects.items({ bucket: bucketName, maxResults: 1000 })
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.Storage_Object[]; default: throw e; }
 
 const waitUntilGone = effect (bucketName: string, object: string, entity: string, generation?: string) =>
   try ((try (effect {
@@ -170,27 +174,30 @@ export const ObjectAccessControlProvider = (): infer _ =>
     stables: ["bucketName", "object", "entity", "generation", "id", "selfLink"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousBucket = olds?.bucketName ?? output?.bucketName
       const previousObject = olds?.object ?? output?.object
       const previousEntity = olds?.entity ?? output?.entity
       const previousGeneration = olds?.generation ?? output?.generation
-      if (previousBucket !== undefined && news.bucketName !== previousBucket) {
+      if (previousBucket !== undefined && resolved.bucketName !== previousBucket) {
         return { action: "replace" as const, deleteFirst: false }
       }
-      if (previousObject !== undefined && news.object !== previousObject) {
+      if (previousObject !== undefined && resolved.object !== previousObject) {
         return { action: "replace" as const, deleteFirst: false }
       }
       if (
         previousEntity !== undefined
-        && normalizeEntity(news.entity) !== normalizeEntity(previousEntity)
+        && normalizeEntity(resolved.entity) !== normalizeEntity(previousEntity)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       if (
-        news.generation !== undefined
+        resolved.generation !== undefined
         && previousGeneration !== undefined
-        && news.generation !== previousGeneration
+        && resolved.generation !== previousGeneration
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -299,18 +306,20 @@ export const ObjectAccessControlProvider = (): infer _ =>
       const object = output.object
       const entity = output.entity
       if (!bucketName || !object || !entity) return
-      const removed = (try (storage
-        .deleteObjectAccessControls({
-          bucket: bucketName,
-          object,
-          entity,
-          generation: output.generation,
-        })
-        |> Effect.as(%, true))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: true;
-          when { _tag: "ObjectOwnerAclRequired" }: false;
-          default: throw e;
-        }
+      const removed = (effect {
+        return (try (storage
+          .deleteObjectAccessControls({
+            bucket: bucketName,
+            object,
+            entity,
+            generation: output.generation,
+          })
+          |> Effect.as(%, true)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: true;
+        when { _tag: "ObjectOwnerAclRequired" }: false;
+        default: throw e;
+      }
       if (removed) {
         try waitUntilGone(bucketName, object, entity, output.generation)
       }

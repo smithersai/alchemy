@@ -99,7 +99,7 @@ export const ApplicationProvider = (): infer _ =>
       const getApplication = effect (name: string) => {
         const response = codedeploy
           .getApplication({ applicationName: name }) catch effect (e) => match (e) {
-            when { _tag: "ApplicationDoesNotExistException" }: try Effect.undefined;
+            when { _tag: "ApplicationDoesNotExistException" }: undefined;
             default: throw e;
           }
         return response?.application
@@ -108,7 +108,8 @@ export const ApplicationProvider = (): infer _ =>
       const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
         const observed = codedeploy
           .listTagsForResource({ ResourceArn: arn }) catch () => undefined
-        const { removed, upsert } = diffTags(toTagRecord(observed?.Tags), desiredTags)
+        const oldTags = toTagRecord(observed?.Tags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try codedeploy.tagResource({ ResourceArn: arn, Tags: upsert })
         }
@@ -124,12 +125,13 @@ export const ApplicationProvider = (): infer _ =>
         stables: ["applicationName", "applicationId", "computePlatform"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // Compute platform is immutable — replace on change.
-          if ((news?.computePlatform ?? "Server") !== (olds?.computePlatform ?? "Server")) {
+          if ((resolved?.computePlatform ?? "Server") !== (olds?.computePlatform ?? "Server")) {
             return { action: "replace" } as const
           }
         },
@@ -146,8 +148,8 @@ export const ApplicationProvider = (): infer _ =>
             applicationArn: arn,
             computePlatform: application.computePlatform ?? "Server",
           }
-          const tags = (toTagRecord((try codedeploy.listTagsForResource({ ResourceArn: arn })).Tags)) catch () => ({})
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          const tags = (effect { return (toTagRecord((try codedeploy.listTagsForResource({ ResourceArn: arn })).Tags)) }) catch () => ({})
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -172,7 +174,7 @@ export const ApplicationProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ApplicationAlreadyExistsException" }: try Effect.undefined;
+                when { _tag: "ApplicationAlreadyExistsException" }: undefined;
                 default: throw e;
               }
             application = try getApplication(name)

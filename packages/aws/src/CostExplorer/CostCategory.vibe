@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as ce from "@distilled.cloud/aws/cost-explorer"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -129,12 +130,14 @@ export const CostCategoryProvider = (): infer _ =>
         props.name ?? (try createPhysicalName({ id, maxLength: 50 }))
 
       const getByArn = effect (costCategoryArn: string) =>
-        (try pinCe(
-          ce.describeCostCategoryDefinition({
-            CostCategoryArn: costCategoryArn,
-          }),
-        )).CostCategory catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try pinCe(
+            ce.describeCostCategoryDefinition({
+              CostCategoryArn: costCategoryArn,
+            }),
+          )).CostCategory
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -153,7 +156,7 @@ export const CostCategoryProvider = (): infer _ =>
           const reference = Array.from(chunk)[0]
           return (reference?.CostCategoryArn !== undefined
             ? try getByArn(reference.CostCategoryArn)
-            : try Effect.undefined)
+            : undefined)
         }
 
       const toAttrs = effect (live: ce.CostCategory) => ({
@@ -195,10 +198,13 @@ export const CostCategoryProvider = (): infer _ =>
             : try findByName(try createName(id, olds ?? {}))
           if (live === undefined) return undefined
           const attrs = try toAttrs(live)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+        diff: effect ({ id, olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return
+          const news = _newsInput as typeof olds
           // UpdateCostCategoryDefinition cannot rename — name change replaces.
           if ((try createName(id, olds ?? {})) !== (try createName(id, news ?? {}))) {
             return { action: "replace" } as const
@@ -227,7 +233,9 @@ export const CostCategoryProvider = (): infer _ =>
                 DefaultValue: news.defaultValue,
                 SplitChargeRules: news.splitChargeRules,
                 EffectiveStart: news.effectiveStart,
-                ResourceTags: toResourceTags(desiredTags),
+                ResourceTags: try Effect.orDie(
+                  Effect.try({ try: () => toResourceTags(desiredTags), catch: (e) => e }),
+                ),
               }),
             )
             costCategoryArn = created.CostCategoryArn!
@@ -271,7 +279,7 @@ export const CostCategoryProvider = (): infer _ =>
               CostCategoryArn: output.costCategoryArn,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

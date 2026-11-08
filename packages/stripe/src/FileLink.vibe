@@ -146,7 +146,7 @@ const isMissingFileLink = isMissingStripeResource
 
 const getById = effect (link: string) =>
   try (GetFileLink({ link })
-    |> Effect.catchIf(%, isMissingFileLink, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingFileLink, effect () => undefined))
 
 const paginateFileLinks = effect (query: { expired?: boolean; file?: string }) => {
   const links: StripeFileLink[] = []
@@ -176,7 +176,7 @@ const findByAlchemyId = effect (id: string, links: ReadonlyArray<StripeFileLink>
   const matches: StripeFileLink[] = []
   for (const link of links) {
     if (link.expired) continue
-    if (try hasAlchemyMetadata(id, tagRecord(link.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(link.metadata), catch: (e) => e })))) {
       matches.push(link)
     }
   }
@@ -212,8 +212,9 @@ export const FileLinkProvider = (): infer _ =>
     stables: ["id", "file", "created", "livemode"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (output !== undefined && news.file !== output.file) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (output !== undefined && resolved.file !== output.file) {
         return { action: "replace" as const }
       }
       return undefined
@@ -227,7 +228,7 @@ export const FileLinkProvider = (): infer _ =>
       })
       if (existing === undefined || existing.expired) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -266,13 +267,13 @@ export const FileLinkProvider = (): infer _ =>
           metadata,
           ...(desiredExpiresAt !== undefined ? { expires_at: desiredExpiresAt } : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-file-link-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const observedExpiresAt = current.expires_at ?? undefined
       const expiresAtChanged = observedExpiresAt !== desiredExpiresAt
@@ -303,12 +304,12 @@ export const FileLinkProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const existing = try getById(output.id)
       if (existing === undefined || existing.expired) return
-      ;(try (UpdateFileLink({
+      ;(effect { return (try (UpdateFileLink({
         link: existing.id,
         expires_at: "now",
       })
-        |> Effect.catchIf(%, isMissingFileLink, effect () => try Effect.void))) catch effect (e) => match (e) {
-          when { _tag: "InvalidRequestError" }: try Effect.void;
+        |> Effect.catchIf(%, isMissingFileLink, effect () => (undefined as void)))) }) catch effect (e) => match (e) {
+          when { _tag: "InvalidRequestError" }: (undefined as void);
           default: throw e;
         }
     },

@@ -221,29 +221,43 @@ export const PrivateCloudsManagementDnsZoneBindingProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousVpc = canonicalizeLink(olds?.vpcNetwork ?? output?.vpcNetwork)
-      const nextVpc = canonicalizeLink(news.vpcNetwork)
-      const previousVen = canonicalizeLink(
-        olds?.vmwareEngineNetwork ?? output?.vmwareEngineNetwork,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const nextVen = canonicalizeLink(news.vmwareEngineNetwork)
+      if (resolved === undefined) return undefined
+      const previousVpc = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(olds?.vpcNetwork ?? output?.vpcNetwork), catch: (e) => e }),
+      )
+      const nextVpc = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.vpcNetwork), catch: (e) => e }),
+      )
+      const previousVen = try Effect.orDie(Effect.try({
+        try: () =>
+          canonicalizeLink(
+            olds?.vmwareEngineNetwork ?? output?.vmwareEngineNetwork,
+          ),
+        catch: (e) => e,
+      }))
+      const nextVen = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.vmwareEngineNetwork), catch: (e) => e }),
+      )
       const switchedToVen = nextVen.length > 0 && previousVpc.length > 0
       const switchedToVpc = nextVpc.length > 0 && previousVen.length > 0
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.managementDnsZoneBindingId ?? output?.managementDnsZoneBindingId,
-        nextId: news.managementDnsZoneBindingId
-          ? rfc1035(news.managementDnsZoneBindingId, "binding")
+        nextId: resolved.managementDnsZoneBindingId
+          ? rfc1035(resolved.managementDnsZoneBindingId, "binding")
           : (olds?.managementDnsZoneBindingId ?? output?.managementDnsZoneBindingId),
         previousLocation: "",
         nextLocation: "",
         previousParent: olds?.privateCloud ?? output?.privateCloud,
-        nextParent: news.privateCloud,
+        nextParent: resolved.privateCloud,
         extra: switchedToVen
           || switchedToVpc
           || (previousVpc.length > 0 && nextVpc.length > 0 && previousVpc !== nextVpc)
           || (previousVen.length > 0 && nextVen.length > 0 && previousVen !== nextVen),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -262,8 +276,12 @@ export const PrivateCloudsManagementDnsZoneBindingProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -298,7 +316,9 @@ export const PrivateCloudsManagementDnsZoneBindingProvider = (): infer _ =>
       )
       const name = resourceName(privateCloud, bindingId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const vpcNetwork = news.vpcNetwork === undefined ? undefined : expandVpc(env.project, news.vpcNetwork)
       const vmwareEngineNetwork = news.vmwareEngineNetwork === undefined
         ? undefined
@@ -307,21 +327,23 @@ export const PrivateCloudsManagementDnsZoneBindingProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsPrivateCloudsManagementDnsZoneBindings({
-            parent: privateCloud,
-            managementDnsZoneBindingId: bindingId,
-            body: {
-              description: desiredDescription,
-              vpcNetwork,
-              vmwareEngineNetwork,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateCloudsManagementDnsZoneBindings({
+              parent: privateCloud,
+              managementDnsZoneBindingId: bindingId,
+              body: {
+                description: desiredDescription,
+                vpcNetwork,
+                vmwareEngineNetwork,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -362,15 +384,17 @@ export const PrivateCloudsManagementDnsZoneBindingProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsPrivateCloudsManagementDnsZoneBindings({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateCloudsManagementDnsZoneBindings({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

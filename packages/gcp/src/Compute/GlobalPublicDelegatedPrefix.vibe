@@ -206,7 +206,7 @@ const toAttrs = (
 const getByName = effect (project: string, publicDelegatedPrefix: string) =>
   compute
     .getGlobalPublicDelegatedPrefixes({ project, publicDelegatedPrefix }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -232,20 +232,23 @@ export const GlobalPublicDelegatedPrefixProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.prefixName ?? output?.prefixName
-      const nextName = news.prefixName
+      const nextName = resolved.prefixName
       const previousParent = lastSegment(olds?.parentPrefix ?? output?.parentPrefix)
-      const nextParent = lastSegment(news.parentPrefix)
+      const nextParent = lastSegment(resolved.parentPrefix)
       const previousRange = olds?.ipCidrRange ?? output?.ipCidrRange ?? ""
-      const nextRange = news.ipCidrRange
+      const nextRange = resolved.ipCidrRange
       const previousMode = olds?.mode ?? output?.mode ?? ""
-      const nextMode = news.mode ?? previousMode
+      const nextMode = resolved.mode ?? previousMode
       if (
         (previousName !== undefined && nextName !== undefined && previousName !== nextName)
         || (nextParent.length > 0 && previousParent.length > 0 && previousParent !== nextParent)
         || (nextRange.length > 0 && previousRange.length > 0 && previousRange !== nextRange)
-        || (news.mode !== undefined && previousMode !== nextMode)
+        || (resolved.mode !== undefined && previousMode !== nextMode)
       ) {
         return {
           action: "replace" as const,
@@ -262,7 +265,9 @@ export const GlobalPublicDelegatedPrefixProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -288,25 +293,27 @@ export const GlobalPublicDelegatedPrefixProvider = (): infer _ =>
       let current = try getByName(env.project, prefixName)
 
       if (current === undefined) {
-        ;(try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertGlobalPublicDelegatedPrefixes({
-              project: env.project,
-              body: {
-                name: prefixName,
-                description,
-                parentPrefix: news.parentPrefix,
-                ipCidrRange: news.ipCidrRange,
-                mode: news.mode,
-                allocatablePrefixLength: news.allocatablePrefixLength,
-                isLiveMigration: news.isLiveMigration,
-              },
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertGlobalPublicDelegatedPrefixes({
+                project: env.project,
+                body: {
+                  name: prefixName,
+                  description,
+                  parentPrefix: news.parentPrefix,
+                  ipCidrRange: news.ipCidrRange,
+                  mode: news.mode,
+                  allocatablePrefixLength: news.allocatablePrefixLength,
+                  isLiveMigration: news.isLiveMigration,
+                },
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, prefixName)
       }
 
@@ -342,19 +349,21 @@ export const GlobalPublicDelegatedPrefixProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      const operation = (try (compute
-        .deleteGlobalPublicDelegatedPrefixes({
-          project: env.project,
-          publicDelegatedPrefix: output.prefixName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteGlobalPublicDelegatedPrefixes({
+            project: env.project,
+            publicDelegatedPrefix: output.prefixName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitGlobalOperation(env.project, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

@@ -27,3 +27,10 @@ bun alchemy destroy  # tear down
 - In `alchemy dev`, the site is Nuxt's own dev server (native HMR) and no AWS resources are created; wrap the site in `Alchemy.remote()` to deploy the real infrastructure even during dev.
 - Nitro's `isr` route rule is Vercel/Netlify-only and ignored on AWS Lambda — use `prerender` (as `/about` does here) or `cache` route rules instead.
 - `test/integ.test.ts` deploys the stack and asserts SSR, the API route, the prerendered page, and static assets over HTTP.
+
+## Deployment type checking
+
+The deployment config enables JSX when checking imported shared UI modules.
+
+It loads ES2023 library types for the shared UI array helpers while keeping
+the existing JavaScript emit target.

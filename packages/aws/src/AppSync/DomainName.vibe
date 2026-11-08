@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as appsync from "@distilled.cloud/aws/appsync"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -75,8 +76,10 @@ export const DomainNameProvider = (): infer _ =>
     DomainName,
     effect {
       const getDomainSafe = effect (domainName: string) =>
-        (try appsync.getDomainName({ domainName })).domainNameConfig catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try appsync.getDomainName({ domainName })).domainNameConfig
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -105,11 +108,17 @@ export const DomainNameProvider = (): infer _ =>
           const config = try getDomainSafe(domainName)
           if (config?.domainName == null) return undefined
           const attrs = toAttributes(config)
-          return (try hasAlchemyTags(id, tagRecord(config.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(
+              id,
+              try Effect.orDie(Effect.try({ try: () => tagRecord(config.tags), catch: (error) => error })),
+            ))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.domainName !== olds.domainName || news.certificateArn !== olds.certificateArn) {
             return { action: "replace" } as const
           }
@@ -151,7 +160,10 @@ export const DomainNameProvider = (): infer _ =>
           if (observed.domainNameArn !== undefined) {
             try syncAppSyncTags({
               resourceArn: observed.domainNameArn,
-              oldTags: tagRecord(observed.tags),
+              oldTags: (try Effect.orDie(Effect.try({
+                try: () => tagRecord(observed.tags),
+                catch: (error) => error,
+              }))),
               newTags: desiredTags,
             })
           }
@@ -169,7 +181,7 @@ export const DomainNameProvider = (): infer _ =>
             effect {
               return appsync
                 .deleteDomainName({ domainName: output.domainName }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

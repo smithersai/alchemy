@@ -624,6 +624,8 @@ export type TreeEntryKind = "blob" | "tree" | "commit";
 /**
  * Classifies a tree entry mode: `40000` → `tree`, `160000` → `commit`
  * (gitlink), anything else → `blob`.
+ 
+ * @throws {never}
  */
 export const treeEntryKind = (mode: string): TreeEntryKind =>
   mode === TREE_MODE ? "tree" : mode === GITLINK_MODE ? "commit" : "blob";

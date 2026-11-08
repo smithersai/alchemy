@@ -153,8 +153,9 @@ export const ClusterProvider = (): infer _ =>
       return {
         stables: ["clusterArn", "clusterName"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toClusterName(id, olds ?? {})) !== (try toClusterName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if ((try toClusterName(id, olds ?? {})) !== (try toClusterName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -307,7 +308,7 @@ export const ClusterProvider = (): infer _ =>
               )
               .map((t) => [t.key, t.value]),
           )
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try ecs.tagResource({
               resourceArn: clusterArn,
@@ -347,10 +348,10 @@ export const ClusterProvider = (): infer _ =>
           // leaving the cluster behind.
 
           // 1. Delete services (force skips the scale-to-zero dance).
-          const serviceArns = (Array.from(
+          const serviceArns = (effect { return (Array.from(
             try (ecs.listServices.pages({ cluster })
               |> Stream.runCollect(%)),
-          ).flatMap((page) => page.serviceArns ?? [])) catch effect (e) => match (e) {
+          ).flatMap((page) => page.serviceArns ?? [])) }) catch effect (e) => match (e) {
             when { _tag: "ClusterNotFoundException" }: [] as string[];
             default: throw e;
           }
@@ -359,8 +360,7 @@ export const ClusterProvider = (): infer _ =>
             effect (service) =>
               try (effect {
                 return ecs.deleteService({ cluster, service, force: true }) catch effect (e) => match (e) {
-                  when { _tag: "ServiceNotFoundException" } or { _tag: "ClusterNotFoundException" }: try Effect
-                    .undefined;
+                  when { _tag: "ServiceNotFoundException" } or { _tag: "ClusterNotFoundException" }: undefined;
                   default: throw e;
                 }
               }
@@ -369,10 +369,10 @@ export const ClusterProvider = (): infer _ =>
           )
 
           // 2. Stop any remaining standalone tasks.
-          const taskArns = (Array.from(
+          const taskArns = (effect { return (Array.from(
             try (ecs.listTasks.pages({ cluster })
               |> Stream.runCollect(%)),
-          ).flatMap((page) => page.taskArns ?? [])) catch effect (e) => match (e) {
+          ).flatMap((page) => page.taskArns ?? [])) }) catch effect (e) => match (e) {
             when { _tag: "ClusterNotFoundException" }: [] as string[];
             default: throw e;
           }
@@ -381,7 +381,7 @@ export const ClusterProvider = (): infer _ =>
             effect (task) =>
               try (effect {
                 return ecs.stopTask({ cluster, task, reason: "alchemy delete" }) catch effect (e) => match (e) {
-                  when { _tag: "ClusterNotFoundException" }: try Effect.undefined;
+                  when { _tag: "ClusterNotFoundException" }: undefined;
                   default: throw e;
                 }
               }
@@ -390,10 +390,10 @@ export const ClusterProvider = (): infer _ =>
           )
 
           // 3. Deregister container instances (EC2 launch type).
-          const instanceArns = (Array.from(
+          const instanceArns = (effect { return (Array.from(
             try (ecs.listContainerInstances.pages({ cluster })
               |> Stream.runCollect(%)),
-          ).flatMap((page) => page.containerInstanceArns ?? [])) catch effect (e) => match (e) {
+          ).flatMap((page) => page.containerInstanceArns ?? [])) }) catch effect (e) => match (e) {
             when { _tag: "ClusterNotFoundException" }: [] as string[];
             default: throw e;
           }
@@ -407,7 +407,7 @@ export const ClusterProvider = (): infer _ =>
                     containerInstance,
                     force: true,
                   }) catch effect (e) => match (e) {
-                    when { _tag: "ClusterNotFoundException" }: try Effect.undefined;
+                    when { _tag: "ClusterNotFoundException" }: undefined;
                     default: throw e;
                   }
               }
@@ -419,7 +419,7 @@ export const ClusterProvider = (): infer _ =>
           //    an associated provider cannot be deleted even after its
           //    services, tasks, and container instances have drained.
           if ((observedCluster?.capacityProviders ?? output.capacityProviders).length > 0) {
-            ;(try (ecs
+            ;(effect { return (try (ecs
               .putClusterCapacityProviders({
                 cluster,
                 capacityProviders: [],
@@ -428,14 +428,14 @@ export const ClusterProvider = (): infer _ =>
               |> Effect.retry(%, {
                 while: (e) => e._tag === "UpdateInProgressException" || e._tag === "ResourceInUseException",
                 schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
-              }))) catch effect (e) => match (e) {
-                when { _tag: "ClusterNotFoundException" }: try Effect.void;
+              }))) }) catch effect (e) => match (e) {
+                when { _tag: "ClusterNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           } // 5. Delete the (now empty) cluster. Draining services/tasks is
           //    asynchronous, so retry the contains-* rejections briefly.
 
-          ;(try (ecs
+          ;(effect { return (try (ecs
             .deleteCluster({
               cluster,
             })
@@ -447,8 +447,8 @@ export const ClusterProvider = (): infer _ =>
                 || e._tag === "ClusterContainsCapacityProviderException"
                 || e._tag === "UpdateInProgressException",
               schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(15)]),
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ClusterNotFoundException" }: try Effect.void;
+            }))) }) catch effect (e) => match (e) {
+              when { _tag: "ClusterNotFoundException" }: (undefined as void);
               default: throw e;
             }
 
@@ -463,7 +463,7 @@ export const ClusterProvider = (): infer _ =>
               const observed = response.clusters?.find(
                 (candidate) => candidate.clusterArn === cluster,
               )
-              return (!observed || observed.status === "INACTIVE" ? try Effect.void : throw new ClusterStillActive({
+              return (!observed || observed.status === "INACTIVE" ? (undefined as void) : throw new ClusterStillActive({
                 cluster,
                 status: observed.status,
               }))

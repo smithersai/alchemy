@@ -316,7 +316,7 @@ const toAttrs = (cert: compute.SslCertificate, project: string): infer _ => {
 const getByName = effect (project: string, region: string, sslCertificate: string) =>
   compute
     .getRegionSslCertificates({ project, region, sslCertificate }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -390,17 +390,20 @@ export const RegionSslCertificateProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.sslCertificateName ?? output?.sslCertificateName
-      const nextName = news.sslCertificateName ?? previousName
+      const nextName = resolved.sslCertificateName ?? previousName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? output?.region, env.region)
       const regionChanged = previousRegion !== nextRegion
-      const nameChanged = news.sslCertificateName !== undefined
+      const nameChanged = resolved.sslCertificateName !== undefined
         && previousName !== undefined
-        && news.sslCertificateName !== previousName
-      if (nameChanged || regionChanged || immutableChanged(news, olds, output)) {
+        && resolved.sslCertificateName !== previousName
+      if (nameChanged || regionChanged || immutableChanged(resolved, olds, output)) {
         return {
           action: "replace" as const,
           deleteFirst: !regionChanged && nextName === previousName,
@@ -421,7 +424,9 @@ export const RegionSslCertificateProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -457,19 +462,21 @@ export const RegionSslCertificateProvider = (): infer _ =>
       let current = try getByName(env.project, region, sslCertificateName)
 
       if (current === undefined) {
-        const created = (try waitRegionOperation(
-          env.project,
-          region,
-          try compute
-            .insertRegionSslCertificates({
-              project: env.project,
-              region,
-              body: desired,
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try waitRegionOperation(
+            env.project,
+            region,
+            try compute
+              .insertRegionSslCertificates({
+                project: env.project,
+                region,
+                body: desired,
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = created !== undefined
           ? try awaitResource(env.project, region, sslCertificateName)
           : try getByName(env.project, region, sslCertificateName)
@@ -488,20 +495,22 @@ export const RegionSslCertificateProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       const region = normalizeRegion(output.region, env.region)
-      const operation = (try (compute
-        .deleteRegionSslCertificates({
-          project: env.project,
-          region,
-          sslCertificate: output.sslCertificateName,
-        })
-        |> Effect.retry(%, {
-          while: (e) => e._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteRegionSslCertificates({
+            project: env.project,
+            region,
+            sslCertificate: output.sslCertificateName,
+          })
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitRegionOperation(env.project, region, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

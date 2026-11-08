@@ -13,7 +13,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { recordsEqual } from "alchemy/Util/equal"
-import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import { waitForActions } from "./actions.vibe"
 import {
@@ -356,10 +355,10 @@ const toAttrs = (firewall: ObservedFirewall): FirewallAttributes => ({
 })
 
 const getById = effect (id: number) =>
-  (try effect {
+  (effect { return (try effect {
     const { firewall } = try Hetzner.firewalls.getFirewall({ id })
     return firewall
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const findByName = effect (name: string) => {
   const { firewalls } = try Hetzner.firewalls.listFirewalls({ name, per_page: 50 })
@@ -425,7 +424,7 @@ const syncNameAndLabels = effect (input: {
   desiredLabels: Record<string, string>
 }) => {
   const nameChanged = input.observedName !== input.desiredName
-  const { upsert, removed } = diffLabels(input.observedLabels, input.desiredLabels)
+  const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(input.observedLabels, input.desiredLabels), catch: (e) => e }))
   const labelsChanged = upsert.length > 0 || removed.length > 0
   if (!nameChanged && !labelsChanged) return
   try Hetzner.firewalls.updateFirewall({
@@ -497,33 +496,34 @@ export const FirewallProvider = (): infer _ =>
       return Array.from(rows, toAttrs)
     },
     diff: effect ({ id, olds, news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const oldName = output?.name ?? (try createFirewallName(id, olds?.name))
-      const newName = news.name ?? oldName
+      const newName = resolved.name ?? oldName
       if (oldName !== newName) {
         return { action: "update" } as const
       }
       if (
-        !rulesEqual(desiredRules(olds?.rules), desiredRules(news.rules))
-        || !recordsEqual(olds?.labels ?? {}, news.labels ?? {})
+        !rulesEqual(desiredRules(olds?.rules), desiredRules(resolved.rules))
+        || !(try Effect.orDie(Effect.try({ try: () => recordsEqual(olds?.labels ?? {}, resolved.labels ?? {}), catch: (e) => e })))
       ) {
         return { action: "update" } as const
       }
       const oldIds = desiredServerIds(olds?.applyTo)
-      const newIds = desiredServerIds(news.applyTo)
-      if (!deepEqual(oldIds, newIds)) {
+      const newIds = desiredServerIds(resolved.applyTo)
+      if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(oldIds, newIds), catch: (e) => e })))) {
         return { action: "update" } as const
       }
       if (output !== undefined) {
-        if (!rulesEqual(output.rules, desiredRules(news.rules))) {
+        if (!rulesEqual(output.rules, desiredRules(resolved.rules))) {
           return { action: "update" } as const
         }
         const outputIds = output.appliedTo.map((item) => item.serverId)
         if (
-          !deepEqual(
+          !(try Effect.orDie(Effect.try({ try: () => deepEqual(
             [...outputIds].sort((a, b) => a - b),
             newIds,
-          )
+          ), catch: (e) => e })))
         ) {
           return { action: "update" } as const
         }
@@ -547,7 +547,7 @@ export const FirewallProvider = (): infer _ =>
       if (observed === undefined) return undefined
       const attrs = toAttrs(observed)
       const ours = try hasAlchemyLabels(id, compactLabels(observed.labels))
-      return ours ? attrs : Unowned(attrs)
+      return ours ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ id, news, output }) => {
       const name = news.name ?? output?.name ?? (try createFirewallName(id, news.name))
@@ -599,14 +599,14 @@ export const FirewallProvider = (): infer _ =>
         try detachAll(id, observed.applied_to)
       }
       Hetzner.firewalls.deleteFirewall({ id }) catch effect (e) => match (e) {
-        when { _tag: "NotFound" }: try Effect.void;
+        when { _tag: "NotFound" }: (undefined as void);
         when { _tag: "UnprocessableEntity" }: try effect {
           const again = try getById(id)
           if (again === undefined) return
           try detachAll(id, again.applied_to)
           Hetzner.firewalls
             .deleteFirewall({ id }) catch effect (e) => match (e) {
-              when { _tag: "NotFound" }: try Effect.void;
+              when { _tag: "NotFound" }: (undefined as void);
               default: throw e;
             }
         };

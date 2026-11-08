@@ -91,9 +91,9 @@ export const ActionTargetProvider = (): infer _ =>
         : (try createPhysicalName({ id, maxLength: 64 })).replace(/[^a-zA-Z0-9]/g, "").slice(-20))
 
       const getActionTarget = effect (arn: string) =>
-        ((try securityhub.describeActionTargets({ ActionTargetArns: [arn] })).ActionTargets?.[0]) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-          when { _tag: "InvalidAccessException" }: try Effect.undefined;
+        (effect { return ((try securityhub.describeActionTargets({ ActionTargetArns: [arn] })).ActionTargets?.[0]) }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          when { _tag: "InvalidAccessException" }: undefined;
           default: throw e;
         }
 
@@ -107,11 +107,12 @@ export const ActionTargetProvider = (): infer _ =>
       return {
         stables: ["actionTargetArn", "id"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) {
             return
           }
           if (olds === undefined) return
-          if ((try toId(id, olds)) !== (try toId(id, news))) {
+          if ((try toId(id, olds)) !== (try toId(id, resolved))) {
             return { action: "replace" } as const
           }
         },
@@ -126,7 +127,7 @@ export const ActionTargetProvider = (): infer _ =>
           return buildAttrs(arn, live)
         },
         list: effect () =>
-          (try effect {
+          (effect { return (try effect {
             const pages = try securityhub.describeActionTargets
               .pages({})
               .pipe(Stream.runCollect)
@@ -139,7 +140,7 @@ export const ActionTargetProvider = (): infer _ =>
               }
             }
             return out
-          }) catch effect (e) => match (e) {
+          }) }) catch effect (e) => match (e) {
             when { _tag: "InvalidAccessException" }: [] as ActionTarget["Attributes"][];
             default: throw e;
           },
@@ -159,7 +160,7 @@ export const ActionTargetProvider = (): infer _ =>
                 Description: news.description,
                 Id: actionId,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceConflictException" }: try Effect.void;
+                when { _tag: "ResourceConflictException" }: (undefined as void);
                 default: throw e;
               }
           } else if (live.Name !== news.name || live.Description !== news.description) {
@@ -179,8 +180,8 @@ export const ActionTargetProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Idempotent — the action target (or the whole hub) may be gone.
           securityhub.deleteActionTarget({ ActionTargetArn: output.actionTargetArn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
-            when { _tag: "InvalidAccessException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            when { _tag: "InvalidAccessException" }: (undefined as void);
             default: throw e;
           }
         },

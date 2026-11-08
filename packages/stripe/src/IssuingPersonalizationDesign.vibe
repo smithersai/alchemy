@@ -13,7 +13,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -334,7 +333,7 @@ const getById = effect (personalizationDesign: string) =>
   try (GetIssuingPersonalizationDesign({
     personalization_design: personalizationDesign,
   })
-    |> Effect.catchIf(%, isMissingDesign, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingDesign, effect () => undefined))
 
 const findByLookupKey = effect (lookupKey: string) => {
   const response = try GetIssuingPersonalizationDesigns({
@@ -368,7 +367,7 @@ const findByAlchemyId = effect (id: string) => {
   const designs = try listAllDesigns()
   const matches: StripeIssuingPersonalizationDesign[] = []
   for (const design of designs) {
-    if (try hasAlchemyMetadata(id, tagRecord(design.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(design.metadata), catch: (e) => e })))) {
       matches.push(design)
     }
   }
@@ -389,7 +388,7 @@ const observe = effect (input: {
     const byKey = try findByLookupKey(input.lookupKey)
     if (
       byKey !== undefined
-      && (try hasAlchemyMetadata(input.logicalId, tagRecord(byKey.metadata)))
+      && (try hasAlchemyMetadata(input.logicalId, try Effect.orDie(Effect.try({ try: () => tagRecord(byKey.metadata), catch: (e) => e }))))
     ) {
       return byKey
     }
@@ -412,7 +411,8 @@ export const IssuingPersonalizationDesignProvider = (): infer _ =>
     nuke: { skip: true },
 
     diff: effect ({ news }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       return undefined
     },
 
@@ -424,7 +424,7 @@ export const IssuingPersonalizationDesignProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -465,23 +465,24 @@ export const IssuingPersonalizationDesignProvider = (): infer _ =>
             : {}),
           ...(desiredIsDefault ? { preferences: { is_default: true } } : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-issuing-personalization-design-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const nameChanged = (current.name ?? "") !== name
       const lookupKeyChanged = (current.lookup_key ?? "") !== lookupKey
       const physicalBundleChanged = (idOf(current.physical_bundle) ?? "") !== desiredPhysicalBundle
       const cardLogoChanged = (idOf(current.card_logo) ?? "") !== (desiredCardLogo ?? "")
-      const carrierTextChanged = !deepEqual(
-        fromObservedCarrierText(current.carrier_text),
+      const a = fromObservedCarrierText(current.carrier_text)
+      const carrierTextChanged = !(try Effect.orDie(Effect.try({ try: () => deepEqual(
+        a,
         desiredCarrierText,
         { stripNullish: true },
-      )
+      ), catch: (e) => e })))
       const preferencesChanged = current.preferences.is_default !== desiredIsDefault
 
       if (

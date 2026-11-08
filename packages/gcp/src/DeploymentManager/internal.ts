@@ -59,11 +59,11 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const labelsToRecord = (
+export const labelsToRecord = /** @throws {never} */ (
   labels: readonly deploymentmanager.DeploymentLabelEntry[] | undefined,
 ): Record<string, string> =>
   Object.fromEntries(
@@ -75,13 +75,15 @@ export const labelsToRecord = (
       .map((entry) => [entry.key, entry.value]),
   );
 
-export const recordToLabels = (
+export const recordToLabels = /** @throws {never} */ (
   labels: Record<string, string>,
 ): deploymentmanager.DeploymentLabelEntry[] =>
   Object.entries(labels).map(([key, value]) => ({ key, value }));
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

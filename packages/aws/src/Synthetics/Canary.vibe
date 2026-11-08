@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
 import * as iam from "@distilled.cloud/aws/iam"
 import * as lambda from "@distilled.cloud/aws/lambda"
@@ -254,19 +257,30 @@ const VPC_ACCESS_POLICY_ARN = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPC
  * transitional state while converging. Raised internally to drive the
  * bounded settle-polling retry loop.
  */
-export error CanaryNotSettled {
-  mutable canaryName: string
-  mutable state: string | undefined
+export class CanaryNotSettled extends $MutableErrorBase("CanaryNotSettled")<{
+  canaryName: string
+
+  state: string | undefined
+}> {
+  static {
+    $MutableErrorMatcher(this, "CanaryNotSettled", true)
+  }
 }
 
 /**
  * Raised when a canary lands in the `ERROR` state after a create or update
  * instead of converging to `READY`/`STOPPED`.
  */
-export error CanaryFailed {
-  mutable canaryName: string
-  mutable stateReasonCode: string | undefined
-  mutable message: string
+export class CanaryFailed extends $MutableErrorBase("CanaryFailed")<{
+  canaryName: string
+
+  stateReasonCode: string | undefined
+
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "CanaryFailed", true)
+  }
 }
 
 error CanaryBackingResourceStillVisible {
@@ -349,7 +363,7 @@ export const CanaryProvider = (): infer _ =>
         })
       }
 
-      const createRoleName = (id: string) => createPhysicalName({ id, maxLength: 64 })
+      const createRoleName = effect (id: string) => try createPhysicalName({ id, maxLength: 64 })
 
       const canaryArnOf = effect (canaryName: string) => {
         const { accountId, region } = try AWSEnvironment.current
@@ -357,8 +371,10 @@ export const CanaryProvider = (): infer _ =>
       }
 
       const getCanaryOrUndefined = effect (canaryName: string) =>
-        (try synthetics.getCanary({ Name: canaryName })).Canary catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try synthetics.getCanary({ Name: canaryName })).Canary
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -390,7 +406,7 @@ export const CanaryProvider = (): infer _ =>
           stateReasonCode: canary.Status?.StateReasonCode,
           message: canary.Status?.StateReason ?? `canary ${canaryName} is in ERROR state`,
         })
-        : try Effect.void)
+        : (undefined as void))
 
       // Deletion is asynchronous (DELETING); wait until gone so a
       // destroy-then-deploy of the same logical resource (same physical
@@ -399,7 +415,7 @@ export const CanaryProvider = (): infer _ =>
         try (effect {
           return try effect {
             const canary = try getCanaryOrUndefined(canaryName)
-            return (canary === undefined ? try Effect.void : throw new CanaryNotSettled({
+            return (canary === undefined ? (undefined as void) : throw new CanaryNotSettled({
               canaryName,
               state: canary.Status?.State,
             }))
@@ -420,18 +436,20 @@ export const CanaryProvider = (): infer _ =>
         if (state === "RUNNING" || state === "STARTING") {
           synthetics
             .stopCanary({ Name: canaryName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" } or { _tag: "ConflictException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" } or { _tag: "ConflictException" }: (undefined as void);
               default: throw e;
             }
         }
         // wait out any transitional state (STOPPING, UPDATING, ...) — a
         // canary can only be deleted from READY/STOPPED/ERROR.
         try waitForSettled(canaryName)
-        ;(try (synthetics.deleteCanary({ Name: canaryName, DeleteLambda: true })
-          |> retryWhileConflict(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
-            default: throw e;
-          }
+        ;(effect {
+          return (try (synthetics.deleteCanary({ Name: canaryName, DeleteLambda: true })
+            |> retryWhileConflict(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: (undefined as void);
+          default: throw e;
+        }
         try waitUntilGone(canaryName)
       }
 
@@ -473,11 +491,13 @@ export const CanaryProvider = (): infer _ =>
       }
 
       const backingFunctionExists = effect (functionName: string) =>
-        (try (lambda.getFunction({ FunctionName: functionName })
-          |> Effect.as(%, true))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: false;
-            default: throw e;
-          }
+        (effect {
+          return (try (lambda.getFunction({ FunctionName: functionName })
+            |> Effect.as(%, true)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: false;
+          default: throw e;
+        }
 
       const exactLogGroupExists = effect (logGroupName: string) =>
         ((try logs
@@ -511,14 +531,16 @@ export const CanaryProvider = (): infer _ =>
         functionName: string,
       ) => {
         const logGroupName = `/aws/lambda/${functionName}`
-        ;(try (lambda.deleteFunction({ FunctionName: functionName })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "ResourceConflictException",
-            schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(20)]),
-          }))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
-            default: throw e;
-          }
+        ;(effect {
+          return (try (lambda.deleteFunction({ FunctionName: functionName })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "ResourceConflictException",
+              schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(20)]),
+            })))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: (undefined as void);
+          default: throw e;
+        }
         try waitForBackingResourceGone(
           canaryName,
           "LambdaFunction",
@@ -531,14 +553,16 @@ export const CanaryProvider = (): infer _ =>
         // so reap this exact group across a short quiescence window.
         for (let attempt = 0; attempt < 5; attempt++) {
           if (try exactLogGroupExists(logGroupName)) {
-            ;(try (logs.deleteLogGroup({ logGroupName })
-              |> Effect.retry(%, {
-                while: (error) => error._tag === "OperationAbortedException",
-                schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(15)]),
-              }))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (logs.deleteLogGroup({ logGroupName })
+                |> Effect.retry(%, {
+                  while: (error) => error._tag === "OperationAbortedException",
+                  schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(15)]),
+                })))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
+              default: throw e;
+            }
           }
           try Effect.sleep("2 seconds")
         }
@@ -587,9 +611,9 @@ export const CanaryProvider = (): infer _ =>
             }),
             Tags: createTagsList(internalTags),
           }) catch effect (e) => match (e) {
-            when { _tag: "EntityAlreadyExistsException" }: try Effect.sync(() => {
+            when { _tag: "EntityAlreadyExistsException" }: try effect {
               created = false
-            });
+            };
             default: throw e;
           }
         try iam.putRolePolicy({
@@ -659,24 +683,32 @@ export const CanaryProvider = (): infer _ =>
           .deleteRolePolicy({
             RoleName: roleName,
             PolicyName: ROLE_POLICY_NAME,
-          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
+            default: throw e;
+          }
         iam
           .detachRolePolicy({
             RoleName: roleName,
             PolicyArn: VPC_ACCESS_POLICY_ARN,
-          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
-        ;(try (iam.deleteRole({ RoleName: roleName })
-          |> Effect.retry(%, {
-            while: (error) =>
-              error._tag === "ConcurrentModificationException"
-              || error._tag === "DeleteConflictException"
-              || error._tag === "LimitExceededException"
-              || error._tag === "ServiceFailureException",
-            schedule: Schedule.max([Schedule.fixed("1 second"), Schedule.recurs(20)]),
-          }))) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.void;
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
             default: throw e;
           }
+        ;(effect {
+          return (try (iam.deleteRole({ RoleName: roleName })
+            |> Effect.retry(%, {
+              while: (error) =>
+                error._tag === "ConcurrentModificationException"
+                || error._tag === "DeleteConflictException"
+                || error._tag === "LimitExceededException"
+                || error._tag === "ServiceFailureException",
+              schedule: Schedule.max([Schedule.fixed("1 second"), Schedule.recurs(20)]),
+            })))
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: (undefined as void);
+          default: throw e;
+        }
 
         // IAM deletion is eventually consistent. Keep the canary's state
         // until its owned execution role is observably absent so a following
@@ -684,7 +716,7 @@ export const CanaryProvider = (): infer _ =>
         for (let attempt = 0; attempt < 30; attempt++) {
           const remaining = iam
             .getRole({ RoleName: roleName }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
           if (remaining === undefined) return
@@ -697,13 +729,13 @@ export const CanaryProvider = (): infer _ =>
         )
       }
 
-      const desiredConfigHash = (
+      const desiredConfigHash = effect (
         props: CanaryProps,
         executionRoleArn: string,
         artifactS3Location: string,
         runtimeVersion: string,
       ) =>
-        sha256Object({
+        try sha256Object({
           script: props.script,
           handler: props.handler ?? "index.handler",
           runtimeVersion,
@@ -711,17 +743,28 @@ export const CanaryProvider = (): infer _ =>
           executionRoleArn,
           schedule: {
             expression: props.schedule?.expression ?? DEFAULT_SCHEDULE_EXPRESSION,
-            durationInSeconds: toWireSeconds(props.schedule?.duration) ?? 0,
+            durationInSeconds: (try Effect.orDie(Effect.try({
+              try: () => toWireSeconds(props.schedule?.duration),
+              catch: (e) => e,
+            }))) ?? 0,
           },
-          runConfig: props.runConfig === undefined
-            ? {}
-            : {
-              ...props.runConfig,
-              timeout: undefined,
-              timeoutInSeconds: toWireSeconds(props.runConfig.timeout),
-            },
-          successRetentionPeriodInDays: toWireDays(props.successRetentionPeriod),
-          failureRetentionPeriodInDays: toWireDays(props.failureRetentionPeriod),
+          runConfig: try Effect.orDie(Effect.try({
+            try: () =>
+              props.runConfig === undefined
+                ? {}
+                : {
+                  ...props.runConfig,
+                  timeout: undefined,
+                  timeoutInSeconds: toWireSeconds(props.runConfig.timeout),
+                },
+            catch: (e) => e,
+          })),
+          successRetentionPeriodInDays: try Effect.orDie(
+            Effect.try({ try: () => toWireDays(props.successRetentionPeriod), catch: (e) => e }),
+          ),
+          failureRetentionPeriodInDays: try Effect.orDie(
+            Effect.try({ try: () => toWireDays(props.failureRetentionPeriod), catch: (e) => e }),
+          ),
           vpcConfig: props.vpcConfig,
           provisionedResourceCleanup: props.provisionedResourceCleanup ?? "AUTOMATIC",
         })
@@ -794,11 +837,14 @@ export const CanaryProvider = (): infer _ =>
             engineArn: canary.EngineArn ?? output?.engineArn,
           }
           const tags = filterTags(canary.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createCanaryName(id, olds)
           const newName = try createCanaryName(id, news)
           if (oldName !== newName) {
@@ -949,7 +995,7 @@ export const CanaryProvider = (): infer _ =>
           } else if (!desiredRunning && state === "RUNNING") {
             synthetics
               .stopCanary({ Name: canaryName }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
+                when { _tag: "ConflictException" }: (undefined as void);
                 default: throw e;
               }
             try session.note(`stopped canary ${canaryName}`)

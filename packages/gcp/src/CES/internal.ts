@@ -64,8 +64,10 @@ export const expandApp = (value: string, project: string, location: string) =>
     ? value.replace(/\/+$/, "")
     : `${locationParent(project, location)}/apps/${value}`;
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -117,8 +119,9 @@ export const userMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(metadata));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 const markerOf = (labels: Record<string, string>, stack: string, stage: string, id: string) =>
   `[alchemy ${alchemyLabelKeys.stack}=${stack} ${alchemyLabelKeys.stage}=${stage} ${alchemyLabelKeys.id}=${id}]`;

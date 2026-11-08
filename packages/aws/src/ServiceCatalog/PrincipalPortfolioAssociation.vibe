@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as servicecatalog from "@distilled.cloud/aws/service-catalog"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -82,16 +83,18 @@ export const PrincipalPortfolioAssociationProvider = (): infer _ =>
       // Enumerate the portfolio's principals and check for ours. A missing
       // portfolio means the association is gone too.
       const isAssociated = effect (portfolioId: string, principalArn: string) =>
-        (Array.from(
-          try (servicecatalog.listPrincipalsForPortfolio
-            .pages({ PortfolioId: portfolioId })
-            |> Stream.runCollect(%)),
-        )
-          .flatMap((page) => page.Principals ?? [])
-          .some((p) => p.PrincipalARN === principalArn)) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: false;
-            default: throw e;
-          }
+        (effect {
+          return (Array.from(
+            try (servicecatalog.listPrincipalsForPortfolio
+              .pages({ PortfolioId: portfolioId })
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.Principals ?? [])
+            .some((p) => p.PrincipalARN === principalArn))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: false;
+          default: throw e;
+        }
 
       return PrincipalPortfolioAssociation.Provider.of({
         stables: ["portfolioId", "principalArn", "principalType"],
@@ -111,34 +114,37 @@ export const PrincipalPortfolioAssociationProvider = (): infer _ =>
           const associations = try Effect.forEach(
             portfolioIds,
             effect (portfolioId) =>
-              (Array.from(
-                try (servicecatalog.listPrincipalsForPortfolio.pages({ PortfolioId: portfolioId })
-                  |> Stream.runCollect(%)),
-              )
-                .flatMap((page) => page.Principals ?? [])
-                .flatMap((principal) => {
-                  if (principal.PrincipalARN === undefined) return []
-                  const principalType = principal.PrincipalType === "IAM"
-                    ? ("IAM" as const)
-                    : principal.PrincipalType === "IAM_PATTERN"
-                    ? ("IAM_PATTERN" as const)
-                    : undefined
-                  if (principalType === undefined) return []
-                  return [
-                    {
-                      portfolioId,
-                      principalArn: principal.PrincipalARN,
-                      principalType,
-                    },
-                  ]
-                })) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+              (effect {
+                return (Array.from(
+                  try (servicecatalog.listPrincipalsForPortfolio.pages({ PortfolioId: portfolioId })
+                    |> Stream.runCollect(%)),
+                )
+                  .flatMap((page) => page.Principals ?? [])
+                  .flatMap((principal) => {
+                    if (principal.PrincipalARN === undefined) return []
+                    const principalType = principal.PrincipalType === "IAM"
+                      ? ("IAM" as const)
+                      : principal.PrincipalType === "IAM_PATTERN"
+                      ? ("IAM_PATTERN" as const)
+                      : undefined
+                    if (principalType === undefined) return []
+                    return [
+                      {
+                        portfolioId,
+                        principalArn: principal.PrincipalARN,
+                        principalType,
+                      },
+                    ]
+                  }))
+              }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
             { concurrency: 5 },
           )
           return associations.flat()
         },
         // Existence-only resource — every property is part of its identity.
-        diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             olds.portfolioId !== news.portfolioId
             || olds.principalArn !== news.principalArn
@@ -189,7 +195,7 @@ export const PrincipalPortfolioAssociationProvider = (): infer _ =>
                 PrincipalARN: output.principalArn,
                 PrincipalType: output.principalType,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }

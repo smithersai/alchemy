@@ -4,10 +4,7 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, createTagsList, diffTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { toRedactedBytes, toTagRecord } from "./common.vibe"
 
@@ -127,7 +124,7 @@ export const VirtualMFADeviceProvider = (): infer _ =>
             SerialNumber: serialNumber,
             UserName: userName,
           }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+            when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           }
       }
@@ -145,10 +142,12 @@ export const VirtualMFADeviceProvider = (): infer _ =>
           return try Effect.forEach(
             devices,
             effect (device) => {
-              const tags = (try iam
-                .listMFADeviceTags({
-                  SerialNumber: device.SerialNumber,
-                })).Tags catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; }
+              const tags = (effect {
+                return (try iam
+                  .listMFADeviceTags({
+                    SerialNumber: device.SerialNumber,
+                  })).Tags
+              }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; }
               return {
                 serialNumber: device.SerialNumber,
                 userName: device.User?.UserName,
@@ -164,14 +163,17 @@ export const VirtualMFADeviceProvider = (): infer _ =>
           )
         },
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
           if (
             (try toName(id, olds ?? ({} as VirtualMFADeviceProps)))
-              !== (try toName(id, news))
-            || (olds.path ?? "/") !== (news.path ?? "/")
-            || (olds.userName ?? undefined) !== (news.userName ?? undefined)
-            || (olds.authenticationCode1 ?? undefined) !== (news.authenticationCode1 ?? undefined)
-            || (olds.authenticationCode2 ?? undefined) !== (news.authenticationCode2 ?? undefined)
+              !== (try toName(id, resolved))
+            || (olds.path ?? "/") !== (resolved.path ?? "/")
+            || (olds.userName ?? undefined) !== (resolved.userName ?? undefined)
+            || (olds.authenticationCode1 ?? undefined) !== (resolved.authenticationCode1 ?? undefined)
+            || (olds.authenticationCode2 ?? undefined) !== (resolved.authenticationCode2 ?? undefined)
           ) {
             return { action: "replace" } as const
           }
@@ -227,7 +229,7 @@ export const VirtualMFADeviceProvider = (): infer _ =>
             const created = try iam.createVirtualMFADevice({
               Path: news.path,
               VirtualMFADeviceName: deviceName,
-              Tags: createTagsList(desiredTags),
+              Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
             })
             if (!created.VirtualMFADevice.SerialNumber) {
               throw new VirtualMFADeviceUnexpectedResponse({
@@ -263,7 +265,9 @@ export const VirtualMFADeviceProvider = (): infer _ =>
             SerialNumber: serialNumber,
           })
           const observedTags = toTagRecord(observedTagsResp.Tags)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try iam.tagMFADevice({
               SerialNumber: serialNumber,
@@ -300,7 +304,7 @@ export const VirtualMFADeviceProvider = (): infer _ =>
                 UserName: output.userName,
                 SerialNumber: output.serialNumber,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -308,7 +312,7 @@ export const VirtualMFADeviceProvider = (): infer _ =>
             .deleteVirtualMFADevice({
               SerialNumber: output.serialNumber,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
         },

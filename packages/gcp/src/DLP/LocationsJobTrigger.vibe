@@ -190,26 +190,43 @@ export const LocationsJobTriggerProvider = (): infer _ =>
     stables: ["name", "triggerId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.triggerId ?? output?.triggerId
-      const idChanged = previousId !== undefined && news.triggerId !== undefined && news.triggerId !== previousId
+      const idChanged = previousId !== undefined && resolved.triggerId !== undefined
+        && resolved.triggerId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && normalizeLocation(news.location ?? previousLocation, env.region)
-          !== normalizeLocation(previousLocation, env.region)
-      return replaceOnIdentity(idChanged || locationChanged)
+        && (try Effect.orDie(
+            Effect.try({
+              try: () => normalizeLocation(resolved.location ?? previousLocation, env.region),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(previousLocation, env.region), catch: (e) => e }),
+          ))
+      return try Effect.orDie(
+        Effect.try({ try: () => replaceOnIdentity(idChanged || locationChanged), catch: (e) => e }),
+      )
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const triggerId = try toResourceId(id, olds?.triggerId, output?.triggerId)
       const name = output?.name ?? resourceName(env.project, location, triggerId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -231,11 +248,15 @@ export const LocationsJobTriggerProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const triggerId = try toResourceId(id, news.triggerId, output?.triggerId)
       const name = resourceName(env.project, location, triggerId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const status = news.status ?? DEFAULT_STATUS
       const inspectJob = news.inspectJob ?? DEFAULT_INSPECT_JOB
       const triggers = news.triggers ?? DEFAULT_TRIGGERS
@@ -265,11 +286,19 @@ export const LocationsJobTriggerProvider = (): infer _ =>
         throw new LocationsJobTriggerNotResolved({ resourceName: name })
       }
 
-      const displayChanged = !jsonEqual(current.displayName, news.displayName)
+      const displayChanged = !(try Effect.orDie(
+        Effect.try({ try: jsonEqual.bind(undefined, current.displayName, news.displayName), catch: (e) => e }),
+      ))
       const descriptionChanged = (current.description ?? "") !== description
       const statusChanged = (current.status ?? "") !== status
-      const inspectChanged = !jsonEqual(current.inspectJob, inspectJob)
-      const triggersChanged = !jsonEqual(current.triggers ?? [], triggers)
+      const inspectChanged = !(try Effect.orDie(Effect.try({
+        try: jsonEqual.bind(undefined, current.inspectJob, inspectJob),
+        catch: (e) => e,
+      })))
+      const triggersChanged = !(try Effect.orDie(Effect.try({
+        try: jsonEqual.bind(undefined, current.triggers ?? [], triggers),
+        catch: (e) => e,
+      })))
 
       if (
         displayChanged

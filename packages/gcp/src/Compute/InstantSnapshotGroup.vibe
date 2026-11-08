@@ -211,7 +211,7 @@ const toAttrs = (
 const getByName = effect (project: string, zone: string, instantSnapshotGroup: string) =>
   compute
     .getInstantSnapshotGroups({ project, zone, instantSnapshotGroup }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -244,7 +244,7 @@ const waitGone = effect (project: string, zone: string, instantSnapshotGroupName
   try (effect {
     return try effect {
       const group = try getByName(project, zone, instantSnapshotGroupName)
-      return (group === undefined ? try Effect.void : throw new InstantSnapshotGroupStillExists({
+      return (group === undefined ? (undefined as void) : throw new InstantSnapshotGroupStillExists({
         instantSnapshotGroupName,
         status: group.status ?? "EXISTS",
       }))
@@ -269,15 +269,18 @@ export const InstantSnapshotGroupProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.instantSnapshotGroupName ?? output?.instantSnapshotGroupName
-      const nextName = news.instantSnapshotGroupName
+      const nextName = resolved.instantSnapshotGroupName
       const previousZone = zoneOf(olds?.zone ?? output?.zone)
-      const nextZone = zoneOf(news.zone ?? output?.zone)
+      const nextZone = zoneOf(resolved.zone ?? output?.zone)
       const previousSource = lastSegment(
         olds?.sourceConsistencyGroup ?? output?.sourceConsistencyGroup,
       )
-      const nextSource = lastSegment(news.sourceConsistencyGroup)
+      const nextSource = lastSegment(resolved.sourceConsistencyGroup)
       if (
         (previousName !== undefined && nextName !== undefined && previousName !== nextName)
         || previousZone !== nextZone
@@ -306,7 +309,9 @@ export const InstantSnapshotGroupProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -314,21 +319,23 @@ export const InstantSnapshotGroupProvider = (): infer _ =>
       const perZone = try Effect.forEach(
         LIST_ZONES,
         effect (zone) =>
-          (Array.from(
-            try (compute.listInstantSnapshotGroups
-              .items({
-                project: env.project,
-                zone,
-                maxResults: 500,
-                returnPartialSuccess: true,
-              })
-              |> Stream.filter(%, (group) => {
-                const { labels } = parseDescription(group.description)
-                return Object.keys(labels).some((key) => key.startsWith("alchemy-"))
-              })
-              |> Stream.map(%, (group) => toAttrs(group, env.project))
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+          (effect {
+            return (Array.from(
+              try (compute.listInstantSnapshotGroups
+                .items({
+                  project: env.project,
+                  zone,
+                  maxResults: 500,
+                  returnPartialSuccess: true,
+                })
+                |> Stream.filter(%, (group) => {
+                  const { labels } = parseDescription(group.description)
+                  return Object.keys(labels).some((key) => key.startsWith("alchemy-"))
+                })
+                |> Stream.map(%, (group) => toAttrs(group, env.project))
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
         { concurrency: 4 },
       )
       return perZone.flat()
@@ -352,24 +359,26 @@ export const InstantSnapshotGroupProvider = (): infer _ =>
       }
 
       if (current === undefined) {
-        ;(try waitZoneOperation(
-          env.project,
-          zone,
-          try compute
-            .insertInstantSnapshotGroups({
-              project: env.project,
-              zone,
-              sourceConsistencyGroup: news.sourceConsistencyGroup,
-              body: {
-                name: instantSnapshotGroupName,
-                description,
+        ;(effect {
+          return (try waitZoneOperation(
+            env.project,
+            zone,
+            try compute
+              .insertInstantSnapshotGroups({
+                project: env.project,
+                zone,
                 sourceConsistencyGroup: news.sourceConsistencyGroup,
-              },
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+                body: {
+                  name: instantSnapshotGroupName,
+                  description,
+                  sourceConsistencyGroup: news.sourceConsistencyGroup,
+                },
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try waitReady(env.project, zone, instantSnapshotGroupName)
       }
 
@@ -390,20 +399,22 @@ export const InstantSnapshotGroupProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       const zone = zoneOf(output.zone)
-      const operation = (try (compute
-        .deleteInstantSnapshotGroups({
-          project: env.project,
-          zone,
-          instantSnapshotGroup: output.instantSnapshotGroupName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteInstantSnapshotGroups({
+            project: env.project,
+            zone,
+            instantSnapshotGroup: output.instantSnapshotGroupName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitZoneOperation(env.project, zone, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

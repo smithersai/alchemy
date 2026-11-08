@@ -149,12 +149,14 @@ const listOwned = effect (project: string, region: string) =>
     project,
     region,
     effect (parent) =>
-      (Array.from(
-        try (oracle.listProjectsLocationsOdbNetworks.pages({ parent, pageSize: 1000 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.odbNetworks ?? []))
-          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+      (effect {
+        return (Array.from(
+          try (oracle.listProjectsLocationsOdbNetworks.pages({ parent, pageSize: 1000 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.odbNetworks ?? []))
+            |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
   )
 
 export const OdbNetworkProvider = (): infer _ =>
@@ -171,23 +173,36 @@ export const OdbNetworkProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousNetwork = lastSegment(olds?.network ?? output?.network ?? DEFAULT_NETWORK)
-      const nextNetwork = lastSegment(
-        news.network ?? olds?.network ?? output?.network ?? DEFAULT_NETWORK,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousNetwork = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.network ?? output?.network ?? DEFAULT_NETWORK), catch: (e) => e }),
+      )
+      const nextNetwork = try Effect.orDie(Effect.try({
+        try: () =>
+          lastSegment(
+            resolved.network ?? olds?.network ?? output?.network ?? DEFAULT_NETWORK,
+          ),
+        catch: (e) => e,
+      }))
       const previousZone = olds?.gcpOracleZone ?? output?.gcpOracleZone ?? ""
-      const nextZone = news.gcpOracleZone ?? previousZone
-      return replaceOnIdentity({
-        previousId: olds?.odbNetworkId ?? output?.odbNetworkId,
-        nextId: news.odbNetworkId ?? olds?.odbNetworkId ?? output?.odbNetworkId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-        extra: previousNetwork !== nextNetwork || previousZone !== nextZone,
-      })
+      const nextZone = resolved.gcpOracleZone ?? previousZone
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.odbNetworkId ?? output?.odbNetworkId,
+            nextId: resolved.odbNetworkId ?? olds?.odbNetworkId ?? output?.odbNetworkId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            extra: previousNetwork !== nextNetwork || previousZone !== nextZone,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -198,12 +213,19 @@ export const OdbNetworkProvider = (): infer _ =>
         output?.odbNetworkId,
         "odbnetwork",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, odbNetworkId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -220,11 +242,15 @@ export const OdbNetworkProvider = (): infer _ =>
         output?.odbNetworkId,
         "odbnetwork",
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, odbNetworkId)
-      const network = networkName(env.project, news.network)
+      const network = try Effect.orDie(
+        Effect.try({ try: () => networkName(env.project, news.network), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -261,13 +287,15 @@ export const OdbNetworkProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (oracle
-        .deleteProjectsLocationsOdbNetworks({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("5 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsOdbNetworks({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

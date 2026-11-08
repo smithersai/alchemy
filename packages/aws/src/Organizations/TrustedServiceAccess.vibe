@@ -76,8 +76,9 @@ export const TrustedServiceAccessProvider = (): infer _ =>
       return {
         stables: ["servicePrincipal"],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
-          if (olds?.servicePrincipal !== news.servicePrincipal) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if (olds?.servicePrincipal !== resolved.servicePrincipal) {
             return { action: "replace" } as const
           }
         },
@@ -92,15 +93,15 @@ export const TrustedServiceAccessProvider = (): infer _ =>
           return try readTrustedServiceAccess(servicePrincipal)
         },
         list: effect () =>
-          (try effect {
+          (effect { return (try effect {
             // Enumerate every service principal granted trusted access to the
             // organization. The list response already carries the full `read`
             // shape (servicePrincipal + dateEnabled), so each enabled principal
             // maps directly to one Attributes — no per-item hydration needed.
             const principals = try retryOrganizations(
               collectPages(
-                (NextToken) =>
-                  organizations.listAWSServiceAccessForOrganization({
+                effect (NextToken) =>
+                  try organizations.listAWSServiceAccessForOrganization({
                     NextToken,
                   }),
                 (page) => page.EnabledServicePrincipals,
@@ -122,7 +123,7 @@ export const TrustedServiceAccessProvider = (): infer _ =>
                     dateEnabled: candidate.DateEnabled,
                   }) satisfies TrustedServiceAccess["Attributes"],
               )
-          }) catch effect (e) => match (e) {
+          }) }) catch effect (e) => match (e) {
             when { _tag: "AWSOrganizationsNotInUseException" }: [] as TrustedServiceAccess["Attributes"][];
             when { _tag: "AccessDeniedException" }: [] as TrustedServiceAccess["Attributes"][];
             default: throw e;
@@ -170,7 +171,7 @@ export const TrustedServiceAccessProvider = (): infer _ =>
 const readTrustedServiceAccess = effect (servicePrincipal: string) => {
   const principals = try retryOrganizations(
     collectPages(
-      (NextToken) => organizations.listAWSServiceAccessForOrganization({ NextToken }),
+      effect (NextToken) => try organizations.listAWSServiceAccessForOrganization({ NextToken }),
       (page) => page.EnabledServicePrincipals,
     ),
   )

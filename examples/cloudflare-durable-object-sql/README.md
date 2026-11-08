@@ -51,18 +51,31 @@ CREATE TABLE users (
 );
 ```
 
-`src/Users.ts` captures the SQL during construction and applies it when each object activates:
+`src/Users.vibe` captures the SQL during construction and applies it when each object activates:
 
-```ts
-Effect.gen(function* () {
-  const migrations = yield* Cloudflare.SqlMigrations("./drizzle");
+```vibe
+effect {
+  const migrations = try Cloudflare.SqlMigrations("./drizzle")
 
-  return Effect.gen(function* () {
-    const db = yield* Drizzle.DurableObject({ migrations, relations });
-    return { listUsers: () => db.select().from(users) };
-  });
-});
+  return effect {
+    const db = try Drizzle.DurableObject({ migrations, relations })
+    return {
+      listUsers: effect () => {
+        const query = try Effect.orDie(Effect.try({
+          try: () => db.select().from(users),
+          catch: (e) => e,
+        }))
+        return try query
+      },
+    }
+  }
+}
 ```
+
+Query construction is a foreign call, so synchronous exceptions become defects.
+Running the returned query keeps `EffectDrizzleQueryError` in the typed error
+channel, where the Worker returns a `500` response. A malformed or empty request
+body returns `400`.
 
 ## Schema changes
 
@@ -108,3 +121,7 @@ Deletes the Worker and all Durable Object data; keeps the SQL files in Git.
 ```sh
 pnpm destroy
 ```
+
+These regressions cover typed query failures and generated callers for both
+methods. Construction exceptions remain defects, and query execution failures
+stay catchable.

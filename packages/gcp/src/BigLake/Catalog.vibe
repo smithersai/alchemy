@@ -142,7 +142,7 @@ const toCatalogId = effect (id: string, explicit: string | undefined, existing: 
   if (existing !== undefined) return existing
   const generated = try toPhysicalId(id, undefined, undefined)
   if (generated.startsWith("alc_")) return generated
-  return rfc1035(`alc_${generated}`, MAX_ID_LENGTH)
+  return try Effect.orDie(Effect.try({ try: () => rfc1035(`alc_${generated}`, MAX_ID_LENGTH), catch: (e) => e }))
 }
 
 const lastIdOwned = (name: string | undefined): infer _ => {
@@ -155,7 +155,9 @@ const isOwnedCatalog = (catalog: biglake.Catalog, policy?: biglake.Policy): infe
 
 const ownedFromPolicy = effect (id: string, policy: biglake.Policy | undefined) => {
   for (const binding of policy?.bindings ?? []) {
-    const labels = parseOwnershipMarker(binding.condition?.description)
+    const labels = try Effect.orDie(
+      Effect.try({ try: () => parseOwnershipMarker(binding.condition?.description), catch: (e) => e }),
+    )
     if (try hasAlchemyLabels(id, labels)) return true
   }
   return false
@@ -164,7 +166,7 @@ const ownedFromPolicy = effect (id: string, policy: biglake.Policy | undefined) 
 const emptyCatalog = effect (name: string) => {
   const databases = try listDatabases(name)
   try Effect.forEach(
-    namedOf(databases),
+    try Effect.orDie(Effect.try({ try: () => namedOf(databases), catch: (e) => e })),
     effect (database) => try emptyAndDeleteDatabase(database.name!),
     { concurrency: 1 },
   )
@@ -173,7 +175,7 @@ const emptyCatalog = effect (name: string) => {
 const emptyAndDeleteDatabase = effect (name: string) => {
   const tables = try listTables(name)
   try Effect.forEach(
-    namedOf(tables),
+    try Effect.orDie(Effect.try({ try: () => namedOf(tables), catch: (e) => e })),
     effect (table) =>
       try ignoreGone(
         biglake.deleteProjectsLocationsCatalogsDatabasesTables({
@@ -191,21 +193,30 @@ export const CatalogProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousId: olds?.catalogId ?? output?.catalogId,
-        nextId: news.catalogId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.catalogId ?? output?.catalogId,
+            nextId: resolved.catalogId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const catalogId = try toCatalogId(id, olds?.catalogId, output?.catalogId)
       const name = output?.name ?? resourceName(env.project, location, catalogId)
       const existing = try getByName(name)
@@ -216,15 +227,28 @@ export const CatalogProvider = (): infer _ =>
       // state has it or an earlier Alchemy version stamped the IAM policy.
       if (output !== undefined || olds?.catalogId === undefined) return attrs
       const policy = try getPolicy(existing.name ?? name)
-      return (try ownedFromPolicy(id, policy)) ? attrs : Unowned(attrs)
+      return (try ownedFromPolicy(id, policy))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const catalogs = (try Effect.forEach(listLocations(env.region), effect (location) =>
-        try listCatalogs(locationParent(env.project, location)))).flat()
+      const catalogs = (try Effect.forEach(
+        try Effect.orDie(Effect.try({
+          try: () => listLocations(env.region),
+          catch: (e) => e,
+        })),
+        effect (location) =>
+          try listCatalogs(
+            try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e })),
+          ),
+      )).flat()
       const owned = try Effect.forEach(
-        namedOf(catalogs),
+        try Effect.orDie(Effect.try({
+          try: () => namedOf(catalogs),
+          catch: (e) => e,
+        })),
         effect (catalog) => {
           const policy = try getPolicy(catalog.name!)
           return isOwnedCatalog(catalog, policy) ? catalog : undefined
@@ -232,19 +256,19 @@ export const CatalogProvider = (): infer _ =>
         { concurrency: 4 },
       )
       return owned
-        .filter((item): item is biglake.Catalog =>
-          item !== undefined
-        )
-        .map((item) =>
-          toAttrs(item, env.project)
-        )
+        .filter((item): item is biglake.Catalog => item !== undefined)
+        .map((item) => toAttrs(item, env.project))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const catalogId = try toCatalogId(id, news.catalogId, output?.catalogId)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, catalogId)
       let current = try getByName(name)
 

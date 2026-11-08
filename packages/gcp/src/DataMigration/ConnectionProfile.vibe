@@ -380,26 +380,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (dm.listProjectsLocationsConnectionProfiles
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connectionProfiles ?? []))
-      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (dm.listProjectsLocationsConnectionProfiles
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connectionProfiles ?? []))
         |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.ConnectionProfile[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (dm.listProjectsLocationsConnectionProfiles
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connectionProfiles ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.ConnectionProfile[]; default: throw e; };
     default: throw e;
   }
 
@@ -411,7 +415,10 @@ export const ConnectionProfileProvider = (): infer _ =>
     stables: ["name", "connectionProfileId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKind = kindOf({
         mysql: olds?.mysql ?? output?.mysql,
@@ -421,33 +428,45 @@ export const ConnectionProfileProvider = (): infer _ =>
         cloudsql: olds?.cloudsql ?? output?.cloudsql,
         alloydb: olds?.alloydb ?? output?.alloydb,
       })
-      const nextKind = kindOf(news) || previousKind
-      const previousCloudsql = fingerprint(
-        publicCloudsql(olds?.cloudsql ?? output?.cloudsql)?.settings,
-      )
-      const nextCloudsql = fingerprint(publicCloudsql(news.cloudsql)?.settings)
-      const previousAlloy = fingerprint({
+      const nextKind = kindOf(resolved) || previousKind
+      const value = publicCloudsql(olds?.cloudsql ?? output?.cloudsql)?.settings
+      const previousCloudsql = try Effect.orDie(Effect.try({
+        try: () =>
+          fingerprint(
+            value,
+          ),
+        catch: (e) => e,
+      }))
+      const value2 = publicCloudsql(resolved.cloudsql)?.settings
+      const nextCloudsql = try Effect.orDie(Effect.try({ try: () => fingerprint(value2), catch: (e) => e }))
+      const value3 = {
         clusterId: olds?.alloydb?.clusterId ?? output?.alloydb?.clusterId,
         settings: publicAlloydb(olds?.alloydb ?? output?.alloydb)?.settings,
-      })
-      const nextAlloy = fingerprint({
-        clusterId: news.alloydb?.clusterId,
-        settings: publicAlloydb(news.alloydb)?.settings,
-      })
-      return replaceOnIdentity({
-        previousId: olds?.connectionProfileId ?? output?.connectionProfileId,
-        nextId: news.connectionProfileId ?? olds?.connectionProfileId ?? output?.connectionProfileId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousKind !== nextKind
-          || (nextKind === "cloudsql"
-            && news.cloudsql !== undefined
-            && previousCloudsql !== nextCloudsql)
-          || (nextKind === "alloydb" && news.alloydb !== undefined && previousAlloy !== nextAlloy),
-      })
+      }
+      const previousAlloy = try Effect.orDie(Effect.try({ try: () => fingerprint(value3), catch: (e) => e }))
+      const value4 = {
+        clusterId: resolved.alloydb?.clusterId,
+        settings: publicAlloydb(resolved.alloydb)?.settings,
+      }
+      const nextAlloy = try Effect.orDie(Effect.try({ try: () => fingerprint(value4), catch: (e) => e }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.connectionProfileId ?? output?.connectionProfileId,
+            nextId: resolved.connectionProfileId ?? olds?.connectionProfileId ?? output?.connectionProfileId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousKind !== nextKind
+              || (nextKind === "cloudsql"
+                && resolved.cloudsql !== undefined
+                && previousCloudsql !== nextCloudsql)
+              || (nextKind === "alloydb" && resolved.alloydb !== undefined && previousAlloy !== nextAlloy),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -458,12 +477,19 @@ export const ConnectionProfileProvider = (): infer _ =>
         output?.connectionProfileId,
         "profile",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, connectionProfileId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -480,10 +506,12 @@ export const ConnectionProfileProvider = (): infer _ =>
         output?.connectionProfileId,
         "profile",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, connectionProfileId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? connectionProfileId
@@ -598,16 +626,18 @@ export const ConnectionProfileProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (dm
-        .deleteProjectsLocationsConnectionProfiles({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (dm
+          .deleteProjectsLocationsConnectionProfiles({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

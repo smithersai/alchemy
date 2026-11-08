@@ -290,14 +290,17 @@ export const StreamProvider = (): infer _ =>
     stables: ["name", "streamId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousSource = profileIdOf(
         olds?.sourceConfig?.sourceConnectionProfile
           ?? output?.sourceConfig?.sourceConnectionProfile,
       )
       const nextSource = profileIdOf(
-        news.sourceConfig.sourceConnectionProfile
+        resolved.sourceConfig.sourceConnectionProfile
           ?? olds?.sourceConfig?.sourceConnectionProfile
           ?? output?.sourceConfig?.sourceConnectionProfile,
       )
@@ -306,36 +309,47 @@ export const StreamProvider = (): infer _ =>
           ?? output?.destinationConfig?.destinationConnectionProfile,
       )
       const nextDest = profileIdOf(
-        news.destinationConfig.destinationConnectionProfile
+        resolved.destinationConfig.destinationConnectionProfile
           ?? olds?.destinationConfig?.destinationConnectionProfile
           ?? output?.destinationConfig?.destinationConnectionProfile,
       )
       const previousCmek = olds?.customerManagedEncryptionKey ?? output?.customerManagedEncryptionKey
-      const nextCmek = news.customerManagedEncryptionKey ?? previousCmek
-      return replaceOnIdentity({
-        previousId: olds?.streamId ?? output?.streamId,
-        nextId: news.streamId ?? olds?.streamId ?? output?.streamId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (previousSource.length > 0 && nextSource.length > 0 && previousSource !== nextSource)
-          || (previousDest.length > 0 && nextDest.length > 0 && previousDest !== nextDest)
-          || (previousCmek !== undefined && nextCmek !== undefined && previousCmek !== nextCmek)
-          || (previousCmek === undefined && nextCmek !== undefined),
-      })
+      const nextCmek = resolved.customerManagedEncryptionKey ?? previousCmek
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.streamId ?? output?.streamId,
+            nextId: resolved.streamId ?? olds?.streamId ?? output?.streamId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (previousSource.length > 0 && nextSource.length > 0 && previousSource !== nextSource)
+              || (previousDest.length > 0 && nextDest.length > 0 && previousDest !== nextDest)
+              || (previousCmek !== undefined && nextCmek !== undefined && previousCmek !== nextCmek)
+              || (previousCmek === undefined && nextCmek !== undefined),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const streamId = try toPhysicalId(id, olds?.streamId, output?.streamId, "stream")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, streamId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -347,10 +361,12 @@ export const StreamProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const streamId = try toPhysicalId(id, news.streamId, output?.streamId, "stream")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, streamId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? streamId
@@ -368,7 +384,7 @@ export const StreamProvider = (): infer _ =>
         ? {}
         : news.backfillAll !== undefined
         ? undefined
-        : (emptyMessage(current?.backfillNone)
+        : ((try Effect.orDie(Effect.try({ try: () => emptyMessage(current?.backfillNone), catch: (e) => e })))
           ?? (current?.backfillAll === undefined ? {} : undefined))
       const body: ds.Stream = {
         displayName,
@@ -403,19 +419,44 @@ export const StreamProvider = (): infer _ =>
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = (current.displayName ?? "") !== displayName
-      const sourceChanged = fingerprint(sourceConfigWithoutProfile(current.sourceConfig))
-        !== fingerprint(sourceConfigWithoutProfile(sourceConfig))
-      const destinationChanged = fingerprint(destinationConfigWithoutProfile(current.destinationConfig))
-        !== fingerprint(destinationConfigWithoutProfile(destinationConfig))
-      const backfillChanged = fingerprint({
-        backfillAll: current.backfillAll,
-        backfillNone: emptyMessage(current.backfillNone),
-      })
-        !== fingerprint({
-          backfillAll,
-          backfillNone: backfillAll === undefined ? backfillNone : undefined,
-        })
-      const ruleSetsChanged = fingerprint(current.ruleSets) !== fingerprint(news.ruleSets)
+      const sourceChanged = (try Effect.orDie(
+        Effect.try({
+          try: fingerprint.bind(undefined, sourceConfigWithoutProfile(current.sourceConfig)),
+          catch: (e) => e,
+        }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({ try: fingerprint.bind(undefined, sourceConfigWithoutProfile(sourceConfig)), catch: (e) => e }),
+        ))
+      const destinationChanged = (try Effect.orDie(
+        Effect.try({
+          try: fingerprint.bind(undefined, destinationConfigWithoutProfile(current.destinationConfig)),
+          catch: (e) => e,
+        }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({
+            try: fingerprint.bind(undefined, destinationConfigWithoutProfile(destinationConfig)),
+            catch: (e) => e,
+          }),
+        ))
+      const backfillChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, {
+          backfillAll: current.backfillAll,
+          backfillNone: emptyMessage(current.backfillNone),
+        }),
+        catch: (e) => e,
+      })))
+        !== (try Effect.orDie(Effect.try({
+          try: fingerprint.bind(undefined, {
+            backfillAll,
+            backfillNone: backfillAll === undefined ? backfillNone : undefined,
+          }),
+          catch: (e) => e,
+        })))
+      const ruleSetsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.ruleSets), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.ruleSets), catch: (e) => e })))
       const stateChanged = news.state !== undefined && (current.state ?? "") !== news.state
       const mask = fieldMask([
         labelsChanged && "labels",
@@ -456,18 +497,20 @@ export const StreamProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (ds
-        .deleteProjectsLocationsStreams({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "Conflict" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (ds
+          .deleteProjectsLocationsStreams({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "Conflict" }: try Effect.undefined;
+        default: throw e;
+      }
       // Stream deletes take a few minutes.
       try settleOperation(operation, { notFoundOk: true })
       try waitUntilGone(getByName(output.name), output.name, {

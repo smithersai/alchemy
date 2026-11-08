@@ -2,8 +2,6 @@ import * as iam from "@distilled.cloud/aws/iam"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 export interface SigningCertificateProps {
@@ -82,25 +80,30 @@ export const SigningCertificateProvider = (): infer _ =>
       const perUser = try Effect.forEach(
         users,
         effect (user) =>
-          (Array.from(
-            try (iam.listSigningCertificates.pages({ UserName: user.UserName })
-              |> Stream.runCollect(%)),
-          )
-            .flatMap((page) => page.Certificates ?? [])
-            .map((cert) => ({
-              userName: cert.UserName,
-              certificateId: cert.CertificateId,
-              certificateBody: cert.CertificateBody,
-              status: cert.Status,
-              uploadDate: cert.UploadDate,
-            }))) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
+          (effect {
+            return (Array.from(
+              try (iam.listSigningCertificates.pages({ UserName: user.UserName })
+                |> Stream.runCollect(%)),
+            )
+              .flatMap((page) => page.Certificates ?? [])
+              .map((cert) => ({
+                userName: cert.UserName,
+                certificateId: cert.CertificateId,
+                certificateBody: cert.CertificateBody,
+                status: cert.Status,
+                uploadDate: cert.UploadDate,
+              })))
+          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
         { concurrency: 10 },
       )
       return perUser.flat()
     },
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return
-      if (olds.userName !== news.userName || olds.certificateBody !== news.certificateBody) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if (olds.userName !== resolved.userName || olds.certificateBody !== resolved.certificateBody) {
         return { action: "replace" } as const
       }
     },
@@ -131,10 +134,12 @@ export const SigningCertificateProvider = (): infer _ =>
       // immutable (`diff` triggers replacement on body change), so a
       // missing entry always means we need to upload.
       const observed = output
-        ? ((try iam.listSigningCertificates({ UserName: output.userName })).Certificates.find((entry) =>
-          entry.CertificateId === output.certificateId
-        )) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+        ? (effect {
+          return ((try iam.listSigningCertificates({ UserName: output.userName })).Certificates.find((entry) =>
+            entry.CertificateId === output.certificateId
+          ))
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
         : undefined
@@ -173,6 +178,9 @@ export const SigningCertificateProvider = (): infer _ =>
         .deleteSigningCertificate({
           UserName: output.userName,
           CertificateId: output.certificateId,
-        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: (undefined as void);
+          default: throw e;
+        }
     },
   })

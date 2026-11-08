@@ -318,7 +318,7 @@ export const ClusterProvider = (): infer _ =>
       const readCluster = effect (identifier: string) => {
         const response = redshift
           .describeClusters({ ClusterIdentifier: identifier }) catch effect (e) => match (e) {
-            when { _tag: "ClusterNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ClusterNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.Clusters?.[0]
@@ -398,10 +398,11 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterIdentifier", "clusterArn", "clusterNamespaceArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) {
             return undefined
           }
-          const n = news ?? {}
+          const n = resolved ?? {}
           const o = olds ?? {}
           if ((try toName(id, o)) !== (try toName(id, n))) {
             return { action: "replace" } as const
@@ -436,7 +437,7 @@ export const ClusterProvider = (): infer _ =>
           const cluster = try readCluster(identifier)
           if (cluster === undefined) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, olds, output, session }) => {
@@ -487,7 +488,7 @@ export const ClusterProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ClusterAlreadyExistsFault" }: try Effect.undefined;
+                when { _tag: "ClusterAlreadyExistsFault" }: undefined;
                 default: throw e;
               }
           }
@@ -555,7 +556,7 @@ export const ClusterProvider = (): infer _ =>
             update.PreferredMaintenanceWindow = news.preferredMaintenanceWindow
             mutated = true
           }
-          const desiredRetentionDays = durationToDays(news.automatedSnapshotRetentionPeriod)
+          const desiredRetentionDays = try Effect.orDie(Effect.try({ try: () => durationToDays(news.automatedSnapshotRetentionPeriod), catch: (e) => e }))
           if (
             desiredRetentionDays !== undefined
             && desiredRetentionDays !== observed.AutomatedSnapshotRetentionPeriod
@@ -606,7 +607,8 @@ export const ClusterProvider = (): infer _ =>
           //     surfaces them inline).
           const { accountId, region } = try AWSEnvironment.current
           const arn = redshiftArn(region, accountId, "cluster", identifier)
-          const { removed, upsert } = diffTags(toTagRecord(observed.Tags), desiredTags)
+          const oldTags = toTagRecord(observed.Tags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
           try applyRedshiftTagDelta({ arn, upsert, removed })
 
           try session.note(arn)
@@ -627,12 +629,12 @@ export const ClusterProvider = (): infer _ =>
                   ClusterIdentifier: identifier,
                   SkipFinalClusterSnapshot: true,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ClusterNotFoundFault" }: try Effect.undefined;
+                  when { _tag: "ClusterNotFoundFault" }: undefined;
                   default: throw e;
                 }
             },
           ) catch effect (e) => match (e) {
-            when { _tag: "InvalidClusterStateFault" }: try Effect.void;
+            when { _tag: "InvalidClusterStateFault" }: (undefined as void);
             default: throw e;
           }
         },
@@ -646,7 +648,7 @@ export const ClusterProvider = (): infer _ =>
           }
             |> Effect.flatMap(
               %,
-              Effect.forEach((cluster) => toAttrs(cluster), {
+              Effect.forEach(effect (cluster) => try toAttrs(cluster), {
                 concurrency: 4,
               }),
             )),

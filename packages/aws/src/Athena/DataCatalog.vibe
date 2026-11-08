@@ -111,25 +111,26 @@ export const DataCatalogProvider = (): infer _ =>
     DataCatalog,
     effect {
       const getOne = effect (name: string) =>
-        (try athena.getDataCatalog({ Name: name, WorkGroup: "primary" })).DataCatalog catch effect (e) => match (e) {
-          when { _tag: "DataCatalogNotFound" }: try Effect.undefined;
+        (effect { return (try athena.getDataCatalog({ Name: name, WorkGroup: "primary" })).DataCatalog }) catch effect (e) => match (e) {
+          when { _tag: "DataCatalogNotFound" }: undefined;
           default: throw e;
         }
 
       const fetchTags = effect (arn: string) =>
-        (observedTagsOf(Array.from(
+        (effect { return (observedTagsOf(Array.from(
           try (athena.listTagsForResource.items({ ResourceARN: arn })
             |> Stream.runCollect(%)),
-        ))) catch () => ({}) as Record<string, string>
+        ))) }) catch () => ({}) as Record<string, string>
 
       return {
         stables: ["name", "dataCatalogArn"],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
-          if ((olds?.name ?? undefined) !== news.name) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if ((olds?.name ?? undefined) !== resolved.name) {
             return { action: "replace" } as const
           }
-          if ((olds?.type ?? undefined) !== news.type) {
+          if ((olds?.type ?? undefined) !== resolved.type) {
             return { action: "replace" } as const
           }
         },
@@ -215,7 +216,7 @@ export const DataCatalogProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const observed = try fetchTags(arn)
-          const { upsert, removed } = diffTags(observed, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observed, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try athena.tagResource({
               ResourceARN: arn,
@@ -240,7 +241,7 @@ export const DataCatalogProvider = (): infer _ =>
         delete: effect ({ output }) => {
           athena
             .deleteDataCatalog({ Name: output.name }) catch effect (e) => match (e) {
-              when { _tag: "DataCatalogNotFound" }: try Effect.void;
+              when { _tag: "DataCatalogNotFound" }: (undefined as void);
               default: throw e;
             }
         },

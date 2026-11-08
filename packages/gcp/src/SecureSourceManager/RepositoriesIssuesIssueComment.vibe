@@ -193,7 +193,7 @@ const findMatching = effect (issue: string, id: string, body: string) => {
   const items = try listOnIssue(issue)
   for (const item of items) {
     if (try ownedByAlchemy(id, item.body)) return item
-    if (sameText(item.body, body)) return item
+    if (try Effect.orDie(Effect.try({ try: () => sameText(item.body, body), catch: (e) => e }))) return item
   }
   return undefined
 }
@@ -210,29 +210,43 @@ export const RepositoriesIssuesIssueCommentProvider = (): infer _ =>
     stables: ["name", "commentId", "issue", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
         previousId: olds?.commentId ?? output?.commentId,
-        nextId: news.commentId ?? olds?.commentId ?? output?.commentId,
+        nextId: resolved.commentId ?? olds?.commentId ?? output?.commentId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.issue ?? output?.issue,
-        nextParent: expandIssue(news.issue, news.repository, env.project, location),
-      })
+        nextParent: expandIssue(resolved.issue, resolved.repository, env.project, location),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const issue = expandIssue(
         olds?.issue ?? output?.issue ?? "",
         olds?.repository
-          ?? (output === undefined ? undefined : parseName(output.issue, "issues", env.region).parent),
+          ?? (output === undefined
+            ? undefined
+            : (try Effect.orDie(
+              Effect.try({ try: () => parseName(output.issue, "issues", env.region), catch: (e) => e }),
+            )).parent),
         env.project,
         location,
       )
@@ -246,9 +260,11 @@ export const RepositoriesIssuesIssueCommentProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(existing.body)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(existing.body), catch: (e) => e }))
       // A matching comment found without a recorded id could be anyone's.
-      return recorded || (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return recorded || (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -259,7 +275,9 @@ export const RepositoriesIssuesIssueCommentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const issue = expandIssue(news.issue, news.repository, env.project, location)
       const body = news.body
       const name = output?.name ?? (news.commentId !== undefined ? resourceName(issue, news.commentId) : "")
@@ -277,7 +295,9 @@ export const RepositoriesIssuesIssueCommentProvider = (): infer _ =>
           }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           const operation = try waitForOperation(created)
-          const createdName = nameFromOperation(operation)
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => nameFromOperation(operation), catch: (e) => e }),
+          )
           if (createdName !== undefined) {
             current = try waitUntilExists(getByName(createdName), createdName)
           }

@@ -290,40 +290,48 @@ export const WorkstationClusterProvider = (): infer _ =>
     stables: ["name", "workstationClusterId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousNetwork = olds?.network ?? output?.network
       const previousSubnetwork = olds?.subnetwork ?? output?.subnetwork
       const previousPrivate = olds?.privateClusterConfig ?? output?.privateClusterConfig
       const previousDomain = olds?.domainConfig ?? output?.domainConfig
       const previousTags = olds?.tags
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.workstationClusterId ?? output?.workstationClusterId,
-        nextId: news.workstationClusterId ?? olds?.workstationClusterId ?? output?.workstationClusterId,
+        nextId: resolved.workstationClusterId ?? olds?.workstationClusterId ?? output?.workstationClusterId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         extra: (previousNetwork !== undefined
-          && news.network !== undefined
-          && !sameText(previousNetwork, news.network)
-          && !previousNetwork.endsWith(`/${news.network}`))
+          && resolved.network !== undefined
+          && !sameText(previousNetwork, resolved.network)
+          && !previousNetwork.endsWith(`/${resolved.network}`))
           || (previousSubnetwork !== undefined
-            && news.subnetwork !== undefined
-            && !sameText(previousSubnetwork, news.subnetwork)
-            && !previousSubnetwork.endsWith(`/${news.subnetwork}`))
+            && resolved.subnetwork !== undefined
+            && !sameText(previousSubnetwork, resolved.subnetwork)
+            && !previousSubnetwork.endsWith(`/${resolved.subnetwork}`))
           || (previousPrivate?.enablePrivateEndpoint !== undefined
-            && news.privateClusterConfig?.enablePrivateEndpoint !== undefined
+            && resolved.privateClusterConfig?.enablePrivateEndpoint !== undefined
             && previousPrivate.enablePrivateEndpoint
-              !== news.privateClusterConfig.enablePrivateEndpoint)
+              !== resolved.privateClusterConfig.enablePrivateEndpoint)
           || (previousDomain?.domain !== undefined
-            && news.domainConfig?.domain !== undefined
-            && previousDomain.domain !== news.domainConfig.domain)
+            && resolved.domainConfig?.domain !== undefined
+            && previousDomain.domain !== resolved.domainConfig.domain)
           || (previousTags !== undefined
-            && news.tags !== undefined
-            && fingerprint(previousTags) !== fingerprint(news.tags)),
-      })
+            && resolved.tags !== undefined
+            && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, previousTags), catch: (e) => e })))
+              !== (try Effect.orDie(Effect.try({
+                try: fingerprint.bind(undefined, resolved.tags),
+                catch: (e) => e,
+              })))),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -334,7 +342,9 @@ export const WorkstationClusterProvider = (): infer _ =>
         output?.workstationClusterId,
         "cluster",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, workstationClusterId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
@@ -343,7 +353,12 @@ export const WorkstationClusterProvider = (): infer _ =>
       // (clusters report none while `reconciling`), so destroy can still
       // clean it up.
       if (output !== undefined && output.name === existing.name) return attrs
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -360,15 +375,23 @@ export const WorkstationClusterProvider = (): infer _ =>
         output?.workstationClusterId,
         "cluster",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, workstationClusterId)
-      const network = networkName(news.network, env.project)
-      const subnetwork = subnetworkName(news.subnetwork, env.project, location)
+      const network = try Effect.orDie(
+        Effect.try({ try: () => networkName(news.network, env.project), catch: (e) => e }),
+      )
+      const subnetwork = try Effect.orDie(
+        Effect.try({ try: () => subnetworkName(news.subnetwork, env.project, location), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const desiredAnnotations = stringMap(news.annotations)
+      const desiredAnnotations = try Effect.orDie(
+        Effect.try({ try: () => stringMap(news.annotations), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -411,7 +434,13 @@ export const WorkstationClusterProvider = (): infer _ =>
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         !sameText(current.displayName, news.displayName) && "displayName",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, desiredAnnotations),
+            catch: (e) => e,
+          })))
         && "annotations",
         // Both URLs default server-side; only converge them when set.
         news.workstationLaunchUrl !== undefined
@@ -421,11 +450,22 @@ export const WorkstationClusterProvider = (): infer _ =>
         && !sameText(current.workstationAuthorizationUrl, news.workstationAuthorizationUrl)
         && "workstationAuthorizationUrl",
         news.gatewayConfig !== undefined
-        && fingerprint(toGateway(current.gatewayConfig))
-          !== fingerprint(toGateway(news.gatewayConfig))
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toGateway(current.gatewayConfig)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toGateway(news.gatewayConfig)), catch: (e) => e }),
+          ))
         && "gatewayConfig",
-        fingerprint(observedPrivate?.allowedProjects)
-          !== fingerprint(news.privateClusterConfig?.allowedProjects)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, observedPrivate?.allowedProjects), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, news.privateClusterConfig?.allowedProjects),
+              catch: (e) => e,
+            }),
+          ))
         && "privateClusterConfig.allowedProjects",
       ])
 
@@ -460,16 +500,18 @@ export const WorkstationClusterProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (workstations
-        .deleteProjectsLocationsWorkstationClusters({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (workstations
+          .deleteProjectsLocationsWorkstationClusters({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as lf from "@distilled.cloud/aws/lakeformation"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -85,8 +86,10 @@ export const ResourceProvider = (): infer _ =>
     Resource,
     effect {
       const observe = effect (resourceArn: string) =>
-        (try lf.describeResource({ ResourceArn: resourceArn })).ResourceInfo catch effect (e) => match (e) {
-          when { _tag: "EntityNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try lf.describeResource({ ResourceArn: resourceArn })).ResourceInfo
+        }) catch effect (e) => match (e) {
+          when { _tag: "EntityNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -121,8 +124,9 @@ export const ResourceProvider = (): infer _ =>
           }
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.resourceArn !== olds.resourceArn) {
             return { action: "replace" } as const
           }
@@ -146,8 +150,10 @@ export const ResourceProvider = (): infer _ =>
 
           // 2. ENSURE
           if (info === undefined) {
-            ;(try register) catch effect (e) => match (e) {
-              when { _tag: "AlreadyExistsException" }: try Effect.void;
+            ;(effect {
+              return (try register)
+            }) catch effect (e) => match (e) {
+              when { _tag: "AlreadyExistsException" }: (undefined as void);
               default: throw e;
             }
             info = try observe(resourceArn)
@@ -166,8 +172,8 @@ export const ResourceProvider = (): infer _ =>
                 // service-linked role ("Resource managed by Service Linked
                 // Role") — recreate the registration in place instead.
                 lf.deregisterResource({ ResourceArn: resourceArn }) catch effect (e) => match (e) {
-                  when { _tag: "EntityNotFoundException" }: try Effect.void;
-                  when { _tag: "LastServiceLinkedRoleRegistration" }: try Effect.void;
+                  when { _tag: "EntityNotFoundException" }: (undefined as void);
+                  when { _tag: "LastServiceLinkedRoleRegistration" }: (undefined as void);
                   default: throw e;
                 }
                 try register
@@ -197,12 +203,12 @@ export const ResourceProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           lf.deregisterResource({ ResourceArn: output.resourceArn }) catch effect (e) => match (e) {
-            when { _tag: "EntityNotFoundException" }: try Effect.void;
-            when { _tag: "LastServiceLinkedRoleRegistration" }: (try effect {
+            when { _tag: "EntityNotFoundException" }: (undefined as void);
+            when { _tag: "LastServiceLinkedRoleRegistration" }: (effect {
               try lf.describeResource({ ResourceArn: output.resourceArn })
               return throw e
             }) catch effect (e) => match (e) {
-              when { _tag: "EntityNotFoundException" }: try Effect.void;
+              when { _tag: "EntityNotFoundException" }: (undefined as void);
               default: throw e;
             };
             default: throw e;

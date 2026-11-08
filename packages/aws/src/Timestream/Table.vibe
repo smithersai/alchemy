@@ -206,14 +206,14 @@ const toWireRetention = (
 const readTable = effect (databaseName: string, tableName: string) => {
   const response = withWriteEndpoint(
     TSW.describeTable({ DatabaseName: databaseName, TableName: tableName }),
-  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
   if (!response?.Table) {
     return undefined
   }
   const table = response.Table
   const tagsResponse = withWriteEndpoint(
     TSW.listTagsForResource({ ResourceARN: table.Arn! }),
-  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
   if (!tagsResponse) {
     return undefined
   }
@@ -257,7 +257,7 @@ export const TableProvider = (): infer _ =>
           )
           const hydrated = try Effect.forEach(
             refs,
-            (ref) => readTable(ref.databaseName, ref.tableName),
+            effect (ref) => try readTable(ref.databaseName, ref.tableName),
             { concurrency: 10 },
           )
           return hydrated.filter((attrs): attrs is Table["Attributes"] => attrs !== undefined)
@@ -268,15 +268,16 @@ export const TableProvider = (): infer _ =>
           const tableName = output?.tableName ?? (try createTableName(id, olds ?? {}))
           const state = try readTable(databaseName, tableName)
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds = {} }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createTableName(id, olds)
-          const newName = try createTableName(id, news)
+          const newName = try createTableName(id, resolved)
           // Table name or its owning database is immutable — either requires a
           // replacement.
-          if (oldName !== newName || olds.databaseName !== news.databaseName) {
+          if (oldName !== newName || olds.databaseName !== resolved.databaseName) {
             return { action: "replace" } as const
           }
         },
@@ -312,7 +313,7 @@ export const TableProvider = (): infer _ =>
                   Value,
                 })),
               }),
-            ) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            ) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
             try session.note(`Creating table ${tableName}...`)
             state = try readTable(databaseName, tableName)
             if (state === undefined) {
@@ -344,7 +345,7 @@ export const TableProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try withWriteEndpoint(
               TSW.untagResource({ ResourceARN: tableArn, TagKeys: removed }),
@@ -376,7 +377,7 @@ export const TableProvider = (): infer _ =>
               TableName: output.tableName,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

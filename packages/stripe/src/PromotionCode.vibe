@@ -15,8 +15,6 @@ import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
 import { recordsEqual } from "alchemy/Util/equal"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -306,7 +304,7 @@ const getById = effect (promotionCode: string) =>
     promotion_code: promotionCode,
     expand: ["promotion.coupon"],
   })
-    |> Effect.catchIf(%, isResourceMissing, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isResourceMissing, effect () => undefined))
 
 const findByCode = effect (code: string) => {
   const [active, inactive] = try Effect.all(
@@ -423,27 +421,39 @@ export const PromotionCodeProvider = (): infer _ =>
     },
 
     diff: effect ({ olds, news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (replaceOnCreateOnlyChange(olds, news, output)) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (replaceOnCreateOnlyChange(olds, resolved, output)) {
         const previousCode = output?.code ?? olds?.code
-        const nextCode = news.code ?? previousCode
+        const nextCode = resolved.code ?? previousCode
         return {
           action: "replace" as const,
           deleteFirst: nextCode !== undefined && nextCode === previousCode,
         }
       }
-      if ((news.active ?? true) !== (output?.active ?? olds?.active ?? true)) {
-        return { action: "update" } as const
-      }
-      if (!recordsEqual(news.metadata ?? {}, olds?.metadata ?? {})) {
+      if ((resolved.active ?? true) !== (output?.active ?? olds?.active ?? true)) {
         return { action: "update" } as const
       }
       if (
-        !deepEqual(
-          news.restrictions?.currencyOptions,
-          olds?.restrictions?.currencyOptions ?? output?.restrictions.currencyOptions,
-          { stripNullish: true },
-        )
+        !(try Effect.orDie(Effect.try({
+          try: () => recordsEqual(resolved.metadata ?? {}, olds?.metadata ?? {}),
+          catch: (e) => e,
+        })))
+      ) {
+        return { action: "update" } as const
+      }
+      if (
+        !(try Effect.orDie(Effect.try({
+          try: () =>
+            deepEqual(
+              resolved.restrictions?.currencyOptions,
+              olds?.restrictions?.currencyOptions ?? output?.restrictions.currencyOptions,
+              { stripNullish: true },
+            ),
+          catch: (e) => e,
+        })))
       ) {
         return { action: "update" } as const
       }
@@ -455,7 +465,12 @@ export const PromotionCodeProvider = (): infer _ =>
       const existing = try observe({ id: output?.id, code })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output, instanceId }) => {
@@ -476,27 +491,33 @@ export const PromotionCodeProvider = (): infer _ =>
       }
 
       if (current === undefined) {
-        current = (try (CreatePromotionCode({
-          promotion: { type: "coupon", coupon: news.coupon },
-          expand: ["promotion.coupon"],
-          code,
-          active,
-          ...(news.customer !== undefined ? { customer: news.customer } : {}),
-          ...(news.customerAccount !== undefined ? { customer_account: news.customerAccount } : {}),
-          ...(news.expiresAt !== undefined ? { expires_at: news.expiresAt } : {}),
-          ...(news.maxRedemptions !== undefined ? { max_redemptions: news.maxRedemptions } : {}),
-          metadata,
-          ...(createRestrictions !== undefined ? { restrictions: createRestrictions } : {}),
-        })
-          |> withRequestOptions({
-            idempotencyKey: `alchemy-promotion-code-${instanceId}`,
-          })(%))) catch effect (error) => match (error) {
-            when { _tag: "InvalidRequestError" }: try effect {
-              const found = try observe({ id: output?.id, code })
-              return (found !== undefined && couponIdOf(found) === news.coupon ? found : throw error)
-            };
-            default: throw error;
-          }
+        current = effect {
+          return (try (CreatePromotionCode({
+            promotion: { type: "coupon", coupon: news.coupon },
+            expand: ["promotion.coupon"],
+            code,
+            active,
+            ...(news.customer !== undefined ? { customer: news.customer } : {}),
+            ...(news.customerAccount !== undefined ? { customer_account: news.customerAccount } : {}),
+            ...(news.expiresAt !== undefined ? { expires_at: news.expiresAt } : {}),
+            ...(news.maxRedemptions !== undefined ? { max_redemptions: news.maxRedemptions } : {}),
+            metadata,
+            ...(createRestrictions !== undefined ? { restrictions: createRestrictions } : {}),
+          })
+            |> (try Effect.orDie(Effect.try({
+              try: () =>
+                withRequestOptions({
+                  idempotencyKey: `alchemy-promotion-code-${instanceId}`,
+                }),
+              catch: (e) => e,
+            })))(%)))
+        } catch effect (error) => match (error) {
+          when { _tag: "InvalidRequestError" }: try effect {
+            const found = try observe({ id: output?.id, code })
+            return (found !== undefined && couponIdOf(found) === news.coupon ? found : throw error)
+          };
+          default: throw error;
+        }
       }
 
       if (current === undefined) {
@@ -510,8 +531,13 @@ export const PromotionCodeProvider = (): infer _ =>
         })
       }
 
-      const observedMeta = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMeta, metadata)
+      const observedMetadataInput = current.metadata
+      const observedMeta = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(observedMetadataInput), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffMetadata(observedMeta, metadata), catch: (e) => e }),
+      )
       if (upsert.length > 0 || removed.length > 0) {
         current = try UpdatePromotionCode({
           promotion_code: current.id,
@@ -526,7 +552,12 @@ export const PromotionCodeProvider = (): infer _ =>
       const observedCurrency = fromWireCurrencyOptions(current.restrictions.currency_options)
       if (
         desiredCurrency !== undefined
-        && !deepEqual(desiredCurrency, observedCurrency, { stripNullish: true })
+        && !(try Effect.orDie(
+          Effect.try({
+            try: () => deepEqual(desiredCurrency, observedCurrency, { stripNullish: true }),
+            catch: (e) => e,
+          }),
+        ))
       ) {
         current = try UpdatePromotionCode({
           promotion_code: current.id,
@@ -550,6 +581,6 @@ export const PromotionCodeProvider = (): infer _ =>
         promotion_code: existing.id,
         active: false,
       })
-        |> Effect.catchIf(%, isResourceMissing, effect () => try Effect.void))
+        |> Effect.catchIf(%, isResourceMissing, effect () => (undefined as void)))
     },
   })

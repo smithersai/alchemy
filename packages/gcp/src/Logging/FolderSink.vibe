@@ -265,25 +265,34 @@ export const FolderSinkProvider = (): infer _ =>
     stables: ["name", "sinkId", "parent", "folderId", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previous = olds?.sinkId ?? output?.sinkId
-      const idChanged = previous !== undefined && news.sinkId !== undefined && news.sinkId !== previous
+      const idChanged = previous !== undefined && resolved.sinkId !== undefined && resolved.sinkId !== previous
       const previousFolder = olds?.folderId ?? output?.folderId
-      const folderChanged = news.folderId !== undefined && news.folderId !== previousFolder
+      const folderChanged = resolved.folderId !== undefined && resolved.folderId !== previousFolder
       if (!idChanged && !folderChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = scopeParent(env.project, olds?.folderId ?? output?.folderId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => scopeParent(env.project, olds?.folderId ?? output?.folderId), catch: (e) => e }),
+      )
       const sinkId = try toPhysicalId(id, olds?.sinkId, output?.sinkId, "s")
       const name = output?.name ?? resourceName(parent, sinkId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, parent)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -303,11 +312,15 @@ export const FolderSinkProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = scopeParent(env.project, news.folderId ?? output?.folderId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => scopeParent(env.project, news.folderId ?? output?.folderId), catch: (e) => e }),
+      )
       const sinkId = try toPhysicalId(id, news.sinkId, output?.sinkId, "s")
       const name = resourceName(parent, sinkId)
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const uniqueWriterIdentity = news.uniqueWriterIdentity ?? (news.folderId !== undefined ? true : undefined)
 
       let current = try getByName(output?.name ?? name)
@@ -337,7 +350,9 @@ export const FolderSinkProvider = (): infer _ =>
       const filterChanged = (current.filter ?? "") !== (news.filter ?? "")
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const disabledChanged = (current.disabled === true) !== desiredDisabled
-      const exclusionsChanged = !sameExclusions(current.exclusions, news.exclusions)
+      const exclusionsChanged = !(try Effect.orDie(
+        Effect.try({ try: sameExclusions.bind(undefined, current.exclusions, news.exclusions), catch: (e) => e }),
+      ))
       const bqChanged = news.bigqueryOptions !== undefined && desiredBq !== observedBq
       const includeChildrenChanged = news.includeChildren !== undefined
         && (current.includeChildren === true) !== desiredIncludeChildren
@@ -364,7 +379,10 @@ export const FolderSinkProvider = (): infer _ =>
           disabled: desiredDisabled,
         }
         if (exclusionsChanged) {
-          body.exclusions = toExclusionsBody(news.exclusions) ?? []
+          body.exclusions = (try Effect.orDie(Effect.try({
+            try: () => toExclusionsBody(news.exclusions),
+            catch: (e) => e,
+          }))) ?? []
         }
         if (bqChanged) {
           body.bigqueryOptions = {

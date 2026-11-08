@@ -283,18 +283,21 @@ export const EnvironmentsSecurityActionProvider = (): infer _ =>
     stables: ["name", "securityActionId", "organizationId", "environmentId", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.securityActionId ?? output?.securityActionId
       const previousOrg = olds?.organization ?? output?.organizationId
       const previousEnv = olds?.environment ?? output?.environmentId
       const idChanged = previousId !== undefined
-        && news.securityActionId !== undefined
-        && news.securityActionId !== previousId
+        && resolved.securityActionId !== undefined
+        && resolved.securityActionId !== previousId
       const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && organizationIdOf(news.organization, "") !== organizationIdOf(previousOrg, "")
+        && resolved.organization !== undefined
+        && organizationIdOf(resolved.organization, "") !== organizationIdOf(previousOrg, "")
       const envChanged = previousEnv !== undefined
-        && environmentIdOf(news.environment) !== environmentIdOf(previousEnv)
+        && environmentIdOf(resolved.environment) !== environmentIdOf(previousEnv)
       if (idChanged || orgChanged || envChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -319,21 +322,25 @@ export const EnvironmentsSecurityActionProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organizationId, environmentId)
       const { labels } = parseDescription(existing.description)
-      return (try ownedById(id, tagRecord(labels))) ? attrs : Unowned(attrs)
+      return (try ownedById(id, try Effect.orDie(Effect.try({ try: () => tagRecord(labels), catch: (e) => e }))))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const environments = try listProjectEnvironments()
       const found: EnvironmentsSecurityAction["Attributes"][] = []
       for (const item of environments) {
-        const actions = (Array.from(
-          try (apigee.listOrganizationsEnvironmentsSecurityActions
-            .pages({ parent: item.parent, pageSize: 100 })
-            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityActions ?? []))
-            |> Stream.filter(%, (action) => hasOwnershipMarker(action.description))
-            |> Stream.map(%, (action) => toAttrs(action, item.organizationId, item.environmentId))
-            |> Stream.runCollect(%)),
-        )) catch effect (e) => match (e) {
+        const actions = (effect {
+          return (Array.from(
+            try (apigee.listOrganizationsEnvironmentsSecurityActions
+              .pages({ parent: item.parent, pageSize: 100 })
+              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityActions ?? []))
+              |> Stream.filter(%, (action) => hasOwnershipMarker(action.description))
+              |> Stream.map(%, (action) => toAttrs(action, item.organizationId, item.environmentId))
+              |> Stream.runCollect(%)),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }:
             [] as EnvironmentsSecurityAction["Attributes"][];
           default: throw e;
@@ -418,7 +425,7 @@ export const EnvironmentsSecurityActionProvider = (): infer _ =>
     delete: effect ({ output }) => {
       apigee
         .deleteOrganizationsEnvironmentsSecurityActions({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

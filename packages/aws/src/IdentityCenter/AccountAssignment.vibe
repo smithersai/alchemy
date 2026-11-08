@@ -96,13 +96,14 @@ export const AccountAssignmentProvider = (): infer _ =>
           "targetType",
         ],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (
-            olds?.instanceArn !== news.instanceArn
-            || olds?.permissionSetArn !== news.permissionSetArn
-            || olds?.principalId !== news.principalId
-            || olds?.principalType !== news.principalType
-            || olds?.targetId !== news.targetId
+            olds?.instanceArn !== resolved.instanceArn
+            || olds?.permissionSetArn !== resolved.permissionSetArn
+            || olds?.principalId !== resolved.principalId
+            || olds?.principalType !== resolved.principalType
+            || olds?.targetId !== resolved.targetId
           ) {
             return { action: "replace" } as const
           }
@@ -122,12 +123,12 @@ export const AccountAssignmentProvider = (): infer _ =>
 
           const perInstance = try Effect.forEach(
             instances,
-            (instance) => {
+            effect (instance) => {
               const instanceArn = instance.InstanceArn
               if (!instanceArn) {
                 return [] as AccountAssignment["Attributes"][]
               }
-              return listAssignmentsForInstance(instanceArn)
+              return try listAssignmentsForInstance(instanceArn)
             },
             { concurrency: 5 },
           )
@@ -216,7 +217,7 @@ export const AccountAssignmentProvider = (): infer _ =>
                   TargetId: output.targetId,
                   TargetType: "AWS_ACCOUNT",
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  when { _tag: "ResourceNotFoundException" }: undefined;
                   default: throw e;
                 }
             },
@@ -240,7 +241,7 @@ const listAssignmentsForInstance = effect (instanceArn: string) => {
 
   const perPermissionSet = try Effect.forEach(
     permissionSetArns,
-    (permissionSetArn) => listAssignmentsForPermissionSet(instanceArn, permissionSetArn),
+    effect (permissionSetArn) => try listAssignmentsForPermissionSet(instanceArn, permissionSetArn),
     { concurrency: 10 },
   )
 
@@ -265,7 +266,7 @@ const listAssignmentsForPermissionSet = effect (
   const perAccount = try Effect.forEach(
     accountIds,
     effect (accountId) =>
-      ((try (effect {
+      (effect { return ((try (effect {
         return Array.from(
           try (ssoAdmin.listAccountAssignments
             .items({
@@ -296,7 +297,7 @@ const listAssignmentsForPermissionSet = effect (
               targetType: "AWS_ACCOUNT",
             },
           ]
-        })) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+        })) }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
     { concurrency: 10 },
   )
 

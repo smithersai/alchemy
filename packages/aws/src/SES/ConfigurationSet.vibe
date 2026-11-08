@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as sesv2 from "@distilled.cloud/aws/sesv2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -266,7 +267,7 @@ export const ConfigurationSetProvider = (): infer _ =>
       const getConfigurationSet = effect (name: string) =>
         sesv2
           .getConfigurationSet({ ConfigurationSetName: name }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -295,11 +296,14 @@ export const ConfigurationSetProvider = (): infer _ =>
             configuration: observeConfigurationSetOptions(found, olds),
           }
           const tags = toTagRecord(found.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName) {
@@ -313,7 +317,9 @@ export const ConfigurationSetProvider = (): infer _ =>
           const configurationSetArn = configurationSetArnOf(region, accountId, name)
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...news.tags, ...internalTags }
-          const desiredMaxDelivery = toWireSeconds(news.maxDelivery)
+          const desiredMaxDelivery = try Effect.orDie(
+            Effect.try({ try: () => toWireSeconds(news.maxDelivery), catch: (e) => e }),
+          )
 
           // 1. OBSERVE — cloud state is authoritative.
           let observed = try getConfigurationSet(name)
@@ -477,7 +483,7 @@ export const ConfigurationSetProvider = (): infer _ =>
           sesv2
             .deleteConfigurationSet({
               ConfigurationSetName: output.configurationSetName,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
         },
       })
     },

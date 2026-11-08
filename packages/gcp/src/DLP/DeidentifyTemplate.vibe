@@ -162,11 +162,19 @@ export const DeidentifyTemplateProvider = (): infer _ =>
     stables: ["name", "templateId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previous = olds?.templateId ?? output?.templateId
-      return replaceOnIdentity(
-        previous !== undefined && news.templateId !== undefined && news.templateId !== previous,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const previous = olds?.templateId ?? output?.templateId
+      const changed = previous !== undefined && resolved.templateId !== undefined && resolved.templateId !== previous
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity(
+            changed,
+          ),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -176,7 +184,9 @@ export const DeidentifyTemplateProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -201,7 +211,9 @@ export const DeidentifyTemplateProvider = (): infer _ =>
       const templateId = try toResourceId(id, news.templateId, output?.templateId)
       const name = resourceName(env.project, templateId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const body: dlp.GooglePrivacyDlpV2DeidentifyTemplate = {
         displayName: news.displayName,
         description,
@@ -228,18 +240,27 @@ export const DeidentifyTemplateProvider = (): infer _ =>
 
       const displayChanged = !sameText(current.displayName, news.displayName)
       const descriptionChanged = (current.description ?? "") !== description
-      const configChanged = !jsonEqual(current.deidentifyConfig, news.deidentifyConfig)
+      const configChanged = !(try Effect.orDie(
+        Effect.try({
+          try: jsonEqual.bind(undefined, current.deidentifyConfig, news.deidentifyConfig),
+          catch: (e) => e,
+        }),
+      ))
 
       if (displayChanged || descriptionChanged || configChanged) {
         current = try dlp.patchProjectsDeidentifyTemplates({
           name: current.name ?? name,
           body: {
             deidentifyTemplate: body,
-            updateMask: updateMaskOf(
-              displayChanged ? "displayName" : undefined,
-              descriptionChanged ? "description" : undefined,
-              configChanged ? "deidentifyConfig" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "displayName" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  configChanged ? "deidentifyConfig" : undefined,
+                ),
+              catch: (e) => e,
+            })),
           },
         })
       }

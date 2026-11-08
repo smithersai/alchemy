@@ -40,7 +40,7 @@ export const rfc1035 = (name: string, fallback = "clouddeploy"): string => {
 
 export const normalizeLocation = (location: string) => lastSegment(location).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${normalizeLocation(location)}`;
 
 export const toPhysicalId = (
@@ -103,11 +103,11 @@ export const membershipName = (value: string, project: string, location: string)
   return `projects/${project}/locations/${location}/memberships/${value}`;
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const stringMap = (
+export const stringMap = /** @throws {never} */ (
   value: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> =>
   Object.fromEntries(
@@ -116,8 +116,9 @@ export const stringMap = (
     ),
   );
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -142,14 +143,18 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameBool = (left: boolean | undefined, right: boolean | undefined) =>
-  (left ?? false) === (right ?? false);
+export const sameBool = /** @throws {never} */ (
+  left: boolean | undefined,
+  right: boolean | undefined,
+) => (left ?? false) === (right ?? false);
 
 export const replaceOnIdentity = (input: {
   previousId: string | undefined;
@@ -220,8 +225,9 @@ export const stripAutomationRule = (
     : undefined,
 });
 
-export const stripAutomationRules = (rules: readonly clouddeploy.AutomationRule[] | undefined) =>
-  (rules ?? []).map(stripAutomationRule);
+export const stripAutomationRules = /** @throws {never} */ (
+  rules: readonly clouddeploy.AutomationRule[] | undefined,
+) => (rules ?? []).map(stripAutomationRule);
 
 /**
  * Wait on a Cloud Deploy long-running operation (control-plane, usually under a minute).

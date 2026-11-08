@@ -294,12 +294,12 @@ const getByName = effect (name: string) =>
     }
 
 const deleteByName = effect (name: string) =>
-  (try (servicedirectory.deleteProjectsLocationsNamespacesServicesEndpoints({ name })
+  (effect { return (try (servicedirectory.deleteProjectsLocationsNamespacesServicesEndpoints({ name })
     |> Effect.retry(%, {
       while: (error) => error._tag === "Conflict",
       times: 8,
       schedule: Schedule.spaced("1 second"),
-    }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 const paginate = effect <A, E, R>(
   fetch: (
@@ -318,7 +318,7 @@ const paginate = effect <A, E, R>(
 
 const listNamespacesAt = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
+    (effect { return (try effect {
       const response = try servicedirectory
         .listProjectsLocationsNamespaces({
           parent,
@@ -329,7 +329,7 @@ const listNamespacesAt = effect (parent: string) =>
         items: (response.namespaces ?? []).filter((namespace) => hasAlchemyNamespaceLabels(namespace.labels)),
         nextPageToken: response.nextPageToken,
       })
-    }) catch effect (e) => match (e) {
+    }) }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
         items: [] as servicedirectory.Namespace[],
         nextPageToken: undefined,
@@ -340,7 +340,7 @@ const listNamespacesAt = effect (parent: string) =>
 
 const listServicesAt = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
+    (effect { return (try effect {
       const response = try servicedirectory
         .listProjectsLocationsNamespacesServices({
           parent,
@@ -351,7 +351,7 @@ const listServicesAt = effect (parent: string) =>
         items: response.services ?? [],
         nextPageToken: response.nextPageToken,
       })
-    }) catch effect (e) => match (e) {
+    }) }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
         items: [] as servicedirectory.Service[],
         nextPageToken: undefined,
@@ -362,7 +362,7 @@ const listServicesAt = effect (parent: string) =>
 
 const listEndpointsAt = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
+    (effect { return (try effect {
       const response = try servicedirectory
         .listProjectsLocationsNamespacesServicesEndpoints({
           parent,
@@ -373,7 +373,7 @@ const listEndpointsAt = effect (parent: string) =>
         items: response.endpoints ?? [],
         nextPageToken: response.nextPageToken,
       })
-    }) catch effect (e) => match (e) {
+    }) }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
         items: [] as servicedirectory.Endpoint[],
         nextPageToken: undefined,
@@ -384,7 +384,7 @@ const listEndpointsAt = effect (parent: string) =>
 
 const listLocations = effect (project: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
+    (effect { return (try effect {
       const response = try servicedirectory
         .listProjectsLocations({
           name: `projects/${project}`,
@@ -397,7 +397,7 @@ const listLocations = effect (project: string) =>
           .filter((name): name is string => !!name),
         nextPageToken: response.nextPageToken,
       })
-    }) catch effect (e) => match (e) {
+    }) }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
         items: [] as string[],
         nextPageToken: undefined,
@@ -411,10 +411,11 @@ export const EndpointProvider = (): infer _ =>
     stables: ["name", "endpointId", "service", "namespace", "project", "location", "uid"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.endpointId ?? output?.endpointId
-      const nextId = news.endpointId ?? previousId
+      const nextId = resolved_.endpointId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
 
       const previousParent = parentKey(
@@ -424,15 +425,15 @@ export const EndpointProvider = (): infer _ =>
         env.region,
       )
       const nextParent = parentKey(
-        news.service,
-        news.namespace ?? olds?.namespace ?? output?.namespace,
-        news.location ?? olds?.location ?? output?.location,
+        resolved_.service,
+        resolved_.namespace ?? olds?.namespace ?? output?.namespace,
+        resolved_.location ?? olds?.location ?? output?.location,
         env.region,
       )
       const parentChanged = previousParent !== undefined && nextParent !== undefined && previousParent !== nextParent
 
       const previousNetwork = normalizeOptional(olds?.network ?? output?.network)
-      const nextNetwork = normalizeOptional(news.network ?? previousNetwork)
+      const nextNetwork = normalizeOptional(resolved_.network ?? previousNetwork)
       const networkChanged = previousNetwork !== nextNetwork
 
       if (!idChanged && !parentChanged && !networkChanged) return undefined
@@ -462,9 +463,9 @@ export const EndpointProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e }))))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -516,7 +517,7 @@ export const EndpointProvider = (): infer _ =>
       }
       const name = resourceName(parent.parent, endpointId)
       const desiredAnnotations = {
-        ...tagRecord(news.annotations),
+        ...try Effect.orDie(Effect.try({ try: () => tagRecord(news.annotations), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAddress = news.address
@@ -550,7 +551,7 @@ export const EndpointProvider = (): infer _ =>
       }
 
       const observedAnnotations = tagRecord(current.annotations)
-      const { upsert, removed } = diffLabels(observedAnnotations, desiredAnnotations)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedAnnotations, desiredAnnotations), catch: (e) => e }))
       const annotationsChanged = upsert.length > 0 || removed.length > 0
       const addressChanged = (current.address ?? "") !== (desiredAddress ?? "")
       const portChanged = (current.port ?? DEFAULT_PORT) !== desiredPort

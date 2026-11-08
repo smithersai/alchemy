@@ -129,9 +129,9 @@ const toAttrs = (analysis: cci.GoogleCloudContactcenterinsightsV1Analysis, proje
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsConversationsAnalyses({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -149,39 +149,46 @@ const waitUntilExists = effect (name: string) =>
     }))
 
 const listConversations = effect (parent: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsConversations.pages({ parent, pageSize: 100, view: "BASIC" })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.conversations ?? []))
-      |> Stream.filter(%, (conversation) =>
-        Object.keys(conversation.labels ?? {}).some((key) => key.startsWith("alchemy-")))
-      |> Stream.map(%, (conversation) =>
-        conversation.name ?? "")
-      |> Stream.filter(%, (name) => name.length > 0)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsConversations.pages({ parent, pageSize: 100, view: "BASIC" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.conversations ?? []))
+        |> Stream.filter(%, (conversation) =>
+          Object.keys(conversation.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+        |> Stream.map(%, (conversation) =>
+          conversation.name ?? "")
+        |> Stream.filter(%, (name) => name.length > 0)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsConversationsAnalyses.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.analyses ?? []))
-      |> Stream.map(%, (analysis) => toAttrs(analysis, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsConversationsAnalyses.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.analyses ?? []))
+        |> Stream.map(%, (analysis) => toAttrs(analysis, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const ConversationsAnalysesProvider = (): infer _ =>
   Provider.succeed(ConversationsAnalyses, {
     stables: ["name", "analysisId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousSelector = olds?.annotatorSelector ?? output?.annotatorSelector
       if (
         previousSelector !== undefined
-        && !sameJson(toSelector(previousSelector), toSelector(news.annotatorSelector))
+        && !sameJson(toSelector(previousSelector), toSelector(resolved.annotatorSelector))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -218,7 +225,7 @@ export const ConversationsAnalysesProvider = (): infer _ =>
             body: {
               annotatorSelector: news.annotatorSelector,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           const done = try waitForOperation(created)
           const createdName = resourceNameFromOperation(done) ?? ""
@@ -245,7 +252,7 @@ export const ConversationsAnalysesProvider = (): infer _ =>
     delete: effect ({ output }) => {
       cci
         .deleteProjectsLocationsConversationsAnalyses({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

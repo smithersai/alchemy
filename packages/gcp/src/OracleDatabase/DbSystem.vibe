@@ -320,32 +320,49 @@ export const DbSystemProvider = (): infer _ =>
     stables: ["name", "dbSystemId", "project", "location", "createTime", "ocid"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousOdb = olds?.odbSubnet ?? output?.odbSubnet ?? ""
-      const nextOdb = news.odbSubnet ?? previousOdb
+      const nextOdb = resolved.odbSubnet ?? previousOdb
       const previousShape = olds?.shape ?? olds?.properties?.shape ?? output?.shape ?? ""
-      const nextShape = news.shape ?? news.properties?.shape ?? previousShape
-      return replaceOnIdentity({
-        previousId: olds?.dbSystemId ?? output?.dbSystemId,
-        nextId: news.dbSystemId ?? olds?.dbSystemId ?? output?.dbSystemId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-        extra: nextOdb !== previousOdb || nextShape !== previousShape,
-      })
+      const nextShape = resolved.shape ?? resolved.properties?.shape ?? previousShape
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.dbSystemId ?? output?.dbSystemId,
+            nextId: resolved.dbSystemId ?? olds?.dbSystemId ?? output?.dbSystemId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            extra: nextOdb !== previousOdb || nextShape !== previousShape,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const dbSystemId = try toPhysicalId(id, olds?.dbSystemId, output?.dbSystemId, FALLBACK_ID)
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, dbSystemId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceNameOf(env.project, location, COLLECTION, dbSystemId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -357,26 +374,32 @@ export const DbSystemProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const dbSystemId = try toPhysicalId(id, news.dbSystemId, output?.dbSystemId, FALLBACK_ID)
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceNameOf(env.project, location, COLLECTION, dbSystemId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceNameOf(env.project, location, COLLECTION, dbSystemId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (oracle
-          .createProjectsLocationsDbSystems({
-            parent: parentOf(env.project, location),
-            dbSystemId,
-            body: toCreateBody(news, desiredLabels),
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (oracle
+            .createProjectsLocationsDbSystems({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              dbSystemId,
+              body: toCreateBody(news, desiredLabels),
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -397,14 +420,16 @@ export const DbSystemProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (oracle
-        .deleteProjectsLocationsDbSystems({
-          name: output.name,
-        })
-        |> retryConflict(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsDbSystems({
+            name: output.name,
+          })
+          |> retryConflict(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

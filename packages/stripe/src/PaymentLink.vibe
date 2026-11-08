@@ -17,8 +17,6 @@ import { deepEqual, isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -406,8 +404,8 @@ const hydrateLineItems = effect (link: StripePaymentLink) => {
 const getById = effect (payment_link: string) =>
   try effect {
     const link = try (GetPaymentLink({ payment_link })
-      |> Effect.catchIf(%, isMissingPaymentLink, effect () => try Effect.undefined))
-    return (link === undefined ? try Effect.undefined : try hydrateLineItems(link))
+      |> Effect.catchIf(%, isMissingPaymentLink, effect () => undefined))
+    return (link === undefined ? undefined : try hydrateLineItems(link))
   }
 
 const listByActive = effect (active: boolean) => {
@@ -449,7 +447,12 @@ const findByAlchemyId = effect (id: string) => {
   const links = try listAllPaymentLinks()
   const matches: StripePaymentLink[] = []
   for (const link of links) {
-    if (try hasAlchemyMetadata(id, tagRecord(link.metadata))) {
+    if (
+      try hasAlchemyMetadata(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(link.metadata), catch: (e) => e })),
+      )
+    ) {
       matches.push(link)
     }
   }
@@ -545,8 +548,11 @@ export const PaymentLinkProvider = (): infer _ =>
     stables: ["id", "currency", "livemode"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -559,7 +565,12 @@ export const PaymentLinkProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -617,9 +628,13 @@ export const PaymentLinkProvider = (): infer _ =>
             ? { after_completion: toWireAfterCompletion(afterCompletion) }
             : {}),
         })
-          |> withRequestOptions({
-            idempotencyKey: `alchemy-payment-link-${instanceId}`,
-          })(%))
+          |> (try Effect.orDie(Effect.try({
+            try: () =>
+              withRequestOptions({
+                idempotencyKey: `alchemy-payment-link-${instanceId}`,
+              }),
+            catch: (e) => e,
+          })))(%))
         current = try hydrateLineItems(current)
       }
 
@@ -629,8 +644,12 @@ export const PaymentLinkProvider = (): infer _ =>
         })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }),
+      )
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const activeChanged = current.active !== desiredActive
       const allowPromotionCodesChanged = news.allowPromotionCodes !== undefined
@@ -647,9 +666,15 @@ export const PaymentLinkProvider = (): infer _ =>
       const inactiveMessageChanged = news.inactiveMessage !== undefined
         && (current.inactive_message ?? "") !== news.inactiveMessage
       const afterCompletionChanged = afterCompletion !== undefined
-        && !deepEqual(afterCompletion, fromObservedAfterCompletion(current.after_completion), {
-          stripNullish: true,
-        })
+        && !(try Effect.orDie(
+          Effect.try({
+            try: () =>
+              deepEqual(afterCompletion, fromObservedAfterCompletion(current.after_completion), {
+                stripNullish: true,
+              }),
+            catch: (e) => e,
+          }),
+        ))
       const observedLineItems = current.line_items?.data ?? []
       const lineItemsChanged = lineItemsNeedUpdate(news.lineItems, observedLineItems)
       const updateLineItems = lineItemsChanged
@@ -717,6 +742,6 @@ export const PaymentLinkProvider = (): infer _ =>
         payment_link: existing.id,
         active: false,
       })
-        |> Effect.catchIf(%, isMissingPaymentLink, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingPaymentLink, effect () => (undefined as void)))
     },
   })

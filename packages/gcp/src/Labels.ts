@@ -38,7 +38,9 @@ export const sanitizeLabelValue = (value: string): string => {
   return cleaned.length > 0 ? cleaned : "x";
 };
 
-export const toLabels = (tags: Record<string, string> | null | undefined): Record<string, string> =>
+export const toLabels = /** @throws {never} */ (
+  tags: Record<string, string> | null | undefined,
+): Record<string, string> =>
   Object.fromEntries(
     Object.entries(tags ?? {}).map(([key, value]) => [
       toLabelKey(key)

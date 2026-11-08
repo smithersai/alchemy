@@ -161,30 +161,40 @@ export const FolderLogScopeProvider = (): infer _ =>
     stables: ["name", "logScopeId", "parent", "folderId", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.logScopeId ?? output?.logScopeId
-      const idChanged = previousId !== undefined && news.logScopeId !== undefined && news.logScopeId !== previousId
+      const idChanged = previousId !== undefined && resolved.logScopeId !== undefined
+        && resolved.logScopeId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       const previousFolder = olds?.folderId ?? output?.folderId
-      const folderChanged = news.folderId !== undefined && news.folderId !== previousFolder
+      const folderChanged = resolved.folderId !== undefined && resolved.folderId !== previousFolder
       if (!idChanged && !locationChanged && !folderChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = scopeParent(env.project, olds?.folderId ?? output?.folderId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => scopeParent(env.project, olds?.folderId ?? output?.folderId), catch: (e) => e }),
+      )
       const location = olds?.location ?? output?.location ?? DEFAULT_LOCATION
       const logScopeId = try toPhysicalId(id, olds?.logScopeId, output?.logScopeId, "s")
       const name = output?.name ?? resourceName(parent, location, logScopeId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, parent, location)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -209,12 +219,16 @@ export const FolderLogScopeProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = scopeParent(env.project, news.folderId ?? output?.folderId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => scopeParent(env.project, news.folderId ?? output?.folderId), catch: (e) => e }),
+      )
       const location = news.location ?? output?.location ?? DEFAULT_LOCATION
       const logScopeId = try toPhysicalId(id, news.logScopeId, output?.logScopeId, "s")
       const name = resourceName(parent, location, logScopeId)
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -235,10 +249,12 @@ export const FolderLogScopeProvider = (): infer _ =>
         throw new FolderLogScopeNotResolved({ resourceName: name })
       }
 
-      const namesChanged = !jsonEqual(
-        sortedNames(current.resourceNames),
-        sortedNames(news.resourceNames),
-      )
+      const namesChanged = !(try Effect.orDie(
+        Effect.try({
+          try: jsonEqual.bind(undefined, sortedNames(current.resourceNames), sortedNames(news.resourceNames)),
+          catch: (e) => e,
+        }),
+      ))
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const updateMask = [
         namesChanged ? "resourceNames" : undefined,

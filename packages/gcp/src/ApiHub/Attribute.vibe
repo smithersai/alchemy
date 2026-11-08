@@ -215,35 +215,48 @@ export const AttributeProvider = (): infer _ =>
     stables: ["name", "attributeId", "project", "location", "dataType", "scope", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.attributeId ?? output?.attributeId,
-        nextId: news.attributeId ?? olds?.attributeId ?? output?.attributeId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (news.dataType ?? olds?.dataType) !== (olds?.dataType ?? output?.dataType)
-          || (news.scope ?? olds?.scope) !== (olds?.scope ?? output?.scope),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.attributeId ?? output?.attributeId,
+            nextId: resolved.attributeId ?? olds?.attributeId ?? output?.attributeId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (resolved.dataType ?? olds?.dataType) !== (olds?.dataType ?? output?.dataType)
+              || (resolved.scope ?? olds?.scope) !== (olds?.scope ?? output?.scope),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const attributeId = try toPhysicalId(id, olds?.attributeId, output?.attributeId)
       const name = output?.name ?? resourceName(env.project, location, attributeId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const items = try listAttributes(locationParent(env.project, env.region))
+      const items = try listAttributes(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+      )
       return items
         .filter((item) => hasOwnershipMarker(item.description))
         .map((item) => toAttrs(item, env.project, env.region))
@@ -251,12 +264,18 @@ export const AttributeProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const attributeId = try toPhysicalId(id, news.attributeId, output?.attributeId)
       const name = output?.name ?? resourceName(env.project, location, attributeId)
       const ownership = try createOwnership(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const allowedValues = news.allowedValues
       const cardinality = news.cardinality
 
@@ -286,18 +305,26 @@ export const AttributeProvider = (): infer _ =>
       const currentName = current.name ?? name
       const displayChanged = !sameText(current.displayName, news.displayName)
       const descriptionChanged = !sameText(current.description, description)
-      const allowedChanged = !sameJson(toAllowed(current.allowedValues), allowedValues ?? [])
+      const left = toAllowed(current.allowedValues)
+      const allowedChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left, allowedValues ?? []),
+        catch: (e) => e,
+      })))
       const cardinalityChanged = cardinality !== undefined && (current.cardinality ?? 1) !== cardinality
 
       if (displayChanged || descriptionChanged || allowedChanged || cardinalityChanged) {
         current = try apihub.patchProjectsLocationsAttributes({
           name: currentName,
-          updateMask: updateMaskOf(
-            displayChanged ? "display_name" : undefined,
-            descriptionChanged ? "description" : undefined,
-            allowedChanged ? "allowed_values" : undefined,
-            cardinalityChanged ? "cardinality" : undefined,
-          ),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              updateMaskOf(
+                displayChanged ? "display_name" : undefined,
+                descriptionChanged ? "description" : undefined,
+                allowedChanged ? "allowed_values" : undefined,
+                cardinalityChanged ? "cardinality" : undefined,
+              ),
+            catch: (e) => e,
+          })),
           body: {
             name: currentName,
             displayName: news.displayName,

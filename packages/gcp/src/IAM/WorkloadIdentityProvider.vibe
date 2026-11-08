@@ -201,12 +201,12 @@ const toAttrs = (
 const getProvider = effect (name: string) =>
   iam
     .getProjectsLocationsWorkloadIdentityPoolsProviders({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const waitForProviderOperation = effect (operation: iam.Operation) =>
-  waitForOperation(
+  try waitForOperation(
     operation,
     effect (name) => try iam.getProjectsLocationsWorkloadIdentityPoolsProvidersOperations({ name }),
   )
@@ -240,16 +240,19 @@ export const WorkloadIdentityProviderProvider = (): infer _ =>
     stables: ["name", "project", "workloadIdentityPoolId", "workloadIdentityPoolProviderId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousProject = olds?.project ?? output?.project ?? env.project
       const previousPoolId = olds?.workloadIdentityPoolId ?? output?.workloadIdentityPoolId
       const previousProviderId = olds?.workloadIdentityPoolProviderId ?? output?.workloadIdentityPoolProviderId
       if (
-        (news.project !== undefined && news.project !== previousProject)
-        || (previousPoolId !== undefined && news.workloadIdentityPoolId !== previousPoolId)
-        || (news.workloadIdentityPoolProviderId !== undefined
-          && news.workloadIdentityPoolProviderId !== previousProviderId)
+        (resolved.project !== undefined && resolved.project !== previousProject)
+        || (previousPoolId !== undefined && resolved.workloadIdentityPoolId !== previousPoolId)
+        || (resolved.workloadIdentityPoolProviderId !== undefined
+          && resolved.workloadIdentityPoolProviderId !== previousProviderId)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -270,7 +273,9 @@ export const WorkloadIdentityProviderProvider = (): infer _ =>
       if (existing === undefined || existing.state === "DELETED") return undefined
       const attrs = toAttrs(existing, project, poolId, providerId)
       const { labels } = parseOwnedDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -391,7 +396,7 @@ export const WorkloadIdentityProviderProvider = (): infer _ =>
       if (current?.state === "DELETED") return
       const operation = iam
         .deleteProjectsLocationsWorkloadIdentityPoolsProviders({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) try waitForProviderOperation(operation)

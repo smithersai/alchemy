@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as r53r from "@distilled.cloud/aws/route53resolver"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -5,10 +6,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { fetchResolverTags, sameStringSet, syncResolverTags, toResolverTagList } from "./internal.vibe"
 
@@ -195,8 +192,8 @@ const retryEndpointInUse = effect <A, E extends { _tag: string }, R>(
  * @internal
  */
 const untilEndpointSettled = effect <E, R>(
-  self: r53r.ResolverEndpoint | undefined!E!R,
-): r53r.ResolverEndpoint | undefined!E!R =>
+  self: (r53r.ResolverEndpoint | undefined)!E!R,
+): (r53r.ResolverEndpoint | undefined)!E!R =>
   try (self
     |> Effect.repeat(%, {
       schedule: Schedule.fixed("5 seconds"),
@@ -214,8 +211,10 @@ export const ResolverEndpointProvider = (): infer _ =>
         props.name ?? (try createPhysicalName({ id, maxLength: 64 }))
 
       const getEndpoint = effect (endpointId: string) =>
-        (try r53r.getResolverEndpoint({ ResolverEndpointId: endpointId })).ResolverEndpoint catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try r53r.getResolverEndpoint({ ResolverEndpointId: endpointId })).ResolverEndpoint
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -277,13 +276,16 @@ export const ResolverEndpointProvider = (): infer _ =>
             hostVpcId: endpoint.HostVPCId ?? "",
           }
           const tags = try fetchResolverTags(endpoint.Arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
         // Replacement detection only. Direction, security groups, and the
         // subnet placement of the network interfaces are immutable;
         // protocols/endpoint type/tags update in place via reconcile.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -368,15 +370,17 @@ export const ResolverEndpointProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          ;(try (retryEndpointInUse(
-            r53r.deleteResolverEndpoint({
-              ResolverEndpointId: output.resolverEndpointId,
-            }),
-          )
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (retryEndpointInUse(
+              r53r.deleteResolverEndpoint({
+                ResolverEndpointId: output.resolverEndpointId,
+              }),
+            )
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

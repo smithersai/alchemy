@@ -236,41 +236,58 @@ export const RealmProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousBook = olds?.registryBook ?? output?.registryBook
       const previousTraffic = olds?.trafficType ?? output?.trafficType
-      const nextTraffic = news.trafficType ?? previousTraffic
+      const nextTraffic = resolved.trafficType ?? previousTraffic
       const previousManagement = olds?.managementType ?? output?.managementType
-      const nextManagement = news.managementType ?? previousManagement
+      const nextManagement = resolved.managementType ?? previousManagement
       const previousVersion = olds?.ipVersion ?? output?.ipVersion
-      const nextVersion = news.ipVersion ?? previousVersion
-      return replaceOnIdentity({
-        previousId: olds?.realmId ?? output?.realmId,
-        nextId: news.realmId ?? olds?.realmId ?? output?.realmId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location),
-        nextLocation: normalizeLocation(news.location ?? olds?.location ?? output?.location),
-        extra: (previousBook !== undefined && !sameRef(previousBook, news.registryBook))
-          || (previousTraffic !== undefined
-            && nextTraffic !== undefined
-            && previousTraffic !== nextTraffic)
-          || (previousManagement !== undefined
-            && nextManagement !== undefined
-            && previousManagement !== nextManagement)
-          || (previousVersion !== undefined
-            && nextVersion !== undefined
-            && previousVersion !== nextVersion),
-      })
+      const nextVersion = resolved.ipVersion ?? previousVersion
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.realmId ?? output?.realmId,
+            nextId: resolved.realmId ?? olds?.realmId ?? output?.realmId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location),
+            nextLocation: normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+            extra: (previousBook !== undefined && !sameRef(previousBook, resolved.registryBook))
+              || (previousTraffic !== undefined
+                && nextTraffic !== undefined
+                && previousTraffic !== nextTraffic)
+              || (previousManagement !== undefined
+                && nextManagement !== undefined
+                && previousManagement !== nextManagement)
+              || (previousVersion !== undefined
+                && nextVersion !== undefined
+                && previousVersion !== nextVersion),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const realmId = try toPhysicalId(id, olds?.realmId, output?.realmId, "realm")
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, realmId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, realmId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -282,13 +299,22 @@ export const RealmProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const realmId = try toPhysicalId(id, news.realmId, output?.realmId, "realm")
-      const location = normalizeLocation(news.location ?? output?.location)
-      const name = resourceName(env.project, location, COLLECTION, realmId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, realmId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const registryBook = expandName(news.registryBook, env.project, location, "registryBooks")
+      const registryBook = try Effect.orDie(
+        Effect.try({
+          try: () => expandName(news.registryBook, env.project, location, "registryBooks"),
+          catch: (e) => e,
+        }),
+      )
       const trafficType = news.trafficType ?? DEFAULT_TRAFFIC
       const managementType = news.managementType ?? DEFAULT_MANAGEMENT
       const ipVersion = news.ipVersion ?? DEFAULT_IP_VERSION
@@ -339,16 +365,18 @@ export const RealmProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (cnr
-        .deleteProjectsLocationsRealms({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (cnr
+          .deleteProjectsLocationsRealms({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

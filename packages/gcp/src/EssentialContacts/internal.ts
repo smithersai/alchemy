@@ -53,8 +53,10 @@ export const folderParent = (folderId: string) =>
 export const organizationParent = (value: string) =>
   value.startsWith("organizations/") ? value : `organizations/${lastSegment(value)}`;
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const normalizeEmail = (email: string | undefined) => (email ?? "").trim().toLowerCase();
 
@@ -64,7 +66,7 @@ export const sortedCategories = (values: readonly string[] | undefined): Notific
     .slice()
     .sort();
 
-export const sameCategories = (
+export const sameCategories = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify(sortedCategories(left)) === JSON.stringify(sortedCategories(right));

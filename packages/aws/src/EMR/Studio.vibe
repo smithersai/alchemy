@@ -214,7 +214,7 @@ export const StudioProvider = (): infer _ =>
       const readStudio = effect (studioId: string) => {
         const response = emr
           .describeStudio({ StudioId: studioId }) catch effect (e) => match (e) {
-            when { _tag: "StudioNotFound" }: try Effect.undefined;
+            when { _tag: "StudioNotFound" }: undefined;
             default: throw e;
           }
         return response?.Studio
@@ -251,8 +251,9 @@ export const StudioProvider = (): infer _ =>
         stables: ["studioId", "studioArn"],
 
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
-          const n = news
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          const n = resolved
           const o = olds
           if (n === undefined || o === undefined) return undefined
           // Create-only properties force a replacement. (Name, description,
@@ -307,7 +308,7 @@ export const StudioProvider = (): infer _ =>
             : try findStudioByName(try toName(id, olds ?? {}))
           if (!studio) return undefined
           const attrs = try toAttrs(studio)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -388,7 +389,7 @@ export const StudioProvider = (): infer _ =>
 
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const observedTags = toTagRecord(observed.Tags)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try emr.addTags({ ResourceId: studioId, Tags: upsert })
           }
@@ -405,7 +406,7 @@ export const StudioProvider = (): infer _ =>
         delete: effect ({ output }) => {
           emr
             .deleteStudio({ StudioId: output.studioId }) catch effect (e) => match (e) {
-              when { _tag: "StudioNotFound" }: try Effect.void;
+              when { _tag: "StudioNotFound" }: (undefined as void);
               default: throw e;
             }
         },
@@ -420,12 +421,12 @@ export const StudioProvider = (): infer _ =>
             }
               |> Effect.flatMap(
                 %,
-                Effect.forEach((studioId) => readStudio(studioId), {
+                Effect.forEach(effect (studioId) => try readStudio(studioId), {
                   concurrency: 4,
                 }),
               ))).filter((studio): studio is emr.Studio => studio !== undefined)
           }
-            |> Effect.flatMap(%, Effect.forEach((studio) => toAttrs(studio), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (studio) => try toAttrs(studio), { concurrency: 4 }))),
       }
     },
   )

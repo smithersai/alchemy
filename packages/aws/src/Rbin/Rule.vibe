@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as rbin from "@distilled.cloud/aws/rbin"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -187,8 +190,12 @@ export const Rule = Resource<Rule>("AWS.Rbin.Rule")
  * `excludeResourceTags`. Recycle Bin only supports locking Region-level
  * retention rules that have no exclusion tags.
  */
-export error RbinLockUnsupported {
-  mutable message: string
+export class RbinLockUnsupported extends $MutableErrorBase("RbinLockUnsupported")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "RbinLockUnsupported", true)
+  }
 }
 
 const validateLock = effect (props: RuleProps) => (props.lockConfiguration !== undefined
@@ -197,7 +204,7 @@ const validateLock = effect (props: RuleProps) => (props.lockConfiguration !== u
     message:
       "lockConfiguration is only supported on Region-level retention rules without excludeResourceTags — remove resourceTags/excludeResourceTags or the lock.",
   })
-  : try Effect.void)
+  : (undefined as void))
 
 /** All resource types a retention rule can cover — used to enumerate rules. */
 const RULE_RESOURCE_TYPES = ["EBS_SNAPSHOT", "EC2_IMAGE", "EBS_VOLUME"] as const
@@ -242,30 +249,43 @@ const toAttributes = (live: rbin.GetRuleResponse): Rule["Attributes"] => ({
 const readRule = effect (identifier: string) =>
   rbin
     .getRule({ Identifier: identifier }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 
 /** Observed tags on the rule itself (empty on a NotFound race). */
 const readRuleTags = effect (ruleArn: string) =>
-  (tagRecord((try rbin.listTagsForResource({ ResourceArn: ruleArn })).Tags ?? [])) catch effect (e) => match (e) {
+  (effect {
+    const tags = (try rbin.listTagsForResource({ ResourceArn: ruleArn })).Tags ?? []
+    return (try Effect.orDie(Effect.try({ try: () => tagRecord(tags), catch: (e) => e })))
+  }) catch effect (e) => match (e) {
     when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
     default: throw e;
   }
 
 /** Collect all rule summaries for one resource type (exhaustive pages). */
 const listRuleSummaries = effect (resourceType: rbin.ResourceType) =>
-  (Array.from(
-    try (rbin.listRules.items({ ResourceType: resourceType })
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "ValidationException" }: [] as rbin.RuleSummary[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (rbin.listRules.items({ ResourceType: resourceType })
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "ValidationException" }: [] as rbin.RuleSummary[]; default: throw e; }
 
-error RuleStillPending {
-  mutable identifier: string
+class RuleStillPending extends $MutableErrorBase("RuleStillPending")<{
+  identifier: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "RuleStillPending", true)
+  }
 }
 
-error RuleStillExists {
-  mutable identifier: string
+class RuleStillExists extends $MutableErrorBase("RuleStillExists")<{
+  identifier: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "RuleStillExists", true)
+  }
 }
 
 /**
@@ -274,16 +294,16 @@ error RuleStillExists {
  * `Retry.Return` type never leaks into the provider layer's declaration.
  */
 const retryWhileRulePending = effect <A, E extends { _tag: string }, R>(
-  self: A!E | RuleStillPending!R,
-): A!E | RuleStillPending!R =>
+  self: A!(E | RuleStillPending)!R,
+): A!(E | RuleStillPending)!R =>
   try Effect.retry(self, {
     while: (e) => e._tag === "RuleStillPending",
     schedule: Schedule.max([Schedule.fixed("1 second"), Schedule.recurs(30)]),
   })
 
 /** Poll a rule until it leaves the transient `pending` status. */
-const waitForRuleAvailable = (identifier: string) =>
-  retryWhileRulePending(
+const waitForRuleAvailable = effect (identifier: string) =>
+  try retryWhileRulePending(
     effect {
       const live = try rbin.getRule({ Identifier: identifier })
       if (live.Status === "pending") {
@@ -295,8 +315,8 @@ const waitForRuleAvailable = (identifier: string) =>
 
 /** Bounded retry while the rule is still observable after deletion. */
 const retryWhileRuleExists = effect <A, E extends { _tag: string }, R>(
-  self: A!E | RuleStillExists!R,
-): A!E | RuleStillExists!R =>
+  self: A!(E | RuleStillExists)!R,
+): A!(E | RuleStillExists)!R =>
   try Effect.retry(self, {
     while: (e) => e._tag === "RuleStillExists",
     schedule: Schedule.max([Schedule.fixed("1 second"), Schedule.recurs(15)]),
@@ -316,7 +336,7 @@ export const RuleProvider = (): infer _ =>
         list: effect () => {
           const summaries = (try Effect.forEach(
             RULE_RESOURCE_TYPES,
-            (resourceType) => listRuleSummaries(resourceType),
+            effect (resourceType) => try listRuleSummaries(resourceType),
             { concurrency: 3 },
           )).flat()
           const items = try Effect.forEach(
@@ -339,7 +359,9 @@ export const RuleProvider = (): infer _ =>
             if (!live) return undefined
             const attrs = toAttributes(live)
             const tags = try readRuleTags(attrs.ruleArn)
-            return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+            return (try hasAlchemyTags(id, tags))
+              ? attrs
+              : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
           }
           const resourceTypes = olds?.resourceType ? [olds.resourceType] : RULE_RESOURCE_TYPES
           for (const resourceType of resourceTypes) {
@@ -356,8 +378,9 @@ export const RuleProvider = (): infer _ =>
           return undefined
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           try validateLock(news)
           // The resource type of a retention rule cannot be changed after
           // creation — a change requires replacement.
@@ -475,7 +498,7 @@ export const RuleProvider = (): infer _ =>
         delete: effect ({ output }) => {
           rbin
             .deleteRule({ Identifier: output.identifier }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           // Deletion is near-immediate, but confirm the rule is gone so

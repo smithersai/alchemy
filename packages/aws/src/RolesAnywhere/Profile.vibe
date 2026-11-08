@@ -7,8 +7,6 @@ import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
 import { toWireSeconds } from "alchemy/Util/Duration"
 import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { readRolesAnywhereTags, syncRolesAnywhereTags, toWireTags } from "./internal.vibe"
 
@@ -230,8 +228,10 @@ export const ProfileProvider = (): infer _ =>
         }
 
       const getById = effect (profileId: string) =>
-        (try rolesanywhere.getProfile({ profileId })).profile catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try rolesanywhere.getProfile({ profileId })).profile
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -239,11 +239,14 @@ export const ProfileProvider = (): infer _ =>
         stables: ["profileId", "profileArn"],
 
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           // requireInstanceProperties has no member on updateProfile — it is
           // immutable after create, so a change forces a replacement.
           if (
-            (olds?.requireInstanceProperties ?? false) !== (news.requireInstanceProperties ?? false)
+            (olds?.requireInstanceProperties ?? false) !== (resolved.requireInstanceProperties ?? false)
           ) {
             return { action: "replace" } as const
           }
@@ -256,7 +259,9 @@ export const ProfileProvider = (): infer _ =>
           if (found === undefined) return undefined
           const attrs = toAttrs(found)
           const tags = try readRolesAnywhereTags(attrs.profileArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, olds, output, session }) => {
@@ -264,7 +269,9 @@ export const ProfileProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...internalTags, ...news.tags }
           const desiredEnabled = news.enabled ?? true
-          const desiredDurationSeconds = toWireSeconds(news.duration)
+          const desiredDurationSeconds = try Effect.orDie(
+            Effect.try({ try: () => toWireSeconds(news.duration), catch: (e) => e }),
+          )
 
           // 1. Observe — cloud state is authoritative; output caches the id.
           let live = output?.profileId ? try getById(output.profileId) : try findByName(name)
@@ -359,7 +366,7 @@ export const ProfileProvider = (): infer _ =>
                   profileId: profile.profileId!,
                   certificateField: previous.certificateField,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  when { _tag: "ResourceNotFoundException" }: undefined;
                   default: throw e;
                 }
               profile = cleaned?.profile ?? profile
@@ -385,7 +392,7 @@ export const ProfileProvider = (): infer _ =>
         delete: effect ({ output }) => {
           rolesanywhere
             .deleteProfile({ profileId: output.profileId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

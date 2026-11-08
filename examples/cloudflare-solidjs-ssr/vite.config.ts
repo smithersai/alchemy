@@ -12,7 +12,7 @@ export default defineConfig({
     ssr: {
       build: {
         emptyOutDir: false,
-        rolldownOptions: {
+        rollupOptions: {
           input: resolve(__dirname, "src/entry-server.tsx"),
         },
       },

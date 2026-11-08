@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as smsvoice from "@distilled.cloud/aws/pinpoint-sms-voice-v2"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -168,7 +170,13 @@ export const EventDestination = Resource<EventDestination>(
  * it was created — the create call succeeded (or raced a peer) but the
  * follow-up describe found nothing.
  */
-export error SmsVoiceEventDestinationMissing { mutable message: string }
+export class SmsVoiceEventDestinationMissing extends $MutableErrorBase("SmsVoiceEventDestinationMissing")<{
+  message: string;
+}> {static {
+    $MutableErrorMatcher(this, "SmsVoiceEventDestinationMissing", true);
+} 
+
+}
 
 const sameStringSet = (left: readonly string[] | undefined, right: readonly string[]): infer _ => {
   const l = [...(left ?? [])].sort()
@@ -207,10 +215,10 @@ export const EventDestinationProvider = (): infer _ =>
 
       /** Observe the parent configuration set (undefined when gone). */
       const getConfigurationSet = effect (name: string) => {
-        const result = (try (smsvoice
+        const result = (effect { return (try (smsvoice
           .describeConfigurationSets({ ConfigurationSetNames: [name] })
-          |> retrySmsVoiceThrottled(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          |> retrySmsVoiceThrottled(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return result?.ConfigurationSets?.find((cs) => cs.ConfigurationSetName === name)
@@ -240,15 +248,16 @@ export const EventDestinationProvider = (): infer _ =>
         },
 
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
             olds?.configurationSetName !== undefined
-            && olds.configurationSetName !== news.configurationSetName
+            && olds.configurationSetName !== resolved.configurationSetName
           ) {
             return { action: "replace" } as const
           }
           const oldName = try toName(id, olds ?? {})
-          const newName = try toName(id, news)
+          const newName = try toName(id, resolved)
           if (oldName !== newName) return { action: "replace" } as const
         },
 
@@ -269,15 +278,15 @@ export const EventDestinationProvider = (): infer _ =>
           // with a peer reconciler, so fall through to the sync step.
           if (observed === undefined) {
             try (effect {
-              return (try (smsvoice
+              return (effect { return (try (smsvoice
                 .createEventDestination({
                   ConfigurationSetName: configurationSetName,
                   EventDestinationName: eventDestinationName,
                   MatchingEventTypes: news.matchingEventTypes,
                   ...desiredDestinations,
                 })
-                |> retrySmsVoiceThrottled(%))) catch effect (e) => match (e) {
-                  when { _tag: "ConflictException" }: try Effect.void;
+                |> retrySmsVoiceThrottled(%))) }) catch effect (e) => match (e) {
+                  when { _tag: "ConflictException" }: (undefined as void);
                   default: throw e;
                 }
             }
@@ -335,13 +344,13 @@ export const EventDestinationProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           try (effect {
-            return (try (smsvoice
+            return (effect { return (try (smsvoice
               .deleteEventDestination({
                 ConfigurationSetName: output.configurationSetName,
                 EventDestinationName: output.eventDestinationName,
               })
-              |> retrySmsVoiceThrottled(%))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              |> retrySmsVoiceThrottled(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }

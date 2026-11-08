@@ -202,19 +202,35 @@ export const OrganizationsLocationsGlobalPolicyOrchestratorProvider = (): infer 
     stables: ["name", "policyOrchestratorId", "parent", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousOrg = olds?.organizationId !== undefined
-        ? organizationParent(olds.organizationId)
-        : output?.organizationId
-        ? organizationParent(output.organizationId)
-        : ""
-      const nextOrg = news.organizationId !== undefined ? organizationParent(news.organizationId) : previousOrg
-      return replaceOnIdentity({
-        previousId: olds?.policyOrchestratorId ?? output?.policyOrchestratorId,
-        nextId: news.policyOrchestratorId ?? olds?.policyOrchestratorId ?? output?.policyOrchestratorId,
-        previousParent: previousOrg,
-        nextParent: nextOrg,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousOrg = try Effect.orDie(Effect.try({
+        try: () =>
+          olds?.organizationId !== undefined
+            ? organizationParent(olds.organizationId)
+            : output?.organizationId
+            ? organizationParent(output.organizationId)
+            : "",
+        catch: (e) => e,
+      }))
+      const nextOrg = try Effect.orDie(
+        Effect.try({
+          try: () => resolved.organizationId !== undefined ? organizationParent(resolved.organizationId) : previousOrg,
+          catch: (e) => e,
+        }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.policyOrchestratorId ?? output?.policyOrchestratorId,
+            nextId: resolved.policyOrchestratorId ?? olds?.policyOrchestratorId ?? output?.policyOrchestratorId,
+            previousParent: previousOrg,
+            nextParent: nextOrg,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -232,12 +248,19 @@ export const OrganizationsLocationsGlobalPolicyOrchestratorProvider = (): infer 
           ? organizationParent(output.organizationId)
           : try tryResolveOrganization()
         if (organization === undefined) return undefined
-        name = resourceName(globalParent(organization), policyOrchestratorId)
+        name = try Effect.orDie(
+          Effect.try({ try: () => resourceName(globalParent(organization), policyOrchestratorId), catch: (e) => e }),
+        )
       }
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -246,7 +269,7 @@ export const OrganizationsLocationsGlobalPolicyOrchestratorProvider = (): infer 
       if (organization === undefined) return []
       const items = try collectOrchestrators(
         osconfig.listOrganizationsLocationsGlobalPolicyOrchestrators.pages({
-          parent: globalParent(organization),
+          parent: try Effect.orDie(Effect.try({ try: () => globalParent(organization), catch: (e) => e })),
           pageSize: 1000,
         }),
       )
@@ -263,10 +286,12 @@ export const OrganizationsLocationsGlobalPolicyOrchestratorProvider = (): infer 
         output?.policyOrchestratorId,
       )
       const organization = try resolveOrganization(news.organizationId, output?.organizationId)
-      const parent = globalParent(organization)
-      const name = resourceName(parent, policyOrchestratorId)
+      const parent = try Effect.orDie(Effect.try({ try: () => globalParent(organization), catch: (e) => e }))
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(parent, policyOrchestratorId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desired = desiredBody(news, policyOrchestratorId, desiredLabels)
@@ -291,23 +316,39 @@ export const OrganizationsLocationsGlobalPolicyOrchestratorProvider = (): infer 
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const actionChanged = (current.action ?? DEFAULT_ACTION) !== (desired.action ?? DEFAULT_ACTION)
       const stateChanged = (current.state ?? DEFAULT_STATE) !== (desired.state ?? DEFAULT_STATE)
       const descriptionChanged = (current.description ?? "") !== (desired.description ?? "")
-      const resourceChanged = fingerprint(orchestratedPayload(current.orchestratedResource))
-        !== fingerprint(desired.orchestratedResource)
+      const resourceChanged = (try Effect.orDie(
+        Effect.try({
+          try: fingerprint.bind(undefined, orchestratedPayload(current.orchestratedResource)),
+          catch: (e) => e,
+        }),
+      ))
+        !== (try Effect.orDie(Effect.try({ try: () => fingerprint(desired.orchestratedResource), catch: (e) => e })))
       const scopeChanged = desired.orchestrationScope !== undefined
-        && fingerprint(current.orchestrationScope) !== fingerprint(desired.orchestrationScope)
-      const mask = fieldMask([
-        labelsChanged && "labels",
-        actionChanged && "action",
-        stateChanged && "state",
-        descriptionChanged && "description",
-        resourceChanged && "orchestratedResource",
-        scopeChanged && "orchestrationScope",
-      ])
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.orchestrationScope), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, desired.orchestrationScope), catch: (e) => e }),
+          ))
+      const mask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            labelsChanged && "labels",
+            actionChanged && "action",
+            stateChanged && "state",
+            descriptionChanged && "description",
+            resourceChanged && "orchestratedResource",
+            scopeChanged && "orchestrationScope",
+          ]),
+        catch: (e) => e,
+      }))
 
       if (mask.length > 0) {
         const operation = try osconfig.patchOrganizationsLocationsGlobalPolicyOrchestrators({
@@ -328,16 +369,18 @@ export const OrganizationsLocationsGlobalPolicyOrchestratorProvider = (): infer 
 
     delete: effect ({ output }) => {
       if (!output.name) return
-      const operation = (try (osconfig
-        .deleteOrganizationsLocationsGlobalPolicyOrchestrators({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (osconfig
+          .deleteOrganizationsLocationsGlobalPolicyOrchestrators({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

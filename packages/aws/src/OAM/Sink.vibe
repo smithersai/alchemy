@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as oam from "@distilled.cloud/aws/oam"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -170,7 +171,7 @@ export const SinkProvider = (): infer _ =>
           const found = output?.sinkArn
             ? oam
               .getSink({ Identifier: output.sinkArn }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             : try findByName(sinkName)
@@ -181,10 +182,13 @@ export const SinkProvider = (): infer _ =>
             sinkId: found.Id!,
           }
           const tags = try readOamTags(found.Arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -199,7 +203,7 @@ export const SinkProvider = (): infer _ =>
           let live = output?.sinkArn
             ? oam
               .getSink({ Identifier: output.sinkArn }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             : try findByName(sinkName)
@@ -223,8 +227,10 @@ export const SinkProvider = (): infer _ =>
           const desiredPolicy = news?.policy
           if (desiredPolicy !== undefined) {
             const desired = toPolicyString(desiredPolicy)
-            const observed = (try oam.getSinkPolicy({ SinkIdentifier: sinkArn })).Policy catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            const observed = (effect {
+              return (try oam.getSinkPolicy({ SinkIdentifier: sinkArn })).Policy
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
             if (!samePolicy(observed, desired)) {

@@ -139,16 +139,18 @@ export const ConfigurationProfileProvider = (): infer _ =>
             ApplicationId: applicationId,
             ConfigurationProfileId: configurationProfileId,
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       const findByName = effect (applicationId: string, name: string) => {
-        const profiles = (Array.from(
-          try (appconfig.listConfigurationProfiles
-            .pages({ ApplicationId: applicationId })
-            |> Stream.runCollect(%)),
-        ).flatMap((page) => page.Items ?? [])) catch effect (e) => match (e) {
+        const profiles = (effect {
+          return (Array.from(
+            try (appconfig.listConfigurationProfiles
+              .pages({ ApplicationId: applicationId })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Items ?? []))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: [] as appconfig.ConfigurationProfileSummary[];
           default: throw e;
         }
@@ -167,18 +169,21 @@ export const ConfigurationProfileProvider = (): infer _ =>
         ],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
-          if ((olds?.applicationId ?? undefined) !== news?.applicationId) {
+          if ((olds?.applicationId ?? undefined) !== resolved?.applicationId) {
             return { action: "replace" } as const
           }
           // LocationUri and Type are create-only.
-          if ((olds?.locationUri ?? "hosted") !== (news?.locationUri ?? "hosted")) {
+          if ((olds?.locationUri ?? "hosted") !== (resolved?.locationUri ?? "hosted")) {
             return { action: "replace" } as const
           }
-          if ((olds?.type ?? "AWS.Freeform") !== (news?.type ?? "AWS.Freeform")) {
+          if ((olds?.type ?? "AWS.Freeform") !== (resolved?.type ?? "AWS.Freeform")) {
             return { action: "replace" } as const
           }
         },
@@ -200,7 +205,9 @@ export const ConfigurationProfileProvider = (): infer _ =>
             configurationProfileArn: arn,
           }
           const tags = try readAppConfigTags(arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -265,14 +272,16 @@ export const ConfigurationProfileProvider = (): infer _ =>
           // runtime writers (the CreateHostedConfigurationVersion binding)
           // can add versions the engine never tracked — delete whatever
           // versions remain before deleting the profile.
-          const versions = (Array.from(
-            try (appconfig.listHostedConfigurationVersions
-              .pages({
-                ApplicationId: output.applicationId,
-                ConfigurationProfileId: output.configurationProfileId,
-              })
-              |> Stream.runCollect(%)),
-          ).flatMap((page) => page.Items ?? [])) catch effect (e) => match (e) {
+          const versions = (effect {
+            return (Array.from(
+              try (appconfig.listHostedConfigurationVersions
+                .pages({
+                  ApplicationId: output.applicationId,
+                  ConfigurationProfileId: output.configurationProfileId,
+                })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.Items ?? []))
+          }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: [];
             default: throw e;
           }
@@ -284,7 +293,7 @@ export const ConfigurationProfileProvider = (): infer _ =>
                   ConfigurationProfileId: output.configurationProfileId,
                   VersionNumber: version.VersionNumber,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             }
@@ -294,7 +303,7 @@ export const ConfigurationProfileProvider = (): infer _ =>
               ApplicationId: output.applicationId,
               ConfigurationProfileId: output.configurationProfileId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },
@@ -318,11 +327,14 @@ export const ConfigurationProfileProvider = (): infer _ =>
           }[] = []
           for (const app of apps) {
             if (app.Id === undefined) continue
-            const profiles = (Array.from(
-              try (appconfig.listConfigurationProfiles
-                .pages({ ApplicationId: app.Id })
-                |> Stream.runCollect(%)),
-            ).flatMap((page) => page.Items ?? [])) catch effect (e) => match (e) {
+            const applicationId = app.Id
+            const profiles = (effect {
+              return (Array.from(
+                try (appconfig.listConfigurationProfiles
+                  .pages({ ApplicationId: applicationId })
+                  |> Stream.runCollect(%)),
+              ).flatMap((page) => page.Items ?? []))
+            }) catch effect (e) => match (e) {
               when { _tag: "ResourceNotFoundException" }: [] as appconfig.ConfigurationProfileSummary[];
               default: throw e;
             }

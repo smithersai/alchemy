@@ -136,11 +136,14 @@ export const FolderBucketsViewProvider = (): infer _ =>
     stables: ["name", "viewId", "bucketName", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.viewId ?? output?.viewId
-      const idChanged = previousId !== undefined && news.viewId !== undefined && news.viewId !== previousId
+      const idChanged = previousId !== undefined && resolved.viewId !== undefined && resolved.viewId !== previousId
       const previousBucket = olds?.bucketName ?? output?.bucketName
-      const bucketChanged = previousBucket !== undefined && news.bucketName !== previousBucket
+      const bucketChanged = previousBucket !== undefined && resolved.bucketName !== previousBucket
       if (!idChanged && !bucketChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -153,8 +156,12 @@ export const FolderBucketsViewProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, bucketName)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -171,17 +178,20 @@ export const FolderBucketsViewProvider = (): infer _ =>
       const views: ReturnType<typeof toAttrs>[] = []
       for (const bucket of buckets) {
         if (bucket.name === undefined) continue
-        const listed = (Array.from(
-          try (logging.listFoldersLocationsBucketsViews
-            .pages({
-              parent: bucket.name,
-              pageSize: 1000,
-            })
-            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.views ?? []))
-            |> Stream.filter(%, (view) => hasOwnershipMarker(view.description))
-            |> Stream.map(%, (view) => toAttrs(view, bucket.name ?? ""))
-            |> Stream.runCollect(%)),
-        )) catch effect (e) => match (e) {
+        const bucketName = bucket.name
+        const listed = (effect {
+          return (Array.from(
+            try (logging.listFoldersLocationsBucketsViews
+              .pages({
+                parent: bucketName,
+                pageSize: 1000,
+              })
+              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.views ?? []))
+              |> Stream.filter(%, (view) => hasOwnershipMarker(view.description))
+              |> Stream.map(%, (view) => toAttrs(view, bucket.name ?? ""))
+              |> Stream.runCollect(%)),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
           default: throw e;
         }
@@ -194,7 +204,9 @@ export const FolderBucketsViewProvider = (): infer _ =>
       const viewId = try toPhysicalId(id, news.viewId, output?.viewId, "v")
       const name = resourceName(news.bucketName, viewId)
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 

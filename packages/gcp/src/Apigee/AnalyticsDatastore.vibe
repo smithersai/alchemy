@@ -180,9 +180,12 @@ export const AnalyticsDatastoreProvider = (): infer _ =>
     stables: ["name", "datastoreId", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousOrg = olds?.organizationId ?? output?.organizationId
-      const nextOrg = news.organizationId ?? previousOrg
+      const nextOrg = resolved.organizationId ?? previousOrg
       if (previousOrg !== undefined && nextOrg !== previousOrg) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -197,8 +200,12 @@ export const AnalyticsDatastoreProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, organizationId)
-      const { labels } = parseDescription(existing.displayName)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.displayName), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -223,10 +230,13 @@ export const AnalyticsDatastoreProvider = (): infer _ =>
       const generated = try toPhysicalId(
         id,
         news.displayName,
-        parseDescription(output?.displayName).description,
+        (try Effect.orDie(Effect.try({ try: () => parseDescription(output?.displayName), catch: (e) => e })))
+          .description,
         MAX_NAME_LENGTH,
       )
-      const desiredDisplayName = encodeDescription(ownership, generated, 255)
+      const desiredDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, generated, 255), catch: (e) => e }),
+      )
       const targetType = news.targetType ?? "gcs"
       const datastoreConfig: apigee.GoogleCloudApigeeV1DatastoreConfig = {
         projectId: news.datastoreConfig?.projectId ?? env.project,
@@ -253,7 +263,8 @@ export const AnalyticsDatastoreProvider = (): infer _ =>
 
       if (current === undefined) {
         throw new AnalyticsDatastoreNotResolved({
-          resourceName: output?.name ?? orgParent(organizationId),
+          resourceName: output?.name
+            ?? (try Effect.orDie(Effect.try({ try: () => orgParent(organizationId), catch: (e) => e }))),
         })
       }
 
@@ -263,7 +274,12 @@ export const AnalyticsDatastoreProvider = (): infer _ =>
 
       const needsUpdate = (current.displayName ?? "") !== desiredDisplayName
         || (current.targetType ?? "") !== targetType
-        || !sameJson(current.datastoreConfig ?? {}, datastoreConfig)
+        || !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.datastoreConfig ?? {}, datastoreConfig),
+            catch: (e) => e,
+          }),
+        ))
 
       if (needsUpdate) {
         current = try apigee.updateOrganizationsAnalyticsDatastores({

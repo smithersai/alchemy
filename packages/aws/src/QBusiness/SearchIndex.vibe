@@ -137,7 +137,7 @@ const createDisplayName = effect (
 const fetchTags = effect (arn: string) => {
   const response = qbusiness
     .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
@@ -151,7 +151,7 @@ interface IndexState {
 const readIndexById = effect (applicationId: string, indexId: string) => {
   const described = qbusiness
     .getIndex({ applicationId, indexId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described || described.status === "DELETING") return undefined
@@ -173,10 +173,10 @@ const readIndexById = effect (applicationId: string, indexId: string) => {
 }
 
 const findIndexByName = effect (applicationId: string, displayName: string) => {
-  const summaries = (Array.from(
+  const summaries = (effect { return (Array.from(
     try (qbusiness.listIndices.pages({ applicationId })
       |> EffectStream.runCollect(%)),
-  ).flatMap((page) => page.indices ?? [])) catch effect (e) => match (e) {
+  ).flatMap((page) => page.indices ?? [])) }) catch effect (e) => match (e) {
     when { _tag: "ResourceNotFoundException" }: [] as qbusiness.Index[];
     default: throw e;
   }
@@ -220,12 +220,12 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(120)]),
   })
 
-const waitForIndexStatus = (applicationId: string, indexId: string, target: "ACTIVE" | "DELETED") =>
-  retryWhileNotReady(
+const waitForIndexStatus = effect (applicationId: string, indexId: string, target: "ACTIVE" | "DELETED") =>
+  try retryWhileNotReady(
     effect {
       const described = qbusiness
         .getIndex({ applicationId, indexId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (target === "DELETED") {
@@ -262,15 +262,16 @@ export const IndexProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The parent application and index tier are fixed at creation.
           if (
-            olds.applicationId !== news.applicationId
-            || (olds.type ?? "STARTER") !== (news.type ?? "STARTER")
+            olds.applicationId !== resolved.applicationId
+            || (olds.type ?? "STARTER") !== (resolved.type ?? "STARTER")
           ) {
             return { action: "replace" } as const
           }
@@ -342,7 +343,7 @@ export const IndexProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.attrs.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try qbusiness.untagResource({
               resourceARN: state.attrs.indexArn,
@@ -375,7 +376,7 @@ export const IndexProvider = (): infer _ =>
               applicationId: output.applicationId,
               indexId: output.indexId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           try waitForIndexStatus(output.applicationId, output.indexId, "DELETED")

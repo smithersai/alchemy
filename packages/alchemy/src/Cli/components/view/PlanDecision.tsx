@@ -51,6 +51,7 @@ function PlanDecision<Value>(props: {
   );
 }
 
+/** @throws {never} */
 export const planDecisionScreen = <Value,>(options: {
   readonly plan: Plan | PlanTreeData;
   readonly label?: string;

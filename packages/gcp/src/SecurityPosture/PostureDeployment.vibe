@@ -259,23 +259,35 @@ export const PostureDeploymentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousId = olds?.postureDeploymentId ?? output?.postureDeploymentId
-      const nextId = news.postureDeploymentId ?? previousId
-      const previousOrg = olds?.organization ?? output?.organization
-      const nextOrg = news.organization !== undefined ? organizationParent(news.organization) : previousOrg
-      const previousTarget = olds?.targetResource ?? output?.targetResource
-      const nextTarget = news.targetResource ?? previousTarget
-      return replaceOnIdentity(
-        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
-          || (previousOrg !== undefined
-            && nextOrg !== undefined
-            && organizationParent(previousOrg) !== organizationParent(nextOrg))
-          || (previousTarget !== undefined
-            && nextTarget !== undefined
-            && previousTarget !== nextTarget),
-        true,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.postureDeploymentId ?? output?.postureDeploymentId
+      const nextId = resolved.postureDeploymentId ?? previousId
+      const previousOrg = olds?.organization ?? output?.organization
+      const nextOrg = try Effect.orDie(
+        Effect.try({
+          try: () => resolved.organization !== undefined ? organizationParent(resolved.organization) : previousOrg,
+          catch: (e) => e,
+        }),
+      )
+      const previousTarget = olds?.targetResource ?? output?.targetResource
+      const nextTarget = resolved.targetResource ?? previousTarget
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity(
+            (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+              || (previousOrg !== undefined
+                && nextOrg !== undefined
+                && organizationParent(previousOrg) !== organizationParent(nextOrg))
+              || (previousTarget !== undefined
+                && nextTarget !== undefined
+                && previousTarget !== nextTarget),
+            true,
+          ),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -293,30 +305,39 @@ export const PostureDeploymentProvider = (): infer _ =>
         when { _tag: "GCP.SecurityPosture.OrganizationNotResolved" }: output?.organization ?? "";
         default: throw e;
       }
-      const location = lastSegment(olds?.location ?? output?.location ?? DEFAULT_LOCATION)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.location ?? output?.location ?? DEFAULT_LOCATION), catch: (e) => e }),
+      )
       const name = output?.name
         ?? (organization.length > 0 ? resourceName(organization, location, postureDeploymentId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e })),
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      const parent = locationParent(organization, DEFAULT_LOCATION)
-      return (Array.from(
-        try (securityposture.listOrganizationsLocationsPostureDeployments
-          .pages({ parent, pageSize: 1000 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.postureDeployments ?? []))
-          |> Stream.filter(%, (deployment) => hasAlchemyAnnotationMap(deployment.annotations))
-          |> Stream.map(%, (deployment) => toAttrs(deployment, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(organization, DEFAULT_LOCATION), catch: (e) => e }),
+      )
+      return (effect {
+        return (Array.from(
+          try (securityposture.listOrganizationsLocationsPostureDeployments
+            .pages({ parent, pageSize: 1000 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.postureDeployments ?? []))
+            |> Stream.filter(%, (deployment) => hasAlchemyAnnotationMap(deployment.annotations))
+            |> Stream.map(%, (deployment) => toAttrs(deployment, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -331,14 +352,18 @@ export const PostureDeploymentProvider = (): infer _ =>
         news.organization ?? output?.organization,
         output?.organization,
       )
-      const location = lastSegment(news.location ?? output?.location ?? DEFAULT_LOCATION)
-      const parent = locationParent(organization, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(news.location ?? output?.location ?? DEFAULT_LOCATION), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(organization, location), catch: (e) => e }),
+      )
       const name = resourceName(organization, location, postureDeploymentId)
       const targetResource = news.targetResource !== undefined
         ? try normalizeTargetResource(news.targetResource)
         : (output?.targetResource ? output.targetResource : try defaultTargetResource())
       const desiredAnnotations = {
-        ...toLabels(news.annotations),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.annotations), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -371,11 +396,15 @@ export const PostureDeploymentProvider = (): infer _ =>
       const postureChanged = !sameText(current.postureId, news.postureId)
       const revisionChanged = !sameText(current.postureRevisionId, news.postureRevisionId)
       const descriptionChanged = !sameText(current.description, news.description)
-      const mask = fieldMask([
-        postureChanged && "posture_id",
-        revisionChanged && "posture_revision_id",
-        descriptionChanged && "description",
-      ])
+      const mask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            postureChanged && "posture_id",
+            revisionChanged && "posture_revision_id",
+            descriptionChanged && "description",
+          ]),
+        catch: (e) => e,
+      }))
 
       if (mask.length > 0) {
         const operation = try securityposture.patchOrganizationsLocationsPostureDeployments({
@@ -398,16 +427,18 @@ export const PostureDeploymentProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name) return
-      const operation = (try (securityposture
-        .deleteOrganizationsLocationsPostureDeployments({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (securityposture
+          .deleteOrganizationsLocationsPostureDeployments({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitDeploymentOperationGone(operation)
       }

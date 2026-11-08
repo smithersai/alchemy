@@ -407,7 +407,7 @@ export const mergeSpec = (
   ),
 });
 
-export const toConfigBody = (
+export const toConfigBody = /** @throws {never} */ (
   displayName: string,
   spec: PretargetingSpec,
 ): rtb.PretargetingConfig => ({

@@ -30,7 +30,7 @@ export const sortedOwners = (owners: readonly string[] | undefined) =>
     .filter((owner) => owner.length > 0)
     .sort((left, right) => left.localeCompare(right));
 
-export const sameOwners = (
+export const sameOwners = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify(sortedOwners(left)) === JSON.stringify(sortedOwners(right));
@@ -40,7 +40,7 @@ export const sameOwners = (
  * resource id already percent-encoded (`http%3A%2F%2F…`), so decode
  * first and let the protocol encode once.
  */
-export const toPathId = (id: string | undefined) => {
+export const toPathId = /** @throws {never} */ (id: string | undefined) => {
   if (!id) return "";
   try {
     return decodeURIComponent(id);

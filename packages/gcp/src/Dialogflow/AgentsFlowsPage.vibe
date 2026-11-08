@@ -149,7 +149,9 @@ const findOwned = effect (id: string, flow: string, hinted?: string) => {
   }
   const pages = try listPagesAt(flow)
   for (const page of pages) {
-    if (try ownedByAlchemy(id, ownershipText(page))) return page
+    if (try ownedByAlchemy(id, try Effect.orDie(Effect.try({ try: () => ownershipText(page), catch: (e) => e })))) {
+      return page
+    }
   }
   return undefined as dialogflow.GoogleCloudDialogflowCxV3Page | undefined
 }
@@ -180,16 +182,19 @@ export const AgentsFlowsPageProvider = (): infer _ =>
     stables: ["name", "pageId", "flow", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousFlow = olds?.flow ?? output?.flow
       const previousId = olds?.pageId ?? output?.pageId
       if (
-        (previousFlow !== undefined && news.flow !== previousFlow)
-        || (previousId !== undefined && news.pageId !== undefined && news.pageId !== previousId)
+        (previousFlow !== undefined && resolved.flow !== previousFlow)
+        || (previousId !== undefined && resolved.pageId !== undefined && resolved.pageId !== previousId)
       ) {
         return {
           action: "replace" as const,
-          deleteFirst: previousFlow === news.flow && previousId !== undefined && news.pageId === previousId,
+          deleteFirst: previousFlow === resolved.flow && previousId !== undefined && resolved.pageId === previousId,
         }
       }
       return undefined
@@ -205,7 +210,12 @@ export const AgentsFlowsPageProvider = (): infer _ =>
         : undefined
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(
+          id,
+          try Effect.orDie(Effect.try({ try: () => ownershipText(existing), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -218,7 +228,9 @@ export const AgentsFlowsPageProvider = (): infer _ =>
         const env = try GcpEnvironment.current
         const flow = news.flow
         const ownership = try ownershipLabels(id)
-        const description = encodeOwnership(ownership, news.description)
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
         const displayName = news.displayName ?? "page"
         const body: dialogflow.GoogleCloudDialogflowCxV3Page = {
           displayName,
@@ -250,17 +262,26 @@ export const AgentsFlowsPageProvider = (): infer _ =>
         const currentName = current.name ?? output?.name ?? ""
         const displayChanged = !sameText(current.displayName, displayName)
         const descriptionChanged = !sameText(current.description, description)
-        const fulfillmentChanged = !sameJson(current.entryFulfillment, news.entryFulfillment)
+        const fulfillmentChanged = !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.entryFulfillment, news.entryFulfillment),
+            catch: (e) => e,
+          }),
+        ))
 
         if (displayChanged || descriptionChanged || fulfillmentChanged) {
           current = try dialogflow.patchProjectsLocationsAgentsFlowsPages({
             name: currentName,
             languageCode: news.languageCode,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              descriptionChanged ? "description" : undefined,
-              fulfillmentChanged ? "entry_fulfillment" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  fulfillmentChanged ? "entry_fulfillment" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }

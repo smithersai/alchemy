@@ -204,7 +204,7 @@ export const EventSubscriptionProvider = (): infer _ =>
       const readSubscription = effect (name: string) => {
         const response = redshift
           .describeEventSubscriptions({ SubscriptionName: name }) catch effect (e) => match (e) {
-            when { _tag: "SubscriptionNotFoundFault" }: try Effect.undefined;
+            when { _tag: "SubscriptionNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.EventSubscriptionsList?.[0]
@@ -240,10 +240,11 @@ export const EventSubscriptionProvider = (): infer _ =>
         stables: ["subscriptionName", "eventSubscriptionArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) {
             return undefined
           }
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -253,7 +254,7 @@ export const EventSubscriptionProvider = (): infer _ =>
           const subscription = try readSubscription(name)
           if (!subscription?.CustSubscriptionId) return undefined
           const attrs = try toAttrs(subscription)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -281,7 +282,7 @@ export const EventSubscriptionProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "SubscriptionAlreadyExistFault" }: try Effect.void;
+                when { _tag: "SubscriptionAlreadyExistFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try readSubscription(name)
@@ -327,7 +328,8 @@ export const EventSubscriptionProvider = (): infer _ =>
           //     surfaces them inline).
           const { accountId, region } = try AWSEnvironment.current
           const arn = redshiftArn(region, accountId, "eventsubscription", name)
-          const { removed, upsert } = diffTags(toTagRecord(observed.Tags), desiredTags)
+          const oldTags = toTagRecord(observed.Tags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
           try applyRedshiftTagDelta({ arn, upsert, removed })
 
           try session.note(arn)
@@ -342,7 +344,7 @@ export const EventSubscriptionProvider = (): infer _ =>
                 .deleteEventSubscription({
                   SubscriptionName: output.subscriptionName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "SubscriptionNotFoundFault" }: try Effect.undefined;
+                  when { _tag: "SubscriptionNotFoundFault" }: undefined;
                   default: throw e;
                 }
             },
@@ -362,7 +364,7 @@ export const EventSubscriptionProvider = (): infer _ =>
           }
             |> Effect.flatMap(
               %,
-              Effect.forEach((subscription) => toAttrs(subscription), {
+              Effect.forEach(effect (subscription) => try toAttrs(subscription), {
                 concurrency: 4,
               }),
             )),

@@ -213,23 +213,30 @@ export const GoldengateConnectionProvider = (): infer _ =>
     stables: ["name", "goldengateConnectionId", "project", "location", "createTime", "ocid"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.connectionType ?? olds?.properties?.connectionType ?? output?.connectionType ?? ""
-      const nextType = news.connectionType ?? news.properties?.connectionType ?? previousType
+      const nextType = resolved.connectionType ?? resolved.properties?.connectionType ?? previousType
       const previousOdb = olds?.odbSubnet ?? output?.odbSubnet ?? ""
-      const nextOdb = news.odbSubnet ?? previousOdb
-      return replaceOnIdentity({
-        previousId: olds?.goldengateConnectionId ?? output?.goldengateConnectionId,
-        nextId: news.goldengateConnectionId
-          ?? olds?.goldengateConnectionId
-          ?? output?.goldengateConnectionId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-        extra: nextType !== previousType || nextOdb !== previousOdb,
-      })
+      const nextOdb = resolved.odbSubnet ?? previousOdb
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.goldengateConnectionId ?? output?.goldengateConnectionId,
+            nextId: resolved.goldengateConnectionId
+              ?? olds?.goldengateConnectionId
+              ?? output?.goldengateConnectionId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            extra: nextType !== previousType || nextOdb !== previousOdb,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -240,12 +247,25 @@ export const GoldengateConnectionProvider = (): infer _ =>
         output?.goldengateConnectionId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, goldengateConnectionId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceNameOf(env.project, location, COLLECTION, goldengateConnectionId),
+            catch: (e) => e,
+          }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -262,26 +282,35 @@ export const GoldengateConnectionProvider = (): infer _ =>
         output?.goldengateConnectionId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceNameOf(env.project, location, COLLECTION, goldengateConnectionId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({
+          try: () => resourceNameOf(env.project, location, COLLECTION, goldengateConnectionId),
+          catch: (e) => e,
+        }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (oracle
-          .createProjectsLocationsGoldengateConnections({
-            parent: parentOf(env.project, location),
-            goldengateConnectionId,
-            body: toCreateBody(news, desiredLabels),
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (oracle
+            .createProjectsLocationsGoldengateConnections({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              goldengateConnectionId,
+              body: toCreateBody(news, desiredLabels),
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -302,14 +331,16 @@ export const GoldengateConnectionProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (oracle
-        .deleteProjectsLocationsGoldengateConnections({
-          name: output.name,
-        })
-        |> retryConflict(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsGoldengateConnections({
+            name: output.name,
+          })
+          |> retryConflict(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

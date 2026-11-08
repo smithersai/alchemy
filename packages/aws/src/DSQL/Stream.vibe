@@ -161,7 +161,7 @@ export const StreamProvider = (): infer _ =>
       const readStream = effect (clusterIdentifier: string, streamIdentifier: string) =>
         dsql
           .getStream({ clusterIdentifier, streamIdentifier }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -211,14 +211,15 @@ export const StreamProvider = (): infer _ =>
         stables: ["clusterId", "streamId", "streamArn"],
 
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // There is no UpdateStream — everything except tags replaces.
           if (
-            news.clusterId !== olds?.clusterId
-            || news.kinesisStreamArn !== olds?.kinesisStreamArn
-            || news.roleArn !== olds?.roleArn
-            || (news.ordering ?? defaultOrdering) !== (olds?.ordering ?? defaultOrdering)
-            || (news.format ?? defaultFormat) !== (olds?.format ?? defaultFormat)
+            resolved.clusterId !== olds?.clusterId
+            || resolved.kinesisStreamArn !== olds?.kinesisStreamArn
+            || resolved.roleArn !== olds?.roleArn
+            || (resolved.ordering ?? defaultOrdering) !== (olds?.ordering ?? defaultOrdering)
+            || (resolved.format ?? defaultFormat) !== (olds?.format ?? defaultFormat)
           ) {
             return { action: "replace" } as const
           }
@@ -236,7 +237,7 @@ export const StreamProvider = (): infer _ =>
             ),
           )
           const attrs = toAttrs(stream)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -283,7 +284,7 @@ export const StreamProvider = (): infer _ =>
               (entry): entry is [string, string] => typeof entry[1] === "string",
             ),
           )
-          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try dsql.tagResource({
               resourceArn: observed.arn,
@@ -308,7 +309,7 @@ export const StreamProvider = (): infer _ =>
                 clusterIdentifier: output.clusterId,
                 streamIdentifier: output.streamId,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -321,7 +322,7 @@ export const StreamProvider = (): infer _ =>
           try (effect {
             return try effect {
               const stream = try readStream(output.clusterId, output.streamId)
-              return (stream === undefined || stream.status === "DELETED" ? try Effect.void : throw new StreamNotReady({
+              return (stream === undefined || stream.status === "DELETED" ? (undefined as void) : throw new StreamNotReady({
                 message: `DSQL stream '${output.streamId}' still ${stream.status}`,
               }))
             }
@@ -341,10 +342,10 @@ export const StreamProvider = (): infer _ =>
           const nested = try Effect.forEach(
             clusters,
             effect (cluster) =>
-              (Array.from(
+              (effect { return (Array.from(
                 try (dsql.listStreams.items({ clusterIdentifier: cluster.identifier })
                   |> EStream.runCollect(%)),
-              )) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+              )) }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
             { concurrency: 4 },
           )
           return (try Effect.forEach(

@@ -40,12 +40,13 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const organizationParent = (value: string) =>
+export const organizationParent = /** @throws {never} */ (value: string) =>
   value.startsWith("organizations/") ? value : `organizations/${lastSegment(value)}`;
 
 export const organizationIdOf = (value: string) => lastSegment(value);
 
-export const normalizeLocation = (location: string) => lastSegment(location).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (location: string) =>
+  lastSegment(location).toLowerCase();
 
 export const locationParent = (organization: string, location: string) =>
   `${organizationParent(organization)}/locations/${normalizeLocation(location)}`;
@@ -99,18 +100,23 @@ export const toDisplayName = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameBool = (left: boolean | undefined, right: boolean | undefined) =>
-  (left ?? true) === (right ?? true);
+export const sameBool = /** @throws {never} */ (
+  left: boolean | undefined,
+  right: boolean | undefined,
+) => (left ?? true) === (right ?? true);
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

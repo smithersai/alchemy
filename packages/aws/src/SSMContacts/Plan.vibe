@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as contacts from "@distilled.cloud/aws/ssm-contacts"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -82,7 +83,7 @@ export const PlanProvider = (): infer _ =>
       const getContact = effect (arn: string) =>
         contacts
           .getContact({ ContactId: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -108,8 +109,9 @@ export const PlanProvider = (): infer _ =>
           return hasPlan ? buildAttrs(contact) : undefined
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.contactId !== news.contactId) {
             return { action: "replace" } as const
           }
@@ -151,15 +153,17 @@ export const PlanProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Deleting the plan resets the contact's engagement plan. A
           // vanished contact means there is nothing left to reset.
-          ;(try (contacts
-            .updateContact({
-              ContactId: output.contactArn,
-              Plan: { Stages: [] },
-            })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (contacts
+              .updateContact({
+                ContactId: output.contactArn,
+                Plan: { Stages: [] },
+              })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

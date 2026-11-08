@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as sfn from "@distilled.cloud/aws/sfn"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -118,12 +119,14 @@ export const ActivityProvider = (): infer _ =>
       const describeOrUndefined = effect (activityArn: string) =>
         sfn
           .describeActivity({ activityArn }) catch effect (e) => match (e) {
-            when { _tag: "ActivityDoesNotExist" }: try Effect.undefined;
+            when { _tag: "ActivityDoesNotExist" }: undefined;
             default: throw e;
           }
 
       const fetchObservedTags = effect (resourceArn: string) =>
-        (fromSfnTags((try sfn.listTagsForResource({ resourceArn })).tags)) catch effect (e) => match (e) {
+        (effect {
+          return (fromSfnTags((try sfn.listTagsForResource({ resourceArn })).tags))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFound" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -152,11 +155,14 @@ export const ActivityProvider = (): infer _ =>
             activityArn: found.activityArn,
           }
           const tags = try fetchObservedTags(activityArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName) {
@@ -185,7 +191,7 @@ export const ActivityProvider = (): infer _ =>
           if (observed === undefined) {
             sfn
               .createActivity({ name, tags: toSfnTags(desiredTags) }) catch effect (e) => match (e) {
-                when { _tag: "ActivityAlreadyExists" }: try Effect.void;
+                when { _tag: "ActivityAlreadyExists" }: (undefined as void);
                 default: throw e;
               }
           }

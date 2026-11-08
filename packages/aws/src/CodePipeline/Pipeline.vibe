@@ -271,14 +271,15 @@ export const PipelineProvider = (): infer _ =>
       const getPipeline = effect (name: string) =>
         codepipeline
           .getPipeline({ name }) catch effect (e) => match (e) {
-            when { _tag: "PipelineNotFoundException" }: try Effect.undefined;
+            when { _tag: "PipelineNotFoundException" }: undefined;
             default: throw e;
           }
 
       const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
         const observed = codepipeline
           .listTagsForResource({ resourceArn: arn }) catch () => undefined
-        const { removed, upsert } = diffTags(toTagRecord(observed?.tags), desiredTags)
+        const oldTags = toTagRecord(observed?.tags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try codepipeline.tagResource({
             resourceArn: arn,
@@ -297,8 +298,9 @@ export const PipelineProvider = (): infer _ =>
         stables: ["pipelineName", "pipelineArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -312,11 +314,11 @@ export const PipelineProvider = (): infer _ =>
             pipelineArn: found.metadata.pipelineArn,
             pipelineVersion: found.pipeline?.version ?? 1,
           }
-          const tags = (toTagRecord(
+          const tags = (effect { return (toTagRecord(
             (try codepipeline
               .listTagsForResource({ resourceArn: attrs.pipelineArn })).tags,
-          )) catch () => ({})
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          )) }) catch () => ({})
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -340,7 +342,7 @@ export const PipelineProvider = (): infer _ =>
                 })),
               }),
             ) catch effect (e) => match (e) {
-              when { _tag: "PipelineNameInUseException" }: try Effect.void;
+              when { _tag: "PipelineNameInUseException" }: (undefined as void);
               default: throw e;
             }
             observed = try getPipeline(name)

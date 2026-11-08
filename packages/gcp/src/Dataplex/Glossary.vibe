@@ -178,28 +178,42 @@ export const GlossaryProvider = (): infer _ =>
     stables: ["name", "glossaryId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.glossaryId ?? output?.glossaryId,
-        nextId: news.glossaryId ?? olds?.glossaryId ?? output?.glossaryId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.glossaryId ?? output?.glossaryId,
+            nextId: resolved.glossaryId ?? olds?.glossaryId ?? output?.glossaryId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const glossaryId = try toPhysicalId(id, olds?.glossaryId, output?.glossaryId, "glossary")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, glossaryId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -211,30 +225,34 @@ export const GlossaryProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const glossaryId = try toPhysicalId(id, news.glossaryId, output?.glossaryId, "glossary")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, glossaryId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (dataplex
-          .createProjectsLocationsGlossaries({
-            parent: parentOf(env.project, location),
-            glossaryId,
-            body: {
-              description: news.description,
-              displayName: news.displayName,
-              labels: desiredLabels,
-            },
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsGlossaries({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              glossaryId,
+              body: {
+                description: news.description,
+                displayName: news.displayName,
+                labels: desiredLabels,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -246,7 +264,9 @@ export const GlossaryProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
@@ -279,15 +299,17 @@ export const GlossaryProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (dataplex
-        .deleteProjectsLocationsGlossaries({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict" || error._tag === "TooManyRequests",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (dataplex
+          .deleteProjectsLocationsGlossaries({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict" || error._tag === "TooManyRequests",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

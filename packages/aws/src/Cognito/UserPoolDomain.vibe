@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cip from "@distilled.cloud/aws/cognito-identity-provider"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -130,8 +131,8 @@ const retryWhileNotActive = effect <A, E extends { _tag: string }, R>(
   })
 
 /** Bounded wait for the domain to reach ACTIVE (up to ~60s). */
-const waitUntilActive = (domain: string) =>
-  retryWhileNotActive(
+const waitUntilActive = effect (domain: string) =>
+  try retryWhileNotActive(
     effect {
       return try effect {
         const r = try cip.describeUserPoolDomain({ Domain: domain })
@@ -198,8 +199,9 @@ export const UserPoolDomainProvider = (): infer _ =>
           return observed === undefined ? undefined : attributesOf(observed)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldDomain = try createDomain(id, olds ?? {})
           const newDomain = try createDomain(id, news ?? {})
           if (oldDomain !== newDomain) return { action: "replace" } as const
@@ -255,11 +257,11 @@ export const UserPoolDomainProvider = (): infer _ =>
                 Domain: output.domain,
                 UserPoolId: output.userPoolId,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
-            |> ((self) => retryWhileTransitioning(self))(%))
+            |> (effect (self) => try retryWhileTransitioning(self))(%))
         },
       })
     },

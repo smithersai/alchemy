@@ -46,10 +46,10 @@ export const lastSegment = (value: string) => {
 export const normalizeLocation = (location: string | undefined, fallback: string) =>
   lastSegment(location ?? fallback).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
-export const regionParent = (project: string, region: string) =>
+export const regionParent = /** @throws {never} */ (project: string, region: string) =>
   `projects/${project}/regions/${region}`;
 
 export const parseResourceName = (name: string, collection: string, fallbackLocation: string) => {
@@ -107,12 +107,13 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

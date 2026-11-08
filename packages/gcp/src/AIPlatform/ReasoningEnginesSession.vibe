@@ -156,7 +156,7 @@ const waitUntilExists = effect (name: string) =>
     }))
 
 const listEngines = effect (project: string, location: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (aiplatform.listProjectsLocationsReasoningEngines
       .pages({
         parent: locationParent(project, location),
@@ -166,37 +166,38 @@ const listEngines = effect (project: string, location: string) =>
       |> Stream.map(%, (engine) => engine.name ?? "")
       |> Stream.filter(%, (name) => name.length > 0)
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (aiplatform.listProjectsLocationsReasoningEnginesSessions.pages({ parent, pageSize: 100 })
       |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sessions ?? []))
       |> Stream.filter(%, (session) => Object.keys(session.labels ?? {}).some((key) => key.startsWith("alchemy-")))
       |> Stream.map(%, (session) => toAttrs(session, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const ReasoningEnginesSessionProvider = (): infer _ =>
   Provider.succeed(ReasoningEnginesSession, {
     stables: ["name", "sessionId", "parent", "location", "project", "userId", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.sessionId ?? output?.sessionId
       if (
         previousId !== undefined
-        && news.sessionId !== undefined
-        && news.sessionId !== previousId
+        && resolved.sessionId !== undefined
+        && resolved.sessionId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
       const previousUser = olds?.userId ?? output?.userId
-      if (previousUser !== undefined && news.userId !== previousUser) {
+      if (previousUser !== undefined && resolved.userId !== previousUser) {
         return { action: "replace" as const, deleteFirst: true }
       }
       return undefined
@@ -209,7 +210,7 @@ export const ReasoningEnginesSessionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -230,7 +231,7 @@ export const ReasoningEnginesSessionProvider = (): infer _ =>
       const sessionId = try toResourceId(id, news.sessionId, output?.sessionId)
       const name = resourceName(news.parent, sessionId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -254,7 +255,7 @@ export const ReasoningEnginesSessionProvider = (): infer _ =>
           const done = try waitForOperation(created, {
             alreadyExistsOk: true,
           })
-          const createdName = resourceNameFromOperation(done) ?? name
+          const createdName = (try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }))) ?? name
           current = try waitUntilExists(createdName)
         } else {
           current = try getByName(name)
@@ -266,7 +267,7 @@ export const ReasoningEnginesSessionProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayChanged = (current.displayName ?? "") !== (news.displayName ?? "")
       const expireChanged = news.expireTime !== undefined && (current.expireTime ?? "") !== news.expireTime

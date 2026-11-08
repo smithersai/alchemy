@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as Hetzner from "@distilled.cloud/hetzner"
 import type { GetVolumeResponseVolume, ListVolumesResponseVolumesItem } from "@distilled.cloud/hetzner/volumes"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -171,14 +173,24 @@ export const Volume = Resource<Volume>("Hetzner.Volume")
 
 type CloudVolume = GetVolumeResponseVolume | ListVolumesResponseVolumesItem
 
-error VolumePending {
-  mutable volumeId: number
-  mutable status: string
+class VolumePending extends $MutableErrorBase("VolumePending")<{
+  volumeId: number
+
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "VolumePending", true)
+  }
 }
 
-error VolumeTimeout {
-  mutable volumeId: number
-  mutable status: string
+class VolumeTimeout extends $MutableErrorBase("VolumeTimeout")<{
+  volumeId: number
+
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "VolumeTimeout", true)
+  }
 }
 
 // @vibelang-diagnostics-next-line EK4830:off
@@ -225,10 +237,12 @@ const createVolumeName = effect (id: string, name: string | undefined, existing?
   name ?? existing ?? (try createPhysicalName({ id, maxLength: MAX_NAME_LENGTH }))
 
 const getById = effect (id: number) =>
-  (try effect {
-    const { volume } = try Hetzner.volumes.getVolume({ id })
-    return volume
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const { volume } = try Hetzner.volumes.getVolume({ id })
+      return volume
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const getByName = effect (name: string) =>
   try effect {
@@ -266,36 +280,40 @@ const observe = effect ({
 }
 
 const waitUntilAvailable = effect (volumeId: number) =>
-  (try (effect {
-    return try effect {
-      const { volume } = try Hetzner.volumes.getVolume({ id: volumeId })
-      return (volume.status === "available"
-        ? volume
-        : throw new VolumePending({ volumeId: volume.id, status: volume.status }))
+  (effect {
+    return (try (effect {
+      return try effect {
+        const { volume } = try Hetzner.volumes.getVolume({ id: volumeId })
+        return (volume.status === "available"
+          ? volume
+          : throw new VolumePending({ volumeId: volume.id, status: volume.status }))
+      }
     }
+      |> Effect.retry(%, { while: retryable, times: 10, schedule: backoff })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "VolumePending" }: throw new VolumeTimeout({ volumeId: e.volumeId, status: e.status });
+    default: throw e;
   }
-    |> Effect.retry(%, { while: retryable, times: 10, schedule: backoff }))) catch effect (e) => match (e) {
-      when { _tag: "VolumePending" }: throw new VolumeTimeout({ volumeId: e.volumeId, status: e.status });
-      default: throw e;
-    }
 
 const settleAction = effect (action: Parameters<typeof waitForAction>[0]) =>
   waitForAction(action) catch effect (e) => match (e) {
-    when { _tag: "ActionTimeout" }: try Effect.void;
+    when { _tag: "ActionTimeout" }: (undefined as void);
     default: throw e;
   }
 
 const settleActions = effect (actions: Parameters<typeof waitForActions>[0]) =>
   waitForActions(actions) catch effect (e) => match (e) {
-    when { _tag: "ActionTimeout" }: try Effect.void;
+    when { _tag: "ActionTimeout" }: (undefined as void);
     default: throw e;
   }
 
 const waitUntilGone = effect (volumeId: number) =>
   try (effect {
-    return (try effect {
-      try Hetzner.volumes.getVolume({ id: volumeId })
-      return false
+    return (effect {
+      return (try effect {
+        try Hetzner.volumes.getVolume({ id: volumeId })
+        return false
+      })
     }) catch effect (e) => match (e) { when { _tag: "NotFound" }: true; default: throw e; }
   }
     |> Effect.repeat(%, {
@@ -322,15 +340,18 @@ export const VolumeProvider = (): infer _ =>
       return items.map(toAttrs)
     },
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       if (output !== undefined) {
-        if (news.location !== undefined && news.location !== output.location) {
+        if (resolved.location !== undefined && resolved.location !== output.location) {
           return { action: "replace" } as const
         }
-        if (news.format !== undefined && news.format !== output.format) {
+        if (resolved.format !== undefined && resolved.format !== output.format) {
           return { action: "replace" } as const
         }
-        if (news.size < output.size) {
+        if (resolved.size < output.size) {
           return { action: "replace" } as const
         }
       }
@@ -340,8 +361,11 @@ export const VolumeProvider = (): infer _ =>
       const found = try observe({ id, name: olds?.name ?? output?.name, outputId: output?.id })
       if (found === undefined) return undefined
       const attrs = toAttrs(found)
-      const owned = try hasAlchemyLabels(id, tagRecord(found.labels))
-      return owned ? attrs : Unowned(attrs)
+      const owned = try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(found.labels), catch: (e) => e })),
+      )
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ id, news, output }) => {
       const name = try createVolumeName(id, news.name, output?.name)
@@ -370,7 +394,7 @@ export const VolumeProvider = (): infer _ =>
             labels: desiredLabels,
             server: desiredServerId,
             automount: desiredServerId !== undefined ? news.automount : undefined,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           if (created.action) {
             try settleActions([created.action, ...created.next_actions])
@@ -387,8 +411,13 @@ export const VolumeProvider = (): infer _ =>
 
       // Sync name + labels against observed cloud labels, not olds.
       // updateVolume overwrites the full label set.
-      const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabelsInput = current.labels
+      const observedLabels = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(observedLabelsInput), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const needsMeta = current.name !== name || upsert.length > 0 || removed.length > 0
       if (needsMeta) {
         const updated = try Hetzner.volumes.updateVolume({
@@ -444,18 +473,20 @@ export const VolumeProvider = (): infer _ =>
 
       const attached = current.server
       if (attached !== null) {
-        ;(try effect {
-          const { action } = try Hetzner.volumeActions.detachVolume({ id: current.id })
-          return try settleAction(action)
+        ;(effect {
+          return (try effect {
+            const { action } = try Hetzner.volumeActions.detachVolume({ id: current.id })
+            return try settleAction(action)
+          })
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: (undefined as void);
           default: throw e;
         }
       }
 
       try (effect {
         return Hetzner.volumes.deleteVolume({ id: current.id }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

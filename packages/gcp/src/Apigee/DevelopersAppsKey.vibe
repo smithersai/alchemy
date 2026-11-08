@@ -208,41 +208,50 @@ const getByName = effect (name: string) =>
     }
 
 const listDeveloperEmails = effect (organization: string) =>
-  (((try apigee
-    .listOrganizationsDevelopers({
-      parent: organization,
-      expand: true,
-      count: "1000",
-    })).developer ?? [])
-    .map((developer) => developer.email ?? "")
-    .filter((email) => email.length > 0)) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as string[];
-      default: throw e;
-    }
+  (effect {
+    return (((try apigee
+      .listOrganizationsDevelopers({
+        parent: organization,
+        expand: true,
+        count: "1000",
+      })).developer ?? [])
+      .map((developer) => developer.email ?? "")
+      .filter((email) => email.length > 0))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as string[];
+    default: throw e;
+  }
 
 export const DevelopersAppsKeyProvider = (): infer _ =>
   Provider.succeed(DevelopersAppsKey, {
     stables: ["name", "consumerKey", "developer", "app", "organization", "issuedAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const previousKey = olds?.consumerKey ?? output?.consumerKey
       const previousSecret = olds?.consumerSecret ?? output?.consumerSecret
       const previousDeveloper = olds?.developer ?? output?.developer
       const previousApp = olds?.app ?? output?.app
       const previousOrg = olds?.organization ?? output?.organization
       const keyChanged = previousKey !== undefined
-        && news.consumerKey !== undefined
-        && news.consumerKey !== previousKey
+        && resolved_.consumerKey !== undefined
+        && resolved_.consumerKey !== previousKey
       const secretChanged = previousSecret !== undefined
-        && news.consumerSecret !== undefined
-        && news.consumerSecret !== previousSecret
+        && resolved_.consumerSecret !== undefined
+        && resolved_.consumerSecret !== previousSecret
       const developerChanged = previousDeveloper !== undefined
-        && developerEmailOf(news.developer) !== developerEmailOf(previousDeveloper)
-      const appChanged = previousApp !== undefined && appNameOf(news.app) !== appNameOf(previousApp)
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+        && developerEmailOf(resolved_.developer) !== developerEmailOf(previousDeveloper)
+      const appChanged = previousApp !== undefined && appNameOf(resolved_.app) !== appNameOf(previousApp)
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved_.organization !== undefined
+          && orgIdOf(resolved_.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
       if (keyChanged || secretChanged || developerChanged || appChanged || orgChanged) {
         return {
           action: "replace" as const,
@@ -254,7 +263,12 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const developer = olds?.developer ?? output?.developer
       const app = olds?.app ?? output?.app
       if (developer === undefined || app === undefined) return undefined
@@ -263,7 +277,12 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, developer, app)
-      return (try ownedBy(id, attributesToRecord(existing.attributes))) ? attrs : Unowned(attrs)
+      return (try ownedBy(
+          id,
+          try Effect.orDie(Effect.try({ try: () => attributesToRecord(existing.attributes), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -274,7 +293,9 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
         for (const email of emails) {
           const page = apigee
             .listOrganizationsDevelopersApps({
-              parent: childName(organization, "developers", email),
+              parent: (try Effect.orDie(
+                Effect.try({ try: childName.bind(undefined, organization, "developers", email), catch: (e) => e }),
+              )),
               expand: true,
               count: "1000",
             }) catch effect (e) => match (e) {
@@ -315,7 +336,9 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const developer = developerEmailOf(news.developer)
       const app = appNameOf(news.app)
       const consumerKey = try toKeyId(id, news.consumerKey, output?.consumerKey)
@@ -323,7 +346,9 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
       const parent = appParentOf(organization, developer, app)
       const name = `${parent}/keys/${consumerKey}`
       const ownership = try createOwnership(id)
-      const attributes = desiredAttributes(news.attributes, ownership)
+      const attributes = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.attributes, ownership), catch: (e) => e }),
+      )
       const status = news.status ?? "approved"
 
       let current = try getByName(output?.name ?? name)
@@ -348,12 +373,20 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
 
       const observedAttributes = attributesToRecord(current.attributes)
       const scopesChanged = !sameStringList(current.scopes, news.scopes)
-      const productsChanged = !sameStringList(
-        productsOf(current.apiProducts).map(String),
-        (news.apiProducts ?? []).map(String),
-      )
+      const left = productsOf(current.apiProducts).map(String)
+      const productsChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameStringList(
+            left,
+            (news.apiProducts ?? []).map(String),
+          ),
+        catch: (e) => e,
+      })))
       const statusChanged = (current.status ?? "") !== status
-      const attributesChanged = !sameRecord(observedAttributes, attributes)
+      const attributesChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameRecord(observedAttributes, attributes),
+        catch: (e) => e,
+      })))
 
       if (scopesChanged || productsChanged || statusChanged || attributesChanged) {
         current = try apigee.updateDeveloperAppKeyOrganizationsDevelopersAppsKeys({
@@ -363,7 +396,7 @@ export const DevelopersAppsKeyProvider = (): infer _ =>
             consumerKey,
             scopes: news.scopes,
             apiProducts: news.apiProducts,
-            attributes: recordToAttributes(attributes),
+            attributes: try Effect.orDie(Effect.try({ try: () => recordToAttributes(attributes), catch: (e) => e })),
           },
         })
       }

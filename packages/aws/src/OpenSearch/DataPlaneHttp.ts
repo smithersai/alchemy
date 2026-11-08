@@ -205,7 +205,9 @@ const encodePath = (...segments: string[]): string =>
   segments.map((segment) => encodeURIComponent(segment)).join("/");
 
 /** Build the read half of the domain data-plane client. */
-export const makeReadDomainClient = (send: OpenSearchSend): ReadDomainClient => ({
+export const makeReadDomainClient = /** @throws {never} */ (
+  send: OpenSearchSend,
+): ReadDomainClient => ({
   search: <TDoc>(request?: SearchRequest) =>
     send({
       method: "GET",
@@ -251,7 +253,9 @@ export const makeReadDomainClient = (send: OpenSearchSend): ReadDomainClient => 
 });
 
 /** Build the write half of the domain data-plane client. */
-export const makeWriteDomainClient = (send: OpenSearchSend): WriteDomainClient => ({
+export const makeWriteDomainClient = /** @throws {never} */ (
+  send: OpenSearchSend,
+): WriteDomainClient => ({
   indexDocument: (index, document, options) =>
     send(
       options?.id !== undefined

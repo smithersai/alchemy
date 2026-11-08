@@ -185,13 +185,15 @@ const getByName = effect (name: string) =>
   }
 
 const listCategoriesUnder = effect (parent: string, project: string) =>
-  ((try collectPages(
-    dataplex.listProjectsLocationsGlossariesCategories.pages({
-      parent,
-      pageSize: 1000,
-    }),
-    (page) => page.categories,
-  )).filter((item) => hasAlchemyLabelMap(item.labels)).map((item) => toAttrs(item, project))) catch effect (e) => match (e) {
+  (effect {
+    return ((try collectPages(
+      dataplex.listProjectsLocationsGlossariesCategories.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.categories,
+    )).filter((item) => hasAlchemyLabelMap(item.labels)).map((item) => toAttrs(item, project)))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [];
     default: throw e;
   }
@@ -201,19 +203,26 @@ export const GlossariesCategoryProvider = (): infer _ =>
     stables: ["name", "categoryId", "glossary", "glossaryId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.categoryId ?? output?.categoryId,
-        nextId: news.categoryId ?? olds?.categoryId ?? output?.categoryId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.glossary ?? output?.glossary,
-        nextParent: news.glossary ?? olds?.glossary ?? output?.glossary,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.categoryId ?? output?.categoryId,
+            nextId: resolved_.categoryId ?? olds?.categoryId ?? output?.categoryId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved_.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.glossary ?? output?.glossary,
+            nextParent: resolved_.glossary ?? olds?.glossary ?? output?.glossary,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -229,7 +238,12 @@ export const GlossariesCategoryProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -262,28 +276,30 @@ export const GlossariesCategoryProvider = (): infer _ =>
       const name = resourceName(resolved.parent, categoryId)
       const hierarchyParent = news.parent ?? resolved.parent
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (dataplex
-          .createProjectsLocationsGlossariesCategories({
-            parent: resolved.parent,
-            categoryId,
-            body: {
-              parent: hierarchyParent,
-              description: news.description,
-              displayName: news.displayName,
-              labels: desiredLabels,
-            },
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try getByName(name);
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsGlossariesCategories({
+              parent: resolved.parent,
+              categoryId,
+              body: {
+                parent: hierarchyParent,
+                description: news.description,
+                displayName: news.displayName,
+                labels: desiredLabels,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(name);
+          default: throw e;
+        }
         current = created ?? undefined
         if (current === undefined) {
           current = try waitUntilExists(getByName(name), name)
@@ -295,7 +311,9 @@ export const GlossariesCategoryProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")

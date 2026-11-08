@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as contacts from "@distilled.cloud/aws/ssm-contacts"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -117,18 +118,25 @@ export const RotationProvider = (): infer _ =>
 
       const getRotation = effect (arn: string) =>
         contacts.getRotation({ RotationId: arn }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRotationArn" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRotationArn" }: undefined;
           default: throw e;
         }
 
       const readTags = effect (arn: string) =>
-        (tagRecord(
-          ((try contacts.listTagsForResource({ ResourceARN: arn })).Tags ?? []).flatMap((t) =>
+        (effect {
+          const tags = ((try contacts.listTagsForResource({ ResourceARN: arn })).Tags ?? []).flatMap((t) =>
             t.Key !== undefined && t.Value !== undefined
               ? [{ Key: t.Key, Value: t.Value }]
               : []
-          ),
-        )) catch () => ({})
+          )
+          return (try Effect.orDie(Effect.try({
+            try: () =>
+              tagRecord(
+                tags,
+              ),
+            catch: (e) => e,
+          })))
+        }) catch () => ({})
 
       const buildAttrs = (rotation: contacts.GetRotationResult): Rotation["Attributes"] => ({
         rotationArn: rotation.RotationArn,
@@ -156,13 +164,16 @@ export const RotationProvider = (): infer _ =>
           if (rotation === undefined) return undefined
           const attrs = buildAttrs(rotation)
           const tags = try readTags(rotation.RotationArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // The name is create-only (updateRotation cannot rename); contacts,
         // start time, time zone, and recurrence update in place.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -181,19 +192,21 @@ export const RotationProvider = (): infer _ =>
           // 2. ENSURE — create if missing; tolerate the already-exists race.
           if (rotation === undefined) {
             try session.note(`creating rotation ${name}`)
-            ;(try (contacts
-              .createRotation({
-                Name: name,
-                ContactIds: news.contactIds,
-                StartTime: desiredStart,
-                TimeZoneId: news.timeZoneId,
-                Recurrence: news.recurrence,
-                Tags: createTagsList(desiredTags),
-              })
-              |> Effect.asVoid(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (contacts
+                .createRotation({
+                  Name: name,
+                  ContactIds: news.contactIds,
+                  StartTime: desiredStart,
+                  TimeZoneId: news.timeZoneId,
+                  Recurrence: news.recurrence,
+                  Tags: createTagsList(desiredTags),
+                })
+                |> Effect.asVoid(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             rotation = (try getRotation(arn))!
           }
 
@@ -256,11 +269,13 @@ export const RotationProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (contacts.deleteRotation({ RotationId: output.rotationArn })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (contacts.deleteRotation({ RotationId: output.rotationArn })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as s3control from "@distilled.cloud/aws/s3-control"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -157,24 +158,28 @@ export const StorageLensConfigurationProvider = (): infer _ =>
       ) => props.configId ?? (try createPhysicalName({ id, maxLength: 64 }))
 
       const observeConfiguration = effect (accountId: string, configId: string) =>
-        (try s3control
-          .getStorageLensConfiguration({
-            AccountId: accountId,
-            ConfigId: configId,
-          })).StorageLensConfiguration catch effect (e) => match (e) {
-            when { _tag: "NoSuchConfiguration" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return (try s3control
+            .getStorageLensConfiguration({
+              AccountId: accountId,
+              ConfigId: configId,
+            })).StorageLensConfiguration
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchConfiguration" }: undefined;
+          default: throw e;
+        }
 
       const observedTags = effect (accountId: string, configId: string) =>
-        (Object.fromEntries(((try s3control
-          .getStorageLensConfigurationTagging({
-            AccountId: accountId,
-            ConfigId: configId,
-          })).Tags ?? []).map((t) => [t.Key, t.Value]))) catch effect (e) => match (e) {
-            when { _tag: "NoSuchConfiguration" }: {} as Record<string, string>;
-            default: throw e;
-          }
+        (effect {
+          return (Object.fromEntries(((try s3control
+            .getStorageLensConfigurationTagging({
+              AccountId: accountId,
+              ConfigId: configId,
+            })).Tags ?? []).map((t) => [t.Key, t.Value])))
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchConfiguration" }: {} as Record<string, string>;
+          default: throw e;
+        }
 
       const desiredConfiguration = (
         configId: string,
@@ -231,10 +236,13 @@ export const StorageLensConfigurationProvider = (): infer _ =>
             storageLensArn: observed.StorageLensArn,
           }
           const tags = try observedTags(accountId, configId)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldConfigId = try createConfigId(id, olds ?? {})
           const newConfigId = try createConfigId(id, news)
           if (oldConfigId !== newConfigId) {
@@ -297,7 +305,10 @@ export const StorageLensConfigurationProvider = (): infer _ =>
             .deleteStorageLensConfiguration({
               AccountId: accountId,
               ConfigId: output.configId,
-            }) catch effect (e) => match (e) { when { _tag: "NoSuchConfiguration" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchConfiguration" }: (undefined as void);
+              default: throw e;
+            }
         },
       })
     },

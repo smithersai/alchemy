@@ -1,5 +1,5 @@
 import type { RuntimeContext } from "alchemy/RuntimeContext"
-import { AiError, LanguageModel, Response, Tool } from "effect/ai"
+import { LanguageModel } from "effect/ai"
 import { toCodecOpenAI } from "effect/ai/OpenAiStructuredOutput"
 import * as Effect from "effect/Effect"
 import * as HttpClient from "effect/http/HttpClient"
@@ -84,7 +84,7 @@ export const makeLanguageModel = effect ({
   parameters,
 }: LanguageModelOptions & {
   readonly client: LanguageModelClient
-}): LanguageModel!never!RuntimeContext | HttpClient.HttpClient => {
+}): LanguageModel.LanguageModel!never!(RuntimeContext | HttpClient.HttpClient) => {
   const http = try Effect.service(HttpClient.HttpClient)
   const baseUrl = try client.chatBaseUrl
   const token = try client.token
@@ -113,11 +113,12 @@ export const makeLanguageModel = effect ({
     }
     return response
   }
-  return try LanguageModel.make({
-    codecTransformer: toCodecOpenAI,
+  return try makeWithOpenAiCodec({
     generateText: effect (options) => {
       const response = try send(options, false)
-      const raw = (try response.json) catch effect (e) => {
+      const raw = (effect {
+        return (try response.json)
+      }) catch effect (e) => {
         throw invalidOutput("Expected a JSON completion")
       }
       const decoded = try decode(Completion, raw)
@@ -260,8 +261,10 @@ const httpError = effect (
   response: HttpClientResponse.HttpClientResponse,
 ): never!AiError.AiError => {
   // Never retain upstream bodies, headers or request objects in public errors.
-  const body = (try (response.json
-    |> Effect.flatMap(%, Schema.decodeUnknownEffect(ErrorBody)))) catch () => undefined
+  const body = (effect {
+    return (try (response.json
+      |> Effect.flatMap(%, Schema.decodeUnknownEffect(ErrorBody))))
+  }) catch () => undefined
   const status = response.status
   if (status === 403 && body?.error.message === "ai gateway not enabled for account") {
     throw error(AiError.QuotaExhaustedError.make({}))
@@ -632,3 +635,13 @@ const completionStream = (
       return Stream.concat(chunks, finish)
     }),
   )
+
+// The synchronous codec callback belongs to the TypeScript integration boundary.
+module $OpenAiCodec$ts {
+  import { LanguageModel } from "effect/ai"
+  import { toCodecOpenAI } from "effect/ai/OpenAiStructuredOutput"
+
+  export const makeWithOpenAiCodec: typeof LanguageModel.make = (options) =>
+    LanguageModel.make({ ...options, codecTransformer: toCodecOpenAI })
+}
+import { makeWithOpenAiCodec } from $OpenAiCodec$ts

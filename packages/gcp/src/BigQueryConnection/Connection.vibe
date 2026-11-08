@@ -732,22 +732,24 @@ const toCreateBody = (
 const getByName = effect (name: string) =>
   bigqueryconnection
     .getProjectsLocationsConnections({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOwnedAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (bigqueryconnection.listProjectsLocationsConnections
-      .pages({
-        parent,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connections ?? []))
-      |> Stream.filter(%, (connection) => hasOwnershipMarker(connection.description))
-      |> Stream.map(%, (connection) => toAttrs(connection, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (bigqueryconnection.listProjectsLocationsConnections
+        .pages({
+          parent,
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connections ?? []))
+        |> Stream.filter(%, (connection) => hasOwnershipMarker(connection.description))
+        |> Stream.map(%, (connection) => toAttrs(connection, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const ConnectionProvider = (): infer _ =>
   Provider.succeed(Connection, {
@@ -755,26 +757,29 @@ export const ConnectionProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
 
       const previousId = olds?.connectionId ?? output?.connectionId
-      const nextId = news.connectionId ?? previousId
+      const nextId = resolved.connectionId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
 
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       const locationChanged = previousLocation !== nextLocation
 
       const previousKms = olds?.kmsKeyName ?? output?.kmsKeyName ?? ""
-      const nextKms = news.kmsKeyName ?? previousKms
+      const nextKms = resolved.kmsKeyName ?? previousKms
       const kmsChanged = nextKms !== previousKms
 
       const previousKind = specifiedKind(olds ?? {}) ?? specifiedKind(output ?? {}) ?? "cloudResource"
-      const nextKind = specifiedKind(news) ?? previousKind
+      const nextKind = specifiedKind(resolved) ?? previousKind
       const kindChanged = previousKind !== nextKind
 
       const previousConnector = olds?.configuration?.connectorId ?? output?.configuration?.connectorId
-      const nextConnector = news.configuration?.connectorId ?? previousConnector
+      const nextConnector = resolved.configuration?.connectorId ?? previousConnector
       const connectorChanged = previousConnector !== undefined
         && nextConnector !== undefined
         && nextConnector !== previousConnector
@@ -798,7 +803,7 @@ export const ConnectionProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       return (try hasAlchemyLabels(id, parseDescription(existing.description).labels))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -935,7 +940,7 @@ export const ConnectionProvider = (): infer _ =>
             name,
             updateMask: updateMask.join(","),
             body,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
         if (patched === undefined) {
           const created = bigqueryconnection
             .createProjectsLocationsConnections({
@@ -960,7 +965,7 @@ export const ConnectionProvider = (): infer _ =>
     delete: effect ({ output }) => {
       bigqueryconnection
         .deleteProjectsLocationsConnections({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

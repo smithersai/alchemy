@@ -107,7 +107,7 @@ const upstream = (e: { readonly _tag: string; readonly message?: string }) =>
  * Storage failures are not part of the protocol: they are defects, which
  * the router answers with a 500 after logging the cause.
  */
-const storageFailures = ["R2Error", "SqlError", "SchemaError"] as const;
+const storageFailures = ["R2Error", "SchemaError"] as const;
 
 /**
  * Resolve the run a request names through GitHub; nothing about it is

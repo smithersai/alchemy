@@ -312,7 +312,7 @@ const toAttrs = (route: compute.Route, project: string): infer _ => {
 
 const getByName = effect (project: string, route: string) =>
   compute.getRoutes({ project, route }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   }
 
@@ -330,20 +330,22 @@ const requireRoute = effect (project: string, routeName: string) =>
     }))
 
 const removeRoute = effect (project: string, routeName: string) => {
-  const operation = (try (compute
-    .deleteRoutes({
-      project,
-      route: routeName,
-    })
-    |> Effect.retry(%, {
-      while: (error) => error._tag === "Conflict",
-      times: 8,
-      schedule: Schedule.spaced("1 second"),
-    }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  const operation = (effect {
+    return (try (compute
+      .deleteRoutes({
+        project,
+        route: routeName,
+      })
+      |> Effect.retry(%, {
+        while: (error) => error._tag === "Conflict",
+        times: 8,
+        schedule: Schedule.spaced("1 second"),
+      })))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
   if (operation !== undefined) {
     waitGlobalOperation(project, operation, {
       ignore: ["RESOURCE_NOT_FOUND"],
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
   }
 }
 
@@ -422,16 +424,19 @@ export const RouteProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.routeName ?? output?.routeName
-      const nextName = news.routeName ?? previousName
+      const nextName = resolved.routeName ?? previousName
       if (previousName === undefined && output === undefined) {
         return undefined
       }
-      const nameChanged = news.routeName !== undefined
+      const nameChanged = resolved.routeName !== undefined
         && previousName !== undefined
-        && news.routeName !== previousName
-      if (nameChanged || immutableChanged(news, olds, output)) {
+        && resolved.routeName !== previousName
+      if (nameChanged || immutableChanged(resolved, olds, output)) {
         return {
           action: "replace" as const,
           deleteFirst: nextName !== undefined && nextName === previousName,
@@ -447,7 +452,9 @@ export const RouteProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -477,17 +484,19 @@ export const RouteProvider = (): infer _ =>
       }
 
       if (current === undefined) {
-        ;(try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertRoutes({
-              project: env.project,
-              body: desired,
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertRoutes({
+                project: env.project,
+                body: desired,
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: (undefined as void); default: throw e; }
         current = try requireRoute(env.project, routeName)
       }
 

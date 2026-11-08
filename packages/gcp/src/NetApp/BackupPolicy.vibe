@@ -182,12 +182,14 @@ const listOwned = effect (project: string) =>
   try listAtLocation(
     project,
     effect (parent) =>
-      (Array.from(
-        try (netapp.listProjectsLocationsBackupPolicies.pages({ parent, pageSize: 1000 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.backupPolicies ?? []))
-          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+      (effect {
+        return (Array.from(
+          try (netapp.listProjectsLocationsBackupPolicies.pages({ parent, pageSize: 1000 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.backupPolicies ?? []))
+            |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
   )
 
 export const BackupPolicyProvider = (): infer _ =>
@@ -195,17 +197,24 @@ export const BackupPolicyProvider = (): infer _ =>
     stables: ["name", "backupPolicyId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.backupPolicyId ?? output?.backupPolicyId,
-        nextId: news.backupPolicyId ?? olds?.backupPolicyId ?? output?.backupPolicyId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backupPolicyId ?? output?.backupPolicyId,
+            nextId: resolved.backupPolicyId ?? olds?.backupPolicyId ?? output?.backupPolicyId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -216,12 +225,19 @@ export const BackupPolicyProvider = (): infer _ =>
         output?.backupPolicyId,
         "backuppolicy",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, backupPolicyId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -238,14 +254,16 @@ export const BackupPolicyProvider = (): infer _ =>
         output?.backupPolicyId,
         "backuppolicy",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, backupPolicyId)
       const dailyBackupLimit = news.dailyBackupLimit ?? DEFAULT_DAILY
       const weeklyBackupLimit = news.weeklyBackupLimit ?? DEFAULT_WEEKLY
       const monthlyBackupLimit = news.monthlyBackupLimit ?? DEFAULT_MONTHLY
       const enabled = news.enabled ?? true
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -324,13 +342,15 @@ export const BackupPolicyProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (netapp
-        .deleteProjectsLocationsBackupPolicies({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (netapp
+          .deleteProjectsLocationsBackupPolicies({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

@@ -174,23 +174,24 @@ export const VpcConnectorProvider = (): infer _ =>
         stables: ["vpcConnectorName"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // VPC connectors are immutable — subnet or security group
           // changes force a replacement.
           if (
-            news?.subnets !== undefined
+            resolved?.subnets !== undefined
             && olds?.subnets !== undefined
-            && !sameStringSet(news.subnets, olds.subnets)
+            && !sameStringSet(resolved.subnets, olds.subnets)
           ) {
             return { action: "replace" } as const
           }
           if (
-            news?.securityGroups !== undefined
+            resolved?.securityGroups !== undefined
             && olds?.securityGroups !== undefined
-            && !sameStringSet(news.securityGroups, olds.securityGroups)
+            && !sameStringSet(resolved.securityGroups, olds.securityGroups)
           ) {
             return { action: "replace" } as const
           }
@@ -202,7 +203,7 @@ export const VpcConnectorProvider = (): infer _ =>
           if (connector === undefined) return undefined
           const attrs = try toAttrs(connector)
           const tags = try readAppRunnerTags(attrs.vpcConnectorArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -245,7 +246,7 @@ export const VpcConnectorProvider = (): infer _ =>
               .deleteVpcConnector({
                 VpcConnectorArn: output.vpcConnectorArn,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -263,19 +264,19 @@ export const VpcConnectorProvider = (): infer _ =>
           // managed ENIs would keep stack-owned subnets and security groups in
           // use and make their bottom-up teardown flaky.
           try (effect {
-            return (try effect {
+            return (effect { return (try effect {
               const { VpcConnector } = try apprunner
                 .describeVpcConnector({
                   VpcConnectorArn: output.vpcConnectorArn,
                 })
 
               const status = (VpcConnector.Status ?? "ACTIVE").toUpperCase()
-              return (status === "INACTIVE" ? try Effect.void : throw new VpcConnectorStillActive({
+              return (status === "INACTIVE" ? (undefined as void) : throw new VpcConnectorStillActive({
                 vpcConnectorArn: output.vpcConnectorArn,
                 status,
               }))
-            }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            }) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }
@@ -294,7 +295,7 @@ export const VpcConnectorProvider = (): infer _ =>
           }
             |> Effect.flatMap(
               %,
-              Effect.forEach((connector) => toAttrs(connector), {
+              Effect.forEach(effect (connector) => try toAttrs(connector), {
                 concurrency: 4,
               }),
             )),

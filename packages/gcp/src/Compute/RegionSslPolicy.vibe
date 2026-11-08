@@ -293,7 +293,7 @@ const needsUpdate = (current: compute.SslPolicy, desired: compute.SslPolicy): in
 const getByName = effect (project: string, region: string, sslPolicy: string) =>
   compute
     .getRegionSslPolicies({ project, region, sslPolicy }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -310,12 +310,15 @@ export const RegionSslPolicyProvider = (): infer _ =>
     stables: ["sslPolicyName", "project", "region", "sslPolicyId", "selfLink", "creationTimestamp"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.sslPolicyName ?? output?.sslPolicyName
-      const nextName = news.sslPolicyName
+      const nextName = resolved.sslPolicyName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? output?.region, env.region)
       if (previousRegion !== nextRegion) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -333,7 +336,9 @@ export const RegionSslPolicyProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -368,19 +373,21 @@ export const RegionSslPolicyProvider = (): infer _ =>
       let current = try getByName(env.project, region, sslPolicyName)
 
       if (current === undefined) {
-        ;(try waitRegionOperation(
-          env.project,
-          region,
-          try compute
-            .insertRegionSslPolicies({
-              project: env.project,
-              region,
-              body: desired,
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitRegionOperation(
+            env.project,
+            region,
+            try compute
+              .insertRegionSslPolicies({
+                project: env.project,
+                region,
+                body: desired,
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, region, sslPolicyName)
       }
 
@@ -418,20 +425,22 @@ export const RegionSslPolicyProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       const region = normalizeRegion(output.region, env.region)
-      const operation = (try (compute
-        .deleteRegionSslPolicies({
-          project: env.project,
-          region,
-          sslPolicy: output.sslPolicyName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteRegionSslPolicies({
+            project: env.project,
+            region,
+            sslPolicy: output.sslPolicyName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitRegionOperation(env.project, region, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

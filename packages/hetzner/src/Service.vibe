@@ -214,11 +214,11 @@ export const ServiceProvider = (): infer _ =>
     effect {
       const stack = try Effect.service(Stack)
       const virtualEntryPlugin = try Bundle.virtualEntryPlugin
-      const hosted = createHetznerHostedSupport({
+      const hosted = try Effect.orDie(Effect.try({ try: () => createHetznerHostedSupport({
         stackName: stack.name,
         stage: stack.stage,
         virtualEntryPlugin,
-      })
+      }), catch: (e) => e }))
 
       const openSession = effect (news: ServiceProps) =>
         try sshClientForServer(news.server as Server, {
@@ -233,13 +233,14 @@ export const ServiceProvider = (): infer _ =>
         nuke: { dependsOn: ["Hetzner.Server"] },
         list: effect () => [],
         diff: effect ({ id, news, output }) => {
-          if (!isResolved(news)) return undefined
-          const nextServer = serverIdOf(news.server)
+          const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved_ === undefined) return undefined
+          const nextServer = serverIdOf(resolved_.server)
           if (output !== undefined && nextServer !== undefined && output.serverId !== nextServer) {
             return { action: "replace" } as const
           }
-          if (output !== undefined && news.main) {
-            const { hash } = try hosted.bundleProgram(id, news)
+          if (output !== undefined && resolved_.main) {
+            const { hash } = try hosted.bundleProgram(id, resolved_)
             if (hash !== output.code.hash) {
               return { action: "update" } as const
             }
@@ -250,10 +251,10 @@ export const ServiceProvider = (): infer _ =>
           if (output === undefined) return undefined
           const serverId = output.serverId ?? (olds !== undefined ? serverIdOf(olds.server) : undefined)
           if (serverId === undefined) return undefined
-          const live = (try effect {
+          const live = (effect { return (try effect {
             const { server } = try Hetzner.servers.getServer({ id: serverId })
             return server
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
           if (live === undefined) return undefined
           return {
             ...output,
@@ -277,9 +278,9 @@ export const ServiceProvider = (): infer _ =>
           }
           const port = news.port ?? DEFAULT_PORT
           const unitName = try createUnitName(id, output?.unitName)
-          const { env: bindingEnv, volumes } = collectBindingState(
+          const { env: bindingEnv, volumes } = try Effect.orDie(Effect.try({ try: () => collectBindingState(
             bindings as ResourceBinding<ServiceBinding>[],
-          )
+          ), catch: (e) => e }))
           const env = {
             ...bindingEnv,
             ...hosted.alchemyEnv,
@@ -323,7 +324,7 @@ export const ServiceProvider = (): infer _ =>
         },
         delete: effect ({ olds, output }) => {
           const ssh = openSession(olds) catch effect (e) => match (e) {
-            when { _tag: "Hetzner.SshError" }: try Effect.undefined;
+            when { _tag: "Hetzner.SshError" }: undefined;
             default: throw e;
           }
           if (ssh === undefined) return

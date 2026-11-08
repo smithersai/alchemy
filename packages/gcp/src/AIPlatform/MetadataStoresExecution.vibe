@@ -172,24 +172,28 @@ const toAttrs = (execution: aiplatform.GoogleCloudAiplatformV1Execution, project
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsMetadataStoresExecutions({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listExecutions = effect (parent: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsMetadataStoresExecutions.pages({ parent, pageSize: 100 })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.executions ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsMetadataStoresExecutions.pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.executions ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Execution[];
     default: throw e;
   }
 
 const listStores = effect (parent: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsMetadataStores.pages({ parent, pageSize: 100 })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.metadataStores ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsMetadataStores.pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.metadataStores ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1MetadataStore[];
     default: throw e;
   }
@@ -212,11 +216,14 @@ export const MetadataStoresExecutionProvider = (): infer _ =>
     stables: ["name", "executionId", "metadataStore", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.metadataStore ?? output?.metadataStore
-      const nextParent = news.metadataStore ?? previousParent
+      const nextParent = resolved.metadataStore ?? previousParent
       const previousId = olds?.executionId ?? output?.executionId
-      const nextId = news.executionId ?? previousId
+      const nextId = resolved.executionId ?? previousId
       if (
         (previousParent !== undefined
           && nextParent !== undefined
@@ -241,7 +248,12 @@ export const MetadataStoresExecutionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -269,7 +281,7 @@ export const MetadataStoresExecutionProvider = (): infer _ =>
       const name = resourceName(metadataStore, executionId)
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -345,15 +357,17 @@ export const MetadataStoresExecutionProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (aiplatform
-        .deleteProjectsLocationsMetadataStoresExecutions({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (aiplatform
+          .deleteProjectsLocationsMetadataStoresExecutions({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

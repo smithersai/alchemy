@@ -272,22 +272,30 @@ export const RepositoriesBranchRuleProvider = (): infer _ =>
     stables: ["name", "branchRuleId", "repository", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
         previousId: olds?.branchRuleId ?? output?.branchRuleId,
-        nextId: news.branchRuleId
-          ? rfc1035(news.branchRuleId, "branchrule")
+        nextId: resolved.branchRuleId
+          ? rfc1035(resolved.branchRuleId, "branchrule")
           : (olds?.branchRuleId ?? output?.branchRuleId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.repository ?? output?.repository,
-        nextParent: expandName(news.repository, env.project, location, "repositories"),
-      })
+        nextParent: expandName(resolved.repository, env.project, location, "repositories"),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -298,20 +306,29 @@ export const RepositoriesBranchRuleProvider = (): infer _ =>
         output?.branchRuleId,
         "branchrule",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const repository = expandName(
-        olds?.repository ?? output?.repository ?? "",
-        env.project,
-        location,
-        "repositories",
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandName(
+            olds?.repository ?? output?.repository ?? "",
+            env.project,
+            location,
+            "repositories",
+          ),
+        catch: (e) => e,
+      }))
       const name = output?.name ?? (repository.length > 0 ? resourceName(repository, branchRuleId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e })),
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -328,11 +345,17 @@ export const RepositoriesBranchRuleProvider = (): infer _ =>
         output?.branchRuleId,
         "branchrule",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const repository = expandName(news.repository, env.project, location, "repositories")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandName(news.repository, env.project, location, "repositories"), catch: (e) => e }),
+      )
       const name = resourceName(repository, branchRuleId)
       const ownership = try createInternalLabels(id)
-      const annotations = desiredAnnotations(news.annotations, ownership)
+      const annotations = try Effect.orDie(
+        Effect.try({ try: () => desiredAnnotations(news.annotations, ownership), catch: (e) => e }),
+      )
       const includePattern = news.includePattern ?? ".*"
       const requiredStatusChecks = toChecks(news.requiredStatusChecks)
 
@@ -368,8 +391,10 @@ export const RepositoriesBranchRuleProvider = (): infer _ =>
       }
 
       const observed = tagRecord(current.annotations)
-      const { upsert, removed } = diffLabels(observed, annotations)
-      const mask = fieldMask([
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observed, annotations), catch: (e) => e }),
+      )
+      const fields = [
         (upsert.length > 0 || removed.length > 0) && "annotations",
         !sameText(current.includePattern, includePattern) && "includePattern",
         (current.disabled === true) !== (news.disabled === true) && "disabled",
@@ -385,9 +410,13 @@ export const RepositoriesBranchRuleProvider = (): infer _ =>
         && "requireCommentsResolved",
         (current.requireCodeOwnerApproval === true) !== (news.requireCodeOwnerApproval === true)
         && "requireCodeOwnerApproval",
-        fingerprint(toChecks(current.requiredStatusChecks)) !== fingerprint(requiredStatusChecks)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toChecks(current.requiredStatusChecks)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(requiredStatusChecks), catch: (e) => e })))
         && "requiredStatusChecks",
-      ])
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const operation = try ssm.patchProjectsLocationsRepositoriesBranchRules({

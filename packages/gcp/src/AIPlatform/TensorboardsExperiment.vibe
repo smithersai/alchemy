@@ -134,7 +134,7 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listParents = effect (project: string, location: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (aiplatform.listProjectsLocationsTensorboards
       .pages({
         parent: locationParent(project, location),
@@ -144,10 +144,10 @@ const listParents = effect (project: string, location: string) =>
       |> Stream.map(%, (board) => board.name ?? "")
       |> Stream.filter(%, (name) => name.length > 0)
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (aiplatform.listProjectsLocationsTensorboardsExperiments.pages({ parent, pageSize: 100 })
       |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboardExperiments ?? []))
       |> Stream.filter(%, (experiment) =>
@@ -155,23 +155,24 @@ const listAtParent = effect (parent: string, project: string) =>
       |> Stream.map(%, (experiment) =>
         toAttrs(experiment, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const TensorboardsExperimentProvider = (): infer _ =>
   Provider.succeed(TensorboardsExperiment, {
     stables: ["name", "experimentId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.experimentId ?? output?.experimentId
       if (
         previousId !== undefined
-        && news.experimentId !== undefined
-        && news.experimentId !== previousId
+        && resolved.experimentId !== undefined
+        && resolved.experimentId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -185,7 +186,7 @@ export const TensorboardsExperimentProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -206,7 +207,7 @@ export const TensorboardsExperimentProvider = (): infer _ =>
       const experimentId = try toResourceId(id, news.experimentId, output?.experimentId)
       const name = resourceName(news.parent, experimentId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? experimentId
@@ -233,7 +234,7 @@ export const TensorboardsExperimentProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayChanged = (current.displayName ?? "") !== displayName
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")

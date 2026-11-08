@@ -19,7 +19,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./operations.vibe"
+} from "./operations.ts"
 
 export type OrganizationsSecurityProfileGroupProps = {
   /**
@@ -169,17 +169,19 @@ const getByName = effect (name: string) =>
     }
 
 const listOwned = effect (organization: string) =>
-  (Array.from(
-    try (networksecurity.listOrganizationsLocationsSecurityProfileGroups
-      .pages({
-        parent: organizationParent(organization, "-"),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfileGroups ?? []))
-      |> Stream.filter(%, (group) => Object.keys(group.labels ?? {}).some((key) => key.startsWith("alchemy-")))
-      |> Stream.map(%, toAttrs)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (networksecurity.listOrganizationsLocationsSecurityProfileGroups
+        .pages({
+          parent: organizationParent(organization, "-"),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfileGroups ?? []))
+        |> Stream.filter(%, (group) => Object.keys(group.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+        |> Stream.map(%, toAttrs)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const OrganizationsSecurityProfileGroupProvider = (): infer _ =>
   Provider.succeed(OrganizationsSecurityProfileGroup, {
@@ -193,13 +195,16 @@ export const OrganizationsSecurityProfileGroupProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.securityProfileGroupId ?? output?.securityProfileGroupId
-      const nextId = news.securityProfileGroupId ?? previousId
+      const nextId = resolved.securityProfileGroupId ?? previousId
       const previousOrg = olds?.organization ?? output?.organization
-      const nextOrg = news.organization ?? previousOrg
+      const nextOrg = resolved.organization ?? previousOrg
       const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(resolved.location ?? olds?.location ?? output?.location)
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || (previousOrg !== undefined && nextOrg !== undefined && nextOrg !== previousOrg)
         || previousLocation !== nextLocation
@@ -236,7 +241,12 @@ export const OrganizationsSecurityProfileGroupProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -263,31 +273,33 @@ export const OrganizationsSecurityProfileGroupProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location)
       const name = resourceName(organization, location, securityProfileGroupId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networksecurity
-          .createOrganizationsLocationsSecurityProfileGroups({
-            parent: organizationParent(organization, location),
-            securityProfileGroupId,
-            body: {
-              description: news.description,
-              labels: desiredLabels,
-              threatPreventionProfile: news.threatPreventionProfile,
-              urlFilteringProfile: news.urlFilteringProfile,
-              customMirroringProfile: news.customMirroringProfile,
-              customInterceptProfile: news.customInterceptProfile,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networksecurity
+            .createOrganizationsLocationsSecurityProfileGroups({
+              parent: organizationParent(organization, location),
+              securityProfileGroupId,
+              body: {
+                description: news.description,
+                labels: desiredLabels,
+                threatPreventionProfile: news.threatPreventionProfile,
+                urlFilteringProfile: news.urlFilteringProfile,
+                customMirroringProfile: news.customMirroringProfile,
+                customInterceptProfile: news.customInterceptProfile,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -299,7 +311,9 @@ export const OrganizationsSecurityProfileGroupProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const threatChanged = (current.threatPreventionProfile ?? "") !== (news.threatPreventionProfile ?? "")
@@ -345,16 +359,18 @@ export const OrganizationsSecurityProfileGroupProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networksecurity
-        .deleteOrganizationsLocationsSecurityProfileGroups({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteOrganizationsLocationsSecurityProfileGroups({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

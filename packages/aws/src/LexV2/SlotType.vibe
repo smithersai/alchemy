@@ -105,13 +105,14 @@ export const SlotType = Resource<SlotType>("AWS.LexV2.SlotType")
 
 const createSlotTypeName = effect (id: string, props: { slotTypeName?: string | undefined }) => {
   if (props.slotTypeName) return props.slotTypeName
-  return toLexName(try createPhysicalName({ id, maxLength: 100 }))
+  const name = try createPhysicalName({ id, maxLength: 100 })
+  return try Effect.orDie(Effect.try({ try: () => toLexName(name), catch: (e) => e }))
 }
 
 const describeSlotType = effect (botId: string, localeId: string, slotTypeId: string) =>
   lexm
     .describeSlotType({ botId, botVersion: "DRAFT", localeId, slotTypeId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 
@@ -121,14 +122,14 @@ const findSlotTypeByName = effect (
   localeId: string,
   slotTypeName: string,
 ) => {
-  const pages = (try (lexm.listSlotTypes
+  const pages = (effect { return (try (lexm.listSlotTypes
     .pages({
       botId,
       botVersion: "DRAFT",
       localeId,
       filters: [{ name: "SlotTypeName", values: [slotTypeName], operator: "EQ" }],
     })
-    |> Stream.runCollect(%))) catch effect (e) => match (e) {
+    |> Stream.runCollect(%))) }) catch effect (e) => match (e) {
       when { _tag: "ResourceNotFoundException" }: [] as lexm.ListSlotTypesResponse[];
       default: throw e;
     }
@@ -191,8 +192,9 @@ export const SlotTypeProvider = (): infer _ =>
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
-          if (olds?.botId !== news.botId || olds?.localeId !== news.localeId) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if (olds?.botId !== resolved.botId || olds?.localeId !== resolved.localeId) {
             return { action: "replace" } as const
           }
         },
@@ -276,7 +278,7 @@ export const SlotTypeProvider = (): infer _ =>
               skipResourceInUseCheck: true,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "PreconditionFailedException" }: try Effect.void;
+            when { _tag: "PreconditionFailedException" }: (undefined as void);
             default: throw e;
           }
         },

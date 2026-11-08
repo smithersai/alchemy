@@ -169,43 +169,76 @@ export const VolumesSnapshotProvider = (): infer _ =>
     stables: ["name", "snapshotId", "volume", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
-      const previousVolume = volumeOf(
-        olds?.volume ?? output?.volume ?? "",
-        env.project,
-        previousLocation,
-      )
-      const nextVolume = volumeOf(
-        news.volume ?? olds?.volume ?? output?.volume ?? "",
-        env.project,
-        nextLocation,
-      )
-      return replaceOnIdentity({
-        previousId: olds?.snapshotId ?? output?.snapshotId,
-        nextId: news.snapshotId ?? olds?.snapshotId ?? output?.snapshotId,
-        previousLocation,
-        nextLocation,
-        previousParent: previousVolume,
-        nextParent: nextVolume,
-      })
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousVolume = try Effect.orDie(Effect.try({
+        try: () =>
+          volumeOf(
+            olds?.volume ?? output?.volume ?? "",
+            env.project,
+            previousLocation,
+          ),
+        catch: (e) => e,
+      }))
+      const nextVolume = try Effect.orDie(Effect.try({
+        try: () =>
+          volumeOf(
+            resolved.volume ?? olds?.volume ?? output?.volume ?? "",
+            env.project,
+            nextLocation,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.snapshotId ?? output?.snapshotId,
+            nextId: resolved.snapshotId ?? olds?.snapshotId ?? output?.snapshotId,
+            previousLocation,
+            nextLocation,
+            previousParent: previousVolume,
+            nextParent: nextVolume,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const volume = volumeOf(olds?.volume ?? output?.volume ?? "", env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const volume = try Effect.orDie(
+        Effect.try({
+          try: () => volumeOf(olds?.volume ?? output?.volume ?? "", env.project, location),
+          catch: (e) => e,
+        }),
+      )
       const snapshotId = try toPhysicalId(id, olds?.snapshotId, output?.snapshotId, "snapshot")
       const name = output?.name ?? resourceName(volume, snapshotId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -216,12 +249,16 @@ export const VolumesSnapshotProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const locationHint = normalizeLocation(news.location ?? output?.location, env.region)
-      const volume = volumeOf(news.volume, env.project, locationHint)
+      const locationHint = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const volume = try Effect.orDie(
+        Effect.try({ try: () => volumeOf(news.volume, env.project, locationHint), catch: (e) => e }),
+      )
       const snapshotId = try toPhysicalId(id, news.snapshotId, output?.snapshotId, "snapshot")
       const name = output?.name ?? resourceName(volume, snapshotId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -254,10 +291,17 @@ export const VolumesSnapshotProvider = (): infer _ =>
       )
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
-      const mask = fieldMask([labelsChanged && "labels", descriptionChanged && "description"])
+      const mask = try Effect.orDie(
+        Effect.try({
+          try: () => fieldMask([labelsChanged && "labels", descriptionChanged && "description"]),
+          catch: (e) => e,
+        }),
+      )
 
       if (mask.length > 0) {
         const operation = try netapp.patchProjectsLocationsVolumesSnapshots({
@@ -282,13 +326,15 @@ export const VolumesSnapshotProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name || output.name.includes("//")) return
-      const operation = (try (netapp
-        .deleteProjectsLocationsVolumesSnapshots({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (netapp
+          .deleteProjectsLocationsVolumesSnapshots({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

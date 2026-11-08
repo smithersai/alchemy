@@ -383,7 +383,7 @@ const toAttrs = (firewall: compute.Firewall, project: string): infer _ => ({
 const getByName = effect (project: string, firewall: string) =>
   compute
     .getFirewalls({ project, firewall }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -423,21 +423,24 @@ export const FirewallProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const prevName = olds?.firewallName ?? output?.firewallName
-      const nextName = news.firewallName ?? prevName
+      const nextName = resolved.firewallName ?? prevName
       const nameChanged = prevName !== undefined && nextName !== undefined && prevName !== nextName
 
       const prevNetwork = networkId(olds?.network ?? output?.network)
-      const nextNetwork = networkId(news.network ?? prevNetwork ?? DEFAULT_NETWORK)
+      const nextNetwork = networkId(resolved.network ?? prevNetwork ?? DEFAULT_NETWORK)
       const networkChanged = prevNetwork !== undefined && nextNetwork !== undefined && prevNetwork !== nextNetwork
 
       const prevDir = (olds?.direction ?? output?.direction)?.toUpperCase()
-      const nextDir = (news.direction ?? prevDir ?? DEFAULT_DIRECTION).toUpperCase()
+      const nextDir = (resolved.direction ?? prevDir ?? DEFAULT_DIRECTION).toUpperCase()
       const directionChanged = prevDir !== undefined && prevDir !== nextDir
 
       const prevAction = actionOf(olds) ?? actionOf(output)
-      const nextAction = actionOf(news)
+      const nextAction = actionOf(resolved)
       const actionChanged = prevAction !== undefined && nextAction !== undefined && prevAction !== nextAction
 
       if (nameChanged || networkChanged || directionChanged || actionChanged) {
@@ -457,7 +460,7 @@ export const FirewallProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       return (try hasAlchemyLabels(id, parseDescription(existing.description).labels))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -490,28 +493,32 @@ export const FirewallProvider = (): infer _ =>
       let current = try getByName(env.project, firewallName)
 
       if (current === undefined) {
-        ;(try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertFirewalls({
-              project: env.project,
-              body: insertBody(firewallName, env.project, news, desiredDescription),
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
-        current = (try (effect {
-          return try effect {
-            const firewall = try getByName(env.project, firewallName)
-            return (firewall !== undefined ? firewall : throw new FirewallNotResolved({ firewallName }))
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertFirewalls({
+                project: env.project,
+                body: insertBody(firewallName, env.project, news, desiredDescription),
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: (undefined as void); default: throw e; }
+        current = (effect {
+          return (try (effect {
+            return try effect {
+              const firewall = try getByName(env.project, firewallName)
+              return (firewall !== undefined ? firewall : throw new FirewallNotResolved({ firewallName }))
+            }
           }
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "GCP.Compute.FirewallNotResolved",
+              times: 8,
+              schedule: backoff,
+            })))
+        }) catch effect (e) => match (e) {
+          when { _tag: "GCP.Compute.FirewallNotResolved" }: undefined;
+          default: throw e;
         }
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "GCP.Compute.FirewallNotResolved",
-            times: 8,
-            schedule: backoff,
-          }))) catch effect (e) => match (e) {
-            when { _tag: "GCP.Compute.FirewallNotResolved" }: try Effect.undefined;
-            default: throw e;
-          }
       }
 
       if (current === undefined) {
@@ -583,16 +590,18 @@ export const FirewallProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      ;(try waitGlobalOperation(
-        env.project,
-        try compute
-          .deleteFirewalls({
-            project: env.project,
-            firewall: output.firewallName,
-          }),
-        {
-          ignore: ["RESOURCE_NOT_FOUND"],
-        },
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try waitGlobalOperation(
+          env.project,
+          try compute
+            .deleteFirewalls({
+              project: env.project,
+              firewall: output.firewallName,
+            }),
+          {
+            ignore: ["RESOURCE_NOT_FOUND"],
+          },
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

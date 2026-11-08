@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as bda from "@distilled.cloud/aws/bedrock-data-automation"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -134,8 +135,10 @@ export const BlueprintProvider = (): infer _ =>
         blueprintArn: string,
         blueprintStage?: bda.BlueprintStage | undefined,
       ) =>
-        (try bda.getBlueprint({ blueprintArn, blueprintStage })).blueprint catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        effect {
+          return ((try bda.getBlueprint({ blueprintArn, blueprintStage })).blueprint)
+        } catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -174,11 +177,14 @@ export const BlueprintProvider = (): infer _ =>
           if (found === undefined) return undefined
           const attrs = toAttributes(found)
           const tags = try readBdaTags(blueprintArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (
@@ -206,31 +212,37 @@ export const BlueprintProvider = (): infer _ =>
           //    the typed ConflictException, which we treat as a race and
           //    re-observe by name.
           if (live === undefined) {
-            live = (try bda
-              .createBlueprint({
-                blueprintName,
-                type: news.type,
-                schema: news.schema,
-                blueprintStage: news.blueprintStage,
-                encryptionConfiguration: news.encryptionConfiguration,
-                tags: toBdaTagList(desiredTags),
-              })).blueprint catch effect (conflict) => match (conflict) {
-                when { _tag: "ConflictException" }: try effect {
-                  const arn = try findBlueprintArn(blueprintName)
-                  const observed = arn === undefined
-                    ? undefined
-                    : try observeBlueprint(arn, news.blueprintStage)
-                  return observed === undefined ? throw conflict : observed
-                };
-                default: throw conflict;
-              }
+            live = (effect {
+              return (try bda
+                .createBlueprint({
+                  blueprintName,
+                  type: news.type,
+                  schema: news.schema,
+                  blueprintStage: news.blueprintStage,
+                  encryptionConfiguration: news.encryptionConfiguration,
+                  tags: try Effect.orDie(Effect.try({ try: () => toBdaTagList(desiredTags), catch: (e) => e })),
+                })).blueprint
+            }) catch effect (conflict) => match (conflict) {
+              when { _tag: "ConflictException" }: try effect {
+                const arn = try findBlueprintArn(blueprintName)
+                const observed = arn === undefined
+                  ? undefined
+                  : try observeBlueprint(arn, news.blueprintStage)
+                return observed === undefined ? throw conflict : observed
+              };
+              default: throw conflict;
+            }
           }
 
           // 3. SYNC — diff the OBSERVED schema and encryption key against the
           //    desired state; apply the idempotent PUT only on drift.
+          const currentBlueprint = live
           const kmsDrift = news.encryptionConfiguration !== undefined
             && live.kmsKeyId !== news.encryptionConfiguration.kmsKeyId
-          if (unredact(live.schema) !== news.schema || kmsDrift) {
+          if (
+            (try Effect.orDie(Effect.try({ try: () => unredact(currentBlueprint.schema), catch: (e) => e })))
+              !== news.schema || kmsDrift
+          ) {
             live = (try bda
               .updateBlueprint({
                 blueprintArn: live.blueprintArn,
@@ -252,16 +264,18 @@ export const BlueprintProvider = (): infer _ =>
           // block deletion of the blueprint itself — delete them first.
           // NOTE: the blueprintArn filter cannot be combined with other
           // filters ("Invalid List filter combination").
-          const versions = (Array.from(
-            try (bda.listBlueprints
-              .items({ blueprintArn: output.blueprintArn })
-              |> Stream.runCollect(%)),
-          )
-            .map((s) => s.blueprintVersion)
-            .filter((v): v is string => v !== undefined)) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: [] as string[];
-              default: throw e;
-            }
+          const versions = (effect {
+            return (Array.from(
+              try (bda.listBlueprints
+                .items({ blueprintArn: output.blueprintArn })
+                |> Stream.runCollect(%)),
+            )
+              .map((s) => s.blueprintVersion)
+              .filter((v): v is string => v !== undefined))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: [] as string[];
+            default: throw e;
+          }
           try Effect.forEach(
             versions,
             effect (blueprintVersion) =>
@@ -270,14 +284,14 @@ export const BlueprintProvider = (): infer _ =>
                   blueprintArn: output.blueprintArn,
                   blueprintVersion,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 },
             { concurrency: 1 },
           )
           bda
             .deleteBlueprint({ blueprintArn: output.blueprintArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

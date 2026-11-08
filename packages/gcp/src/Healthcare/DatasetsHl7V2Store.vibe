@@ -181,29 +181,35 @@ export const DatasetsHl7V2StoreProvider = (): infer _ =>
     stables: ["name", "hl7V2StoreId", "dataset", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousVersion = olds?.parserConfig?.version ?? output?.parserConfig?.version
-      const nextVersion = news.parserConfig?.version
+      const nextVersion = resolved.parserConfig?.version
       const extra = previousVersion !== undefined
         && nextVersion !== undefined
         && previousVersion !== nextVersion
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.hl7V2StoreId ?? output?.hl7V2StoreId,
-        nextId: news.hl7V2StoreId,
+        nextId: resolved.hl7V2StoreId,
         previousParent: olds?.dataset ?? output?.dataset,
         nextParent: datasetOf(
-          news.dataset,
+          resolved.dataset,
           env.project,
-          normalizeLocation(news.location ?? output?.location, env.region),
+          normalizeLocation(resolved.location ?? output?.location, env.region),
         ),
         extra,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const hl7V2StoreId = try toPhysicalId(id, olds?.hl7V2StoreId, output?.hl7V2StoreId)
       const dataset = olds?.dataset !== undefined
         ? datasetOf(olds.dataset, env.project, location)
@@ -212,7 +218,12 @@ export const DatasetsHl7V2StoreProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -232,12 +243,14 @@ export const DatasetsHl7V2StoreProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const dataset = datasetOf(news.dataset, env.project, location)
       const hl7V2StoreId = try toPhysicalId(id, news.hl7V2StoreId, output?.hl7V2StoreId)
       const name = output?.name ?? resourceName(dataset, hl7V2StoreId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -265,24 +278,35 @@ export const DatasetsHl7V2StoreProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const rejectChanged = (current.rejectDuplicateMessage === true) !== (news.rejectDuplicateMessage === true)
       const parserChanged = news.parserConfig !== undefined
         && (current.parserConfig?.allowNullHeader === true)
           !== (news.parserConfig.allowNullHeader === true)
-      const notificationsChanged = !sameJson(current.notificationConfigs, news.notificationConfigs)
+      const notificationsChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.notificationConfigs, news.notificationConfigs),
+          catch: (e) => e,
+        }),
+      ))
 
       if (labelsChanged || rejectChanged || parserChanged || notificationsChanged) {
         current = try retryTransient(
           healthcare.patchProjectsLocationsDatasetsHl7V2Stores({
             name: currentName,
-            updateMask: updateMaskOf(
-              labelsChanged ? "labels" : undefined,
-              rejectChanged ? "rejectDuplicateMessage" : undefined,
-              parserChanged ? "parserConfig.allowNullHeader" : undefined,
-              notificationsChanged ? "notificationConfigs" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  labelsChanged ? "labels" : undefined,
+                  rejectChanged ? "rejectDuplicateMessage" : undefined,
+                  parserChanged ? "parserConfig.allowNullHeader" : undefined,
+                  notificationsChanged ? "notificationConfigs" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               labels: desiredLabels,
               rejectDuplicateMessage: news.rejectDuplicateMessage,

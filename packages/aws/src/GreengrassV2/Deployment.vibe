@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as greengrassv2 from "@distilled.cloud/aws/greengrassv2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -137,7 +140,13 @@ export const Deployment = Resource<Deployment>("AWS.GreengrassV2.Deployment")
  * Raised when `createDeployment` returns without a deployment ID, which the
  * provider needs to track the deployment revision.
  */
-export error GreengrassDeploymentMissingId { mutable message: string }
+export class GreengrassDeploymentMissingId extends $MutableErrorBase("GreengrassDeploymentMissingId")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "GreengrassDeploymentMissingId", true)
+  }
+}
 
 // Explicitly-typed pipeable retry helper (see EC2/VolumeAttachment.ts) —
 // deleting a deployment right after cancellation can race the state change.
@@ -205,7 +214,7 @@ export const DeploymentProvider = (): infer _ =>
       const observeDeployment = effect (deploymentId: string) =>
         greengrassv2
           .getDeployment({ deploymentId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -244,14 +253,16 @@ export const DeploymentProvider = (): infer _ =>
       const cancelAndDelete = effect (deploymentId: string) => {
         greengrassv2.cancelDeployment({ deploymentId }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" } or { _tag: "ConflictException" } or { _tag: "ValidationException" }:
-            try Effect.undefined;
+            undefined;
           default: throw e;
         }
-        ;(try (greengrassv2.deleteDeployment({ deploymentId })
-          |> retryWhileConflict(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
-            default: throw e;
-          }
+        ;(effect {
+          return (try (greengrassv2.deleteDeployment({ deploymentId })
+            |> retryWhileConflict(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: (undefined as void);
+          default: throw e;
+        }
       }
 
       return Deployment.Provider.of({
@@ -291,10 +302,13 @@ export const DeploymentProvider = (): infer _ =>
             : undefined
           if (live?.deploymentId === undefined) return undefined
           const attrs = try attributesOf(live, output?.targetArn ?? olds?.targetArn ?? "")
-          return (try hasAlchemyTags(id, normalizeTags(live.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, normalizeTags(live.tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           // A deployment belongs to exactly one target.
           if (olds !== undefined && news.targetArn !== olds.targetArn) {
             return { action: "replace" } as const

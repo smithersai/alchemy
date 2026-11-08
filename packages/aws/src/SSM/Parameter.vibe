@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as kms from "@distilled.cloud/aws/kms"
 import * as ssm from "@distilled.cloud/aws/ssm"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -6,11 +7,7 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, createTagsList, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import { AWSEnvironment } from "../Environment.ts"
 import type { Providers } from "../Providers.ts"
 
@@ -250,13 +247,17 @@ export const ParameterProvider = (): infer _ =>
       // The AWS-managed `alias/aws/ssm` key is created lazily on first use,
       // so tolerate NotFound as "not resolvable yet".
       const resolveKeyArn = effect (keyId: string | undefined) =>
-        ((try kms.describeKey({ KeyId: keyId ?? "alias/aws/ssm" })).KeyMetadata?.Arn) catch effect (e) => match (e) {
-          when kms.NotFoundException: try Effect.undefined;
+        (effect {
+          return ((try kms.describeKey({ KeyId: keyId ?? "alias/aws/ssm" })).KeyMetadata?.Arn)
+        }) catch effect (e) => match (e) {
+          when kms.NotFoundException: undefined;
           default: throw e;
         }
 
       const fetchObservedTags = effect (name: string) =>
-        (toTagRecord((try ssm.listTagsForResource({ ResourceType: "Parameter", ResourceId: name })).TagList)) catch effect (e) => match (e) { when ssm.InvalidResourceId: {} as Record<string, string>; default: throw e; }
+        (effect {
+          return (toTagRecord((try ssm.listTagsForResource({ ResourceType: "Parameter", ResourceId: name })).TagList))
+        }) catch effect (e) => match (e) { when ssm.InvalidResourceId: {} as Record<string, string>; default: throw e; }
 
       return Parameter.Provider.of({
         stables: ["parameterName", "parameterArn"],
@@ -287,8 +288,10 @@ export const ParameterProvider = (): infer _ =>
         read: effect ({ id, olds, output }) => {
           const { accountId, region } = try AWSEnvironment.current
           const name = output?.parameterName ?? (try createName(id, olds ?? {}))
-          const found = (try ssm.getParameter({ Name: name })).Parameter catch effect (e) => match (e) {
-            when ssm.ParameterNotFound: try Effect.undefined;
+          const found = (effect {
+            return (try ssm.getParameter({ Name: name })).Parameter
+          }) catch effect (e) => match (e) {
+            when ssm.ParameterNotFound: undefined;
             default: throw e;
           }
           if (!found) return undefined
@@ -314,11 +317,14 @@ export const ParameterProvider = (): infer _ =>
               tags,
             },
           }
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName) {
@@ -347,8 +353,10 @@ export const ParameterProvider = (): infer _ =>
           // 1. OBSERVE — cloud state is authoritative. `output` is only a
           //    cache of the physical name; if the parameter was deleted
           //    out-of-band we fall through to create.
-          const observed = (try ssm.getParameter({ Name: name, WithDecryption: true })).Parameter catch effect (e) => match (e) {
-            when ssm.ParameterNotFound: try Effect.undefined;
+          const observed = (effect {
+            return (try ssm.getParameter({ Name: name, WithDecryption: true })).Parameter
+          }) catch effect (e) => match (e) {
+            when ssm.ParameterNotFound: undefined;
             default: throw e;
           }
 
@@ -359,32 +367,34 @@ export const ParameterProvider = (): infer _ =>
             //    Tags together with Overwrite, so if a concurrent reconciler
             //    won the race we fall back to an overwrite put (the tag sync
             //    below converges tags).
-            version = (try ssm
-              .putParameter({
-                Name: name,
-                Value: news.value,
-                Type: desiredType,
-                Description: news.description,
-                KeyId: news.keyId,
-                AllowedPattern: news.allowedPattern,
-                Tier: news.tier,
-                DataType: news.dataType,
-                Tags: createTagsList(desiredTags),
-              })).Version catch effect (e) => match (e) {
-                when ssm.ParameterAlreadyExists: (try ssm
-                  .putParameter({
-                    Name: name,
-                    Value: news.value,
-                    Type: desiredType,
-                    Description: news.description,
-                    KeyId: news.keyId,
-                    AllowedPattern: news.allowedPattern,
-                    Tier: news.tier,
-                    DataType: news.dataType,
-                    Overwrite: true,
-                  })).Version;
-                default: throw e;
-              }
+            version = (effect {
+              return (try ssm
+                .putParameter({
+                  Name: name,
+                  Value: news.value,
+                  Type: desiredType,
+                  Description: news.description,
+                  KeyId: news.keyId,
+                  AllowedPattern: news.allowedPattern,
+                  Tier: news.tier,
+                  DataType: news.dataType,
+                  Tags: createTagsList(desiredTags),
+                })).Version
+            }) catch effect (e) => match (e) {
+              when ssm.ParameterAlreadyExists: (try ssm
+                .putParameter({
+                  Name: name,
+                  Value: news.value,
+                  Type: desiredType,
+                  Description: news.description,
+                  KeyId: news.keyId,
+                  AllowedPattern: news.allowedPattern,
+                  Tier: news.tier,
+                  DataType: news.dataType,
+                  Overwrite: true,
+                })).Version;
+              default: throw e;
+            }
           } else {
             // 3. SYNC — diff observed cloud state against desired and only
             //    call PutParameter when something actually drifted.
@@ -477,7 +487,7 @@ export const ParameterProvider = (): infer _ =>
         delete: effect ({ output }) => {
           ssm
             .deleteParameter({ Name: output.parameterName }) catch effect (e) => match (e) {
-              when ssm.ParameterNotFound: try Effect.void;
+              when ssm.ParameterNotFound: (undefined as void);
               default: throw e;
             }
         },

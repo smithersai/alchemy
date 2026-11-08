@@ -308,13 +308,15 @@ export const makeDurableListener = effect (options: {
             },
           )
           if (!isScopeEjected(scope)) {
-            await Scope.close(scope, exit).pipe(
-              Effect.ignoreCause({
+            await (() => {
+              const pipe$program = Scope.close(scope, exit);
+              const pipe$stage0 = Effect.ignoreCause({
                 log: "Warn",
                 message: "Durable invocation scope close failed",
-              }),
-              Effect.runPromise,
-            )
+              });
+              const pipe$stage1 = Effect.runPromise;
+              return pipe$program |> pipe$stage0(%) |> pipe$stage1(%);
+            })()
           }
           if (Exit.isSuccess(exit)) {
             return exit.value
@@ -330,7 +332,7 @@ export const makeDurableListener = effect (options: {
     // listener's returned effect. Cast the listener down to the `Req = never`
     // `FunctionListener` so the requirement never leaks into the host's init
     // effect — the exact contract `serve`/`makeFunctionHttpHandler` rely on.
-    return ((event: any) => {
+    return (effect (event: any) => {
       if (!isDurableExecutionEvent(event)) return
       const payload = readDurableInputPayload(event)
       const envelope = asDurableEnvelope(payload)
@@ -343,7 +345,7 @@ export const makeDurableListener = effect (options: {
       // replays them from checkpoints, and interrupting the wait below would
       // leave its promise running into the next invocation. The guard still
       // flushes telemetry before Lambda's hard timeout.
-      return effect {
+      return try effect {
         const context = try Effect.service(HandlerContext)
         // Lazily load + memoize the SDK on the first real invocation.
         const run = try ensureWrapped

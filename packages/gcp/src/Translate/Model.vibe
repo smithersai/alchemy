@@ -143,9 +143,9 @@ const toAttrs = (model: translate.Model, project: string): infer _ => {
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : translate
+const getByName = effect (name: string) => (name.length === 0 ? undefined : translate
   .getProjectsLocationsModels({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -154,20 +154,23 @@ export const ModelProvider = (): infer _ =>
     stables: ["name", "modelId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousDataset = olds?.dataset ?? output?.dataset
       const extra = (previousDataset !== undefined
-        && news.dataset !== previousDataset
-        && !news.dataset.endsWith(`/${previousDataset}`)
-        && !(previousDataset ?? "").endsWith(`/${news.dataset}`))
-        || (news.displayName !== undefined
+        && resolved.dataset !== previousDataset
+        && !resolved.dataset.endsWith(`/${previousDataset}`)
+        && !(previousDataset ?? "").endsWith(`/${resolved.dataset}`))
+        || (resolved.displayName !== undefined
           && (olds?.displayName ?? output?.displayName) !== undefined
-          && news.displayName !== (olds?.displayName ?? output?.displayName))
+          && resolved.displayName !== (olds?.displayName ?? output?.displayName))
       return replaceOnIdentity({
         previousId: olds?.modelId ?? output?.modelId,
-        nextId: news.modelId,
+        nextId: resolved.modelId,
         previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
+        nextLocation: resolved.location ?? olds?.location ?? output?.location,
         extra,
       })
     },
@@ -181,7 +184,9 @@ export const ModelProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -220,7 +225,7 @@ export const ModelProvider = (): infer _ =>
         translate.deleteProjectsLocationsModels({
           name: output.name,
         }),
-      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined && "done" in operation) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as glacier from "@distilled.cloud/aws/glacier"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -154,16 +157,24 @@ export const Vault = Resource<Vault>("AWS.Glacier.Vault")
  * lock that is already in the `Locked` state. A locked vault lock policy is
  * immutable — it can never be changed or removed.
  */
-export error GlacierVaultLockImmutable {
-  mutable message: string
+export class GlacierVaultLockImmutable extends $MutableErrorBase("GlacierVaultLockImmutable")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "GlacierVaultLockImmutable", true)
+  }
 }
 
 /**
  * Raised when DescribeVault returns a vault record missing its ARN or
  * creation date — never expected from the live API.
  */
-export error GlacierVaultIncomplete {
-  mutable message: string
+export class GlacierVaultIncomplete extends $MutableErrorBase("GlacierVaultIncomplete")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "GlacierVaultIncomplete", true)
+  }
 }
 
 // Explicitly-typed pipeable retry helper. Inlining `Effect.retry` in a
@@ -210,12 +221,17 @@ export const VaultProvider = (): infer _ =>
       const describeVault = effect (vaultName: string) =>
         glacier
           .describeVault({ accountId: ACCOUNT, vaultName }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       const readVaultTags = effect (vaultName: string) =>
-        (((try glacier.listTagsForVault({ accountId: ACCOUNT, vaultName })).Tags ?? {}) as Record<string, string>)
+        (effect {
+          return (((try glacier.listTagsForVault({ accountId: ACCOUNT, vaultName })).Tags ?? {}) as Record<
+            string,
+            string
+          >)
+        })
           catch () => ({}) as Record<string, string>
 
       return Vault.Provider.of({
@@ -255,11 +271,14 @@ export const VaultProvider = (): infer _ =>
             creationDate: found.CreationDate ?? "",
           }
           const tags = try readVaultTags(vaultName)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createVaultName(id, olds ?? {})
           const newName = try createVaultName(id, news)
           if (oldName !== newName) {
@@ -293,11 +312,13 @@ export const VaultProvider = (): infer _ =>
           }
 
           // 3a. SYNC notification configuration — observed vs desired.
-          const observedNotifications = (try glacier
-            .getVaultNotifications({ accountId: ACCOUNT, vaultName })).vaultNotificationConfig catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          const observedNotifications = (effect {
+            return (try glacier
+              .getVaultNotifications({ accountId: ACCOUNT, vaultName })).vaultNotificationConfig
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           const desiredNotifications = props.notificationConfig
           if (desiredNotifications !== undefined) {
             const inSync = observedNotifications !== undefined
@@ -316,17 +337,19 @@ export const VaultProvider = (): infer _ =>
           } else if (observedNotifications !== undefined) {
             glacier
               .deleteVaultNotifications({ accountId: ACCOUNT, vaultName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
 
           // 3b. SYNC access policy — observed vs desired.
-          const observedPolicy = ((try glacier
-            .getVaultAccessPolicy({ accountId: ACCOUNT, vaultName })).policy?.Policy) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          const observedPolicy = (effect {
+            return ((try glacier
+              .getVaultAccessPolicy({ accountId: ACCOUNT, vaultName })).policy?.Policy)
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           const desiredPolicy = toPolicyString(props.accessPolicy)
           if (desiredPolicy !== undefined) {
             if (observedPolicy === undefined || !samePolicy(observedPolicy, desiredPolicy)) {
@@ -339,7 +362,7 @@ export const VaultProvider = (): infer _ =>
           } else if (observedPolicy !== undefined) {
             glacier
               .deleteVaultAccessPolicy({ accountId: ACCOUNT, vaultName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -350,7 +373,7 @@ export const VaultProvider = (): infer _ =>
           //     typed failure rather than silently ignored.
           const observedLock = glacier
             .getVaultLock({ accountId: ACCOUNT, vaultName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           const desiredLock = toPolicyString(props.lockPolicy)
@@ -373,7 +396,7 @@ export const VaultProvider = (): infer _ =>
               // InProgress with a different policy: abort and re-initiate.
               glacier
                 .abortVaultLock({ accountId: ACCOUNT, vaultName }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
               try glacier.initiateVaultLock({
@@ -390,7 +413,7 @@ export const VaultProvider = (): infer _ =>
             }
             glacier
               .abortVaultLock({ accountId: ACCOUNT, vaultName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -436,7 +459,7 @@ export const VaultProvider = (): infer _ =>
               accountId: ACCOUNT,
               vaultName: output.vaultName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (lock !== undefined && lock.State !== "Locked") {
@@ -445,13 +468,13 @@ export const VaultProvider = (): infer _ =>
                 accountId: ACCOUNT,
                 vaultName: output.vaultName,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
           glacier
             .deleteVault({ accountId: ACCOUNT, vaultName: output.vaultName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

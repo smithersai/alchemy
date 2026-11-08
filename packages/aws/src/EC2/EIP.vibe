@@ -234,12 +234,13 @@ export const EIPProvider = (): infer _ =>
         },
 
         diff: effect ({ news = {}, olds = {} }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           // EIPs are immutable - any change to core properties requires replacement
           if (
-            news.publicIpv4Pool !== olds.publicIpv4Pool
-            || news.networkBorderGroup !== olds.networkBorderGroup
-            || news.customerOwnedIpv4Pool !== olds.customerOwnedIpv4Pool
+            resolved.publicIpv4Pool !== olds.publicIpv4Pool
+            || resolved.networkBorderGroup !== olds.networkBorderGroup
+            || resolved.customerOwnedIpv4Pool !== olds.customerOwnedIpv4Pool
           ) {
             return { action: "replace" }
           }
@@ -274,7 +275,7 @@ export const EIPProvider = (): infer _ =>
               TagSpecifications: [
                 {
                   ResourceType: "elastic-ip",
-                  Tags: createTagsList(desiredTags),
+                  Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                 },
               ],
               DryRun: false,
@@ -298,7 +299,7 @@ export const EIPProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (address.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [allocationId],
@@ -338,8 +339,8 @@ export const EIPProvider = (): infer _ =>
                 AllocationId: allocationId,
                 DryRun: false,
               }) catch effect (e) => match (e) {
-                when { _tag: "InvalidAllocationID.NotFound" }: try Effect.void;
-                when { _tag: "AuthFailure" }: try Effect.void;
+                when { _tag: "InvalidAllocationID.NotFound" }: (undefined as void);
+                when { _tag: "AuthFailure" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -352,8 +353,8 @@ export const EIPProvider = (): infer _ =>
                 // we will retry it assuming that another resource provider is dissassociating it (e.g. a NAT Gateway resource is being deleted)
                 e._tag === "InvalidIPAddress.InUse",
               schedule: Schedule.max([Schedule.exponential(1000, 1.5), Schedule.recurs(20)]).pipe(
-                Schedule.tap(({ attempt }) =>
-                  session.note(`EIP still in use, waiting for release... (attempt ${attempt})`)
+                Schedule.tap(effect ({ attempt }) =>
+                  try session.note(`EIP still in use, waiting for release... (attempt ${attempt})`)
                 ),
               ),
             }))

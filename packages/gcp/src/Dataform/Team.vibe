@@ -141,22 +141,33 @@ export const TeamProvider = (): infer _ =>
     stables: ["name", "teamFolderId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousLocation: olds?.location ?? output?.location,
+            nextLocation: resolved.location ?? olds?.location ?? output?.location,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const existing = output?.name
         ? try getByName(output.name)
         : try findOwned(env.project, location, id, olds?.displayName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -169,9 +180,13 @@ export const TeamProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const ownership = try createInternalLabels(id)
-      const displayName = encodeOwnershipLine(ownership, news.displayName)
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
 
       let current = output?.name
         ? try getByName(output.name)
@@ -195,7 +210,8 @@ export const TeamProvider = (): infer _ =>
 
       if (current === undefined) {
         throw new TeamNotResolved({
-          resourceName: output?.name ?? locationParent(env.project, location),
+          resourceName: output?.name
+            ?? (try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }))),
         })
       }
 
@@ -204,7 +220,7 @@ export const TeamProvider = (): infer _ =>
         current = try retryTransient(
           dataform.patchProjectsLocationsTeamFolders({
             name: currentName,
-            updateMask: updateMaskOf("displayName"),
+            updateMask: try Effect.orDie(Effect.try({ try: () => updateMaskOf("displayName"), catch: (e) => e })),
             body: { displayName },
           }),
         )

@@ -1,6 +1,6 @@
+import * as Effect from "effect/Effect"
 import type * as sns from "@distilled.cloud/aws/sns"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import { PublishBatch } from "./PublishBatch.vibe"
@@ -48,22 +48,32 @@ export const TopicSinkHttp = Layer.effect(
       }
       const publish = try publishBatch(topic)
 
-      return makeBatchedSink<TopicSinkEntry, sns.PublishBatchResponse, sns.PublishBatchError>({
-        maxRecords: 10,
-        maxBytes: 262_144,
-        sizeOf: (entry): infer _ => encoder.encode(entry.Message).length,
-        send: (batch) =>
-          publish({
-            PublishBatchRequestEntries: batch.map((entry, index) => ({
-              ...entry,
-              Id: `${index}`,
-            })),
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<TopicSinkEntry, sns.PublishBatchResponse, sns.PublishBatchError>
+        >[0] = {
+          maxRecords: 10,
+          maxBytes: 262_144,
+          sizeOf: (entry): infer _ => encoder.encode(entry.Message).length,
+          send: effect (batch) =>
+            try publish({
+              PublishBatchRequestEntries: batch.map((entry, index) => ({
+                ...entry,
+                Id: `${index}`,
+              })),
+            }),
+          // SenderFault=false failures (throttling, internal errors) are
+          // transient — re-submit them on the bounded schedule.
+          unprocessed: (out, batch): infer _ => selectFailed(out.Failed, batch, false),
+          // SenderFault=true failures are permanent — drop and surface.
+          rejected: (out, batch): infer _ => selectFailed(out.Failed, batch, true),
+        }
+        return try Effect.orDie(
+          Effect.try({
+            try: () => makeBatchedSink<TopicSinkEntry, sns.PublishBatchResponse, sns.PublishBatchError>(sinkOptions),
+            catch: (error) => error,
           }),
-        // SenderFault=false failures (throttling, internal errors) are
-        // transient — re-submit them on the bounded schedule.
-        unprocessed: (out, batch): infer _ => selectFailed(out.Failed, batch, false),
-        // SenderFault=true failures are permanent — drop and surface.
-        rejected: (out, batch): infer _ => selectFailed(out.Failed, batch, true),
+        )
       })
     }
   },

@@ -146,45 +146,52 @@ const toAttrs = (label: cci.GoogleCloudContactcenterinsightsV1FeedbackLabel, pro
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsDatasetsConversationsFeedbackLabels({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listDatasets = effect (parent: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsDatasets.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
-      |> Stream.map(%, (dataset) => dataset.name ?? "")
-      |> Stream.filter(%, (name) => name.length > 0)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsDatasets.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
+        |> Stream.map(%, (dataset) => dataset.name ?? "")
+        |> Stream.filter(%, (name) => name.length > 0)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtDataset = effect (dataset: string, project: string) =>
-  (Array.from(
-    try (cci.listAllFeedbackLabelsProjectsLocationsDatasets.pages({ parent: dataset, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.feedbackLabels ?? []))
-      |> Stream.filter(%, (label) => hasOwnershipMarker(label.label))
-      |> Stream.map(%, (label) => toAttrs(label, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listAllFeedbackLabelsProjectsLocationsDatasets.pages({ parent: dataset, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.feedbackLabels ?? []))
+        |> Stream.filter(%, (label) => hasOwnershipMarker(label.label))
+        |> Stream.map(%, (label) => toAttrs(label, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const DatasetsConversationsFeedbackLabelProvider = (): infer _ =>
   Provider.succeed(DatasetsConversationsFeedbackLabel, {
     stables: ["name", "feedbackLabelId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.feedbackLabelId ?? output?.feedbackLabelId
       if (
         previousId !== undefined
-        && news.feedbackLabelId !== undefined
-        && news.feedbackLabelId !== previousId
+        && resolved.feedbackLabelId !== undefined
+        && resolved.feedbackLabelId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -203,7 +210,9 @@ export const DatasetsConversationsFeedbackLabelProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.label)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.label))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -280,6 +289,6 @@ export const DatasetsConversationsFeedbackLabelProvider = (): infer _ =>
       cci
         .deleteProjectsLocationsDatasetsConversationsFeedbackLabels({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

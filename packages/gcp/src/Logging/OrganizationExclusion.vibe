@@ -163,7 +163,7 @@ const toAttrs = (exclusion: logging.LogExclusion, organization: string, project:
 const getByName = effect (name: string) =>
   logging
     .getOrganizationsExclusions({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -172,13 +172,17 @@ export const OrganizationExclusionProvider = (): infer _ =>
     stables: ["name", "exclusionId", "organization", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previous = olds?.exclusionId ?? output?.exclusionId
-      const idChanged = previous !== undefined && news.exclusionId !== undefined && news.exclusionId !== previous
+      const idChanged = previous !== undefined && resolved.exclusionId !== undefined
+        && resolved.exclusionId !== previous
       const previousOrg = olds?.organization ?? output?.organization
       const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && news.organization !== previousOrg
+        && resolved.organization !== undefined
+        && resolved.organization !== previousOrg
       if (!idChanged && !orgChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -194,25 +198,31 @@ export const OrganizationExclusionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      return (Array.from(
-        try (logging.listOrganizationsExclusions
-          .pages({
-            parent: organization,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.exclusions ?? []))
-          |> Stream.filter(%, (exclusion) => hasOwnershipMarker(exclusion.description))
-          |> Stream.map(%, (exclusion) => toAttrs(exclusion, organization, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (logging.listOrganizationsExclusions
+            .pages({
+              parent: organization,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.exclusions ?? []))
+            |> Stream.filter(%, (exclusion) => hasOwnershipMarker(exclusion.description))
+            |> Stream.map(%, (exclusion) => toAttrs(exclusion, organization, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -221,7 +231,9 @@ export const OrganizationExclusionProvider = (): infer _ =>
       const exclusionId = try toPhysicalId(id, news.exclusionId, output?.exclusionId, "e")
       const name = resourceName(organization, exclusionId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -271,7 +283,7 @@ export const OrganizationExclusionProvider = (): infer _ =>
     delete: effect ({ output }) => {
       logging
         .deleteOrganizationsExclusions({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

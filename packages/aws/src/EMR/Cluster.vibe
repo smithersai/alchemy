@@ -7,10 +7,6 @@ import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
 import { toWireSeconds } from "alchemy/Util/Duration"
 import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 export error EMRClusterOperationFailed {
@@ -343,7 +339,7 @@ export const ClusterProvider = (): infer _ =>
       const readCluster = effect (clusterId: string) => {
         const response = emr
           .describeCluster({ ClusterId: clusterId }) catch effect (e) => match (e) {
-            when { _tag: "ClusterNotFound" }: try Effect.undefined;
+            when { _tag: "ClusterNotFound" }: undefined;
             default: throw e;
           }
         const cluster = response?.Cluster
@@ -413,8 +409,11 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterId", "clusterArn", "clusterName"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          const n = news
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const n = resolved
           const o = olds
           if (n === undefined || o === undefined) return undefined
           if ((try toName(id, o)) !== (try toName(id, n))) {
@@ -480,7 +479,9 @@ export const ClusterProvider = (): infer _ =>
             : try findClusterByName(try toName(id, olds ?? {}))
           if (!cluster) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -528,11 +529,15 @@ export const ClusterProvider = (): infer _ =>
                 EbsRootVolumeSize: props.ebsRootVolumeSize,
                 CustomAmiId: props.customAmiId,
                 StepConcurrencyLevel: props.stepConcurrencyLevel,
-                AutoTerminationPolicy: props.autoTerminationPolicy
-                  ? {
-                    IdleTimeout: toWireSeconds(props.autoTerminationPolicy.idleTimeout),
-                  }
-                  : undefined,
+                AutoTerminationPolicy: try Effect.orDie(Effect.try({
+                  try: () =>
+                    props.autoTerminationPolicy
+                      ? {
+                        IdleTimeout: toWireSeconds(props.autoTerminationPolicy.idleTimeout),
+                      }
+                      : undefined,
+                  catch: (e) => e,
+                })),
                 Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
                   Key,
                   Value,
@@ -607,10 +612,15 @@ export const ClusterProvider = (): infer _ =>
           }
 
           // Auto-termination policy: observe, then put/remove the delta.
-          const observedPolicy = (try emr.getAutoTerminationPolicy({ ClusterId: clusterId })).AutoTerminationPolicy
+          const observedPolicy = (effect {
+            return (try emr.getAutoTerminationPolicy({ ClusterId: clusterId })).AutoTerminationPolicy
+          })
             catch () => undefined
           if (props.autoTerminationPolicy !== undefined) {
-            const desiredIdleTimeout = toWireSeconds(props.autoTerminationPolicy.idleTimeout)
+            const input2 = props.autoTerminationPolicy.idleTimeout
+            const desiredIdleTimeout = try Effect.orDie(
+              Effect.try({ try: () => toWireSeconds(input2), catch: (e) => e }),
+            )
             if (observedPolicy?.IdleTimeout !== desiredIdleTimeout) {
               try emr.putAutoTerminationPolicy({
                 ClusterId: clusterId,
@@ -641,7 +651,9 @@ export const ClusterProvider = (): infer _ =>
 
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const observedTags = toTagRecord(observed.Tags)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try emr.addTags({ ResourceId: clusterId, Tags: upsert })
           }
@@ -666,25 +678,30 @@ export const ClusterProvider = (): infer _ =>
               .setTerminationProtection({
                 JobFlowIds: [clusterId],
                 TerminationProtected: false,
-              }) catch effect (e) => match (e) { when { _tag: "JobFlowNotFound" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) {
+                when { _tag: "JobFlowNotFound" }: (undefined as void);
+                default: throw e;
+              }
           }
           emr
             .terminateJobFlows({ JobFlowIds: [clusterId] }) catch effect (e) => match (e) {
-              when { _tag: "JobFlowNotFound" }: try Effect.void;
+              when { _tag: "JobFlowNotFound" }: (undefined as void);
               default: throw e;
             }
           // Termination is irreversible once initiated; wait (bounded) for
           // the state to leave the active set. Full instance teardown takes
           // 5-10 more minutes server-side and needs no babysitting.
           try (effect {
-            return (try effect {
-              const response = try emr.describeCluster({ ClusterId: clusterId })
+            return (effect {
+              return (try effect {
+                const response = try emr.describeCluster({ ClusterId: clusterId })
 
-              const state = response.Cluster?.Status?.State ?? "TERMINATED"
-              return (TERMINAL_STATES.has(state) ? try Effect.void : throw new EMRClusterNotReady({
-                message: `EMR cluster '${clusterId}' still active (state: ${state})`,
-              }))
-            }) catch effect (e) => match (e) { when { _tag: "ClusterNotFound" }: try Effect.void; default: throw e; }
+                const state = response.Cluster?.Status?.State ?? "TERMINATED"
+                return (TERMINAL_STATES.has(state) ? (undefined as void) : throw new EMRClusterNotReady({
+                  message: `EMR cluster '${clusterId}' still active (state: ${state})`,
+                }))
+              })
+            }) catch effect (e) => match (e) { when { _tag: "ClusterNotFound" }: (undefined as void); default: throw e; }
           }
             |> Effect.retry(%, {
               schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(30)]),
@@ -701,14 +718,14 @@ export const ClusterProvider = (): infer _ =>
             }
               |> Effect.flatMap(
                 %,
-                Effect.forEach((clusterId) => readCluster(clusterId), {
+                Effect.forEach(effect (clusterId) => try readCluster(clusterId), {
                   concurrency: 4,
                 }),
               ))).flatMap((cluster) => (cluster === undefined ? [] : [cluster]))
           }
             |> Effect.flatMap(
               %,
-              Effect.forEach((cluster) => toAttrs(cluster), {
+              Effect.forEach(effect (cluster) => try toAttrs(cluster), {
                 concurrency: 4,
               }),
             )),

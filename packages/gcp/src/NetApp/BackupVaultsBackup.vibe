@@ -224,47 +224,64 @@ export const BackupVaultsBackupProvider = (): infer _ =>
     stables: ["name", "backupId", "backupVault", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousVolume = olds?.sourceVolume ?? output?.sourceVolume
       const previousSnapshot = olds?.sourceSnapshot ?? output?.sourceSnapshot
       const previousOntap = olds?.ontapSource ?? output?.ontapSource
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.backupId ?? output?.backupId,
-        nextId: news.backupId ?? olds?.backupId ?? output?.backupId,
+        nextId: resolved.backupId ?? olds?.backupId ?? output?.backupId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         previousParent: olds?.backupVault ?? output?.backupVault,
-        nextParent: news.backupVault,
+        nextParent: resolved.backupVault,
         extra: (previousVolume !== undefined
-          && news.sourceVolume !== undefined
-          && news.sourceVolume !== previousVolume
-          && !previousVolume.endsWith(`/${news.sourceVolume}`))
+          && resolved.sourceVolume !== undefined
+          && resolved.sourceVolume !== previousVolume
+          && !previousVolume.endsWith(`/${resolved.sourceVolume}`))
           || (previousSnapshot !== undefined
-            && news.sourceSnapshot !== undefined
-            && news.sourceSnapshot !== previousSnapshot)
+            && resolved.sourceSnapshot !== undefined
+            && resolved.sourceSnapshot !== previousSnapshot)
           || (previousOntap !== undefined
-            && news.ontapSource !== undefined
-            && fingerprint(previousOntap) !== fingerprint(news.ontapSource)),
-      })
+            && resolved.ontapSource !== undefined
+            && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, previousOntap), catch: (e) => e })))
+              !== (try Effect.orDie(Effect.try({
+                try: fingerprint.bind(undefined, resolved.ontapSource),
+                catch: (e) => e,
+              })))),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const backupId = try toPhysicalId(id, olds?.backupId, output?.backupId, "backup")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const parent = olds?.backupVault ?? output?.backupVault
       // A row whose parent never resolved (failed create) has nothing to read.
       if (output?.name === undefined && !parent) return undefined
-      const vault = expandParent(parent ?? "", env.project, location, "backupVaults")
+      const vault = try Effect.orDie(
+        Effect.try({ try: () => expandParent(parent ?? "", env.project, location, "backupVaults"), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(vault, backupId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -276,14 +293,25 @@ export const BackupVaultsBackupProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const backupId = try toPhysicalId(id, news.backupId, output?.backupId, "backup")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const vault = expandParent(news.backupVault, env.project, location, "backupVaults")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const vault = try Effect.orDie(
+        Effect.try({
+          try: () => expandParent(news.backupVault, env.project, location, "backupVaults"),
+          catch: (e) => e,
+        }),
+      )
       const name = resourceName(vault, backupId)
-      const sourceVolume = news.sourceVolume === undefined
-        ? undefined
-        : expandParent(news.sourceVolume, env.project, location, "volumes")
+      const sourceVolume = try Effect.orDie(Effect.try({
+        try: () =>
+          news.sourceVolume === undefined
+            ? undefined
+            : expandParent(news.sourceVolume, env.project, location, "volumes"),
+        catch: (e) => e,
+      }))
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -319,7 +347,9 @@ export const BackupVaultsBackupProvider = (): infer _ =>
       )
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         (current.description ?? "") !== (news.description ?? "") && "description",
@@ -347,13 +377,15 @@ export const BackupVaultsBackupProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (netapp
-        .deleteProjectsLocationsBackupVaultsBackups({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (netapp
+          .deleteProjectsLocationsBackupVaultsBackups({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

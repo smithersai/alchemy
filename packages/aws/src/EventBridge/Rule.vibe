@@ -298,11 +298,11 @@ export const RuleProvider = (): infer _ =>
   Provider.effect(
     Rule,
     effect {
-      const createRuleName = (id: string, props: { name?: string } = {}) => {
+      const createRuleName = effect (id: string, props: { name?: string } = {}) => {
         if (props.name) {
           return props.name
         }
-        return createPhysicalName({
+        return try createPhysicalName({
           id,
           maxLength: 64,
         })
@@ -317,32 +317,33 @@ export const RuleProvider = (): infer _ =>
         eventBusParam: string | undefined,
         tags: eventbridge.Tag[],
       ) => {
-        const targets = ((try eventbridge
-          .listTargetsByRule({ Rule: described.Name!, EventBusName: eventBusParam })).Targets ?? []) catch effect (
+        const targets = (effect { return ((try eventbridge
+          .listTargetsByRule({ Rule: described.Name!, EventBusName: eventBusParam })).Targets ?? []) }) catch effect (
             e,
           ) => match (e) { when { _tag: "ResourceNotFoundException" }: [] as eventbridge.Target[]; default: throw e; }
         return {
           description: described.Description || undefined,
-          eventPattern: canonicalJson(described.EventPattern),
+          eventPattern: try Effect.orDie(Effect.try({ try: () => canonicalJson(described.EventPattern), catch: (e) => e })),
           scheduleExpression: described.ScheduleExpression,
           state: described.State,
           roleArn: described.RoleArn,
           targets: [...targets].sort((a, b) => a.Id.localeCompare(b.Id)),
-          tags: tagRecord(tags),
+          tags: try Effect.orDie(Effect.try({ try: () => tagRecord(tags), catch: (e) => e })),
         }
       }
 
       return {
         stables: ["ruleName", "ruleArn", "eventBusName"],
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createRuleName(id, olds)
-          const newName = try createRuleName(id, news)
+          const newName = try createRuleName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
           const oldBus = (olds.eventBusName as string | undefined) ?? "default"
-          const newBus = (news.eventBusName as string | undefined) ?? "default"
+          const newBus = (resolved.eventBusName as string | undefined) ?? "default"
           if (oldBus !== newBus) {
             return { action: "replace" } as const
           }
@@ -359,7 +360,7 @@ export const RuleProvider = (): infer _ =>
               Name: ruleName,
               EventBusName: eventBusName !== "default" ? eventBusName : undefined,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -382,7 +383,7 @@ export const RuleProvider = (): infer _ =>
               Tags ?? [],
             ),
           }
-          return (try hasAlchemyTags(id, Tags ?? [])) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, Tags ?? [])) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         list: effect () => {
           const { accountId, region } = try AWSEnvironment.current
@@ -489,7 +490,7 @@ export const RuleProvider = (): infer _ =>
             ScheduleExpression: news.scheduleExpression,
             State: news.state ?? "ENABLED",
             RoleArn: news.roleArn as string | undefined,
-            Tags: createTagsList(desiredTags),
+            Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
           })
           const ruleArn = (RuleArn as RuleArn | undefined)
             ?? toRuleArn(region, accountId, eventBusName, ruleName)
@@ -499,11 +500,11 @@ export const RuleProvider = (): infer _ =>
           // and `putTargets` overwrites/upserts the rest.
           const resolvedTargets = (news.targets as Input.Resolve<RuleTarget>[] | undefined) ?? []
           const desiredTargetIds = new Set(resolvedTargets.map((t) => t.Id))
-          const observedTargets = ((try eventbridge
+          const observedTargets = (effect { return ((try eventbridge
             .listTargetsByRule({
               Rule: ruleName,
               EventBusName: eventBusParam,
-            })).Targets ?? []) catch effect (e) => match (e) {
+            })).Targets ?? []) }) catch effect (e) => match (e) {
               when { _tag: "ResourceNotFoundException" }: [] as eventbridge.Target[];
               default: throw e;
             }
@@ -518,7 +519,7 @@ export const RuleProvider = (): infer _ =>
                 EventBusName: eventBusParam,
                 Ids: removedTargetIds,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
 
@@ -548,7 +549,7 @@ export const RuleProvider = (): infer _ =>
               observedTags[tag.Key] = tag.Value
             }
           }
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
 
           if (removed.length > 0) {
             try eventbridge.untagResource({
@@ -576,7 +577,7 @@ export const RuleProvider = (): infer _ =>
             configuration: try observeRuleConfiguration(
               described,
               eventBusParam,
-              createTagsList(desiredTags),
+              try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
             ),
           }
         },
@@ -601,7 +602,7 @@ export const RuleProvider = (): infer _ =>
                 EventBusName: eventBusParam,
                 Ids: Targets.map((t) => t.Id),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
             if (response) {
@@ -614,7 +615,7 @@ export const RuleProvider = (): infer _ =>
               Name: ruleName,
               EventBusName: eventBusParam,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

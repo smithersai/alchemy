@@ -615,19 +615,22 @@ export const InstanceProvider = (): infer _ =>
     stables: ["instanceName", "instanceId", "project", "zone", "selfLink", "creationTimestamp"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousZone = olds?.zone ?? output?.zone ?? DEFAULT_ZONE
-      const nextZone = news.zone ?? DEFAULT_ZONE
+      const nextZone = resolved.zone ?? DEFAULT_ZONE
       if (lastSegment(previousZone) !== lastSegment(nextZone)) {
         return { action: "replace" as const }
       }
       const previousName = olds?.instanceName ?? output?.instanceName
-      const nextName = news.instanceName ?? previousName
+      const nextName = resolved.instanceName ?? previousName
       if (previousName !== undefined && nextName !== undefined && previousName !== nextName) {
         return { action: "replace" as const, deleteFirst: true }
       }
       const previousType = lastSegment(olds?.machineType ?? DEFAULT_MACHINE_TYPE)
-      const nextType = lastSegment(news.machineType ?? DEFAULT_MACHINE_TYPE)
+      const nextType = lastSegment(resolved.machineType ?? DEFAULT_MACHINE_TYPE)
       if (olds !== undefined && previousType !== nextType) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -636,33 +639,37 @@ export const InstanceProvider = (): infer _ =>
       // When the previous props never declared them, diff against the
       // observed VM instead so spelling out what already runs is a no-op.
       const serviceAccountChanged = olds?.serviceAccount !== undefined
-        ? olds.serviceAccount !== (news.serviceAccount ?? "")
-        : news.serviceAccount !== undefined
-          && !sameServiceAccount(output?.serviceAccount, news.serviceAccount)
+        ? olds.serviceAccount !== (resolved.serviceAccount ?? "")
+        : resolved.serviceAccount !== undefined
+          && !sameServiceAccount(output?.serviceAccount, resolved.serviceAccount)
       const oauthScopesChanged = olds?.oauthScopes !== undefined
-        ? !sameTags(olds.oauthScopes, news.oauthScopes ?? [])
-        : news.oauthScopes !== undefined
-          && !sameTags(output?.oauthScopes ?? [], news.oauthScopes)
-      const shieldedChanged = olds?.shieldedInstanceConfig !== undefined
-        ? !deepEqual(olds.shieldedInstanceConfig, news.shieldedInstanceConfig ?? {}, {
-          stripNullish: true,
-        })
-        : news.shieldedInstanceConfig !== undefined
-          && !matchesDesired(output?.shieldedInstanceConfig, news.shieldedInstanceConfig)
+        ? !sameTags(olds.oauthScopes, resolved.oauthScopes ?? [])
+        : resolved.oauthScopes !== undefined
+          && !sameTags(output?.oauthScopes ?? [], resolved.oauthScopes)
+      const shieldedChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          olds?.shieldedInstanceConfig !== undefined
+            ? !deepEqual(olds.shieldedInstanceConfig, resolved.shieldedInstanceConfig ?? {}, {
+              stripNullish: true,
+            })
+            : resolved.shieldedInstanceConfig !== undefined
+              && !matchesDesired(output?.shieldedInstanceConfig, resolved.shieldedInstanceConfig),
+        catch: (e) => e,
+      }))
       // Boot disk, NIC network, and IP forwarding are fixed at create (or
       // need a stopped VM), so changing them replaces the instance.
       const creationSettingChanged = olds !== undefined
         && ((olds.sourceImage ?? DEFAULT_SOURCE_IMAGE)
-            !== (news.sourceImage ?? DEFAULT_SOURCE_IMAGE)
-          || (olds.diskSizeGb ?? DEFAULT_DISK_SIZE_GB) !== (news.diskSizeGb ?? DEFAULT_DISK_SIZE_GB)
+            !== (resolved.sourceImage ?? DEFAULT_SOURCE_IMAGE)
+          || (olds.diskSizeGb ?? DEFAULT_DISK_SIZE_GB) !== (resolved.diskSizeGb ?? DEFAULT_DISK_SIZE_GB)
           || lastSegment(olds.bootDiskType ?? DEFAULT_BOOT_DISK_TYPE)
-            !== lastSegment(news.bootDiskType ?? DEFAULT_BOOT_DISK_TYPE)
+            !== lastSegment(resolved.bootDiskType ?? DEFAULT_BOOT_DISK_TYPE)
           || lastSegment(olds.network ?? DEFAULT_NETWORK)
-            !== lastSegment(news.network ?? DEFAULT_NETWORK)
-          || lastSegment(olds.subnetwork) !== lastSegment(news.subnetwork)
-          || (olds.canIpForward === true) !== (news.canIpForward === true)
-          || (olds.preemptible === true) !== (news.preemptible === true)
-          || (olds.provisioningModel ?? "STANDARD") !== (news.provisioningModel ?? "STANDARD"))
+            !== lastSegment(resolved.network ?? DEFAULT_NETWORK)
+          || lastSegment(olds.subnetwork) !== lastSegment(resolved.subnetwork)
+          || (olds.canIpForward === true) !== (resolved.canIpForward === true)
+          || (olds.preemptible === true) !== (resolved.preemptible === true)
+          || (olds.provisioningModel ?? "STANDARD") !== (resolved.provisioningModel ?? "STANDARD"))
       if (
         creationSettingChanged
         || serviceAccountChanged
@@ -681,7 +688,12 @@ export const InstanceProvider = (): infer _ =>
       const existing = try getByName(env.project, zone, instanceName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -706,7 +718,7 @@ export const InstanceProvider = (): infer _ =>
       const zone = lastSegment(news.zone ?? output?.zone ?? DEFAULT_ZONE)
       const instanceName = try toName(id, news.instanceName, output?.instanceName)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -741,7 +753,9 @@ export const InstanceProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       if (upsert.length > 0 || removed.length > 0) {
         try applyZoneOp(
           env.project,
@@ -894,7 +908,11 @@ export const InstanceProvider = (): infer _ =>
       }
 
       const scheduling = desiredScheduling(news)
-      if (!matchesDesired(current.scheduling, scheduling)) {
+      if (
+        !(try Effect.orDie(
+          Effect.try({ try: matchesDesired.bind(undefined, current.scheduling, scheduling), catch: (e) => e }),
+        ))
+      ) {
         try applyZoneOp(
           env.project,
           zone,
@@ -949,23 +967,25 @@ export const InstanceProvider = (): infer _ =>
           }),
         ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       }
-      ;(try (applyZoneOp(
-        env.project,
-        zone,
-        compute.deleteInstances({
-          project: env.project,
+      ;(effect {
+        return (try (applyZoneOp(
+          env.project,
           zone,
-          instance,
-        }),
-        { ignore: ["RESOURCE_NOT_FOUND"] },
-      )
-        |> Effect.retry(%, {
-          while: (error) =>
-            error._tag === "Conflict"
-            || (error._tag === "GCP.OperationFailed" && error.reason === "RESOURCE_NOT_READY"),
-          times: 8,
-          schedule: Schedule.spaced("3 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+          compute.deleteInstances({
+            project: env.project,
+            zone,
+            instance,
+          }),
+          { ignore: ["RESOURCE_NOT_FOUND"] },
+        )
+          |> Effect.retry(%, {
+            while: (error) =>
+              error._tag === "Conflict"
+              || (error._tag === "GCP.OperationFailed" && error.reason === "RESOURCE_NOT_READY"),
+            times: 8,
+            schedule: Schedule.spaced("3 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(env.project, zone, instance)
     },
   })

@@ -324,7 +324,9 @@ const getByName = effect (name: string) =>
 const listOwned = effect (organization: string) =>
   (try collectPages(
     networkmanagement.listOrganizationsLocationsVpcFlowLogsConfigs.pages({
-      parent: organizationParent(organization, DEFAULT_GLOBAL),
+      parent: try Effect.orDie(
+        Effect.try({ try: () => organizationParent(organization, DEFAULT_GLOBAL), catch: (e) => e }),
+      ),
       pageSize: 1000,
     }),
     (page) => page.vpcFlowLogsConfigs,
@@ -335,21 +337,36 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
     stables: ["name", "vpcFlowLogsConfigId", "organization", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.vpcFlowLogsConfigId ?? output?.vpcFlowLogsConfigId
-      const nextId = news.vpcFlowLogsConfigId
-        ? rfc1035(news.vpcFlowLogsConfigId, "vpc-flow-logs")
-        : previousId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.vpcFlowLogsConfigId
+            ? rfc1035(resolved.vpcFlowLogsConfigId, "vpc-flow-logs")
+            : previousId,
+        catch: (e) => e,
+      }))
       const previousOrg = olds?.organization ?? output?.organization
-      const nextOrg = news.organization ?? previousOrg
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
+      const nextOrg = resolved.organization ?? previousOrg
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const previousTarget = targetKey({
         network: olds?.network ?? output?.network,
         subnet: olds?.subnet ?? output?.subnet,
@@ -357,10 +374,10 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
         vpnTunnel: olds?.vpnTunnel ?? output?.vpnTunnel,
       })
       const nextTarget = targetKey({
-        network: news.network,
-        subnet: news.subnet,
-        interconnectAttachment: news.interconnectAttachment,
-        vpnTunnel: news.vpnTunnel,
+        network: resolved.network,
+        subnet: resolved.subnet,
+        interconnectAttachment: resolved.interconnectAttachment,
+        vpnTunnel: resolved.vpnTunnel,
       })
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
@@ -387,14 +404,24 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
         when { _tag: "GCP.NetworkManagement.OrganizationRequired" }: output?.organization ?? "";
         default: throw e;
       }
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = output?.name
         ?? (organization.length > 0 ? resourceName(organization, location, vpcFlowLogsConfigId) : "")
       if (name.length === 0) return undefined
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -419,10 +446,15 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
         news.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = resourceName(organization, location, vpcFlowLogsConfigId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const target = toTarget(env.project, env.region, news)
@@ -438,28 +470,32 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkmanagement
-          .createOrganizationsLocationsVpcFlowLogsConfigs({
-            parent: organizationParent(organization, location),
-            vpcFlowLogsConfigId,
-            body: {
-              description: news.description,
-              labels: desiredLabels,
-              state: createState,
-              aggregationInterval,
-              flowSampling,
-              metadata,
-              metadataFields: metadataFields.length > 0 ? metadataFields : undefined,
-              filterExpr,
-              crossProjectMetadata,
-              ...target,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkmanagement
+            .createOrganizationsLocationsVpcFlowLogsConfigs({
+              parent: try Effect.orDie(
+                Effect.try({ try: () => organizationParent(organization, location), catch: (e) => e }),
+              ),
+              vpcFlowLogsConfigId,
+              body: {
+                description: news.description,
+                labels: desiredLabels,
+                state: createState,
+                aggregationInterval,
+                flowSampling,
+                metadata,
+                metadataFields: metadataFields.length > 0 ? metadataFields : undefined,
+                filterExpr,
+                crossProjectMetadata,
+                ...target,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -467,7 +503,9 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const stateChanged = (current.state ?? DEFAULT_STATE) !== state
@@ -478,17 +516,21 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
       const filterChanged = (current.filterExpr ?? "") !== (filterExpr ?? "")
       const crossProjectChanged = (current.crossProjectMetadata ?? DEFAULT_CROSS_PROJECT) !== crossProjectMetadata
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["state", stateChanged],
-        ["aggregationInterval", intervalChanged],
-        ["flowSampling", samplingChanged],
-        ["metadata", metadataChanged],
-        ["metadataFields", metadataFieldsChanged],
-        ["filterExpr", filterChanged],
-        ["crossProjectMetadata", crossProjectChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["state", stateChanged],
+            ["aggregationInterval", intervalChanged],
+            ["flowSampling", samplingChanged],
+            ["metadata", metadataChanged],
+            ["metadataFields", metadataFieldsChanged],
+            ["filterExpr", filterChanged],
+            ["crossProjectMetadata", crossProjectChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkmanagement.patchOrganizationsLocationsVpcFlowLogsConfigs({
@@ -515,13 +557,15 @@ export const OrganizationsVpcFlowLogsConfigProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkmanagement
-        .deleteOrganizationsLocationsVpcFlowLogsConfigs({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkmanagement
+          .deleteOrganizationsLocationsVpcFlowLogsConfigs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

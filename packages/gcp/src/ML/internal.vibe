@@ -222,12 +222,22 @@ export const ownedByAlchemy = effect (id: string, text: string | undefined) => {
 }
 
 export const modelOwnedByAlchemy = effect (id: string, model: ml.GoogleCloudMlV1__Model) => {
-  if (try hasAlchemyLabels(id, tagRecord(model.labels))) return true
+  if (
+    try hasAlchemyLabels(
+      id,
+      try Effect.orDie(Effect.try({ try: () => tagRecord(model.labels), catch: (e) => e })),
+    )
+  ) return true
   return try ownedByAlchemy(id, model.description)
 }
 
 export const versionOwnedByAlchemy = effect (id: string, version: ml.GoogleCloudMlV1__Version) => {
-  if (try hasAlchemyLabels(id, tagRecord(version.labels))) return true
+  if (
+    try hasAlchemyLabels(
+      id,
+      try Effect.orDie(Effect.try({ try: () => tagRecord(version.labels), catch: (e) => e })),
+    )
+  ) return true
   return try ownedByAlchemy(id, version.description)
 }
 
@@ -266,29 +276,31 @@ export const replaceOnIdentity = (input: {
 export const getModel = effect (
   name: string,
 ) => (name.length === 0
-  ? try Effect.undefined
+  ? undefined
   : ml.getProjectsModels({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
-export const getVersion = effect (name: string) => (name.length === 0 ? try Effect.undefined : ml
+export const getVersion = effect (name: string) => (name.length === 0 ? undefined : ml
   .getProjectsModelsVersions({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const emptyList = effect <A>() => [] as A[]
 
 export const listModels = effect (project: string) =>
-  (Array.from(
-    try (ml.listProjectsModels
-      .pages({
-        parent: projectParent(project),
-        pageSize: 100,
-      })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.models ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (ml.listProjectsModels
+        .pages({
+          parent: projectParent(project),
+          pageSize: 100,
+        })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.models ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: try emptyList<ml.GoogleCloudMlV1__Model>();
     default: throw e;
   }
@@ -297,14 +309,16 @@ export const listVersions = effect (
   parent: string,
 ) => (parent.length === 0
   ? try emptyList<ml.GoogleCloudMlV1__Version>()
-  : (Array.from(
-    try (ml.listProjectsModelsVersions
-      .pages({
-        parent,
-        pageSize: 100,
-      })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.versions ?? [])) catch effect (e) => match (e) {
+  : (effect {
+    return (Array.from(
+      try (ml.listProjectsModelsVersions
+        .pages({
+          parent,
+          pageSize: 100,
+        })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.versions ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: try emptyList<ml.GoogleCloudMlV1__Version>();
     default: throw e;
   })
@@ -355,7 +369,7 @@ export const waitUntilExists = effect <A, R>(
 
 export const waitUntilVersionReady = effect (
   name: string,
-): ml.GoogleCloudMlV1__Version!ml.Forbidden | ml.GcpOpError | ResourceNotResolved | VersionFailed | VersionNotReady!ml.GcpOpContext =>
+): ml.GoogleCloudMlV1__Version!(ml.Forbidden | ml.GcpOpError | ResourceNotResolved | VersionFailed | VersionNotReady)!ml.GcpOpContext =>
   try (effect {
     return try effect {
       const version = try (getVersion(name)

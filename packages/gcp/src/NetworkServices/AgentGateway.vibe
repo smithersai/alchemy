@@ -276,17 +276,30 @@ export const AgentGatewayProvider = (): infer _ =>
     stables: ["name", "agentGatewayId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.agentGatewayId ?? output?.agentGatewayId
-      const nextId = news.agentGatewayId
-        ? rfc1035(news.agentGatewayId, "agent-gateway")
-        : previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.agentGatewayId
+            ? rfc1035(resolved.agentGatewayId, "agent-gateway")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -304,19 +317,29 @@ export const AgentGatewayProvider = (): infer _ =>
         output?.agentGatewayId,
         "agent-gateway",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, agentGatewayId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, agentGatewayId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networkservices.listProjectsLocationsAgentGateways.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
           returnPartialSuccess: true,
         }),
@@ -335,10 +358,14 @@ export const AgentGatewayProvider = (): infer _ =>
         output?.agentGatewayId,
         "agent-gateway",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const name = resourceName(env.project, location, COLLECTION, agentGatewayId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, agentGatewayId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredGoogle = toGoogleManaged(news.googleManaged)
@@ -350,25 +377,27 @@ export const AgentGatewayProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkservices
-          .createProjectsLocationsAgentGateways({
-            parent: parentOf(env.project, location),
-            agentGatewayId,
-            body: {
-              labels: desiredLabels,
-              description: news.description,
-              googleManaged: desiredGoogle,
-              selfManaged: desiredSelf,
-              registries: desiredRegistries,
-              protocols: desiredProtocols,
-              networkConfig: desiredNetwork,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkservices
+            .createProjectsLocationsAgentGateways({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              agentGatewayId,
+              body: {
+                labels: desiredLabels,
+                description: news.description,
+                googleManaged: desiredGoogle,
+                selfManaged: desiredSelf,
+                registries: desiredRegistries,
+                protocols: desiredProtocols,
+                networkConfig: desiredNetwork,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -376,24 +405,39 @@ export const AgentGatewayProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
-      const googleChanged = !sameJson(toGoogleManaged(current.googleManaged), desiredGoogle)
-      const selfChanged = !sameJson(toSelfManaged(current.selfManaged), desiredSelf)
+      const left = toGoogleManaged(current.googleManaged)
+      const googleChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left, desiredGoogle),
+        catch: (e) => e,
+      })))
+      const left2 = toSelfManaged(current.selfManaged)
+      const selfChanged = !(try Effect.orDie(Effect.try({ try: () => sameJson(left2, desiredSelf), catch: (e) => e })))
       const registriesChanged = !sameStringList(current.registries, desiredRegistries)
       const protocolsChanged = !sameStringList(current.protocols, desiredProtocols)
-      const networkChanged = !sameJson(toNetworkConfig(current.networkConfig), desiredNetwork)
+      const left3 = toNetworkConfig(current.networkConfig)
+      const networkChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left3, desiredNetwork),
+        catch: (e) => e,
+      })))
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["googleManaged", googleChanged],
-        ["selfManaged", selfChanged],
-        ["registries", registriesChanged],
-        ["protocols", protocolsChanged],
-        ["networkConfig", networkChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["googleManaged", googleChanged],
+            ["selfManaged", selfChanged],
+            ["registries", registriesChanged],
+            ["protocols", protocolsChanged],
+            ["networkConfig", networkChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkservices.patchProjectsLocationsAgentGateways({
@@ -419,16 +463,18 @@ export const AgentGatewayProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkservices
-        .deleteProjectsLocationsAgentGateways({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkservices
+          .deleteProjectsLocationsAgentGateways({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

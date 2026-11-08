@@ -16,7 +16,6 @@ import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
 import { alchemyMetadataKeys } from "./Metadata.vibe"
 import { isMissingStripeResource } from "./missing.ts"
 import type { Providers } from "./Providers.vibe"
@@ -135,10 +134,10 @@ const isMissing = isMissingStripeResource
 const getById = effect (id: string, customer?: string) => {
   if (customer !== undefined) {
     return try (GetCustomerTaxIdsById({ customer, id })
-      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+      |> Effect.catchIf(%, isMissing, effect () => undefined))
   }
   return try (GetTaxIdsById({ id })
-    |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissing, effect () => undefined))
 }
 
 const listTaxIds = effect (customer: string) => {
@@ -150,7 +149,7 @@ const listTaxIds = effect (customer: string) => {
       limit: LIST_PAGE_SIZE,
       ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
     })
-      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+      |> Effect.catchIf(%, isMissing, effect () => undefined))
     if (response === undefined) {
       break
     }
@@ -242,8 +241,9 @@ export const CustomerTaxIdProvider = (): infer _ =>
     nuke: { dependsOn: ["Stripe.Customer"] },
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -292,9 +292,9 @@ export const CustomerTaxIdProvider = (): infer _ =>
           type: news.type,
           value: news.value,
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-customer-tax-id-${instanceId}`,
-          })(%)
+          }), catch: (e) => e })))(%)
           |> Effect.catchIf(%, (e) =>
             e._tag === "InvalidRequestError" || e._tag === "Conflict", effect (e) =>
             try effect {
@@ -316,6 +316,6 @@ export const CustomerTaxIdProvider = (): infer _ =>
         id: output.id,
       })
         |> Effect.catchIf(%, isMissing, effect () =>
-          try Effect.void))
+          (undefined as void)))
     },
   })

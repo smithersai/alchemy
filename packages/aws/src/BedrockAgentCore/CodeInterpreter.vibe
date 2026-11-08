@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -133,7 +134,7 @@ export const CodeInterpreterProvider = (): infer _ =>
       const getLiveOrUndefined = effect (codeInterpreterId: string) => {
         const found = control
           .getCodeInterpreter({ codeInterpreterId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return found === undefined || found.status === "DELETED" || found.status === "DELETING"
@@ -168,7 +169,7 @@ export const CodeInterpreterProvider = (): infer _ =>
             .filter((s) => s.status !== "DELETED" && s.status !== "DELETING")
           const hydrated = try Effect.forEach(
             summaries,
-            (s) => getLiveOrUndefined(s.codeInterpreterId),
+            effect (s) => try getLiveOrUndefined(s.codeInterpreterId),
             { concurrency: 5 },
           )
           return hydrated.filter((c) => c !== undefined).map(toAttributes)
@@ -181,12 +182,15 @@ export const CodeInterpreterProvider = (): infer _ =>
           if (ci === undefined) return undefined
           const attrs = toAttributes(ci)
           const tags = try readAgentCoreTags(ci.codeInterpreterArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Everything except tags is create-only — any change replaces.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldProps = olds ?? ({} as CodeInterpreterProps)
           const newProps = news ?? ({} as CodeInterpreterProps)
           const oldName = try createName(id, oldProps)
@@ -219,20 +223,22 @@ export const CodeInterpreterProvider = (): infer _ =>
           // 2. ENSURE — creation is synchronous (READY on return); tolerate
           // the name-exists race and transient IAM propagation.
           if (ci === undefined) {
-            const created = (try (control
-              .createCodeInterpreter({
-                name,
-                description: props.description,
-                executionRoleArn: props.executionRoleArn,
-                networkConfiguration: props.networkConfiguration ?? {
-                  networkMode: "SANDBOX",
-                },
-                tags: desiredTags,
-              })
-              |> retryWhileValidation(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try (control
+                .createCodeInterpreter({
+                  name,
+                  description: props.description,
+                  executionRoleArn: props.executionRoleArn,
+                  networkConfiguration: props.networkConfiguration ?? {
+                    networkMode: "SANDBOX",
+                  },
+                  tags: desiredTags,
+                })
+                |> retryWhileValidation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             ci = created === undefined
               ? try findByName(name)
               : try getLiveOrUndefined(created.codeInterpreterId)
@@ -257,24 +263,28 @@ export const CodeInterpreterProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (control
-            .deleteCodeInterpreter({
-              codeInterpreterId: output.codeInterpreterId,
-            })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (control
+              .deleteCodeInterpreter({
+                codeInterpreterId: output.codeInterpreterId,
+              })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           // Deletion completes quickly (soft-delete to DELETED); wait until
           // it is out of the live set so a re-create of the same name works.
           try (effect {
-            return ((try control
-              .getCodeInterpreter({
-                codeInterpreterId: output.codeInterpreterId,
-              })).status as string) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: "DELETED" as string;
-                default: throw e;
-              }
+            return (effect {
+              return ((try control
+                .getCodeInterpreter({
+                  codeInterpreterId: output.codeInterpreterId,
+                })).status as string)
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: "DELETED" as string;
+              default: throw e;
+            }
           }
             |> Effect.repeat(%, {
               schedule: Schedule.fixed("3 seconds"),

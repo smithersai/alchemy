@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as efs from "@distilled.cloud/aws/efs"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -96,18 +99,28 @@ export const MountTarget = Resource<MountTarget>("AWS.EFS.MountTarget")
  * Internal marker error used to drive the bounded wait for a mount target to
  * reach the `available` lifecycle state.
  */
-export error MountTargetNotAvailable {
-  mutable mountTargetId: string
-  mutable state: string
+export class MountTargetNotAvailable extends $MutableErrorBase("MountTargetNotAvailable")<{
+  mountTargetId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "MountTargetNotAvailable", true)
+  }
 }
 
 /**
  * Internal marker error used to drive the bounded wait for a mount target to
  * disappear after deletion (its ENI releases asynchronously).
  */
-export error MountTargetStillDeleting {
-  mutable mountTargetId: string
-  mutable state: string
+export class MountTargetStillDeleting extends $MutableErrorBase("MountTargetStillDeleting")<{
+  mountTargetId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "MountTargetStillDeleting", true)
+  }
 }
 
 /**
@@ -117,7 +130,7 @@ export error MountTargetStillDeleting {
  */
 const retryUntilMountTargetAvailable = effect <E extends { _tag: string }, R>(
   self: efs.MountTargetDescription!E!R,
-): efs.MountTargetDescription!E | MountTargetNotAvailable!R =>
+): efs.MountTargetDescription!(E | MountTargetNotAvailable)!R =>
   try Effect.retry(
     Effect.flatMap(self, effect (mt) => (mt.LifeCycleState === "available" ? mt : throw new MountTargetNotAvailable({
       mountTargetId: mt.MountTargetId,
@@ -160,15 +173,19 @@ export const MountTargetProvider = (): infer _ =>
     MountTarget,
     effect {
       const findById = effect (mountTargetId: string) =>
-        ((try efs.describeMountTargets({ MountTargetId: mountTargetId })).MountTargets?.[0]) catch effect (e) => match (e) {
-          when { _tag: "MountTargetNotFound" }: try Effect.undefined;
+        (effect {
+          return ((try efs.describeMountTargets({ MountTargetId: mountTargetId })).MountTargets?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "MountTargetNotFound" }: undefined;
           default: throw e;
         }
 
       const findBySubnet = effect (fileSystemId: string, subnetId: string) =>
-        ((try efs.describeMountTargets({ FileSystemId: fileSystemId })).MountTargets?.find((mt) =>
-          mt.SubnetId === subnetId
-        )) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: try Effect.undefined; default: throw e; }
+        (effect {
+          return ((try efs.describeMountTargets({ FileSystemId: fileSystemId })).MountTargets?.find((mt) =>
+            mt.SubnetId === subnetId
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: undefined; default: throw e; }
 
       const toAttributes = (mt: efs.MountTargetDescription): infer _ => ({
         mountTargetId: mt.MountTargetId,
@@ -193,12 +210,14 @@ export const MountTargetProvider = (): infer _ =>
           const perSystem = try Effect.forEach(
             systems,
             effect (fs) =>
-              (((try efs.describeMountTargets({ FileSystemId: fs.FileSystemId })).MountTargets ?? [])
-                .filter((mt) => mt.LifeCycleState !== "deleted")
-                .map(toAttributes)) catch effect (e) => match (e) {
-                  when { _tag: "FileSystemNotFound" }: [];
-                  default: throw e;
-                },
+              (effect {
+                return (((try efs.describeMountTargets({ FileSystemId: fs.FileSystemId })).MountTargets ?? [])
+                  .filter((mt) => mt.LifeCycleState !== "deleted")
+                  .map(toAttributes))
+              }) catch effect (e) => match (e) {
+                when { _tag: "FileSystemNotFound" }: [];
+                default: throw e;
+              },
             { concurrency: 5 },
           )
           return perSystem.flat()
@@ -219,8 +238,12 @@ export const MountTargetProvider = (): infer _ =>
           return toAttributes(mt)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news) || olds === undefined) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))
+            || olds === undefined
+          ) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.fileSystemId !== olds.fileSystemId
             || news.subnetId !== olds.subnetId
@@ -309,25 +332,27 @@ export const MountTargetProvider = (): infer _ =>
         delete: effect ({ output, session }) => {
           efs
             .deleteMountTarget({ MountTargetId: output.mountTargetId }) catch effect (e) => match (e) {
-              when { _tag: "MountTargetNotFound" }: try Effect.void;
+              when { _tag: "MountTargetNotFound" }: (undefined as void);
               default: throw e;
             }
 
           try session.note(`waiting for ${output.mountTargetId} to be deleted`)
           try retryUntilMountTargetGone(
             effect {
-              return (try effect {
-                const r = try efs.describeMountTargets({ MountTargetId: output.mountTargetId })
+              return (effect {
+                return (try effect {
+                  const r = try efs.describeMountTargets({ MountTargetId: output.mountTargetId })
 
-                const state = r.MountTargets?.[0]?.LifeCycleState
-                return (state === undefined || state === "deleted"
-                  ? try Effect.void
-                  : throw new MountTargetStillDeleting({
-                    mountTargetId: output.mountTargetId,
-                    state,
-                  }))
+                  const state = r.MountTargets?.[0]?.LifeCycleState
+                  return (state === undefined || state === "deleted"
+                    ? (undefined as void)
+                    : throw new MountTargetStillDeleting({
+                      mountTargetId: output.mountTargetId,
+                      state,
+                    }))
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "MountTargetNotFound" }: try Effect.void;
+                when { _tag: "MountTargetNotFound" }: (undefined as void);
                 default: throw e;
               }
             },

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
 import * as ecs from "@distilled.cloud/aws/ecs"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -473,10 +474,12 @@ export const TaskDefinitionProvider = (): infer _ =>
         )
 
       const describeLatestActive = effect (taskDefinition: string) =>
-        (try effect {
-          const described = try ecs.describeTaskDefinition({ taskDefinition })
-          return described.taskDefinition?.status === "ACTIVE" ? described.taskDefinition : undefined
-        }) catch effect (e) => match (e) { when { _tag: "ClientException" }: try Effect.undefined; default: throw e; }
+        (effect {
+          return (try effect {
+            const described = try ecs.describeTaskDefinition({ taskDefinition })
+            return described.taskDefinition?.status === "ACTIVE" ? described.taskDefinition : undefined
+          })
+        }) catch effect (e) => match (e) { when { _tag: "ClientException" }: undefined; default: throw e; }
 
       const attrsOf = (
         td: ecs.TaskDefinition,
@@ -534,46 +537,53 @@ export const TaskDefinitionProvider = (): infer _ =>
       ])
 
       const waitUntilRevisionDeregistered = effect (taskDefinitionArn: string) => {
-        ;(try (effect {
-          return try effect {
-            const { taskDefinition } = try ecs.describeTaskDefinition({ taskDefinition: taskDefinitionArn })
-            return (taskDefinition?.status !== "ACTIVE"
-              ? try Effect.void
-              : throw new TaskDefinitionRevisionNotTerminal({
-                taskDefinitionArn,
-                status: taskDefinition.status,
-              }))
+        ;(effect {
+          return (try (effect {
+            return try effect {
+              const { taskDefinition } = try ecs.describeTaskDefinition({ taskDefinition: taskDefinitionArn })
+              return (taskDefinition?.status !== "ACTIVE"
+                ? (undefined as void)
+                : throw new TaskDefinitionRevisionNotTerminal({
+                  taskDefinitionArn,
+                  status: taskDefinition.status,
+                }))
+            }
           }
-        }
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "TaskDefinitionRevisionNotTerminal",
-            schedule: deletionObservationSchedule,
-          }))) catch effect (e) => match (e) { when { _tag: "ClientException" }: try Effect.void; default: throw e; }
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "TaskDefinitionRevisionNotTerminal",
+              schedule: deletionObservationSchedule,
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "ClientException" }: (undefined as void); default: throw e; }
       }
 
       const waitUntilRevisionDeletionStarted = effect (taskDefinitionArn: string) => {
-        ;(try (effect {
-          return try effect {
-            const { taskDefinition } = try ecs.describeTaskDefinition({ taskDefinition: taskDefinitionArn })
-            return (taskDefinition?.status === "DELETE_IN_PROGRESS"
-              ? try Effect.void
-              : throw new TaskDefinitionRevisionNotTerminal({
-                taskDefinitionArn,
-                status: taskDefinition?.status,
-              }))
+        ;(effect {
+          return (try (effect {
+            return try effect {
+              const { taskDefinition } = try ecs.describeTaskDefinition({ taskDefinition: taskDefinitionArn })
+              return (taskDefinition?.status === "DELETE_IN_PROGRESS"
+                ? (undefined as void)
+                : throw new TaskDefinitionRevisionNotTerminal({
+                  taskDefinitionArn,
+                  status: taskDefinition?.status,
+                }))
+            }
           }
-        }
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "TaskDefinitionRevisionNotTerminal",
-            schedule: deletionObservationSchedule,
-          }))) catch effect (e) => match (e) { when { _tag: "ClientException" }: try Effect.void; default: throw e; }
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "TaskDefinitionRevisionNotTerminal",
+              schedule: deletionObservationSchedule,
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "ClientException" }: (undefined as void); default: throw e; }
       }
 
       return {
         stables: ["family"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toFamily(id, olds ?? {})) !== (try toFamily(id, news ?? {}))) {
+          const resolved_____ = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved_____ === undefined) return
+          if ((try toFamily(id, olds ?? {})) !== (try toFamily(id, resolved_____ ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -591,7 +601,9 @@ export const TaskDefinitionProvider = (): infer _ =>
             return undefined
           }
           const tags = try observedTagsOf(td.taskDefinitionArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, olds, output, session }) => {
           const { accountId, region } = try AWSEnvironment.current
@@ -609,7 +621,7 @@ export const TaskDefinitionProvider = (): infer _ =>
           if (output?.logGroupName && output.logGroupName !== logGroupName) {
             logs
               .deleteLogGroup({ logGroupName: output.logGroupName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -617,7 +629,7 @@ export const TaskDefinitionProvider = (): infer _ =>
           if (logGroupName !== undefined) {
             logs
               .createLogGroup({ logGroupName, tags: desiredTags }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
             logGroup = {
@@ -635,14 +647,20 @@ export const TaskDefinitionProvider = (): infer _ =>
           // the previous desired state (removal falls back to an AWS default
           // that the projection comparison intentionally ignores).
           const removedProps = olds !== undefined
-            && !deepEqual(canonicalize(desiredRequestOf(family, olds, region)), canonicalize(desired))
+            && !(try Effect.orDie(Effect.try({
+              try: () => deepEqual(canonicalize(desiredRequestOf(family, olds, region)), canonicalize(desired)),
+              catch: (error) => error,
+            })))
           const upToDate = observed !== undefined && !removedProps && matchesObserved(desired, observed)
 
           if (upToDate) {
             // No-op redeploy — reuse the observed revision; converge tags.
             const revisionArn = observed.taskDefinitionArn!
             const observedTags = try observedTagsOf(revisionArn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({
+              try: () => diffTags(observedTags, desiredTags),
+              catch: (e) => e,
+            }))
             if (upsert.length > 0) {
               try ecs.tagResource({
                 resourceArn: revisionArn,
@@ -701,11 +719,13 @@ export const TaskDefinitionProvider = (): infer _ =>
           const rows = try Effect.forEach(
             [...latest.values()],
             effect ({ arn }) =>
-              (try effect {
-                const described = try ecs.describeTaskDefinition({ taskDefinition: arn })
-                return described.taskDefinition ? attrsOf(described.taskDefinition) : undefined
+              (effect {
+                return (try effect {
+                  const described = try ecs.describeTaskDefinition({ taskDefinition: arn })
+                  return described.taskDefinition ? attrsOf(described.taskDefinition) : undefined
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "ClientException" }: try Effect.undefined;
+                when { _tag: "ClientException" }: undefined;
                 default: throw e;
               },
             { concurrency: 10 },
@@ -729,7 +749,7 @@ export const TaskDefinitionProvider = (): infer _ =>
           for (const arn of active) {
             ecs
               .deregisterTaskDefinition({ taskDefinition: arn }) catch effect (e) => match (e) {
-                when { _tag: "ClientException" } or { _tag: "InvalidParameterException" }: try Effect.void;
+                when { _tag: "ClientException" } or { _tag: "InvalidParameterException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -751,7 +771,7 @@ export const TaskDefinitionProvider = (): infer _ =>
               .deleteTaskDefinitions({
                 taskDefinitions: inactive.slice(i, i + 10),
               }) catch effect (e) => match (e) {
-                when { _tag: "ClientException" } or { _tag: "InvalidParameterException" }: try Effect.void;
+                when { _tag: "ClientException" } or { _tag: "InvalidParameterException" }: (undefined as void);
                 default: throw e;
               }
             if (deleted && (deleted.failures?.length ?? 0) > 0) {
@@ -777,7 +797,7 @@ export const TaskDefinitionProvider = (): infer _ =>
           if (output.logGroupName) {
             logs
               .deleteLogGroup({ logGroupName: output.logGroupName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }

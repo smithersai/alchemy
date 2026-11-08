@@ -185,7 +185,7 @@ const createDisplayName = effect (
 const fetchTags = effect (arn: string) => {
   const response = qbusiness
     .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
@@ -199,7 +199,7 @@ interface ApplicationState {
 const readApplicationById = effect (applicationId: string) => {
   const described = qbusiness
     .getApplication({ applicationId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described || described.status === "DELETING") return undefined
@@ -275,12 +275,12 @@ const retryThroughConflict = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("10 seconds"), Schedule.recurs(10)]),
   })
 
-const waitForApplicationStatus = (applicationId: string, target: "ACTIVE" | "DELETED") =>
-  retryWhileNotReady(
+const waitForApplicationStatus = effect (applicationId: string, target: "ACTIVE" | "DELETED") =>
+  try retryWhileNotReady(
     effect {
       const described = qbusiness
         .getApplication({ applicationId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (target === "DELETED") {
@@ -311,7 +311,7 @@ export const ApplicationProvider = (): infer _ =>
           ).flatMap((page) => page.applications ?? [])
           const hydrated = try Effect.forEach(
             summaries.flatMap((s) => (s.applicationId ? [s.applicationId] : [])),
-            (applicationId) => readApplicationById(applicationId),
+            effect (applicationId) => try readApplicationById(applicationId),
             { concurrency: 5 },
           )
           return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
@@ -323,20 +323,21 @@ export const ApplicationProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // Identity wiring and encryption-at-rest are fixed at creation.
           if (
-            (olds.identityType ?? "AWS_IAM_IDC") !== (news.identityType ?? "AWS_IAM_IDC")
-            || olds.iamIdentityProviderArn !== news.iamIdentityProviderArn
-            || olds.encryptionConfiguration?.kmsKeyId !== news.encryptionConfiguration?.kmsKeyId
+            (olds.identityType ?? "AWS_IAM_IDC") !== (resolved.identityType ?? "AWS_IAM_IDC")
+            || olds.iamIdentityProviderArn !== resolved.iamIdentityProviderArn
+            || olds.encryptionConfiguration?.kmsKeyId !== resolved.encryptionConfiguration?.kmsKeyId
             || olds.quickSightConfiguration?.clientNamespace
-              !== news.quickSightConfiguration?.clientNamespace
+              !== resolved.quickSightConfiguration?.clientNamespace
             || JSON.stringify(olds.clientIdsForOIDC ?? [])
-              !== JSON.stringify(news.clientIdsForOIDC ?? [])
+              !== JSON.stringify(resolved.clientIdsForOIDC ?? [])
           ) {
             return { action: "replace" } as const
           }
@@ -430,7 +431,7 @@ export const ApplicationProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.attrs.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try qbusiness.untagResource({
               resourceARN: state.attrs.applicationArn,
@@ -462,7 +463,7 @@ export const ApplicationProvider = (): infer _ =>
             effect {
               return qbusiness
                 .deleteApplication({ applicationId: output.applicationId }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

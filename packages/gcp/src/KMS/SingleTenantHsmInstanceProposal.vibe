@@ -352,7 +352,7 @@ const operationKey = (props: {
 const getByName = effect (name: string) =>
   kms
     .getProjectsLocationsSingleTenantHsmInstancesProposals({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -374,16 +374,18 @@ const paginate = effect <A, E, R>(
 
 const listInstancesAt = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
-      const response = try kms
-        .listProjectsLocationsSingleTenantHsmInstances({
-          parent,
-          pageSize: 1000,
-          pageToken,
+    (effect {
+      return (try effect {
+        const response = try kms
+          .listProjectsLocationsSingleTenantHsmInstances({
+            parent,
+            pageSize: 1000,
+            pageToken,
+          })
+        return ({
+          items: response.singleTenantHsmInstances ?? [],
+          nextPageToken: response.nextPageToken,
         })
-      return ({
-        items: response.singleTenantHsmInstances ?? [],
-        nextPageToken: response.nextPageToken,
       })
     }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
@@ -396,16 +398,18 @@ const listInstancesAt = effect (parent: string) =>
 
 const listProposalsInInstance = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
-      const response = try kms
-        .listProjectsLocationsSingleTenantHsmInstancesProposals({
-          parent,
-          pageSize: 1000,
-          pageToken,
+    (effect {
+      return (try effect {
+        const response = try kms
+          .listProjectsLocationsSingleTenantHsmInstancesProposals({
+            parent,
+            pageSize: 1000,
+            pageToken,
+          })
+        return ({
+          items: response.singleTenantHsmInstanceProposals ?? [],
+          nextPageToken: response.nextPageToken,
         })
-      return ({
-        items: response.singleTenantHsmInstanceProposals ?? [],
-        nextPageToken: response.nextPageToken,
       })
     }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
@@ -431,7 +435,7 @@ const listProposalsAt = effect (locationParent: string) => {
 
 const waitOperation = effect (operation: kms.Operation) =>
   try effect {
-    waitForGcpOperation(operation, effect (name) => try kms.getProjectsLocationsOperations({ name }), {
+    try waitForGcpOperation(operation, effect (name) => try kms.getProjectsLocationsOperations({ name }), {
       budget: "10 minutes",
     })
     return (operation.name === undefined
@@ -441,12 +445,12 @@ const waitOperation = effect (operation: kms.Operation) =>
 
 const waitReady = effect (
   name: string,
-): kms.SingleTenantHsmInstanceProposal!| SingleTenantHsmInstanceProposalNotResolved
+): kms.SingleTenantHsmInstanceProposal!(| SingleTenantHsmInstanceProposalNotResolved
   | SingleTenantHsmInstanceProposalPending
-  | kms.GetProjectsLocationsSingleTenantHsmInstancesProposalsError!kms.GcpOpContext => {
-  const probe: kms.SingleTenantHsmInstanceProposal!| SingleTenantHsmInstanceProposalNotResolved
+  | kms.GetProjectsLocationsSingleTenantHsmInstancesProposalsError)!kms.GcpOpContext => {
+  const probe: kms.SingleTenantHsmInstanceProposal!(| SingleTenantHsmInstanceProposalNotResolved
     | SingleTenantHsmInstanceProposalPending
-    | kms.GetProjectsLocationsSingleTenantHsmInstancesProposalsError!kms.GcpOpContext = effect {
+    | kms.GetProjectsLocationsSingleTenantHsmInstancesProposalsError)!kms.GcpOpContext = effect {
     return try effect {
       const proposal = try getByName(name)
 
@@ -481,11 +485,14 @@ export const SingleTenantHsmInstanceProposalProvider = (): infer _ =>
     stables: ["name", "proposalId", "singleTenantHsmInstance", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousId = olds?.proposalId ?? output?.proposalId
-      const nextId = news.proposalId ?? previousId
+      const nextId = resolved.proposalId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
 
       const previousParent = output?.singleTenantHsmInstance
@@ -494,8 +501,8 @@ export const SingleTenantHsmInstanceProposalProvider = (): infer _ =>
           : undefined)
       const nextParent = resolveParent(
         output?.project ?? "",
-        news.singleTenantHsmInstance,
-        news.location ?? output?.location,
+        resolved.singleTenantHsmInstance,
+        resolved.location ?? output?.location,
         env.region,
       ).parent
       const parentChanged = previousParent !== undefined && previousParent !== nextParent
@@ -509,7 +516,7 @@ export const SingleTenantHsmInstanceProposalProvider = (): infer _ =>
         removeQuorumMember: olds?.removeQuorumMember ?? output?.removeQuorumMember,
         registerTwoFactorAuthKeys: olds?.registerTwoFactorAuthKeys ?? output?.registerTwoFactorAuthKeys,
       })
-      const nextOp = operationKey(news)
+      const nextOp = operationKey(resolved)
       const operationChanged = previousOp.length > 0 && nextOp.length > 0 && previousOp !== nextOp
 
       if (!idChanged && !parentChanged && !operationChanged) {
@@ -582,20 +589,22 @@ export const SingleTenantHsmInstanceProposalProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try getByName(
-          try effect {
-            return nameFromOperation(
-              try waitOperation(
-                try kms
-                  .createProjectsLocationsSingleTenantHsmInstancesProposals({
-                    parent: parent.parent,
-                    singleTenantHsmInstanceProposalId: proposalId,
-                    body: toBody(news),
-                  }),
-              ),
-            ) ?? name
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        const created = (effect {
+          return (try getByName(
+            try effect {
+              return nameFromOperation(
+                try waitOperation(
+                  try kms
+                    .createProjectsLocationsSingleTenantHsmInstancesProposals({
+                      parent: parent.parent,
+                      singleTenantHsmInstanceProposalId: proposalId,
+                      body: toBody(news),
+                    }),
+                ),
+              ) ?? name
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
         current = created ?? undefined
       }
 
@@ -617,9 +626,9 @@ export const SingleTenantHsmInstanceProposalProvider = (): infer _ =>
         .deleteProjectsLocationsSingleTenantHsmInstancesProposals({
           name: output.name,
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
-          when { _tag: "BadRequest" }: try Effect.void;
-          when { _tag: "Conflict" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
+          when { _tag: "BadRequest" }: (undefined as void);
+          when { _tag: "Conflict" }: (undefined as void);
           default: throw e;
         }
     },

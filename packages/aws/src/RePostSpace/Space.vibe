@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as repostspace from "@distilled.cloud/aws/repostspace"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -9,7 +12,7 @@ import type { Providers } from "../Providers.ts"
 
 /** Unwrap a distilled sensitive value into its plain string. */
 const unwrapSensitive = (
-  value: string | Redacted<string> | undefined,
+  value: string | Redacted.Redacted<string> | undefined,
 ): string | undefined => value === undefined ? undefined : Redacted.isRedacted(value) ? Redacted.value(value) : value
 
 export interface SpaceSupportedEmailDomains {
@@ -202,12 +205,24 @@ const DEFAULT_TIER = "BASIC"
  * (`CREATE_FAILED`) or starts deleting while the provider is waiting for
  * provisioning to complete.
  */
-export error RePostSpaceProvisioningFailed { mutable spaceId: string; mutable status: string }
+export class RePostSpaceProvisioningFailed extends $MutableErrorBase("RePostSpaceProvisioningFailed")<{
+  spaceId: string
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "RePostSpaceProvisioningFailed", true)
+  }
+}
 
 /** Internal marker error driving the bounded readiness retry loop. */
-error RePostSpaceNotReady {
-  mutable spaceId: string
-  mutable status: string
+class RePostSpaceNotReady extends $MutableErrorBase("RePostSpaceNotReady")<{
+  spaceId: string
+
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "RePostSpaceNotReady", true)
+  }
 }
 
 const sameStringSet = (
@@ -236,7 +251,7 @@ export const SpaceProvider = (): infer _ =>
       const getSpaceOrUndefined = effect (spaceId: string) =>
         repostspace
           .getSpace({ spaceId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -320,8 +335,10 @@ export const SpaceProvider = (): infer _ =>
           const items = try Effect.forEach(
             Array.from(chunk),
             effect (space) =>
-              (try toAttrs(try repostspace.getSpace({ spaceId: space.spaceId }))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              (effect {
+                return (try toAttrs(try repostspace.getSpace({ spaceId: space.spaceId })))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               },
             { concurrency: 4 },
@@ -342,11 +359,14 @@ export const SpaceProvider = (): infer _ =>
             return undefined
           }
           const attrs = try toAttrs(space)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const n = news ?? {}
           const o = olds ?? {}
           // Create-only properties force a replacement.
@@ -389,23 +409,25 @@ export const SpaceProvider = (): infer _ =>
           //    fall back to the by-name lookup.
           if (spaceId === undefined) {
             const subdomain = try toSubdomain(id, props)
-            spaceId = (try repostspace
-              .createSpace({
-                name,
-                subdomain,
-                tier: desiredTier,
-                description: props.description,
-                userKMSKey: props.userKMSKey,
-                roleArn: props.roleArn,
-                supportedEmailDomains: props.supportedEmailDomains,
-                tags: desiredTags,
-              })).spaceId catch effect (error) => match (error) {
-                when { _tag: "ConflictException" }: try effect {
-                  const existing = try findByName(name)
-                  return (existing !== undefined ? existing.spaceId : throw error)
-                };
-                default: throw error;
-              }
+            spaceId = (effect {
+              return (try repostspace
+                .createSpace({
+                  name,
+                  subdomain,
+                  tier: desiredTier,
+                  description: props.description,
+                  userKMSKey: props.userKMSKey,
+                  roleArn: props.roleArn,
+                  supportedEmailDomains: props.supportedEmailDomains,
+                  tags: desiredTags,
+                })).spaceId
+            }) catch effect (error) => match (error) {
+              when { _tag: "ConflictException" }: try effect {
+                const existing = try findByName(name)
+                return (existing !== undefined ? existing.spaceId : throw error)
+              };
+              default: throw error;
+            }
             try session.note(`created space ${spaceId}, provisioning...`)
           }
 
@@ -439,7 +461,7 @@ export const SpaceProvider = (): infer _ =>
           }
           if (props.supportedEmailDomains !== undefined) {
             const observedDomains = (observed.supportedEmailDomains?.allowedDomains ?? []).map(
-              (domain: string | Redacted<string>) => unwrapSensitive(domain) ?? "",
+              (domain: string | Redacted.Redacted<string>) => unwrapSensitive(domain) ?? "",
             )
             if (
               props.supportedEmailDomains.enabled !== observed.supportedEmailDomains?.enabled
@@ -479,7 +501,7 @@ export const SpaceProvider = (): infer _ =>
         delete: effect ({ output }) => {
           repostspace
             .deleteSpace({ spaceId: output.spaceId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

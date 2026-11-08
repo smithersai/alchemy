@@ -3,10 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 export type SubscriptionDistribution = logs.Distribution
@@ -154,19 +150,22 @@ export const SubscriptionFilterProvider = (): infer _ =>
       })
 
       const observe = effect (logGroupName: string, filterName: string) =>
-        (Option.getOrUndefined(
-          try (logs.describeSubscriptionFilters
-            .items({
-              logGroupName,
-              filterNamePrefix: filterName,
-            })
-            |> Stream.filter(
-              %,
-              (filter): filter is logs.SubscriptionFilter & { filterName: string } => filter.filterName === filterName,
-            )
-            |> Stream.runHead(%)),
-        )) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (Option.getOrUndefined(
+            try (logs.describeSubscriptionFilters
+              .items({
+                logGroupName,
+                filterNamePrefix: filterName,
+              })
+              |> Stream.filter(
+                %,
+                (filter): filter is logs.SubscriptionFilter & { filterName: string } =>
+                  filter.filterName === filterName,
+              )
+              |> Stream.runHead(%)),
+          ))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -185,15 +184,17 @@ export const SubscriptionFilterProvider = (): infer _ =>
           const perGroup = try Effect.forEach(
             groups,
             effect (logGroupName) =>
-              (Array.from(
-                try (logs.describeSubscriptionFilters.items({ logGroupName })
-                  |> Stream.filter(%, (
-                    filter,
-                  ): filter is logs.SubscriptionFilter & {
-                    filterName: string
-                  } => filter.filterName != null)
-                  |> Stream.runCollect(%)),
-              ).map((filter) => toAttributes(logGroupName, filter))) catch effect (e) => match (e) {
+              (effect {
+                return (Array.from(
+                  try (logs.describeSubscriptionFilters.items({ logGroupName })
+                    |> Stream.filter(%, (
+                      filter,
+                    ): filter is logs.SubscriptionFilter & {
+                      filterName: string
+                    } => filter.filterName != null)
+                    |> Stream.runCollect(%)),
+                ).map((filter) => toAttributes(logGroupName, filter)))
+              }) catch effect (e) => match (e) {
                 when { _tag: "ResourceNotFoundException" }: [];
                 default: throw e;
               },
@@ -202,11 +203,14 @@ export const SubscriptionFilterProvider = (): infer _ =>
           return perGroup.flat()
         },
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if (olds.logGroupName !== news.logGroupName) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (olds.logGroupName !== resolved.logGroupName) {
             return { action: "replace" } as const
           }
-          if ((try toFilterName(id, olds)) !== (try toFilterName(id, news))) {
+          if ((try toFilterName(id, olds)) !== (try toFilterName(id, resolved))) {
             return { action: "replace" } as const
           }
         },
@@ -267,21 +271,23 @@ export const SubscriptionFilterProvider = (): infer _ =>
             }
         },
         delete: effect ({ output }) => {
-          ;(try (logs
-            .deleteSubscriptionFilter({
-              logGroupName: output.logGroupName,
-              filterName: output.filterName,
-            })
-            |> Effect.retry(%, {
-              while: (error) =>
-                error._tag === "OperationAbortedException"
-                || error._tag === "ServiceUnavailableException",
-              schedule: Schedule.exponential(100),
-              times: 8,
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (logs
+              .deleteSubscriptionFilter({
+                logGroupName: output.logGroupName,
+                filterName: output.filterName,
+              })
+              |> Effect.retry(%, {
+                while: (error) =>
+                  error._tag === "OperationAbortedException"
+                  || error._tag === "ServiceUnavailableException",
+                schedule: Schedule.exponential(100),
+                times: 8,
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       }
     },

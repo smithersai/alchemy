@@ -329,19 +329,34 @@ export const ConnectivityTestProvider = (): infer _ =>
     stables: ["name", "testId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.testId ?? output?.testId
-      const nextId = news.testId
-        ? rfc1035(news.testId, "connectivity-test", MAX_CONNECTIVITY_TEST_ID_LENGTH)
-        : previousId
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.testId
+            ? rfc1035(resolved.testId, "connectivity-test", MAX_CONNECTIVITY_TEST_ID_LENGTH)
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -360,19 +375,29 @@ export const ConnectivityTestProvider = (): infer _ =>
         "connectivity-test",
         MAX_CONNECTIVITY_TEST_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = output?.name ?? resourceName(env.project, location, testId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networkmanagement.listProjectsLocationsGlobalConnectivityTests.pages({
-          parent: parentOf(env.project, DEFAULT_GLOBAL),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, DEFAULT_GLOBAL), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.resources,
@@ -391,10 +416,15 @@ export const ConnectivityTestProvider = (): infer _ =>
         "connectivity-test",
         MAX_CONNECTIVITY_TEST_ID_LENGTH,
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = resourceName(env.project, location, testId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const source = toEndpoint(news.source, env.project)
@@ -407,26 +437,28 @@ export const ConnectivityTestProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkmanagement
-          .createProjectsLocationsGlobalConnectivityTests({
-            parent: parentOf(env.project, location),
-            testId,
-            body: {
-              description: news.description,
-              labels: desiredLabels,
-              source,
-              destination,
-              protocol,
-              relatedProjects: relatedProjects.length > 0 ? relatedProjects : undefined,
-              roundTrip,
-              bypassFirewallChecks,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkmanagement
+            .createProjectsLocationsGlobalConnectivityTests({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              testId,
+              body: {
+                description: news.description,
+                labels: desiredLabels,
+                source,
+                destination,
+                protocol,
+                relatedProjects: relatedProjects.length > 0 ? relatedProjects : undefined,
+                roundTrip,
+                bypassFirewallChecks,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -434,32 +466,50 @@ export const ConnectivityTestProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
-      const sourceChanged = !sameJson(
-        endpointKey(toEndpoint(current.source, env.project)),
-        endpointKey(source),
-      )
-      const destinationChanged = !sameJson(
-        endpointKey(toEndpoint(current.destination, env.project)),
-        endpointKey(destination),
-      )
+      const left = endpointKey(toEndpoint(current.source, env.project))
+      const right = endpointKey(source)
+      const sourceChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameJson(
+            left,
+            right,
+          ),
+        catch: (e) => e,
+      })))
+      const left2 = endpointKey(toEndpoint(current.destination, env.project))
+      const right2 = endpointKey(destination)
+      const destinationChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameJson(
+            left2,
+            right2,
+          ),
+        catch: (e) => e,
+      })))
       const protocolChanged = (current.protocol ?? DEFAULT_PROTOCOL).toUpperCase() !== protocol.toUpperCase()
       const relatedChanged = !sameStringList(current.relatedProjects, relatedProjects)
       const roundTripChanged = (current.roundTrip === true) !== roundTrip
       const bypassChanged = (current.bypassFirewallChecks === true) !== bypassFirewallChecks
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["source", sourceChanged],
-        ["destination", destinationChanged],
-        ["protocol", protocolChanged],
-        ["relatedProjects", relatedChanged],
-        ["roundTrip", roundTripChanged],
-        ["bypassFirewallChecks", bypassChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["source", sourceChanged],
+            ["destination", destinationChanged],
+            ["protocol", protocolChanged],
+            ["relatedProjects", relatedChanged],
+            ["roundTrip", roundTripChanged],
+            ["bypassFirewallChecks", bypassChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkmanagement.patchProjectsLocationsGlobalConnectivityTests({
@@ -485,13 +535,15 @@ export const ConnectivityTestProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkmanagement
-        .deleteProjectsLocationsGlobalConnectivityTests({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkmanagement
+          .deleteProjectsLocationsGlobalConnectivityTests({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -267,21 +267,22 @@ export const RolloutProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       return replaceOnIdentity({
         previousId: olds?.rolloutId ?? output?.rolloutId,
-        nextId: news.rolloutId ?? olds?.rolloutId ?? output?.rolloutId,
+        nextId: resolved.rolloutId ?? olds?.rolloutId ?? output?.rolloutId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
         ),
-        extra: (news.rolloutKind !== undefined
-          && !sameRef(olds?.rolloutKind ?? output?.rolloutKind, news.rolloutKind))
-          || (news.release !== undefined
-            && !sameRef(olds?.release ?? output?.release, news.release))
-          || (news.flagRelease !== undefined
-            && (olds?.flagRelease ?? output?.flagRelease ?? "") !== news.flagRelease),
+        extra: (resolved.rolloutKind !== undefined
+          && !sameRef(olds?.rolloutKind ?? output?.rolloutKind, resolved.rolloutKind))
+          || (resolved.release !== undefined
+            && !sameRef(olds?.release ?? output?.release, resolved.release))
+          || (resolved.flagRelease !== undefined
+            && (olds?.flagRelease ?? output?.flagRelease ?? "") !== resolved.flagRelease),
       })
     },
 
@@ -293,7 +294,7 @@ export const RolloutProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -308,7 +309,7 @@ export const RolloutProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location ?? env.region)
       const name = resourceName(env.project, location, COLLECTION, rolloutId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const rolloutKind = news.rolloutKind === undefined
@@ -345,7 +346,7 @@ export const RolloutProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const annotationsChanged = annotations !== undefined
         && fingerprint(userAnnotations(current.annotations)) !== fingerprint(annotations)
@@ -381,12 +382,12 @@ export const RolloutProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (saasservicemgmt.deleteProjectsLocationsRollouts({ name: output.name })
+      ;(effect { return (try (saasservicemgmt.deleteProjectsLocationsRollouts({ name: output.name })
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(getByName(output.name), output.name)
     },
   })

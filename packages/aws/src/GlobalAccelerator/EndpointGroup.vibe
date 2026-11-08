@@ -4,8 +4,6 @@ import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { toWireSeconds } from "alchemy/Util/Duration"
 import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { retryGaDeletion, withGaRegion } from "./common.vibe"
 
@@ -282,9 +280,11 @@ const hasDrift = (live: ga.EndpointGroup, news: EndpointGroupProps): boolean => 
 }
 
 const describeEndpointGroup = effect (endpointGroupArn: string) =>
-  (try withGaRegion(ga.describeEndpointGroup({ EndpointGroupArn: endpointGroupArn }))).EndpointGroup catch effect (
+  (effect {
+    return (try withGaRegion(ga.describeEndpointGroup({ EndpointGroupArn: endpointGroupArn }))).EndpointGroup
+  }) catch effect (
     e,
-  ) => match (e) { when { _tag: "EndpointGroupNotFoundException" }: try Effect.undefined; default: throw e; }
+  ) => match (e) { when { _tag: "EndpointGroupNotFoundException" }: undefined; default: throw e; }
 
 // An endpoint group's natural identity is (listener, region) — GA allows at
 // most one per region per listener, so this lookup is exact.
@@ -293,11 +293,13 @@ const findEndpointGroup = effect (
   region: string | undefined,
 ) => {
   if (!listenerArn || !region) return undefined
-  const groups = (Array.from(
-    try withGaRegion(
-      ga.listEndpointGroups.items({ ListenerArn: listenerArn }).pipe(Stream.runCollect),
-    ),
-  )) catch effect (e) => match (e) {
+  const groups = (effect {
+    return (Array.from(
+      try withGaRegion(
+        ga.listEndpointGroups.items({ ListenerArn: listenerArn }).pipe(Stream.runCollect),
+      ),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "ListenerNotFoundException" }: [] as ga.EndpointGroup[];
     default: throw e;
   }
@@ -320,11 +322,14 @@ export const EndpointGroupProvider = (): infer _ =>
       return toAttributes(found, found.EndpointGroupArn)
     },
     diff: effect ({ news, olds }) => {
-      if (!isResolved(news)) return undefined
-      if (news.listenerArn !== olds.listenerArn) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (resolved.listenerArn !== olds.listenerArn) {
         return { action: "replace" } as const
       }
-      if (news.endpointGroupRegion !== olds.endpointGroupRegion) {
+      if (resolved.endpointGroupRegion !== olds.endpointGroupRegion) {
         return { action: "replace" } as const
       }
       // everything else updates in place.
@@ -341,14 +346,16 @@ export const EndpointGroupProvider = (): infer _ =>
       // Ensure — create if missing; a concurrent create for the same
       // (listener, region) surfaces as AlreadyExists and we converge on it.
       if (!live?.EndpointGroupArn) {
-        live = (try withGaRegion(
-          ga.createEndpointGroup({
-            ListenerArn: news.listenerArn,
-            EndpointGroupRegion: news.endpointGroupRegion,
-            ...desiredConfig(news),
-            IdempotencyToken: instanceId,
-          }),
-        )).EndpointGroup catch effect (e) => match (e) {
+        live = (effect {
+          return (try withGaRegion(
+            ga.createEndpointGroup({
+              ListenerArn: news.listenerArn,
+              EndpointGroupRegion: news.endpointGroupRegion,
+              ...desiredConfig(news),
+              IdempotencyToken: instanceId,
+            }),
+          )).EndpointGroup
+        }) catch effect (e) => match (e) {
           when { _tag: "EndpointGroupAlreadyExistsException" }: try findEndpointGroup(
             news.listenerArn,
             news.endpointGroupRegion,
@@ -376,14 +383,16 @@ export const EndpointGroupProvider = (): infer _ =>
       return toAttributes(live, endpointGroupArn)
     },
     delete: effect ({ output }) => {
-      ;(try (ga
-        .deleteEndpointGroup({
-          EndpointGroupArn: output.endpointGroupArn,
-        })
-        |> withGaRegion(%)
-        |> retryGaDeletion(%))) catch effect (e) => match (e) {
-          when { _tag: "EndpointGroupNotFoundException" }: try Effect.void;
-          default: throw e;
-        }
+      ;(effect {
+        return (try (ga
+          .deleteEndpointGroup({
+            EndpointGroupArn: output.endpointGroupArn,
+          })
+          |> withGaRegion(%)
+          |> retryGaDeletion(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "EndpointGroupNotFoundException" }: (undefined as void);
+        default: throw e;
+      }
     },
   })

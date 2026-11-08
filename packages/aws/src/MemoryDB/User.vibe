@@ -126,7 +126,7 @@ export const UserProvider = (): infer _ =>
       const readUser = effect (name: string) => {
         const response = memorydb
           .describeUsers({ UserName: name }) catch effect (e) => match (e) {
-            when { _tag: "UserNotFoundFault" }: try Effect.undefined;
+            when { _tag: "UserNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.Users?.[0]
@@ -179,8 +179,9 @@ export const UserProvider = (): infer _ =>
         stables: ["userName", "userArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -190,7 +191,7 @@ export const UserProvider = (): infer _ =>
           const user = try readUser(name)
           if (!user?.ARN) return undefined
           const attrs = try toAttrs(user)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -214,8 +215,8 @@ export const UserProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "UserAlreadyExistsFault" }: try Effect.void;
-                when { _tag: "DuplicateUserNameFault" }: try Effect.void;
+                when { _tag: "UserAlreadyExistsFault" }: (undefined as void);
+                when { _tag: "DuplicateUserNameFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try waitUntilActive(name)
@@ -247,7 +248,7 @@ export const UserProvider = (): infer _ =>
           const arn = observed.ARN
           if (arn) {
             const observedTags = try readMemoryDbTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
             }
@@ -267,10 +268,10 @@ export const UserProvider = (): infer _ =>
           const name = output.userName
           // A user mid-modify rejects deletion — settle first (bounded), then
           // delete. NotFound is success (idempotent delete).
-          waitUntilActive(name) catch effect (e) => try Effect.void
+          waitUntilActive(name) catch effect (e) => (undefined as void)
           try (effect {
             return memorydb.deleteUser({ UserName: name }) catch effect (e) => match (e) {
-              when { _tag: "UserNotFoundFault" }: try Effect.void;
+              when { _tag: "UserNotFoundFault" }: (undefined as void);
               default: throw e;
             }
           }
@@ -297,7 +298,7 @@ export const UserProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((user) => toAttrs(user), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (user) => try toAttrs(user), { concurrency: 4 }))),
       }
     },
   )

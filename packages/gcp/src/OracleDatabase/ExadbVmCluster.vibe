@@ -312,23 +312,30 @@ export const ExadbVmClusterProvider = (): infer _ =>
     stables: ["name", "exadbVmClusterId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousOdb = olds?.odbSubnet ?? output?.odbSubnet ?? ""
-      const nextOdb = news.odbSubnet ?? previousOdb
+      const nextOdb = resolved.odbSubnet ?? previousOdb
       const previousBackup = olds?.backupOdbSubnet ?? output?.backupOdbSubnet ?? ""
-      const nextBackup = news.backupOdbSubnet ?? previousBackup
+      const nextBackup = resolved.backupOdbSubnet ?? previousBackup
       const previousVault = olds?.exascaleDbStorageVault ?? olds?.properties?.exascaleDbStorageVault ?? ""
-      const nextVault = news.exascaleDbStorageVault ?? news.properties?.exascaleDbStorageVault ?? previousVault
-      return replaceOnIdentity({
-        previousId: olds?.exadbVmClusterId ?? output?.exadbVmClusterId,
-        nextId: news.exadbVmClusterId ?? olds?.exadbVmClusterId ?? output?.exadbVmClusterId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-        extra: nextOdb !== previousOdb || nextBackup !== previousBackup || nextVault !== previousVault,
-      })
+      const nextVault = resolved.exascaleDbStorageVault ?? resolved.properties?.exascaleDbStorageVault ?? previousVault
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.exadbVmClusterId ?? output?.exadbVmClusterId,
+            nextId: resolved.exadbVmClusterId ?? olds?.exadbVmClusterId ?? output?.exadbVmClusterId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            extra: nextOdb !== previousOdb || nextBackup !== previousBackup || nextVault !== previousVault,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -339,12 +346,25 @@ export const ExadbVmClusterProvider = (): infer _ =>
         output?.exadbVmClusterId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, exadbVmClusterId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceNameOf(env.project, location, COLLECTION, exadbVmClusterId),
+            catch: (e) => e,
+          }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -361,26 +381,32 @@ export const ExadbVmClusterProvider = (): infer _ =>
         output?.exadbVmClusterId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceNameOf(env.project, location, COLLECTION, exadbVmClusterId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceNameOf(env.project, location, COLLECTION, exadbVmClusterId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (oracle
-          .createProjectsLocationsExadbVmClusters({
-            parent: parentOf(env.project, location),
-            exadbVmClusterId,
-            body: toCreateBody(news, desiredLabels),
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (oracle
+            .createProjectsLocationsExadbVmClusters({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              exadbVmClusterId,
+              body: toCreateBody(news, desiredLabels),
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -398,11 +424,17 @@ export const ExadbVmClusterProvider = (): infer _ =>
       )
 
       const props = mergedProperties(news)
-      const observedLabels = tagRecord(ready.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabels = try Effect.orDie(Effect.try({ try: () => tagRecord(ready.labels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
-      const nodeCountChanged = props.nodeCount !== undefined
-        && !specifiedEquals(props.nodeCount, ready.properties?.nodeCount)
+      const nodeCountChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          props.nodeCount !== undefined
+          && !specifiedEquals(props.nodeCount, ready.properties?.nodeCount),
+        catch: (e) => e,
+      }))
 
       if (labelsChanged || nodeCountChanged) {
         const mask = [
@@ -433,14 +465,16 @@ export const ExadbVmClusterProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (oracle
-        .deleteProjectsLocationsExadbVmClusters({
-          name: output.name,
-        })
-        |> retryConflict(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsExadbVmClusters({
+            name: output.name,
+          })
+          |> retryConflict(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

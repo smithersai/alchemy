@@ -144,12 +144,12 @@ export const CustomDataIdentifierProvider = (): infer _ =>
     CustomDataIdentifierResource,
     effect {
       const getIdentifier = effect (id: string) =>
-        (try effect {
+        (effect { return (try effect {
           const d = try macie2.getCustomDataIdentifier({ id })
           return (d.deleted ? undefined : d)
-        }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-          when { _tag: "AccessDeniedException" }: try Effect.undefined;
+        }) }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          when { _tag: "AccessDeniedException" }: undefined;
           default: throw e;
         }
 
@@ -161,12 +161,12 @@ export const CustomDataIdentifierProvider = (): infer _ =>
           const live = try getIdentifier(output.id)
           if (!live) return undefined
           const attrs = buildIdentifierAttrs(output.id, live)
-          return (try hasAlchemyTags(id, live.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, live.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         list: effect () => {
-          const pages = (try (macie2.listCustomDataIdentifiers.pages({})
-            |> Stream.runCollect(%))) catch effect (e) => match (e) {
+          const pages = (effect { return (try (macie2.listCustomDataIdentifiers.pages({})
+            |> Stream.runCollect(%))) }) catch effect (e) => match (e) {
               when { _tag: "AccessDeniedException" }: [];
               default: throw e;
             }
@@ -181,11 +181,12 @@ export const CustomDataIdentifierProvider = (): infer _ =>
         },
 
         diff: effect ({ id, news, olds = {} }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (oldName !== newName) return { action: "replace" } as const
-          if (fingerprint(olds) !== fingerprint(news)) {
+          if (fingerprint(olds) !== fingerprint(resolved)) {
             return { action: "replace" } as const
           }
           // The definition is immutable; only tags mutate in place.
@@ -218,7 +219,7 @@ export const CustomDataIdentifierProvider = (): infer _ =>
             identifierId = created.customDataIdentifierId!
           } else {
             // 3. SYNC tags — the definition is immutable; only tags mutate.
-            const { upsert, removed } = diffTags(tagRecord(live.tags), desiredTags)
+            const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(tagRecord(live.tags), desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try macie2.tagResource({
                 resourceArn: live.arn!,
@@ -245,8 +246,8 @@ export const CustomDataIdentifierProvider = (): infer _ =>
           // Idempotent soft delete — the identifier may already be gone, or
           // Macie may already be disabled for the account.
           macie2.deleteCustomDataIdentifier({ id: output.id }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
-            when { _tag: "AccessDeniedException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            when { _tag: "AccessDeniedException" }: (undefined as void);
             default: throw e;
           }
         },

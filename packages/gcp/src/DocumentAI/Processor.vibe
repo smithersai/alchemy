@@ -181,9 +181,9 @@ const toAttrs = (processor: documentai.GoogleCloudDocumentaiV1Processor, project
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : documentai
+const getByName = effect (name: string) => (name.length === 0 ? undefined : documentai
   .getProjectsLocationsProcessors({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -248,23 +248,26 @@ export const ProcessorProvider = (): infer _ =>
     stables: ["name", "processorId", "project", "location", "type", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousType = olds?.type ?? output?.type
-      const nextType = typeOf(news.type)
+      const nextType = typeOf(resolved.type)
       const previousKms = olds?.kmsKeyName ?? output?.kmsKeyName
       const previousSchema = olds?.activeSchemaVersion ?? output?.activeSchemaVersion
       const previousDisplay = olds?.displayName ?? output?.displayName
       const extra = (previousType !== undefined && previousType !== nextType)
-        || (previousKms ?? "") !== (news.kmsKeyName ?? "")
-        || (previousSchema ?? "") !== (news.activeSchemaVersion ?? "")
-        || (news.displayName !== undefined
+        || (previousKms ?? "") !== (resolved.kmsKeyName ?? "")
+        || (previousSchema ?? "") !== (resolved.activeSchemaVersion ?? "")
+        || (resolved.displayName !== undefined
           && previousDisplay !== undefined
-          && news.displayName !== previousDisplay)
+          && resolved.displayName !== previousDisplay)
       return replaceOnIdentity({
         previousId: olds?.processorId ?? output?.processorId,
-        nextId: news.processorId,
+        nextId: resolved.processorId,
         previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
+        nextLocation: resolved.location ?? olds?.location ?? output?.location,
         extra,
       })
     },
@@ -278,7 +281,9 @@ export const ProcessorProvider = (): infer _ =>
       const existing = try findOwned(id, env.project, parent, name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -385,7 +390,7 @@ export const ProcessorProvider = (): infer _ =>
         documentai.deleteProjectsLocationsProcessors({
           name: output.name,
         }),
-      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

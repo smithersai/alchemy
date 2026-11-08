@@ -206,41 +206,48 @@ const toAttrs = (chart: cci.GoogleCloudContactcenterinsightsV1Chart, project: st
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsDashboardsCharts({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listDashboards = effect (parent: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsDashboards.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dashboards ?? []))
-      |> Stream.map(%, (dashboard) => dashboard.name ?? "")
-      |> Stream.filter(%, (name) => name.length > 0)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsDashboards.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dashboards ?? []))
+        |> Stream.map(%, (dashboard) => dashboard.name ?? "")
+        |> Stream.filter(%, (name) => name.length > 0)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string) =>
-  (((try cci.listProjectsLocationsDashboardsCharts({ parent })).charts ?? [])
-    .filter((chart) => hasOwnershipMarker(chart.description))
-    .map((chart) => toAttrs(chart, project))) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: [];
-      default: throw e;
-    }
+  (effect {
+    return (((try cci.listProjectsLocationsDashboardsCharts({ parent })).charts ?? [])
+      .filter((chart) => hasOwnershipMarker(chart.description))
+      .map((chart) => toAttrs(chart, project)))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
 
 export const DashboardsChartProvider = (): infer _ =>
   Provider.succeed(DashboardsChart, {
     stables: ["name", "chartId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.chartId ?? output?.chartId
-      if (previousId !== undefined && news.chartId !== undefined && news.chartId !== previousId) {
+      if (previousId !== undefined && resolved.chartId !== undefined && resolved.chartId !== previousId) {
         return { action: "replace" as const, deleteFirst: true }
       }
       return undefined
@@ -253,7 +260,9 @@ export const DashboardsChartProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -346,7 +355,7 @@ export const DashboardsChartProvider = (): infer _ =>
     delete: effect ({ output }) => {
       cci
         .deleteProjectsLocationsDashboardsCharts({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

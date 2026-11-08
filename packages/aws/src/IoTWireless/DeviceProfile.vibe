@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as iotw from "@distilled.cloud/aws/iot-wireless"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -99,7 +100,7 @@ export const DeviceProfileProvider = (): infer _ =>
       const getById = effect (deviceProfileId: string) =>
         iotw
           .getDeviceProfile({ Id: deviceProfileId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -167,14 +168,17 @@ export const DeviceProfileProvider = (): infer _ =>
           if (profile === undefined) return undefined
           const attrs = try toAttrs(profile, name)
           const tags = try readIotWirelessTags(attrs.deviceProfileArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // There is no UpdateDeviceProfile API — name and radio config are
         // create-only, so any change to either replaces the profile. Tags
         // stay update-in-place.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -206,7 +210,7 @@ export const DeviceProfileProvider = (): infer _ =>
                 Sidewalk: news.sidewalk,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             profile = created?.Id !== undefined
@@ -228,11 +232,13 @@ export const DeviceProfileProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (iotw.deleteDeviceProfile({ Id: output.deviceProfileId })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (iotw.deleteDeviceProfile({ Id: output.deviceProfileId })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

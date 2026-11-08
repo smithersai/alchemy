@@ -233,9 +233,9 @@ const toAttrs = (feed: cloudasset.Feed, project: string): infer _ => {
 const getByName = effect (
   name: string,
 ) => (name.length === 0
-  ? try Effect.undefined
+  ? undefined
   : cloudasset.getFeeds({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -268,10 +268,13 @@ export const FeedProvider = (): infer _ =>
     stables: ["name", "feedId", "parent", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.feedId ?? output?.feedId, news.feedId)
-          ?? replaceOn(olds?.parent, news.parent)
+        replaceOn(olds?.feedId ?? output?.feedId, resolved.feedId)
+          ?? replaceOn(olds?.parent, resolved.parent)
       )
     },
 
@@ -281,7 +284,9 @@ export const FeedProvider = (): infer _ =>
       const existing = try observe(env.project, feedId, output?.name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.condition?.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.condition?.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -306,19 +311,21 @@ export const FeedProvider = (): infer _ =>
       let current = try observe(env.project, feedId, output?.name)
 
       if (current === undefined) {
-        const created = (try (cloudasset
-          .createFeeds({
-            parent,
-            body: { feedId, feed: body },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "BadRequest",
-            times: 8,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try observe(env.project, feedId, output?.name);
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (cloudasset
+            .createFeeds({
+              parent,
+              body: { feedId, feed: body },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "BadRequest",
+              times: 8,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try observe(env.project, feedId, output?.name);
+          default: throw e;
+        }
         current = created ?? undefined
       }
 
@@ -368,7 +375,7 @@ export const FeedProvider = (): infer _ =>
       if (!output.name) return
       cloudasset
         .deleteFeeds({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "BadRequest" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "BadRequest" }: (undefined as void);
           default: throw e;
         }
     },

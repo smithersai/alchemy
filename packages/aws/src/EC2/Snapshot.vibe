@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -153,10 +155,11 @@ export const SnapshotProvider = (): infer _ =>
         ],
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           // A snapshot is an immutable copy of one volume — changing the source
           // volume requires a fresh snapshot.
-          if (olds.volumeId !== news.volumeId) {
+          if (olds.volumeId !== resolved.volumeId) {
             return { action: "replace" }
           }
         },
@@ -186,7 +189,7 @@ export const SnapshotProvider = (): infer _ =>
               TagSpecifications: [
                 {
                   ResourceType: "snapshot",
-                  Tags: createTagsList(desiredTags),
+                  Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                 },
               ],
               DryRun: false,
@@ -202,7 +205,7 @@ export const SnapshotProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (snapshot.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [snapshotId],
@@ -236,9 +239,9 @@ export const SnapshotProvider = (): infer _ =>
         delete: effect ({ output, session }) => {
           const snapshotId = output.snapshotId
           try session.note(`Deleting snapshot: ${snapshotId}`)
-          ;(try (ec2.deleteSnapshot({ SnapshotId: snapshotId, DryRun: false })
-            |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
-              when { _tag: "InvalidSnapshot.NotFound" }: try Effect.void;
+          ;(effect { return (try (ec2.deleteSnapshot({ SnapshotId: snapshotId, DryRun: false })
+            |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
+              when { _tag: "InvalidSnapshot.NotFound" }: (undefined as void);
               default: throw e;
             }
           try session.note(`Snapshot ${snapshotId} deleted successfully`)
@@ -266,10 +269,18 @@ const toSnapshotAttributes = (
   }
 }
 
-error SnapshotPending {
-  mutable snapshotId: string
-  mutable state: string
-  mutable progress?: string
+class SnapshotPending extends $MutableErrorBase("SnapshotPending")<{
+
+   snapshotId: string;
+
+   state: string;
+
+   progress?: string;
+}> {static {
+    $MutableErrorMatcher(this, "SnapshotPending", true);
+}
+
+
 }
 
 /**
@@ -307,7 +318,7 @@ const waitForSnapshotCompleted = effect (snapshotId: string, session?: ScopedPla
       ]).pipe(
         Schedule.tap(effect ({ attempt }) => (session
           ? try session.note(`Waiting for snapshot to complete... (${(attempt + 1) * 3}s)`)
-          : try Effect.void)
+          : (undefined as void))
         ),
       ),
     }))

@@ -192,14 +192,16 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, organization: string, project: string) =>
-  (Array.from(
-    try (dlp.listOrganizationsLocationsJobTriggers
-      .pages({ parent, pageSize: 100, type: "INSPECT_JOB" })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobTriggers ?? []))
-      |> Stream.filter(%, (trigger) => hasOwnershipMarker(trigger.description))
-      |> Stream.map(%, (trigger) => toAttrs(trigger, organization, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dlp.listOrganizationsLocationsJobTriggers
+        .pages({ parent, pageSize: 100, type: "INSPECT_JOB" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobTriggers ?? []))
+        |> Stream.filter(%, (trigger) => hasOwnershipMarker(trigger.description))
+        |> Stream.map(%, (trigger) => toAttrs(trigger, organization, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const statusOf = (value: string | undefined): infer _ => value ?? DEFAULT_STATUS
 
@@ -216,13 +218,33 @@ export const OrganizationsLocationsJobTriggerProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+          catch: (e) => e,
+        }),
+      )
       return (
-        replaceOn(olds?.triggerId ?? output?.triggerId, news.triggerId)
-          ?? replaceOn(olds?.organization ?? output?.organization, news.organization)
-          ?? replaceOn(previousLocation, nextLocation)
+        (try Effect.orDie(
+          Effect.try({
+            try: () => replaceOn(olds?.triggerId ?? output?.triggerId, resolved.triggerId),
+            catch: (e) => e,
+          }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({
+              try: () => replaceOn(olds?.organization ?? output?.organization, resolved.organization),
+              catch: (e) => e,
+            }),
+          ))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousLocation, nextLocation), catch: (e) => e })))
       )
     },
 
@@ -232,13 +254,17 @@ export const OrganizationsLocationsJobTriggerProvider = (): infer _ =>
         olds?.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const triggerId = try toPhysicalId(id, olds?.triggerId, output?.triggerId)
       const name = output?.name ?? resourceName(organization, location, triggerId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -246,7 +272,7 @@ export const OrganizationsLocationsJobTriggerProvider = (): infer _ =>
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
       const pages = try Effect.forEach(
-        locationParentsOf(organization, env.region),
+        try Effect.orDie(Effect.try({ try: () => locationParentsOf(organization, env.region), catch: (e) => e })),
         effect (parent) => try listAt(parent, organization, env.project),
         { concurrency: 3 },
       )
@@ -256,12 +282,18 @@ export const OrganizationsLocationsJobTriggerProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organization = try resolveOrganization(news.organization, output?.organization)
-      const location = normalizeLocation(news.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
       const triggerId = try toPhysicalId(id, news.triggerId, output?.triggerId)
-      const parent = organizationLocationParent(organization, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => organizationLocationParent(organization, location), catch: (e) => e }),
+      )
       const name = resourceName(organization, location, triggerId)
       const ownership = try createInternalLabels(id)
-      const description = encodeDescription(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName
       const status = statusOf(news.status)
       const triggers = news.triggers
@@ -295,15 +327,29 @@ export const OrganizationsLocationsJobTriggerProvider = (): infer _ =>
       const displayChanged = !sameText(current.displayName, displayName)
       const descriptionChanged = !sameText(current.description, description)
       const statusChanged = !sameText(current.status, status)
-      const triggersChanged = fingerprint(current.triggers) !== fingerprint(triggers)
-      const jobChanged = fingerprint(current.inspectJob) !== fingerprint(inspectJob)
-      const updateMask = updateMaskOf(
-        displayChanged ? "displayName" : undefined,
-        descriptionChanged ? "description" : undefined,
-        statusChanged ? "status" : undefined,
-        triggersChanged ? "triggers" : undefined,
-        jobChanged ? "inspectJob" : undefined,
-      )
+      const triggersChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.triggers), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(triggers),
+            catch: (e) => e,
+          })))
+      const jobChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.inspectJob), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(inspectJob),
+            catch: (e) => e,
+          })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "displayName" : undefined,
+            descriptionChanged ? "description" : undefined,
+            statusChanged ? "status" : undefined,
+            triggersChanged ? "triggers" : undefined,
+            jobChanged ? "inspectJob" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try dlp.patchOrganizationsLocationsJobTriggers({

@@ -124,7 +124,7 @@ interface GatewayState {
 const readGatewayById = effect (gatewayId: string) => {
   const described = sitewise
     .describeGateway({ gatewayId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -165,7 +165,7 @@ export const GatewayProvider = (): infer _ =>
           ).flatMap((page) => page.gatewaySummaries)
           const hydrated = try Effect.forEach(
             summaries.map((summary) => summary.gatewayId),
-            (gatewayId) => readGatewayById(gatewayId),
+            effect (gatewayId) => try readGatewayById(gatewayId),
             { concurrency: 5 },
           )
           return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
@@ -177,17 +177,18 @@ export const GatewayProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // Platform and version are fixed at creation; only the name is
           // mutable via UpdateGateway.
           if (
-            !matchesDesired(news.gatewayPlatform, olds.gatewayPlatform)
-            || !matchesDesired(olds.gatewayPlatform, news.gatewayPlatform)
-            || (news.gatewayVersion !== undefined && news.gatewayVersion !== olds.gatewayVersion)
+            !matchesDesired(resolved.gatewayPlatform, olds.gatewayPlatform)
+            || !matchesDesired(olds.gatewayPlatform, resolved.gatewayPlatform)
+            || (resolved.gatewayVersion !== undefined && resolved.gatewayVersion !== olds.gatewayVersion)
           ) {
             return { action: "replace" } as const
           }
@@ -264,7 +265,7 @@ export const GatewayProvider = (): infer _ =>
         delete: effect ({ output }) => {
           sitewise
             .deleteGateway({ gatewayId: output.gatewayId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

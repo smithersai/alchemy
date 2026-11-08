@@ -272,17 +272,21 @@ const ruleBody = (item: {
 // (e.g. its create failed), so there is no rule to observe or delete.
 const isWellFormed = (name: string): infer _ => name.length > 0 && !name.includes("//")
 
-const getByName = effect (name: string) => (!isWellFormed(name) ? try Effect.undefined : (try effect {
-  const rule = try dm.getProjectsLocationsConversionWorkspacesMappingRules({ name })
-  return (rule.state === "DELETED" ? undefined : rule)
+const getByName = effect (name: string) => (!isWellFormed(name) ? try Effect.undefined : (effect {
+  return (try effect {
+    const rule = try dm.getProjectsLocationsConversionWorkspacesMappingRules({ name })
+    return (rule.state === "DELETED" ? undefined : rule)
+  })
 }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
 
 const listRules = effect (parent: string) =>
-  (Array.from(
-    try (dm.listProjectsLocationsConversionWorkspacesMappingRules.pages({ parent, pageSize: 1000 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.mappingRules ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.MappingRule[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dm.listProjectsLocationsConversionWorkspacesMappingRules.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.mappingRules ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.MappingRule[]; default: throw e; }
 
 const listOwned = effect (project: string, region: string) => {
   const workspaces = try listConversionWorkspaces(project, region)
@@ -299,7 +303,10 @@ export const ConversionWorkspacesMappingRuleProvider = (): infer _ =>
     stables: ["name", "mappingRuleId", "conversionWorkspace", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previous = {
         ruleScope: olds?.ruleScope ?? output?.ruleScope,
@@ -319,28 +326,35 @@ export const ConversionWorkspacesMappingRuleProvider = (): infer _ =>
         singleColumnChange: olds?.singleColumnChange ?? output?.singleColumnChange,
         conditionalColumnSetValue: olds?.conditionalColumnSetValue ?? output?.conditionalColumnSetValue,
       }
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.mappingRuleId ?? output?.mappingRuleId,
-        nextId: news.mappingRuleId ?? olds?.mappingRuleId ?? output?.mappingRuleId,
+        nextId: resolved.mappingRuleId ?? olds?.mappingRuleId ?? output?.mappingRuleId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         previousParent: olds?.conversionWorkspace ?? output?.conversionWorkspace,
-        nextParent: news.conversionWorkspace,
-        extra: (olds !== undefined || output !== undefined) && ruleBody(news) !== ruleBody(previous),
-      })
+        nextParent: resolved.conversionWorkspace,
+        extra: (olds !== undefined || output !== undefined) && ruleBody(resolved) !== ruleBody(previous),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const conversionWorkspace = conversionWorkspaceOf(
-        olds?.conversionWorkspace ?? output?.conversionWorkspace ?? "",
-        env.project,
-        location,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const conversionWorkspace = try Effect.orDie(Effect.try({
+        try: () =>
+          conversionWorkspaceOf(
+            olds?.conversionWorkspace ?? output?.conversionWorkspace ?? "",
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
       const mappingRuleId = try toPhysicalId(
         id,
         olds?.mappingRuleId,
@@ -352,7 +366,9 @@ export const ConversionWorkspacesMappingRuleProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, name)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -363,12 +379,18 @@ export const ConversionWorkspacesMappingRuleProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const conversionWorkspace = conversionWorkspaceOf(
-        news.conversionWorkspace,
-        env.project,
-        location,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const conversionWorkspace = try Effect.orDie(Effect.try({
+        try: () =>
+          conversionWorkspaceOf(
+            news.conversionWorkspace,
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
       const mappingRuleId = try toPhysicalId(
         id,
         news.mappingRuleId,
@@ -377,7 +399,9 @@ export const ConversionWorkspacesMappingRuleProvider = (): infer _ =>
       )
       const name = resourceName(conversionWorkspace, mappingRuleId)
       const ownership = try createInternalLabels(id)
-      const displayName = encodeOwnershipLine(ownership, news.displayName)
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
       const ruleOrder = news.ruleOrder ?? DEFAULT_ORDER
       const filter = news.filter ?? {}
 
@@ -423,16 +447,18 @@ export const ConversionWorkspacesMappingRuleProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!isWellFormed(output.name)) return
-      const deleted = (try (dm
-        .deleteProjectsLocationsConversionWorkspacesMappingRules({
-          name: output.name,
-        })
-        |> Effect.as(%, true)
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
+      const deleted = (effect {
+        return (try (dm
+          .deleteProjectsLocationsConversionWorkspacesMappingRules({
+            name: output.name,
+          })
+          |> Effect.as(%, true)
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
       if (deleted) {
         try waitUntilGone(getByName(output.name), output.name)
       }

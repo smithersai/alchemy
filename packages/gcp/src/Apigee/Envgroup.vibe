@@ -120,13 +120,21 @@ export const EnvgroupProvider = (): infer _ =>
     stables: ["name", "envgroupId", "organization", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.envgroupId ?? output?.envgroupId
       const previousOrg = olds?.organization ?? output?.organization
-      const idChanged = previousId !== undefined && news.envgroupId !== undefined && news.envgroupId !== previousId
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+      const idChanged = previousId !== undefined && resolved.envgroupId !== undefined
+        && resolved.envgroupId !== previousId
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
       if (idChanged || orgChanged) {
         return {
           action: "replace" as const,
@@ -138,19 +146,28 @@ export const EnvgroupProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const envgroupId = try letterPrefixedId(id, olds?.envgroupId, output?.envgroupId, 63)
       const name = output?.name ?? resourceName(organization, envgroupId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
       const generated = try letterPrefixedId(id, undefined, undefined, 63)
-      return attrs.envgroupId === generated ? attrs : Unowned(attrs)
+      return attrs.envgroupId === generated
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const envgroupId = try letterPrefixedId(id, news.envgroupId, output?.envgroupId, 63)
       const name = resourceName(organization, envgroupId)
       const desiredHostnames = news.hostnames

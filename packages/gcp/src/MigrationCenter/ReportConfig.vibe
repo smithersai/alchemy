@@ -165,26 +165,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (mc.listProjectsLocationsReportConfigs
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.reportConfigs ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (mc.listProjectsLocationsReportConfigs
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.reportConfigs ?? []))
         |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.ReportConfig[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (mc.listProjectsLocationsReportConfigs
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.reportConfigs ?? []))
+          |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.ReportConfig[]; default: throw e; };
     default: throw e;
   }
 
@@ -193,28 +197,43 @@ export const ReportConfigProvider = (): infer _ =>
     stables: ["name", "reportConfigId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const payloadChanged = fingerprint({
-        assignments: news.groupPreferencesetAssignments,
-        displayName: news.displayName,
-        description: news.description,
-      })
-        !== fingerprint({
-          assignments: olds?.groupPreferencesetAssignments ?? output?.groupPreferencesetAssignments,
-          displayName: olds?.displayName ?? output?.displayName,
-          description: olds?.description ?? output?.description,
-        })
-      return replaceOnIdentity({
-        previousId: olds?.reportConfigId ?? output?.reportConfigId,
-        nextId: news.reportConfigId ?? olds?.reportConfigId ?? output?.reportConfigId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: payloadChanged,
-      })
+      const payloadChanged = (try Effect.orDie(Effect.try({
+        try: () =>
+          fingerprint({
+            assignments: resolved.groupPreferencesetAssignments,
+            displayName: resolved.displayName,
+            description: resolved.description,
+          }),
+        catch: (e) => e,
+      })))
+        !== (try Effect.orDie(Effect.try({
+          try: () =>
+            fingerprint({
+              assignments: olds?.groupPreferencesetAssignments ?? output?.groupPreferencesetAssignments,
+              displayName: olds?.displayName ?? output?.displayName,
+              description: olds?.description ?? output?.description,
+            }),
+          catch: (e) => e,
+        })))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.reportConfigId ?? output?.reportConfigId,
+            nextId: resolved.reportConfigId ?? olds?.reportConfigId ?? output?.reportConfigId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: payloadChanged,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -225,12 +244,16 @@ export const ReportConfigProvider = (): infer _ =>
         output?.reportConfigId,
         "reportcfg",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, reportConfigId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -247,10 +270,14 @@ export const ReportConfigProvider = (): infer _ =>
         output?.reportConfigId,
         "reportcfg",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, reportConfigId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName ?? reportConfigId
       const groupPreferencesetAssignments = assignmentsOf(
         news.groupPreferencesetAssignments,
@@ -285,16 +312,18 @@ export const ReportConfigProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (mc
-        .deleteProjectsLocationsReportConfigs({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (mc
+          .deleteProjectsLocationsReportConfigs({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

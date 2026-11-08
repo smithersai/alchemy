@@ -166,26 +166,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (mc.listProjectsLocationsSources
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (mc.listProjectsLocationsSources
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
         |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.Source[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (mc.listProjectsLocationsSources
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
+          |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.Source[]; default: throw e; };
     default: throw e;
   }
 
@@ -194,31 +198,42 @@ export const SourceProvider = (): infer _ =>
     stables: ["name", "sourceId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.type ?? output?.type ?? DEFAULT_TYPE
-      const nextType = news.type ?? previousType
-      return replaceOnIdentity({
-        previousId: olds?.sourceId ?? output?.sourceId,
-        nextId: news.sourceId ?? olds?.sourceId ?? output?.sourceId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousType !== nextType,
-      })
+      const nextType = resolved.type ?? previousType
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.sourceId ?? output?.sourceId,
+            nextId: resolved.sourceId ?? olds?.sourceId ?? output?.sourceId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousType !== nextType,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const sourceId = try toPhysicalId(id, olds?.sourceId, output?.sourceId, "source")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, sourceId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -230,10 +245,14 @@ export const SourceProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const sourceId = try toPhysicalId(id, news.sourceId, output?.sourceId, "source")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, sourceId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const type = news.type ?? DEFAULT_TYPE
       const displayName = news.displayName ?? sourceId
 
@@ -263,7 +282,9 @@ export const SourceProvider = (): infer _ =>
 
       const descriptionChanged = (current.description ?? "") !== description
       const displayNameChanged = (current.displayName ?? "") !== displayName
-      const priorityChanged = fingerprint(current.priority) !== fingerprint(news.priority)
+      const priorityChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.priority), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.priority), catch: (e) => e })))
       const mask = fieldMask([
         descriptionChanged && "description",
         displayNameChanged && "displayName",
@@ -289,12 +310,14 @@ export const SourceProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (mc.deleteProjectsLocationsSources({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 10,
-          schedule: Schedule.spaced("3 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (mc.deleteProjectsLocationsSources({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 10,
+            schedule: Schedule.spaced("3 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

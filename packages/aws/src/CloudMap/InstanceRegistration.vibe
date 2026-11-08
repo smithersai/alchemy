@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as sd from "@distilled.cloud/aws/servicediscovery"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -104,11 +105,13 @@ export const InstanceRegistrationProvider = (): infer _ =>
           if (serviceId === undefined || instanceId === undefined) {
             return undefined
           }
-          const instance = (try sd
-            .getInstance({ ServiceId: serviceId, InstanceId: instanceId })).Instance catch effect (e) => match (e) {
-              when { _tag: "InstanceNotFound" } or { _tag: "ServiceNotFound" }: try Effect.undefined;
-              default: throw e;
-            }
+          const instance = (effect {
+            return (try sd
+              .getInstance({ ServiceId: serviceId, InstanceId: instanceId })).Instance
+          }) catch effect (e) => match (e) {
+            when { _tag: "InstanceNotFound" } or { _tag: "ServiceNotFound" }: undefined;
+            default: throw e;
+          }
           if (instance === undefined) {
             return undefined
           }
@@ -117,8 +120,9 @@ export const InstanceRegistrationProvider = (): infer _ =>
           return { serviceId, instanceId }
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.serviceId !== news.serviceId || olds.instanceId !== news.instanceId) {
             return { action: "replace" } as const
           }
@@ -128,14 +132,16 @@ export const InstanceRegistrationProvider = (): infer _ =>
         reconcile: effect ({ news, session }) => {
           // OBSERVE — compare live attributes so an unchanged registration
           // is a no-op instead of a Route 53 record churn
-          const observed = (try sd
-            .getInstance({
-              ServiceId: news.serviceId,
-              InstanceId: news.instanceId,
-            })).Instance catch effect (e) => match (e) {
-              when { _tag: "InstanceNotFound" } or { _tag: "ServiceNotFound" }: try Effect.undefined;
-              default: throw e;
-            }
+          const observed = (effect {
+            return (try sd
+              .getInstance({
+                ServiceId: news.serviceId,
+                InstanceId: news.instanceId,
+              })).Instance
+          }) catch effect (e) => match (e) {
+            when { _tag: "InstanceNotFound" } or { _tag: "ServiceNotFound" }: undefined;
+            default: throw e;
+          }
 
           const observedAttributes = observed?.Attributes ?? undefined
           const desiredEntries = Object.entries(news.attributes)
@@ -168,10 +174,12 @@ export const InstanceRegistrationProvider = (): infer _ =>
               InstanceId: output.instanceId,
             }),
           ) catch effect (e) =>
-            match (e) {
-              when { _tag: "InstanceNotFound" } or { _tag: "ServiceNotFound" }: { OperationId: undefined };
-              default: throw e;
-            } catch effect (e) => match (e) {
+            (effect {
+              return match (e) {
+                when { _tag: "InstanceNotFound" } or { _tag: "ServiceNotFound" }: { OperationId: undefined };
+                default: throw e;
+              }
+            }) catch effect (e) => match (e) {
               when { _tag: "DuplicateRequest" }: { OperationId: e.DuplicateOperationId };
               default: throw e;
             }

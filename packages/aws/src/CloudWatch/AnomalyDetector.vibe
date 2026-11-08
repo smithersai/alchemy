@@ -1,15 +1,18 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { detectorIdentity, matchesDetectorIdentity, retryConcurrent } from "./common.ts"
 
-error AnomalyDetectorNotVisible {
-  mutable message: string
+class AnomalyDetectorNotVisible extends $MutableErrorBase("AnomalyDetectorNotVisible")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "AnomalyDetectorNotVisible", true)
+  }
 }
 
 export interface AnomalyDetectorProps extends cloudwatch.PutAnomalyDetectorInput {}
@@ -174,8 +177,14 @@ export const AnomalyDetectorProvider = (): infer _ =>
         }))
       ),
     diff: effect ({ olds = {}, news = {} }) => {
-      if (!isResolved(news)) return undefined
-      if (detectorIdentity(olds) !== detectorIdentity(news)) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (
+        (try Effect.orDie(Effect.try({ try: () => detectorIdentity(olds), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => detectorIdentity(resolved), catch: (e) => e })))
+      ) {
         return { action: "replace" } as const
       }
     },
@@ -192,7 +201,7 @@ export const AnomalyDetectorProvider = (): infer _ =>
       }
 
       return {
-        detectorId: detectorIdentity(props),
+        detectorId: try Effect.orDie(Effect.try({ try: () => detectorIdentity(props), catch: (e) => e })),
         anomalyDetector: detector,
       }
     },
@@ -202,7 +211,7 @@ export const AnomalyDetectorProvider = (): infer _ =>
       // expression). Sending desired props every reconcile converges the
       // cloud regardless of whether this is first-create or an update.
       try retryConcurrent(cloudwatch.putAnomalyDetector(news))
-      const detectorId = detectorIdentity(news)
+      const detectorId = try Effect.orDie(Effect.try({ try: () => detectorIdentity(news), catch: (e) => e }))
       try session.note(detectorId)
 
       // Sync — describe the detector after the put. CloudWatch is
@@ -235,6 +244,6 @@ export const AnomalyDetectorProvider = (): infer _ =>
     delete: effect ({ output }) => {
       retryConcurrent(
         cloudwatch.deleteAnomalyDetector(toDeleteRequest(output.anomalyDetector)),
-      ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.void; default: throw e; }
+      ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: (undefined as void); default: throw e; }
     },
   })

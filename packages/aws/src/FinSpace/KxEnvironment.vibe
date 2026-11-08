@@ -151,7 +151,7 @@ const createKxEnvironmentName = effect (
 const fetchKxTags = effect (arn: string) => {
   const response = finspace
     .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -196,7 +196,7 @@ const toKxAttributes = effect (env: KxEnvironmentView, fallbackId: string) => {
 const readKxEnvironmentById = effect (environmentId: string) => {
   const response = finspace
     .getKxEnvironment({ environmentId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!response || isGone(response.status)) return undefined
@@ -253,12 +253,12 @@ const retryThroughConflict = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(8)]),
   })
 
-const waitForKxEnvironmentStatus = (environmentId: string, target: "CREATED" | "DELETED") =>
-  retryWhileNotReady(
+const waitForKxEnvironmentStatus = effect (environmentId: string, target: "CREATED" | "DELETED") =>
+  try retryWhileNotReady(
     effect {
       const response = finspace
         .getKxEnvironment({ environmentId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       const status = response?.status
@@ -287,7 +287,7 @@ export const KxEnvironmentProvider = (): infer _ =>
           )
           return try Effect.forEach(
             environments.filter((env) => !isGone(env.status)),
-            (env) => toKxAttributes(env, env.environmentId ?? ""),
+            effect (env) => try toKxAttributes(env, env.environmentId ?? ""),
             { concurrency: 5 },
           )
         },
@@ -297,13 +297,14 @@ export const KxEnvironmentProvider = (): infer _ =>
             : try findKxEnvironmentByName(try createKxEnvironmentName(id, olds ?? {}))
           if (!env) return undefined
           const attrs = try toKxAttributes(env, output?.environmentId ?? "")
-          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The KMS key is fixed at creation.
-          if (olds.kmsKeyId !== news.kmsKeyId) {
+          if (olds.kmsKeyId !== resolved.kmsKeyId) {
             return { action: "replace" } as const
           }
           // FinSpace does not support changing or detaching an attached
@@ -312,8 +313,8 @@ export const KxEnvironmentProvider = (): infer _ =>
             || olds.customDNSConfiguration !== undefined
           if (
             hadNetwork
-            && (!sameJson(olds.transitGatewayConfiguration, news.transitGatewayConfiguration)
-              || !sameJson(olds.customDNSConfiguration, news.customDNSConfiguration))
+            && (!sameJson(olds.transitGatewayConfiguration, resolved.transitGatewayConfiguration)
+              || !sameJson(olds.customDNSConfiguration, resolved.customDNSConfiguration))
           ) {
             return { action: "replace" } as const
           }
@@ -396,7 +397,7 @@ export const KxEnvironmentProvider = (): infer _ =>
           // Sync tags — diff against observed cloud tags.
           const attrs = try toKxAttributes(env, environmentId)
           if (attrs.environmentArn) {
-            const { removed, upsert } = diffTags(attrs.tags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(attrs.tags, desiredTags), catch: (e) => e }))
             if (removed.length > 0) {
               try finspace.untagResource({
                 resourceArn: attrs.environmentArn,
@@ -426,7 +427,7 @@ export const KxEnvironmentProvider = (): infer _ =>
             effect {
               return finspace
                 .deleteKxEnvironment({ environmentId: output.environmentId }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

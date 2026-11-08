@@ -28,6 +28,7 @@ export interface Provider<R extends ResourceLike = ResourceLike> extends Effect.
 > {
   asEffect: () => Effect.Effect<ProviderService<R>, never, Provider<R>>;
   [Symbol.iterator]: () => Effect.EffectIterator<Provider<R>>;
+  /** @throws {never} */
   of: <
     ReadReq = never,
     DiffReq = never,

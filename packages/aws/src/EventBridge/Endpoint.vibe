@@ -251,7 +251,7 @@ export const EndpointProvider = (): infer _ =>
       const describe = effect (name: string) =>
         eventbridge
           .describeEndpoint({ Name: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -278,13 +278,13 @@ export const EndpointProvider = (): infer _ =>
 
       /** Delete the endpoint and wait until it is gone. */
       const removeEndpoint = effect (name: string) => {
-        ;(try (eventbridge.deleteEndpoint({ Name: name })
+        ;(effect { return (try (eventbridge.deleteEndpoint({ Name: name })
           |> Effect.retry(%, {
             while: (e): boolean => e._tag === "ConcurrentModificationException",
             schedule: Schedule.spaced("3 seconds"),
             times: 10,
-          }))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+          }))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         // Wait out DELETING so the same name can be recreated right away and
@@ -303,15 +303,15 @@ export const EndpointProvider = (): infer _ =>
       ) => {
         // Tolerate an AlreadyExists race with a peer reconciler; the settled
         // state is observed below either way.
-        ;(try (eventbridge.createEndpoint({ Name: name, ...desired })
+        ;(effect { return (try (eventbridge.createEndpoint({ Name: name, ...desired })
           |> Effect.retry(%, {
             // A freshly created replication role takes a few seconds to
             // become assumable by EventBridge (IAM propagation).
             while: (e): boolean => e._tag === "EndpointRoleNotAssumable",
             schedule: Schedule.spaced("3 seconds"),
             times: 15,
-          }))) catch effect (e) => match (e) {
-            when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+          }))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
             default: throw e;
           }
         const settled = try awaitSettled(name)
@@ -345,9 +345,10 @@ export const EndpointProvider = (): infer _ =>
       return {
         stables: ["endpointName", "endpointArn", "endpointId", "endpointUrl"],
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createEndpointName(id, olds)
-          const newName = try createEndpointName(id, news)
+          const newName = try createEndpointName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }

@@ -45,7 +45,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const rfc1035 = (
+export const rfc1035 = /** @throws {never} */ (
   name: string,
   fallback = "gkeonprem",
   maxLength = MAX_NAME_LENGTH,
@@ -62,10 +62,12 @@ export const rfc1035 = (
   return next.slice(0, maxLength);
 };
 
-export const normalizeLocation = (location: string | undefined, fallback: string) =>
-  lastSegment(location ?? fallback).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  fallback: string,
+) => lastSegment(location ?? fallback).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const toPhysicalId = (
@@ -131,12 +133,13 @@ export const stringMap = (
     ),
   );
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const encodeOwnership = (
   labels: Record<string, string>,
@@ -147,7 +150,7 @@ export const encodeOwnership = (
   return trimmed && trimmed.length > 0 ? `${marker}\n${trimmed}` : marker;
 };
 
-export const parseOwnership = (
+export const parseOwnership = /** @throws {never} */ (
   text: string | undefined,
 ): {
   labels: Record<string, string>;
@@ -234,11 +237,13 @@ export const differs = (observed: unknown, desired: unknown): boolean => {
   return fingerprint(pickDefined(observed, desired)) !== fingerprint(desired);
 };
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const textState = (state: string | undefined) =>
   state === undefined ? undefined : `${state}`;

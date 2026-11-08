@@ -182,7 +182,7 @@ const getByName = effect (
       region,
       instanceGroupManager,
       resizeRequest,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const awaitResource = effect (
   project: string,
@@ -224,21 +224,24 @@ export const RegionInstanceGroupManagerResizeRequestProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.requestName ?? output?.requestName
-      const nextName = news.requestName ?? previousName
+      const nextName = resolved.requestName ?? previousName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? (previousRegion || env.region), env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? (previousRegion || env.region), env.region)
       const previousManager = managerNameOf(
         olds?.instanceGroupManager ?? output?.instanceGroupManager ?? "",
       )
-      const nextManager = managerNameOf(news.instanceGroupManager)
+      const nextManager = managerNameOf(resolved.instanceGroupManager)
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
       const regionChanged = previousRegion.length > 0 && previousRegion !== nextRegion
       const managerChanged = previousManager.length > 0 && previousManager !== nextManager
       const resizeChanged = (olds?.resizeBy ?? output?.resizeBy) !== undefined
-        && news.resizeBy !== (olds?.resizeBy ?? output?.resizeBy)
+        && resolved.resizeBy !== (olds?.resizeBy ?? output?.resizeBy)
       if (nameChanged || regionChanged || managerChanged || resizeChanged) {
         return {
           action: "replace" as const,
@@ -265,21 +268,25 @@ export const RegionInstanceGroupManagerResizeRequestProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, instanceGroupManager)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const pages = (try (compute.aggregatedListInstanceGroupManagers
-        .pages({
-          project: env.project,
-          maxResults: 500,
-          returnPartialSuccess: true,
-        })
-        |> Stream.runCollect(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: [] as never[];
-          default: throw e;
-        }
+      const pages = (effect {
+        return (try (compute.aggregatedListInstanceGroupManagers
+          .pages({
+            project: env.project,
+            maxResults: 500,
+            returnPartialSuccess: true,
+          })
+          |> Stream.runCollect(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as never[];
+        default: throw e;
+      }
       const managers = Array.from(
         pages as readonly compute.InstanceGroupManagerAggregatedList[],
       ).flatMap((page) =>
@@ -295,19 +302,21 @@ export const RegionInstanceGroupManagerResizeRequestProvider = (): infer _ =>
       )
       const listed: RegionInstanceGroupManagerResizeRequest["Attributes"][] = []
       for (const manager of managers) {
-        const chunk = (Array.from(
-          try (compute.listRegionInstanceGroupManagerResizeRequests
-            .items({
-              project: env.project,
-              region: manager.region,
-              instanceGroupManager: manager.name,
-              maxResults: 500,
-              returnPartialSuccess: true,
-            })
-            |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
-            |> Stream.map(%, (item) => toAttrs(item, env.project, manager.name))
-            |> Stream.runCollect(%)),
-        )) catch effect (e) => match (e) {
+        const chunk = (effect {
+          return (Array.from(
+            try (compute.listRegionInstanceGroupManagerResizeRequests
+              .items({
+                project: env.project,
+                region: manager.region,
+                instanceGroupManager: manager.name,
+                maxResults: 500,
+                returnPartialSuccess: true,
+              })
+              |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+              |> Stream.map(%, (item) => toAttrs(item, env.project, manager.name))
+              |> Stream.runCollect(%)),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" }: [] as RegionInstanceGroupManagerResizeRequest["Attributes"][];
           default: throw e;
         }
@@ -347,7 +356,7 @@ export const RegionInstanceGroupManagerResizeRequestProvider = (): infer _ =>
             },
           }),
           { ignoreAlreadyExists: true },
-        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, region, instanceGroupManager, requestName)
       }
 
@@ -383,23 +392,25 @@ export const RegionInstanceGroupManagerResizeRequestProvider = (): infer _ =>
             resizeRequest: output.requestName,
           }),
           { ignoreNotFound: true },
-        ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
-      ;(try (runRegionOp(
-        env.project,
-        region,
-        compute.deleteRegionInstanceGroupManagerResizeRequests({
-          project: env.project,
+      ;(effect {
+        return (try (runRegionOp(
+          env.project,
           region,
-          instanceGroupManager,
-          resizeRequest: output.requestName,
-        }),
-        { ignoreNotFound: true },
-      )
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          compute.deleteRegionInstanceGroupManagerResizeRequests({
+            project: env.project,
+            region,
+            instanceGroupManager,
+            resizeRequest: output.requestName,
+          }),
+          { ignoreNotFound: true },
+        )
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
     },
   })

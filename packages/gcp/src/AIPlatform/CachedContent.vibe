@@ -206,7 +206,9 @@ const listCaches = effect (project: string, region: string) => {
     )).flat()
   }
   // Vertex AI has no `locations/-` wildcard; scan known locations.
-  return (try fallback) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  return (effect {
+    return (try fallback)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 }
 
 const findOwned = effect (id: string, project: string, region: string, hinted?: string) => {
@@ -216,7 +218,7 @@ const findOwned = effect (id: string, project: string, region: string, hinted?: 
   }
   const caches = try listCaches(project, region)
   for (const cache of caches) {
-    const { labels } = parseOwnership(cache.displayName)
+    const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(cache.displayName), catch: (e) => e }))
     if (try hasAlchemyLabels(id, labels)) return cache
   }
   return undefined as aiplatform.GoogleCloudAiplatformV1CachedContent | undefined
@@ -237,17 +239,26 @@ export const CachedContentProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousModel = olds?.model ?? output?.model ?? ""
       const previousKey = olds?.encryptionSpec?.kmsKeyName ?? output?.kmsKeyName ?? ""
-      const nextKey = news.encryptionSpec?.kmsKeyName ?? previousKey
+      const nextKey = resolved.encryptionSpec?.kmsKeyName ?? previousKey
       const replace = previousLocation !== nextLocation
-        || news.model !== previousModel
+        || resolved.model !== previousModel
         || nextKey !== previousKey
       if (!replace) return undefined
       return { action: "replace" as const, deleteFirst: true }
@@ -258,8 +269,12 @@ export const CachedContentProvider = (): infer _ =>
       const existing = try findOwned(id, env.project, env.region, output?.name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseOwnership(existing.displayName)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.displayName), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -272,46 +287,56 @@ export const CachedContentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const internal = try createInternalLabels(id)
-      const desiredDisplayName = encodeOwnership(
-        internal,
-        news.displayName ?? (try fallbackDisplayName(id)),
-        " ",
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const internal = try createInternalLabels(id)
+      const text = news.displayName ?? (try fallbackDisplayName(id))
+      const desiredDisplayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnership(
+            internal,
+            text,
+            " ",
+          ),
+        catch: (e) => e,
+      }))
 
       let current = try findOwned(id, env.project, env.region, output?.name)
 
       if (current === undefined) {
-        const created = (try (aiplatform
-          .createProjectsLocationsCachedContents({
-            parent: parentOf(env.project, location),
-            body: {
-              model: news.model,
-              contents: toContents(news.contents),
-              systemInstruction: news.systemInstruction
-                ? toContents([news.systemInstruction])?.[0]
-                : undefined,
-              ttl: news.ttl,
-              expireTime: news.expireTime,
-              displayName: desiredDisplayName,
-              encryptionSpec: news.encryptionSpec,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "CachedContentTooFewTokens",
-            times: 4,
-            schedule: Schedule.spaced("3 seconds"),
-          }))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try findOwned(id, env.project, env.region);
-            default: throw e;
-          }
+        const created = effect {
+          return (try (aiplatform
+            .createProjectsLocationsCachedContents({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              body: {
+                model: news.model,
+                contents: toContents(news.contents),
+                systemInstruction: news.systemInstruction
+                  ? toContents([news.systemInstruction])?.[0]
+                  : undefined,
+                ttl: news.ttl,
+                expireTime: news.expireTime,
+                displayName: desiredDisplayName,
+                encryptionSpec: news.encryptionSpec,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "CachedContentTooFewTokens",
+              times: 4,
+              schedule: Schedule.spaced("3 seconds"),
+            })))
+        } catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try findOwned(id, env.project, env.region);
+          default: throw e;
+        }
         current = created ?? undefined
       }
 
       if (current === undefined) {
         throw new CachedContentNotResolved({
-          resourceName: output?.name ?? parentOf(env.project, location),
+          resourceName: output?.name
+            ?? (try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e }))),
         })
       }
 

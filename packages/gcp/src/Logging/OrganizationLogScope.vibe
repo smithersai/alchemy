@@ -190,17 +190,21 @@ export const OrganizationLogScopeProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.logScopeId ?? output?.logScopeId
-      const idChanged = previousId !== undefined && news.logScopeId !== undefined && news.logScopeId !== previousId
+      const idChanged = previousId !== undefined && resolved.logScopeId !== undefined
+        && resolved.logScopeId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       const previousOrg = olds?.organization ?? output?.organization
       const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && news.organization !== previousOrg
+        && resolved.organization !== undefined
+        && resolved.organization !== previousOrg
       if (!idChanged && !locationChanged && !orgChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -217,25 +221,31 @@ export const OrganizationLogScopeProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project, location)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      return (Array.from(
-        try (logging.listOrganizationsLocationsLogScopes
-          .pages({
-            parent: `${organization}/locations/${DEFAULT_LOCATION}`,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.logScopes ?? []))
-          |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
-          |> Stream.map(%, (scope) => toAttrs(scope, organization, env.project, DEFAULT_LOCATION))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (logging.listOrganizationsLocationsLogScopes
+            .pages({
+              parent: `${organization}/locations/${DEFAULT_LOCATION}`,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.logScopes ?? []))
+            |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
+            |> Stream.map(%, (scope) => toAttrs(scope, organization, env.project, DEFAULT_LOCATION))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -245,7 +255,9 @@ export const OrganizationLogScopeProvider = (): infer _ =>
       const logScopeId = try toPhysicalId(id, news.logScopeId, output?.logScopeId, "s")
       const name = resourceName(organization, location, logScopeId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const desiredResources = news.resourceNames
         ?? output?.resourceNames ?? [`projects/${env.project}`]
 
@@ -270,7 +282,12 @@ export const OrganizationLogScopeProvider = (): infer _ =>
 
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const resourcesChanged = news.resourceNames !== undefined
-        && !jsonEqual(sorted(current.resourceNames), sorted(news.resourceNames))
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, sorted(current.resourceNames), sorted(news.resourceNames)),
+            catch: (e) => e,
+          }),
+        ))
       const updateMask = [
         descriptionChanged ? "description" : undefined,
         resourcesChanged ? "resourceNames" : undefined,

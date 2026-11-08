@@ -1090,7 +1090,7 @@ const compactRecord = (
 const toEnv = toEnvRecord
 
 const resolveMachineName = effect (id: string, name: string | undefined, existing?: string) => {
-  if (name !== undefined) return sanitizeFlyAppName(name)
+  if (name !== undefined) return try Effect.orDie(Effect.try({ try: () => sanitizeFlyAppName(name), catch: (e) => e }))
   if (existing !== undefined) return existing
   return try createFlyResourceName(id)
 }
@@ -1277,7 +1277,7 @@ const mainUrlOf = (endpoints: ServiceEndpoint[]): infer _ =>
 const validateOwnership = effect (props: Partial<Pick<ServiceProps, "app" | "public" | "network">>) => {
   if (props.app === undefined) return
   const conflicting = (["public", "network"] as const).filter((key) => props[key] !== undefined)
-  return (conflicting.length === 0 ? try Effect.void : throw new InvalidServiceProps({
+  return (conflicting.length === 0 ? (undefined as void) : throw new InvalidServiceProps({
     message: `Fly.Service ${
       conflicting.map((key) => `\`${key}\``).join(" and ")
     } only apply when the Service owns its App; remove \`app\` or ${
@@ -1574,13 +1574,13 @@ export const ServiceProvider = (): infer _ =>
       const docker = try Docker
       const { dotAlchemy } = try AlchemyContext
       const virtualEntryPlugin = try Bundle.virtualEntryPlugin
-      const hosted = createFlyHostedSupport({
+      const hosted = try Effect.orDie(Effect.try({ try: () => createFlyHostedSupport({
         stackName: stack.name,
         stage: stack.stage,
         virtualEntryPlugin,
         docker,
         dotAlchemy,
-      })
+      }), catch: (e) => e }))
 
       return Service.Provider.of({
         stables: ["appName"],
@@ -1618,11 +1618,11 @@ export const ServiceProvider = (): infer _ =>
                 try deploymentPolicy(settings.deploy, settings.shutdown, !settings.isExternal),
                 {
                   services: settings.services?.map(toFlyService)
-                    ?? defaultHttpServices(
+                    ?? (try Effect.orDie(Effect.try({ try: () => defaultHttpServices(
                       settings.port ?? DEFAULT_PORT,
                       1,
                       !ownsApp || settings.public !== false,
-                    ),
+                    ), catch: (e) => e }))),
                   checks: settings.checks,
                 },
                 false,
@@ -1635,7 +1635,7 @@ export const ServiceProvider = (): infer _ =>
             return { action: "replace" as const, deleteFirst: false }
           }
           if (ownsApp && isResolved(news)) {
-            const desiredAppName = news.name !== undefined ? sanitizeFlyAppName(news.name) : output.appName
+            const desiredAppName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined ? sanitizeFlyAppName(news.name) : output.appName, catch: (e) => e }))
             const nameChanged = desiredAppName !== output.appName
             // Fly cannot move an App to another network.
             const networkChanged = normalizeNetwork(news.network) !== normalizeNetwork(output.network)
@@ -1650,9 +1650,9 @@ export const ServiceProvider = (): infer _ =>
           if (!ownsApp && isResolved(news)) {
             const desiredAppName = appNameOf(news.app)
             const appChanged = desiredAppName !== undefined && desiredAppName !== output.appName
-            const desiredName = news.name !== undefined
+            const desiredName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined
               ? sanitizeFlyAppName(news.name)
-              : (output.baseName ?? output.name)
+              : (output.baseName ?? output.name), catch: (e) => e }))
             const nameChanged = desiredName !== (output.baseName ?? output.name)
             if (appChanged || nameChanged) {
               return {
@@ -1740,7 +1740,7 @@ export const ServiceProvider = (): infer _ =>
           const props = news
           const policy = try deploymentPolicy(props.deploy, props.shutdown, !props.isExternal)
           try validateOwnership(props)
-          const bound = collectBindingState(bindings ?? [])
+          const bound = try Effect.orDie(Effect.try({ try: () => collectBindingState(bindings ?? []), catch: (e) => e }))
           // Before creating anything: every bound Service must be reachable.
           try validateTargets(id, networkOf(props), bound.targets)
           const { appName, ownsApp, isPublic, network } = try ensureServiceApp(
@@ -1753,8 +1753,8 @@ export const ServiceProvider = (): infer _ =>
             ownsApp ? undefined : props.name,
             output?.baseName ?? output?.name,
           )
-          const regions = regionList(props.region, DEFAULT_REGION)
-          const count = resolveCount(props.count)
+          const regions = try Effect.orDie(Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e }))
+          const count = try Effect.orDie(Effect.try({ try: () => resolveCount(props.count), catch: (e) => e }))
           const port = props.port ?? DEFAULT_PORT
           const bindingPort = props.bindingPort ?? DEFAULT_BINDING_PORT
           const secretVersions: number[] = []
@@ -1762,7 +1762,7 @@ export const ServiceProvider = (): infer _ =>
           if (redisVersion !== undefined) secretVersions.push(redisVersion)
           const bucketVersion = try attachBucketSecrets(appName, bound.buckets, {
             ...bound.env,
-            ...toEnv(props.env),
+            ...try Effect.orDie(Effect.try({ try: () => toEnv(props.env), catch: (e) => e })),
           })
           if (bucketVersion !== undefined) secretVersions.push(bucketVersion)
           for (const pg of bound.postgres) {
@@ -1778,7 +1778,7 @@ export const ServiceProvider = (): infer _ =>
           const published = withBindingService(
             props.services !== undefined
               ? props.services.map(toFlyService)
-              : defaultHttpServices(port, count, isPublic),
+              : try Effect.orDie(Effect.try({ try: () => defaultHttpServices(port, count, isPublic), catch: (e) => e })),
             port,
             bindingPort,
           )
@@ -1786,10 +1786,16 @@ export const ServiceProvider = (): infer _ =>
           if (!ownsApp) try validateObservedPorts(appName, fqn, id, services)
           if (props.rpcToken !== undefined) env[RPC_TOKEN_ENV] = Redacted.value(props.rpcToken)
           for (const target of bound.targets) {
-            const keys = boundTargetEnvKeys(target.service)
-            env[keys.appName] = packEnvValue(target.appName)
-            if (target.privateUrl !== undefined) env[keys.url] = packEnvValue(target.privateUrl)
-            if (target.rpcToken !== undefined) env[keys.token] = packEnvValue(target.rpcToken)
+            const keys = try Effect.orDie(Effect.try({ try: () => boundTargetEnvKeys(target.service), catch: (e) => e }))
+            env[keys.appName] = (try Effect.orDie(Effect.try({ try: () => packEnvValue(target.appName), catch: (e) => e })))
+            if (target.privateUrl !== undefined) {
+              const value2 = target.privateUrl
+              env[keys.url] = (try Effect.orDie(Effect.try({ try: () => packEnvValue(value2), catch: (e) => e })))
+            }
+            if (target.rpcToken !== undefined) {
+              const value3 = target.rpcToken
+              env[keys.token] = (try Effect.orDie(Effect.try({ try: () => packEnvValue(value3), catch: (e) => e })))
+            }
           }
           env[RPC_ORG_ENV] = try resolveOrgSlug()
           if (published.added) env[BINDING_PORT_ENV] = String(bindingPort)
@@ -1869,12 +1875,12 @@ export const ServiceProvider = (): infer _ =>
             undefined,
           )
           const port = props.port ?? DEFAULT_PORT
-          const count = resolveCount(props.count)
+          const count = try Effect.orDie(Effect.try({ try: () => resolveCount(props.count), catch: (e) => e }))
           const bindingPort = props.bindingPort ?? DEFAULT_BINDING_PORT
           const { services } = withBindingService(
             props.services !== undefined
               ? props.services.map(toFlyService)
-              : defaultHttpServices(port, count, isPublic),
+              : try Effect.orDie(Effect.try({ try: () => defaultHttpServices(port, count, isPublic), catch: (e) => e })),
             port,
             bindingPort,
           )
@@ -1885,8 +1891,8 @@ export const ServiceProvider = (): infer _ =>
             machineIds: [],
             name,
             baseName: name,
-            region: regionList(props.region, DEFAULT_REGION)[0]!,
-            regions: regionList(props.region, DEFAULT_REGION),
+            region: (try Effect.orDie(Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e })))[0]!,
+            regions: try Effect.orDie(Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e })),
             state: "created",
             instanceId: undefined,
             privateIp: undefined,
@@ -1917,7 +1923,7 @@ export const ServiceProvider = (): infer _ =>
             fqn,
             resourceInstanceId: instanceId,
             machineIds: machineIdsOf(output),
-            volumeIds: volumeIdsOf(output),
+            volumeIds: try Effect.orDie(Effect.try({ try: () => volumeIdsOf(output), catch: (e) => e })),
             force,
           })
           if (output.ownsApp === true) try deleteApp(appName)

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as sesv2 from "@distilled.cloud/aws/sesv2"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -170,7 +171,7 @@ export const ContactProvider = (): infer _ =>
           .getContact({
             ContactListName: contactListName,
             EmailAddress: emailAddress,
-          }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
 
       return Contact.Provider.of({
         // Deleting a contact requires its parent list to still exist, so the
@@ -189,27 +190,29 @@ export const ContactProvider = (): infer _ =>
           const nested = try Effect.forEach(
             contactListNames,
             effect (contactListName) =>
-              (Array.from(
-                try (sesv2.listContacts.pages({ ContactListName: contactListName })
-                  |> Stream.runCollect(%)),
-              )
-                .flatMap((page) => page.Contacts ?? [])
-                .flatMap((contact) =>
-                  contact.EmailAddress
-                    ? [
-                      {
-                        contactListName,
-                        emailAddress: contact.EmailAddress,
-                      },
-                    ]
-                    : []
-                )) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: [] as {
-                    contactListName: string
-                    emailAddress: string
-                  }[];
-                  default: throw e;
-                },
+              (effect {
+                return (Array.from(
+                  try (sesv2.listContacts.pages({ ContactListName: contactListName })
+                    |> Stream.runCollect(%)),
+                )
+                  .flatMap((page) => page.Contacts ?? [])
+                  .flatMap((contact) =>
+                    contact.EmailAddress
+                      ? [
+                        {
+                          contactListName,
+                          emailAddress: contact.EmailAddress,
+                        },
+                      ]
+                      : []
+                  ))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: [] as {
+                  contactListName: string
+                  emailAddress: string
+                }[];
+                default: throw e;
+              },
             { concurrency: 2 },
           )
           return nested.flat()
@@ -227,8 +230,9 @@ export const ContactProvider = (): infer _ =>
           return found ? { contactListName, emailAddress } : undefined
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.contactListName !== olds.contactListName
             || news.emailAddress !== olds.emailAddress
@@ -240,7 +244,7 @@ export const ContactProvider = (): infer _ =>
         reconcile: effect ({ news, output }) => {
           const contactListName = output?.contactListName ?? news.contactListName
           const emailAddress = output?.emailAddress ?? news.emailAddress
-          const attributesData = try Effect.sync(() => stringifyAttributes(news.attributes))
+          const attributesData = stringifyAttributes(news.attributes)
 
           // 1. OBSERVE — cloud state is authoritative.
           const observed = try getContact(contactListName, emailAddress)
@@ -278,11 +282,8 @@ export const ContactProvider = (): infer _ =>
               && !samePreferences(observed.TopicPreferences, news.topicPreferences)
             const unsubscribeChanged = managesUnsubscribe && (observed.UnsubscribeAll ?? false) !== news.unsubscribeAll
             const attributesChanged = managesAttributes
-              && (try Effect.sync(
-                () =>
-                  normalizeAttributes(observed.AttributesData)
-                    !== normalizeAttributes(news.attributes),
-              ))
+              && (normalizeAttributes(observed.AttributesData)
+                !== normalizeAttributes(news.attributes))
 
             if (preferencesChanged || unsubscribeChanged || attributesChanged) {
               try sesv2.updateContact({
@@ -307,7 +308,10 @@ export const ContactProvider = (): infer _ =>
             .deleteContact({
               ContactListName: output.contactListName,
               EmailAddress: output.emailAddress,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
         },
       })
     },

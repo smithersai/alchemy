@@ -1,11 +1,10 @@
+import * as Effect from "effect/Effect"
 import * as contacts from "@distilled.cloud/aws/ssm-contacts"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 /** How Incident Manager engages the contact through this channel. */
@@ -107,20 +106,22 @@ export const ContactChannelProvider = (): infer _ =>
       const getChannel = effect (arn: string) =>
         contacts
           .getContactChannel({ ContactChannelId: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       // A channel's ARN embeds a generated UUID, so without cached output we
       // fall back to searching the owning contact's channels by name + type.
       const findChannel = effect (contactId: string, name: string, type: string) =>
-        Array.from(
-          try (contacts.listContactChannels.items({ ContactId: contactId })
-            |> Stream.filter(%, (channel) => channel.Name === name && (channel.Type ?? type) === type)
-            |> Stream.take(%, 1)
-            |> Stream.runCollect(%)),
-        )[0] catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return Array.from(
+            try (contacts.listContactChannels.items({ ContactId: contactId })
+              |> Stream.filter(%, (channel) => channel.Name === name && (channel.Type ?? type) === type)
+              |> Stream.take(%, 1)
+              |> Stream.runCollect(%)),
+          )[0]
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -157,13 +158,16 @@ export const ContactChannelProvider = (): infer _ =>
           if (olds?.contactId === undefined) return undefined
           const name = try createName(id, olds)
           const found = try findChannel(olds.contactId, name, olds.type)
-          return found === undefined ? undefined : Unowned(buildAttrs(found))
+          return found === undefined
+            ? undefined
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(buildAttrs(found)), catch: (error) => error })))
         },
 
         // The owning contact and channel type are create-only; name and
         // delivery address update in place.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.contactId !== news.contactId) {
             return { action: "replace" } as const
           }
@@ -186,18 +190,20 @@ export const ContactChannelProvider = (): infer _ =>
           //    by re-searching.
           if (channel === undefined) {
             try session.note(`creating contact channel ${name}`)
-            const arn = (try contacts
-              .createContactChannel({
-                ContactId: news.contactId,
-                Name: name,
-                Type: news.type,
-                DeliveryAddress: news.deliveryAddress,
-                DeferActivation: news.deferActivation,
-              })).ContactChannelArn catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }:
-                  (try findChannel(news.contactId, name, news.type))!.ContactChannelArn;
-                default: throw e;
-              }
+            const arn = (effect {
+              return (try contacts
+                .createContactChannel({
+                  ContactId: news.contactId,
+                  Name: name,
+                  Type: news.type,
+                  DeliveryAddress: news.deliveryAddress,
+                  DeferActivation: news.deferActivation,
+                })).ContactChannelArn
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }:
+                (try findChannel(news.contactId, name, news.type))!.ContactChannelArn;
+              default: throw e;
+            }
             channel = (try getChannel(arn))!
           }
 
@@ -220,14 +226,16 @@ export const ContactChannelProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (contacts
-            .deleteContactChannel({
-              ContactChannelId: output.contactChannelArn,
-            })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (contacts
+              .deleteContactChannel({
+                ContactChannelId: output.contactChannelArn,
+              })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

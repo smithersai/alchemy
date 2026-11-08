@@ -190,11 +190,12 @@ export const ManifestProvider = (): infer _ =>
         // them to alchemy; refresh happens per-instance through `read`.
         list: effect () => [] as Manifest["Attributes"][],
         diff: effect ({ olds = {} as ManifestProps, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldManifest = olds.manifest as KubernetesManifest | undefined
-          const newManifest = news.manifest as KubernetesManifest
-          const oldCluster = connectionIdentity(tryConnectionOf(olds.cluster))
-          const newCluster = connectionIdentity(tryConnectionOf(news.cluster))
+          const newManifest = resolved.manifest as KubernetesManifest
+          const oldCluster = try Effect.orDie(Effect.try({ try: () => connectionIdentity(tryConnectionOf(olds.cluster)), catch: (e) => e }))
+          const newCluster = try Effect.orDie(Effect.try({ try: () => connectionIdentity(tryConnectionOf(resolved.cluster)), catch: (e) => e }))
           // Object identity (cluster, group/version/kind, name, namespace) is
           // immutable — changing any of it is a replacement.
           if (
@@ -210,7 +211,7 @@ export const ManifestProvider = (): infer _ =>
         },
         read: effect ({ output, olds }) => {
           if (!output) return undefined
-          const connection = connectionOfOutput(output)
+          const connection = try Effect.orDie(Effect.try({ try: () => connectionOfOutput(output), catch: (e) => e }))
           if (!connection) return undefined
           // ClusterNotFound fails the drift row. undefined means this object is gone.
           const transport = try connectCluster(connection)
@@ -218,7 +219,7 @@ export const ManifestProvider = (): infer _ =>
             transport,
             object: output.ref,
           }) catch effect (e) => match (e) {
-            when { _tag: "KubernetesNotFound" }: try Effect.undefined;
+            when { _tag: "KubernetesNotFound" }: undefined;
             default: throw e;
           }
           if (!observed) return undefined
@@ -231,7 +232,7 @@ export const ManifestProvider = (): infer _ =>
           const desired = output.driftMask === undefined && manifest !== undefined
             ? try toObjectDefinition(manifest)
             : undefined
-          const mask = output.driftMask ?? (desired === undefined ? undefined : driftMask(desired))
+          const mask = output.driftMask ?? (desired === undefined ? undefined : try Effect.orDie(Effect.try({ try: () => driftMask(desired), catch: (e) => e })))
           if (mask === undefined) return attrs
           const liveHash = try hashDriftSelection(mask, observed)
           const baseline = output.driftMask !== undefined && output.baselineHash !== undefined
@@ -245,7 +246,7 @@ export const ManifestProvider = (): infer _ =>
           return attrs
         },
         reconcile: effect ({ news, output, session }) => {
-          const connection = toConnection(news.cluster)
+          const connection = try Effect.orDie(Effect.try({ try: () => toConnection(news.cluster), catch: (e) => e }))
           const transport = try connectCluster(connection)
           const object = try toObjectDefinition(news.manifest)
           const ref: KubernetesObjectRef = {
@@ -259,7 +260,7 @@ export const ManifestProvider = (): infer _ =>
           // converge-if-present in one call, `force: true` so alchemy owns
           // the fields it manages regardless of prior managers.
           const applied = try applyObject({ transport, object })
-          const witnessed = isPlainObject(applied) ? applied : undefined
+          const witnessed = (try Effect.orDie(Effect.try({ try: () => isPlainObject(applied), catch: (e) => e }))) ? applied : undefined
           const baselineHash = try hashDriftSelection(object, witnessed ?? object)
 
           try session.note(
@@ -277,11 +278,11 @@ export const ManifestProvider = (): infer _ =>
             ref,
             uid,
             baselineHash,
-            driftMask: driftMask(object, witnessed),
+            driftMask: try Effect.orDie(Effect.try({ try: () => driftMask(object, witnessed), catch: (e) => e })),
           }
         },
         delete: effect ({ output }) => {
-          const connection = connectionOfOutput(output)
+          const connection = try Effect.orDie(Effect.try({ try: () => connectionOfOutput(output), catch: (e) => e }))
           if (!connection) return
           const transport = try ifClusterExists(connectCluster(connection))
           if (!transport) return

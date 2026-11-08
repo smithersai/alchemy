@@ -5,9 +5,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { readSecurityLakeTags, retryWhileConflict, toTagList } from "./internal.vibe"
 
@@ -193,8 +190,10 @@ export const SubscriberProvider = (): infer _ =>
         props.subscriberName ?? (try createPhysicalName({ id, maxLength: 64 }))
 
       const getById = effect (subscriberId: string) =>
-        (try securitylake.getSubscriber({ subscriberId })).subscriber catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try securitylake.getSubscriber({ subscriberId })).subscriber
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -212,25 +211,31 @@ export const SubscriberProvider = (): infer _ =>
         read: effect ({ id, olds, output }) => {
           // An account that never onboarded Security Lake rejects subscriber
           // APIs with UnauthorizedException — that means "no subscriber".
-          const subscriber = (try (
-            output?.subscriberId
-              ? getById(output.subscriberId)
-              : Effect.flatMap(createName(id, olds ?? {}), findByName)
-          )) catch effect (e) => match (e) {
-            when { _tag: "UnauthorizedException" }: try Effect.undefined;
+          const subscriber = (effect {
+            return (try (
+              output?.subscriberId
+                ? getById(output.subscriberId)
+                : Effect.flatMap(createName(id, olds ?? {}), findByName)
+            ))
+          }) catch effect (e) => match (e) {
+            when { _tag: "UnauthorizedException" }: undefined;
             default: throw e;
           }
           if (subscriber === undefined) return undefined
           const attrs = buildAttrs(subscriber)
           const tags = try readSecurityLakeTags(attrs.subscriberArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         list: effect () =>
-          ([
-            ...(try (securitylake.listSubscribers.items({})
-              |> Stream.runCollect(%))),
-          ].map(buildAttrs)) catch effect (e) => match (e) {
+          (effect {
+            return ([
+              ...(try (securitylake.listSubscribers.items({})
+                |> Stream.runCollect(%))),
+            ].map(buildAttrs))
+          }) catch effect (e) => match (e) {
             when { _tag: "AccessDeniedException" } or { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }:
               [];
             default: throw e;
@@ -238,9 +243,12 @@ export const SubscriberProvider = (): infer _ =>
 
         // accessTypes is create-only (UpdateSubscriber cannot change it).
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           const oldAccess = [...(olds.accessTypes ?? ["S3"])].sort()
-          const newAccess = [...(news.accessTypes ?? ["S3"])].sort()
+          const newAccess = [...(resolved.accessTypes ?? ["S3"])].sort()
           if (
             oldAccess.length !== newAccess.length
             || oldAccess.some((value, index) => value !== newAccess[index])
@@ -261,18 +269,20 @@ export const SubscriberProvider = (): infer _ =>
           // 2. ENSURE — create when missing; a ConflictException means a
           // concurrent create won the race, so re-observe by name.
           if (subscriber === undefined) {
-            subscriber = (try securitylake
-              .createSubscriber({
-                subscriberName,
-                subscriberIdentity: news.subscriberIdentity,
-                subscriberDescription: news.subscriberDescription,
-                sources: news.sources,
-                accessTypes: news.accessTypes,
-                tags: toTagList(desiredTags),
-              })).subscriber catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try findByName(subscriberName);
-                default: throw e;
-              }
+            subscriber = (effect {
+              return (try securitylake
+                .createSubscriber({
+                  subscriberName,
+                  subscriberIdentity: news.subscriberIdentity,
+                  subscriberDescription: news.subscriberDescription,
+                  sources: news.sources,
+                  accessTypes: news.accessTypes,
+                  tags: toTagList(desiredTags),
+                })).subscriber
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try findByName(subscriberName);
+              default: throw e;
+            }
             if (subscriber === undefined) {
               throw new SubscriberCreateFailed({ subscriberName })
             }
@@ -297,7 +307,9 @@ export const SubscriberProvider = (): infer _ =>
 
             // 3b. SYNC tags — diff against OBSERVED cloud tags.
             const observedTags = try readSecurityLakeTags(subscriber.subscriberArn)
-            const { upsert, removed } = diffTags(observedTags, desiredTags)
+            const { upsert, removed } = try Effect.orDie(
+              Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+            )
             if (upsert.length > 0) {
               try securitylake.tagResource({
                 resourceArn: subscriber.subscriberArn,
@@ -319,11 +331,13 @@ export const SubscriberProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (securitylake.deleteSubscriber({ subscriberId: output.subscriberId })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (securitylake.deleteSubscriber({ subscriberId: output.subscriberId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }: (undefined as void);
+            default: throw e;
+          }
         },
       }
     },

@@ -320,18 +320,22 @@ export const SecurityGatewayProvider = (): infer _ =>
     stables: ["name", "securityGatewayId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const input = {
         previousId: olds?.securityGatewayId ?? output?.securityGatewayId,
-        nextId: news.securityGatewayId
-          ? rfc1035(news.securityGatewayId, "securitygateway")
+        nextId: resolved.securityGatewayId
+          ? rfc1035(resolved.securityGatewayId, "securitygateway")
           : (olds?.securityGatewayId ?? output?.securityGatewayId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           DEFAULT_GLOBAL,
         ),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -342,12 +346,19 @@ export const SecurityGatewayProvider = (): infer _ =>
         output?.securityGatewayId,
         "securitygateway",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = output?.name ?? resourceName(env.project, location, securityGatewayId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -364,10 +375,17 @@ export const SecurityGatewayProvider = (): infer _ =>
         output?.securityGatewayId,
         "securitygateway",
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = resourceName(env.project, location, securityGatewayId)
       const ownership = try createInternalLabels(id)
-      const desiredDisplayName = encodeOwnershipLine(ownership, news.displayName)
+      const desiredDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
       // An unset `hubs` keeps the existing hubs (a previous default or an
       // adopted gateway's) so a changed stack region never moves them.
       const hubSpec: Record<string, SecurityGatewayHub> = news.hubs
@@ -393,8 +411,11 @@ export const SecurityGatewayProvider = (): infer _ =>
         if (created !== undefined) {
           try waitForOperation(created)
         }
-        current = try waitUntilReady(getByName(name), name, (item) =>
-          item.state === undefined ? undefined : `${item.state}`)
+        current = try waitUntilReady(
+          getByName(name),
+          name,
+          (item) => item.state === undefined ? undefined : `${item.state}`,
+        )
       }
 
       if (current === undefined) {
@@ -403,7 +424,11 @@ export const SecurityGatewayProvider = (): infer _ =>
 
       const mask = fieldMask([
         (current.displayName ?? "") !== desiredDisplayName && "display_name",
-        fingerprint(hubKeys(toHubs(current.hubs))) !== fingerprint(hubKeys(hubSpec)) && "hubs",
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, hubKeys(toHubs(current.hubs))), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, hubKeys(hubSpec)), catch: (e) => e })))
+        && "hubs",
       ])
 
       if (mask.length > 0) {
@@ -423,14 +448,15 @@ export const SecurityGatewayProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (beyondcorp
-        .deleteProjectsLocationsSecurityGateways({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) =>
-            error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (beyondcorp
+          .deleteProjectsLocationsSecurityGateways({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

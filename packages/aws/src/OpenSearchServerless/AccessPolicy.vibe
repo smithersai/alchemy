@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -141,7 +142,7 @@ export const AccessPolicyProvider = (): infer _ =>
           const name = output?.policyName ?? (try createName(id, olds ?? {}))
           const found = aoss
             .getAccessPolicy({ type: ACCESS_POLICY_TYPE, name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (found?.accessPolicyDetail === undefined) {
@@ -152,8 +153,9 @@ export const AccessPolicyProvider = (): infer _ =>
           return toAttributes(found.accessPolicyDetail)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) {
@@ -167,23 +169,27 @@ export const AccessPolicyProvider = (): infer _ =>
           const policy = stringifyPolicy(news.policy)
 
           // 1. OBSERVE
-          let detail = (try aoss.getAccessPolicy({ type: ACCESS_POLICY_TYPE, name })).accessPolicyDetail catch effect (
+          let detail = (effect {
+            return (try aoss.getAccessPolicy({ type: ACCESS_POLICY_TYPE, name })).accessPolicyDetail
+          }) catch effect (
             e,
-          ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+          ) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
           // 2. ENSURE
           if (detail === undefined) {
-            detail = (try aoss
-              .createAccessPolicy({
-                type: ACCESS_POLICY_TYPE,
-                name,
-                policy,
-                description: news.description,
-              })).accessPolicyDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: (try aoss
-                  .getAccessPolicy({ type: ACCESS_POLICY_TYPE, name })).accessPolicyDetail;
-                default: throw e;
-              }
+            detail = (effect {
+              return (try aoss
+                .createAccessPolicy({
+                  type: ACCESS_POLICY_TYPE,
+                  name,
+                  policy,
+                  description: news.description,
+                })).accessPolicyDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (try aoss
+                .getAccessPolicy({ type: ACCESS_POLICY_TYPE, name })).accessPolicyDetail;
+              default: throw e;
+            }
           } else {
             // 3. SYNC
             const policyDrift = canonicalizePolicy(detail.policy) !== canonicalizePolicy(policy)
@@ -201,9 +207,13 @@ export const AccessPolicyProvider = (): infer _ =>
           }
 
           if (detail?.name === undefined) {
-            throw aoss.ResourceNotFoundException.make({
-              message: `access policy ${name} not visible after reconcile`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                aoss.ResourceNotFoundException.make({
+                  message: `access policy ${name} not visible after reconcile`,
+                }),
+              catch: (e) => e,
+            }))
           }
           try session.note(name)
           return toAttributes(detail)
@@ -216,7 +226,7 @@ export const AccessPolicyProvider = (): infer _ =>
               name: output.policyName,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

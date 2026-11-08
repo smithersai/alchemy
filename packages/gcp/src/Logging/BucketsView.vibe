@@ -203,7 +203,7 @@ const toAttrs = (view: logging.LogView, project: string, location: string, bucke
 const getByName = effect (name: string) =>
   logging
     .getProjectsLocationsBucketsViews({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -212,13 +212,16 @@ export const BucketsViewProvider = (): infer _ =>
     stables: ["name", "viewId", "bucket", "bucketId", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.viewId ?? output?.viewId
-      const idChanged = previousId !== undefined && news.viewId !== undefined && news.viewId !== previousId
+      const idChanged = previousId !== undefined && resolved.viewId !== undefined && resolved.viewId !== previousId
       const previousBucket = olds?.bucket ?? output?.bucket
       const bucketChanged = previousBucket !== undefined
-        && news.bucket.includes("/buckets/")
-        && news.bucket !== previousBucket
+        && resolved.bucket.includes("/buckets/")
+        && resolved.bucket !== previousBucket
       if (!idChanged && !bucketChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -240,8 +243,12 @@ export const BucketsViewProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, parent.project, parent.location, parent.bucketId)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -250,25 +257,27 @@ export const BucketsViewProvider = (): infer _ =>
       const pages = try Effect.forEach(
         buckets,
         effect (bucket) =>
-          (Array.from(
-            try (logging.listProjectsLocationsBucketsViews
-              .pages({
-                parent: bucket.name!,
-                pageSize: 1000,
-              })
-              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.views ?? []))
-              |> Stream.filter(%, (view) => hasOwnershipMarker(view.description))
-              |> Stream.map(%, (view) => {
-                const parsed = parseViewName(view.name ?? "")
-                return toAttrs(
-                  view,
-                  parsed?.project ?? env.project,
-                  parsed?.location ?? DEFAULT_LOCATION,
-                  parsed?.bucketId ?? lastSegment(bucket.name ?? ""),
-                )
-              })
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) {
+          (effect {
+            return (Array.from(
+              try (logging.listProjectsLocationsBucketsViews
+                .pages({
+                  parent: bucket.name!,
+                  pageSize: 1000,
+                })
+                |> Stream.flatMap(%, (page) => Stream.fromIterable(page.views ?? []))
+                |> Stream.filter(%, (view) => hasOwnershipMarker(view.description))
+                |> Stream.map(%, (view) => {
+                  const parsed = parseViewName(view.name ?? "")
+                  return toAttrs(
+                    view,
+                    parsed?.project ?? env.project,
+                    parsed?.location ?? DEFAULT_LOCATION,
+                    parsed?.bucketId ?? lastSegment(bucket.name ?? ""),
+                  )
+                })
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) {
             when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
             default: throw e;
           },
@@ -284,7 +293,9 @@ export const BucketsViewProvider = (): infer _ =>
       const viewId = try toId(id, news.viewId, output?.viewId)
       const name = resourceName(parent.project, parent.location, parent.bucketId, viewId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -329,7 +340,7 @@ export const BucketsViewProvider = (): infer _ =>
     delete: effect ({ output }) => {
       logging
         .deleteProjectsLocationsBucketsViews({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

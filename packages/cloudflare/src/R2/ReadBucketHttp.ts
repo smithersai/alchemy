@@ -34,6 +34,7 @@ export const ReadBucketHttp = Layer.effect(
   ),
 );
 
+/** @throws {never} */
 export const makeReadR2HttpClient = (
   auth: R2Auth,
   bucketName: Effect.Effect<string>,

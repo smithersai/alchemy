@@ -147,18 +147,22 @@ export const FunctionProvider = (): infer _ =>
         props.name ?? sanitizeAppSyncName(try createPhysicalName({ id, maxLength: 64 }))
 
       const getFunctionSafe = effect (apiId: string, functionId: string) =>
-        (try appsync.getFunction({ apiId, functionId })).functionConfiguration catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try appsync.getFunction({ apiId, functionId })).functionConfiguration
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
 
       /** Find a function by name (fallback when no functionId is cached). */
       const findFunctionByName = effect (apiId: string, name: string) => {
-        const pages = (try (appsync.listFunctions.pages({ apiId })
-          |> Stream.runCollect(%))) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: [];
-            default: throw e;
-          }
+        const pages = (effect {
+          return (try (appsync.listFunctions.pages({ apiId })
+            |> Stream.runCollect(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: [];
+          default: throw e;
+        }
         return Array.from(pages)
           .flatMap((page) => page.functions ?? [])
           .find((fn) => fn.name === name)
@@ -186,18 +190,16 @@ export const FunctionProvider = (): infer _ =>
         responseMappingTemplate?: string
         maxBatchSize?: number
       }): infer _ =>
-        JSON.parse(
-          JSON.stringify({
-            name: fn.name,
-            description: fn.description,
-            dataSourceName: fn.dataSourceName,
-            code: fn.code,
-            runtime: fn.runtime,
-            requestMappingTemplate: fn.requestMappingTemplate,
-            responseMappingTemplate: fn.responseMappingTemplate,
-            maxBatchSize: fn.maxBatchSize ?? 0,
-          }),
-        )
+        $invoke(JSON, () => (JSON.stringify({
+          name: fn.name,
+          description: fn.description,
+          dataSourceName: fn.dataSourceName,
+          code: fn.code,
+          runtime: fn.runtime,
+          requestMappingTemplate: fn.requestMappingTemplate,
+          responseMappingTemplate: fn.responseMappingTemplate,
+          maxBatchSize: fn.maxBatchSize ?? 0,
+        })))
 
       const toAttributes = (
         apiId: string,
@@ -229,8 +231,9 @@ export const FunctionProvider = (): infer _ =>
           return toAttributes(apiId, fn)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.apiId !== olds.apiId) {
             return { action: "replace" } as const
           }
@@ -254,17 +257,27 @@ export const FunctionProvider = (): infer _ =>
             )
             observed = created.functionConfiguration!
             try session.note(`Created pipeline function ${name}`)
-          } else if (!deepEqual(surface(observed), surface(desired))) {
-            // 3. SYNC
-            const updated = try retryConcurrentModification(
-              appsync.updateFunction({
-                apiId,
-                functionId: observed.functionId,
-                ...desired,
-              }),
-            )
-            observed = updated.functionConfiguration ?? observed
-            try session.note(`Updated pipeline function ${name}`)
+          } else {
+            const currentFunction = observed
+            if (
+              !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(surface(currentFunction), surface(desired)),
+                  catch: (error) => error,
+                }),
+              ))
+            ) {
+              // 3. SYNC
+              const updated = try retryConcurrentModification(
+                appsync.updateFunction({
+                  apiId,
+                  functionId: observed.functionId,
+                  ...desired,
+                }),
+              )
+              observed = updated.functionConfiguration ?? observed
+              try session.note(`Updated pipeline function ${name}`)
+            }
           }
 
           try session.note(name)
@@ -279,7 +292,7 @@ export const FunctionProvider = (): infer _ =>
                   apiId: output.apiId,
                   functionId: output.functionId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },
@@ -288,3 +301,13 @@ export const FunctionProvider = (): infer _ =>
       })
     },
   )
+
+module $call$ts {
+  export function invoke<T extends { "parse": Function }>(
+    target: T,
+    arg0: () => Parameters<Extract<T["parse"], (...args: any[]) => any>>[0],
+  ): ReturnType<Extract<T["parse"], (...args: any[]) => any>> {
+    return target["parse"](arg0())
+  }
+}
+import { invoke as $invoke } from $call$ts

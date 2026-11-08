@@ -50,6 +50,7 @@ export interface ReplaceDiff {
 export const hasUnresolvedInputs = <T>(value: Input<NoInfer<T>>): value is T =>
   _hasUnresolved(value);
 
+
 export const isResolved = <T>(value: Input<T>): value is T => !_hasUnresolved(value);
 
 const _hasUnresolved = (value: unknown, seen: WeakSet<object> = new WeakSet()): boolean => {

@@ -7,7 +7,7 @@
  */
 import * as Effect from "effect/Effect";
 import { resolveDeltas, scanPart } from "../Protocol/PartialScan.vibe";
-import { decodeDeltaBatch, encodeDeltaResults, encodeScanResult, frame } from "./Protocol.vibe";
+import { decodeDeltaBatch, encodeDeltaResults, encodeScanResult, frame } from "./Protocol.ts";
 
 export default {
   async fetch(request: Request): Promise<Response> {

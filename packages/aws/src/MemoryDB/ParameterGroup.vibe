@@ -102,7 +102,7 @@ export const ParameterGroupProvider = (): infer _ =>
       const readGroup = effect (name: string) => {
         const response = memorydb
           .describeParameterGroups({ ParameterGroupName: name }) catch effect (e) => match (e) {
-            when { _tag: "ParameterGroupNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ParameterGroupNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.ParameterGroups?.[0]
@@ -113,13 +113,13 @@ export const ParameterGroupProvider = (): infer _ =>
         const parameters = new Map<string, string>()
         try memorydb.describeParameters.pages({ ParameterGroupName: name }).pipe(
           Stream.runForEach(effect (page) =>
-            try Effect.sync(() => {
+            try effect {
               for (const parameter of page.Parameters ?? []) {
                 if (parameter.Name !== undefined) {
                   parameters.set(parameter.Name, parameter.Value ?? "")
                 }
               }
-            })
+            }
           ),
         )
         return parameters
@@ -144,10 +144,11 @@ export const ParameterGroupProvider = (): infer _ =>
         stables: ["parameterGroupName", "parameterGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) {
             return undefined
           }
-          const n = news ?? { family: "" }
+          const n = resolved ?? { family: "" }
           const o = olds ?? { family: "" }
           if ((try toName(id, o)) !== (try toName(id, n))) {
             return { action: "replace" } as const
@@ -166,7 +167,7 @@ export const ParameterGroupProvider = (): infer _ =>
           const group = try readGroup(name)
           if (!group?.ARN) return undefined
           const attrs = try toAttrs(group)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, olds, output, session }) => {
@@ -191,7 +192,7 @@ export const ParameterGroupProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ParameterGroupAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "ParameterGroupAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try readGroup(name)
@@ -235,7 +236,7 @@ export const ParameterGroupProvider = (): infer _ =>
           const arn = observed.ARN
           if (arn) {
             const observedTags = try readMemoryDbTags(arn)
-            const { removed: removedTags, upsert } = diffTags(observedTags, desiredTags)
+            const { removed: removedTags, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
             }
@@ -260,7 +261,7 @@ export const ParameterGroupProvider = (): infer _ =>
               .deleteParameterGroup({
                 ParameterGroupName: output.parameterGroupName,
               }) catch effect (e) => match (e) {
-                when { _tag: "ParameterGroupNotFoundFault" }: try Effect.void;
+                when { _tag: "ParameterGroupNotFoundFault" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -286,7 +287,7 @@ export const ParameterGroupProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (group) => try toAttrs(group), { concurrency: 4 }))),
       }
     },
   )

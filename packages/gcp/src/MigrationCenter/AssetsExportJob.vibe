@@ -189,26 +189,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (mc.listProjectsLocationsAssetsExportJobs
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assetsExportJobs ?? []))
-      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (mc.listProjectsLocationsAssetsExportJobs
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assetsExportJobs ?? []))
         |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.AssetsExportJob[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (mc.listProjectsLocationsAssetsExportJobs
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assetsExportJobs ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.AssetsExportJob[]; default: throw e; };
     default: throw e;
   }
 
@@ -217,36 +221,51 @@ export const AssetsExportJobProvider = (): infer _ =>
     stables: ["name", "assetsExportJobId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const payloadChanged = fingerprint({
-        fileFormat: news.fileFormat ?? DEFAULT_FORMAT,
-        filter: news.filter,
-        showHidden: news.showHidden === true,
-        inventory: news.inventory !== false,
-        networkDependencies: news.networkDependencies === true,
-        performanceDataMaxDays: news.performanceDataMaxDays,
-        labels: news.labels ?? {},
-      })
-        !== fingerprint({
-          fileFormat: olds?.fileFormat ?? output?.fileFormat ?? DEFAULT_FORMAT,
-          filter: olds?.filter ?? output?.filter,
-          showHidden: (olds?.showHidden ?? output?.showHidden) === true,
-          inventory: (olds?.inventory ?? output?.inventory) !== false,
-          networkDependencies: (olds?.networkDependencies ?? output?.networkDependencies) === true,
-          performanceDataMaxDays: olds?.performanceDataMaxDays ?? output?.performanceDataMaxDays,
-          labels: olds?.labels ?? {},
-        })
-      return replaceOnIdentity({
-        previousId: olds?.assetsExportJobId ?? output?.assetsExportJobId,
-        nextId: news.assetsExportJobId ?? olds?.assetsExportJobId ?? output?.assetsExportJobId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: payloadChanged,
-      })
+      const payloadChanged = (try Effect.orDie(Effect.try({
+        try: () =>
+          fingerprint({
+            fileFormat: resolved.fileFormat ?? DEFAULT_FORMAT,
+            filter: resolved.filter,
+            showHidden: resolved.showHidden === true,
+            inventory: resolved.inventory !== false,
+            networkDependencies: resolved.networkDependencies === true,
+            performanceDataMaxDays: resolved.performanceDataMaxDays,
+            labels: resolved.labels ?? {},
+          }),
+        catch: (e) => e,
+      })))
+        !== (try Effect.orDie(Effect.try({
+          try: () =>
+            fingerprint({
+              fileFormat: olds?.fileFormat ?? output?.fileFormat ?? DEFAULT_FORMAT,
+              filter: olds?.filter ?? output?.filter,
+              showHidden: (olds?.showHidden ?? output?.showHidden) === true,
+              inventory: (olds?.inventory ?? output?.inventory) !== false,
+              networkDependencies: (olds?.networkDependencies ?? output?.networkDependencies) === true,
+              performanceDataMaxDays: olds?.performanceDataMaxDays ?? output?.performanceDataMaxDays,
+              labels: olds?.labels ?? {},
+            }),
+          catch: (e) => e,
+        })))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.assetsExportJobId ?? output?.assetsExportJobId,
+            nextId: resolved.assetsExportJobId ?? olds?.assetsExportJobId ?? output?.assetsExportJobId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: payloadChanged,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -257,12 +276,19 @@ export const AssetsExportJobProvider = (): infer _ =>
         output?.assetsExportJobId,
         "exportjob",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, assetsExportJobId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -279,10 +305,12 @@ export const AssetsExportJobProvider = (): infer _ =>
         output?.assetsExportJobId,
         "exportjob",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, assetsExportJobId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -309,13 +337,15 @@ export const AssetsExportJobProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (mc
-        .deleteProjectsLocationsAssetsExportJobs({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (mc
+          .deleteProjectsLocationsAssetsExportJobs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -23,7 +23,9 @@ export const asPlain = (
  */
 export const deadlineArnOf = Effect.gen(function* () {
   const { accountId, region } = yield* AWSEnvironment.current;
-  return (path: string) => `arn:aws:deadline:${region}:${accountId}:${path}`;
+  const arnOf = /** @throws {never} */ (path: string) =>
+    `arn:aws:deadline:${region}:${accountId}:${path}`;
+  return arnOf;
 });
 
 /**

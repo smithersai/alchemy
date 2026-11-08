@@ -9,7 +9,6 @@ import { Unowned } from "alchemy/AdoptPolicy"
 import { deepEqual, isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
 import { resolveOrgSlug } from "./Environment.ts"
@@ -317,7 +316,7 @@ const isOwnedRedis = (row: ObservedRedis): boolean =>
   matchesAlchemyPhysicalName(row.name ?? undefined) || hasAlchemyMetadata(row.metadata)
 
 const resolveName = effect (id: string, name: string | undefined, existing?: string) => {
-  if (name !== undefined) return sanitizeFlyAppName(name)
+  if (name !== undefined) return try Effect.orDie(Effect.try({ try: () => sanitizeFlyAppName(name), catch: (e) => e }))
   if (existing !== undefined) return existing
   return try createFlyAppName(id)
 }
@@ -398,7 +397,7 @@ export const listRedisPlans = effect (): addons.AddOnResponseAddOnPlan[]!addons.
 
 export const findRedisAddOn = effect (
   input: { id?: string; name?: string },
-): AddOnsResponseEdgesItemNode | undefined!addons.FlyIoOpError!addons.FlyIoOpContext =>
+): (AddOnsResponseEdgesItemNode | undefined)!addons.FlyIoOpError!addons.FlyIoOpContext =>
   (try listRedisAddOns()).find((row) => {
     if (input.id !== undefined && row.id === input.id) return true
     if (input.name !== undefined && row.name === input.name) return true
@@ -446,7 +445,7 @@ const resolvePlan = effect (plan: string | undefined, existingId: string | undef
 const resolveOrganization = effect (orgSlug: string) =>
   addons
     .organization({ slug: orgSlug }) catch effect (e) => match (e) {
-      when { _tag: "FlyIoParseError" }: try Effect.undefined;
+      when { _tag: "FlyIoParseError" }: undefined;
       default: throw e;
     }
 
@@ -469,7 +468,7 @@ const ensureTos = effect (orgSlug: string, organizationId: string) => {
 }
 
 const waitUntilReady = effect (id: string, name: string) =>
-  (try (effect {
+  (effect { return (try (effect {
     return try effect {
       const row = try findRedisAddOn({ id, name })
 
@@ -495,7 +494,7 @@ const waitUntilReady = effect (id: string, name: string) =>
       while: (error) => error._tag === "Fly.RedisPending",
       times: 10,
       schedule: backoff,
-    }))) catch effect (e) => match (e) {
+    }))) }) catch effect (e) => match (e) {
       when { _tag: "Fly.RedisPending" }: try findRedisAddOn({ id, name });
       default: throw e;
     }
@@ -552,14 +551,14 @@ const redisSecretVersion = effect (
 export const attachRedisSecrets = effect (
   appName: string,
   attached: readonly { name: string; id?: string }[],
-): number | undefined!import("@distilled.cloud/fly-io").BadRequest | import("@distilled.cloud/fly-io").Conflict | import("@distilled.cloud/fly-io").Forbidden | import("@distilled.cloud/fly-io").NotFound | RedisPending | RedisSecretVersionMissing | addons.FlyIoOpError!addons.FlyIoOpContext => {
+): (number | undefined)!(import("@distilled.cloud/fly-io").BadRequest | import("@distilled.cloud/fly-io").Conflict | import("@distilled.cloud/fly-io").Forbidden | import("@distilled.cloud/fly-io").NotFound | RedisPending | RedisSecretVersionMissing | addons.FlyIoOpError)!addons.FlyIoOpContext => {
   if (appName.length === 0 || attached.length === 0) return undefined
   const versions: number[] = []
   for (const item of attached) {
     const name = item.name
     const id = item.id
     if (name.length === 0 && (id === undefined || id.length === 0)) continue
-    const row = (try (effect {
+    const row = (effect { return (try (effect {
       return try effect {
         const found = try findRedisAddOn({ id, name })
         return (found === undefined
@@ -574,7 +573,7 @@ export const attachRedisSecrets = effect (
         while: (error) => error._tag === "Fly.RedisPending",
         times: 8,
         schedule: backoff,
-      }))) catch effect (e) => match (e) {
+      }))) }) catch effect (e) => match (e) {
         when { _tag: "Fly.RedisPending" }: try findRedisAddOn({ id, name });
         default: throw e;
       }
@@ -588,7 +587,7 @@ export const attachRedisSecrets = effect (
     if ((url === undefined || url.length === 0) && row.id !== undefined) {
       const detail = addons
         .addOn({ id: row.id }) catch effect (e) => match (e) {
-          when { _tag: "FlyIoParseError" }: try Effect.undefined;
+          when { _tag: "FlyIoParseError" }: undefined;
           default: throw e;
         }
       url = unwrapSensitive(detail?.publicUrl)
@@ -610,8 +609,8 @@ export const attachRedisSecrets = effect (
           }),
       )
     }
-    const version = (try update) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: (try redisSecretVersion(
+    const version = (effect { return (try update) }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: (effect { return (try redisSecretVersion(
         appName,
         try machines
           .createSecret({
@@ -619,7 +618,7 @@ export const attachRedisSecrets = effect (
             secret_name: REDIS_URL_ENV,
             value,
           }),
-      )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try update; default: throw e; };
+      )) }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try update; default: throw e; };
       default: throw e;
     }
     versions.push(version)
@@ -634,7 +633,7 @@ export const RedisProvider = (): infer _ =>
     diff: effect ({ news, output }) => {
       if (news === undefined || !isResolved(news)) return undefined
       if (output === undefined) return undefined
-      const desiredName = news.name !== undefined ? sanitizeFlyAppName(news.name) : output.name
+      const desiredName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined ? sanitizeFlyAppName(news.name) : output.name, catch: (e) => e }))
       const nameChanged = desiredName !== output.name
       const desiredRegion = news.primaryRegion ?? DEFAULT_REDIS_REGION
       const regionChanged = desiredRegion !== output.primaryRegion
@@ -661,7 +660,7 @@ export const RedisProvider = (): infer _ =>
         url: output?.url,
       })
       if (output !== undefined) return attrs
-      return isOwnedRedis(found) ? attrs : Unowned(attrs)
+      return isOwnedRedis(found) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -748,8 +747,8 @@ export const RedisProvider = (): infer _ =>
       const observedReadRegions = sorted(current.readRegions)
       const observedPlanId = "addOnPlan" in current ? current.addOnPlan?.id : output?.planId
       const planChanged = observedPlanId !== undefined && observedPlanId !== plan.id
-      const regionsChanged = !deepEqual(observedReadRegions, nextReadRegions)
-      const optionsChanged = !deepEqual(observedOptions, nextOptions)
+      const regionsChanged = !(try Effect.orDie(Effect.try({ try: () => deepEqual(observedReadRegions, nextReadRegions), catch: (e) => e })))
+      const optionsChanged = !(try Effect.orDie(Effect.try({ try: () => deepEqual(observedOptions, nextOptions), catch: (e) => e })))
       const prodPackChanged = props.prodPack !== undefined && planChanged
 
       if (planChanged || regionsChanged || optionsChanged || prodPackChanged) {

@@ -104,7 +104,7 @@ interface LooseRow extends Record<string, string | number | ArrayBuffer | null> 
 const runR2 = (what: string): infer _ => effect <A>(effect: A!BlobStoreError!RuntimeContext): A!StoreError =>
   try effect {
     provide RuntimeContext.phantom {
-      return (try effect) catch effect (error) => {
+      return (effect { return (try effect) }) catch effect (error) => {
         throw StoreError.make({ reason: `${what}: ${error.reason}` })
       }
     }
@@ -190,7 +190,7 @@ export const runCompactJob = effect (
   const trailerHex = try Effect.sync(() => bytesToHex(trailer))
 
   const total = body.reduce((sum, chunk) => sum + chunk.length, 0) + trailer.length
-  const pack = try Effect.sync(() => {
+  const pack = try effect {
     const out = new Uint8Array(total)
     let at = 0
     for (const chunk of body) {
@@ -199,12 +199,12 @@ export const runCompactJob = effect (
     }
     out.set(trailer, at)
     return out
-  })
+  }
 
   // Offsets recorded above are relative to the start of the entry stream;
   // shift them past the 12-byte header to get absolute file offsets.
   const packId = trailerHex
-  const key = packKey(options.repoId, packId)
+  const key = try Effect.orDie(Effect.try({ try: () => packKey(options.repoId, packId), catch: (e) => e }))
   try runR2(`blob put ${key}`)(options.blobs.put(key, pack, { contentLength: pack.length }))
 
   try (options.sql
@@ -330,7 +330,7 @@ export const runGeometricMergeJob = effect (options: {
   const packs: Array<{ id: string; count: number; size: number }> = []
   for (const row of rows) {
     const meta = try runR2(`merge head ${row.pack_id}`)(
-      options.blobs.head(packKeyOf(options.repoId, row.pack_id)),
+      options.blobs.head(try Effect.orDie(Effect.try({ try: () => packKeyOf(options.repoId, row.pack_id), catch: (e) => e }))),
     )
     // A pack R2 lost (or a crash orphaned) cannot be merged; skip it —
     // reads through it will surface the real error on their own path.
@@ -377,11 +377,11 @@ export const runGeometricMergeJob = effect (options: {
   let bodyOffset = 0
   for (const source of sources) {
     const object = try runR2(`merge get ${source.id}`)(
-      options.blobs.get(packKeyOf(options.repoId, source.id)),
+      options.blobs.get(try Effect.orDie(Effect.try({ try: () => packKeyOf(options.repoId, source.id), catch: (e) => e }))),
     )
     if (object === null) return noMerge // vanished mid-run: retry later
     const bytes = try runR2(`merge read ${source.id}`)(object.bytes)
-    if (isWirePackId(source.id)) {
+    if (try Effect.orDie(Effect.try({ try: () => isWirePackId(source.id), catch: (e) => e }))) {
       const rows = try options.sql.all<{
         oid: string
         type: number
@@ -401,12 +401,12 @@ export const runGeometricMergeJob = effect (options: {
             reason: `merge: ${row.oid} points past the end of wire pack ${source.id}`,
           })
         }
-        const head = encodeTypeSize(row.type as PackEntryType, row.size)
+        const head = try Effect.orDie(Effect.try({ try: () => encodeTypeSize(row.type as PackEntryType, row.size), catch: (e) => e }))
         pieces.push(head, bytes.subarray(row.pack_offset, row.pack_offset + row.zsize))
         rewrites.push({ oid: row.oid, offset: 12 + at + head.length })
         at += head.length + row.zsize
       }
-      const body = concatBytes(pieces)
+      const body = try Effect.orDie(Effect.try({ try: () => concatBytes(pieces), catch: (e) => e }))
       totalCount += rows.length
       bodies.push(body)
       bodyOffset += body.length
@@ -438,7 +438,7 @@ export const runGeometricMergeJob = effect (options: {
     return hash.digest()
   })
   const packId = try Effect.sync(() => bytesToHex(trailer))
-  const merged = try Effect.sync(() => {
+  const merged = try effect {
     const out = new Uint8Array(12 + bodyOffset + 20)
     out.set(header, 0)
     let at = 12
@@ -448,9 +448,9 @@ export const runGeometricMergeJob = effect (options: {
     }
     out.set(trailer, at)
     return out
-  })
+  }
 
-  const key = packKey(options.repoId, packId)
+  const key = try Effect.orDie(Effect.try({ try: () => packKey(options.repoId, packId), catch: (e) => e }))
   try runR2(`merge put ${key}`)(
     options.blobs.put(key, merged, { contentLength: merged.length }),
   )

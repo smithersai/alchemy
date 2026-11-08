@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as securityhub from "@distilled.cloud/aws/securityhub"
 import { Unowned } from "alchemy/AdoptPolicy"
 import * as Provider from "alchemy/Provider"
@@ -80,19 +81,23 @@ export const FindingAggregatorProvider = (): infer _ =>
     FindingAggregatorResource,
     effect {
       const getAggregator = effect (arn: string) =>
-        ((try securityhub.getFindingAggregator({ FindingAggregatorArn: arn })) as
-          | securityhub.GetFindingAggregatorResponse
-          | undefined) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-            when { _tag: "InvalidAccessException" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return ((try securityhub.getFindingAggregator({ FindingAggregatorArn: arn })) as
+            | securityhub.GetFindingAggregatorResponse
+            | undefined)
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          when { _tag: "InvalidAccessException" }: undefined;
+          default: throw e;
+        }
 
       // At most one aggregator exists per account — a single page suffices.
       const findAggregator = effect {
-        return ((try securityhub.listFindingAggregators({})).FindingAggregators?.[0]?.FindingAggregatorArn) catch effect (
+        return (effect {
+          return ((try securityhub.listFindingAggregators({})).FindingAggregators?.[0]?.FindingAggregatorArn)
+        }) catch effect (
           e,
-        ) => match (e) { when { _tag: "InvalidAccessException" }: try Effect.undefined; default: throw e; }
+        ) => match (e) { when { _tag: "InvalidAccessException" }: undefined; default: throw e; }
       }
 
       const buildAttrs = (r: securityhub.GetFindingAggregatorResponse): infer _ => ({
@@ -114,7 +119,9 @@ export const FindingAggregatorProvider = (): infer _ =>
           const arn = try findAggregator
           if (!arn) return undefined
           const live = try getAggregator(arn)
-          return live ? Unowned(buildAttrs(live)) : undefined
+          return live
+            ? (try Effect.orDie(Effect.try({ try: () => Unowned(buildAttrs(live)), catch: (error) => error })))
+            : undefined
         },
         list: effect () => {
           const arn = try findAggregator
@@ -160,8 +167,8 @@ export const FindingAggregatorProvider = (): infer _ =>
             .deleteFindingAggregator({
               FindingAggregatorArn: output.findingAggregatorArn,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              when { _tag: "InvalidAccessException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
+              when { _tag: "InvalidAccessException" }: (undefined as void);
               default: throw e;
             }
         },

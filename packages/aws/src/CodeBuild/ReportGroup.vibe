@@ -178,10 +178,11 @@ export const ReportGroupProvider = (): infer _ =>
         stables: ["reportGroupName", "reportGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
-            (try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))
-            || olds?.type !== news.type
+            (try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))
+            || olds?.type !== resolved.type
           ) {
             return { action: "replace" } as const
           }
@@ -199,7 +200,7 @@ export const ReportGroupProvider = (): infer _ =>
             reportGroupArn: group.arn,
           }
           const tags = toTagRecord(group.tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -223,26 +224,26 @@ export const ReportGroupProvider = (): infer _ =>
             && (!sameExportConfig(observed.exportConfig, desiredExport)
               || !sameTags(toTagRecord(observed.tags), desiredTags))
           ) {
-            observed = (try codebuild
+            observed = (effect { return (try codebuild
               .updateReportGroup({
                 arn,
                 exportConfig: desiredExport,
                 tags: toWireTags(desiredTags),
-              })).reportGroup catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              })).reportGroup }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
           }
 
           // 2. Ensure — create if missing; tolerate the create/create race.
           if (observed === undefined) {
-            observed = (try codebuild
+            observed = (effect { return (try codebuild
               .createReportGroup({
                 name,
                 type: news.type,
                 exportConfig: desiredExport,
                 tags: toWireTags(desiredTags),
-              })).reportGroup catch effect (e) => match (e) {
+              })).reportGroup }) catch effect (e) => match (e) {
                 when { _tag: "ResourceAlreadyExistsException" }: try getReportGroup(arn);
                 default: throw e;
               }

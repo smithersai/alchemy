@@ -159,13 +159,15 @@ const getByName = effect (name: string) =>
 
 const listDomains = effect (project: string, region: string) => {
   const collect = effect (parent: string) =>
-    ((try collectPages(
-      dataplex.listProjectsLocationsDataDomains.pages({
-        parent,
-        pageSize: 100,
-      }),
-      (page) => page.dataDomains,
-    )).filter((item) => hasAlchemyLabelMap(item.labels))) catch effect (e) => match (e) {
+    (effect {
+      return ((try collectPages(
+        dataplex.listProjectsLocationsDataDomains.pages({
+          parent,
+          pageSize: 100,
+        }),
+        (page) => page.dataDomains,
+      )).filter((item) => hasAlchemyLabelMap(item.labels)))
+    }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: [];
       default: throw e;
     }
@@ -187,19 +189,26 @@ export const DataDomainProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.dataDomainId ?? output?.dataDomainId,
-        nextId: news.dataDomainId ?? olds?.dataDomainId ?? output?.dataDomainId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.parentDataDomain ?? output?.parentDataDomain,
-        nextParent: news.parentDataDomain ?? olds?.parentDataDomain,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.dataDomainId ?? output?.dataDomainId,
+            nextId: resolved.dataDomainId ?? olds?.dataDomainId ?? output?.dataDomainId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.parentDataDomain ?? output?.parentDataDomain,
+            nextParent: resolved.parentDataDomain ?? olds?.parentDataDomain,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -210,12 +219,19 @@ export const DataDomainProvider = (): infer _ =>
         output?.dataDomainId,
         "datadomain",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, dataDomainId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -232,10 +248,12 @@ export const DataDomainProvider = (): infer _ =>
         output?.dataDomainId,
         "datadomain",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, dataDomainId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -266,11 +284,18 @@ export const DataDomainProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== news.displayName
-      const contactsChanged = fingerprint(current.contacts) !== fingerprint(news.contacts)
+      const contactsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.contacts), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.contacts),
+            catch: (e) => e,
+          })))
 
       if (labelsChanged || descriptionChanged || displayNameChanged || contactsChanged) {
         const operation = try dataplex.patchProjectsLocationsDataDomains({
@@ -299,13 +324,15 @@ export const DataDomainProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (dataplex
-        .deleteProjectsLocationsDataDomains({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (dataplex
+          .deleteProjectsLocationsDataDomains({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

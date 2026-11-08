@@ -140,11 +140,14 @@ export const RulesetProvider = (): infer _ =>
     stables: ["name", "rulesetId", "project", "createTime"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       if (output === undefined) return undefined
-      const sourceChanged = sourceFingerprint(news.source.files) !== sourceFingerprint(output.source.files)
-      const attachmentChanged = news.attachmentPoint !== undefined
-        && (news.attachmentPoint ?? "") !== (output.attachmentPoint ?? "")
+      const sourceChanged = sourceFingerprint(resolved.source.files) !== sourceFingerprint(output.source.files)
+      const attachmentChanged = resolved.attachmentPoint !== undefined
+        && (resolved.attachmentPoint ?? "") !== (output.attachmentPoint ?? "")
       if (!sourceChanged && !attachmentChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -157,7 +160,9 @@ export const RulesetProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.source)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.source))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -218,11 +223,13 @@ export const RulesetProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name) return
-      ;(try (firebaserules.deleteProjectsRulesets({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try (firebaserules.deleteProjectsRulesets({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

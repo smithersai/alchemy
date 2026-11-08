@@ -184,8 +184,10 @@ export const ResolverProvider = (): infer _ =>
     ResolverResource,
     effect {
       const getResolverSafe = effect (apiId: string, typeName: string, fieldName: string) =>
-        (try appsync.getResolver({ apiId, typeName, fieldName })).resolver catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try appsync.getResolver({ apiId, typeName, fieldName })).resolver
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -214,19 +216,17 @@ export const ResolverProvider = (): infer _ =>
         maxBatchSize?: number
         cachingConfig?: appsync.CachingConfig
       }): infer _ =>
-        JSON.parse(
-          JSON.stringify({
-            dataSourceName: resolver.dataSourceName,
-            kind: resolver.kind ?? "UNIT",
-            code: resolver.code,
-            runtime: resolver.runtime,
-            requestMappingTemplate: resolver.requestMappingTemplate,
-            responseMappingTemplate: resolver.responseMappingTemplate,
-            pipelineFunctions: resolver.pipelineConfig?.functions ?? [],
-            maxBatchSize: resolver.maxBatchSize ?? 0,
-            cachingConfig: resolver.cachingConfig,
-          }),
-        )
+        $invoke(JSON, () => (JSON.stringify({
+          dataSourceName: resolver.dataSourceName,
+          kind: resolver.kind ?? "UNIT",
+          code: resolver.code,
+          runtime: resolver.runtime,
+          requestMappingTemplate: resolver.requestMappingTemplate,
+          responseMappingTemplate: resolver.responseMappingTemplate,
+          pipelineFunctions: resolver.pipelineConfig?.functions ?? [],
+          maxBatchSize: resolver.maxBatchSize ?? 0,
+          cachingConfig: resolver.cachingConfig,
+        })))
 
       const toAttributes = (
         apiId: string,
@@ -261,8 +261,9 @@ export const ResolverProvider = (): infer _ =>
           return toAttributes(apiId, resolver)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.apiId !== olds.apiId
             || news.typeName !== olds.typeName
@@ -294,18 +295,28 @@ export const ResolverProvider = (): infer _ =>
             )
             observed = created.resolver!
             try session.note(`Created resolver ${typeName}.${fieldName}`)
-          } else if (!deepEqual(surface(observed), surface(desired))) {
-            // 3. SYNC
-            const updated = try retryConcurrentModification(
-              appsync.updateResolver({
-                apiId,
-                typeName,
-                fieldName,
-                ...desired,
-              }),
-            )
-            observed = updated.resolver ?? observed
-            try session.note(`Updated resolver ${typeName}.${fieldName}`)
+          } else {
+            const currentResolver = observed
+            if (
+              !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(surface(currentResolver), surface(desired)),
+                  catch: (error) => error,
+                }),
+              ))
+            ) {
+              // 3. SYNC
+              const updated = try retryConcurrentModification(
+                appsync.updateResolver({
+                  apiId,
+                  typeName,
+                  fieldName,
+                  ...desired,
+                }),
+              )
+              observed = updated.resolver ?? observed
+              try session.note(`Updated resolver ${typeName}.${fieldName}`)
+            }
           }
 
           try session.note(`${typeName}.${fieldName}`)
@@ -321,7 +332,7 @@ export const ResolverProvider = (): infer _ =>
                   typeName: output.typeName,
                   fieldName: output.fieldName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },
@@ -330,3 +341,13 @@ export const ResolverProvider = (): infer _ =>
       })
     },
   )
+
+module $call$ts {
+  export function invoke<T extends { "parse": Function }>(
+    target: T,
+    arg0: () => Parameters<Extract<T["parse"], (...args: any[]) => any>>[0],
+  ): ReturnType<Extract<T["parse"], (...args: any[]) => any>> {
+    return target["parse"](arg0())
+  }
+}
+import { invoke as $invoke } from $call$ts

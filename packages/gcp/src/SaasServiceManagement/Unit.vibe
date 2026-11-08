@@ -276,20 +276,21 @@ export const UnitProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousMode = olds?.managementMode ?? output?.managementMode
-      const nextMode = news.managementMode ?? previousMode
+      const nextMode = resolved.managementMode ?? previousMode
       return replaceOnIdentity({
         previousId: olds?.unitId ?? output?.unitId,
-        nextId: news.unitId ?? olds?.unitId ?? output?.unitId,
+        nextId: resolved.unitId ?? olds?.unitId ?? output?.unitId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
         ),
-        extra: (news.unitKind !== undefined
-          && !sameRef(olds?.unitKind ?? output?.unitKind, news.unitKind))
-          || (news.tenant !== undefined && !sameRef(olds?.tenant ?? output?.tenant, news.tenant))
+        extra: (resolved.unitKind !== undefined
+          && !sameRef(olds?.unitKind ?? output?.unitKind, resolved.unitKind))
+          || (resolved.tenant !== undefined && !sameRef(olds?.tenant ?? output?.tenant, resolved.tenant))
           || (previousMode !== undefined && nextMode !== undefined && previousMode !== nextMode),
       })
     },
@@ -302,7 +303,7 @@ export const UnitProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -317,7 +318,7 @@ export const UnitProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location ?? env.region)
       const name = resourceName(env.project, location, COLLECTION, unitId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const unitKind = news.unitKind === undefined
@@ -352,7 +353,7 @@ export const UnitProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const annotationsChanged = annotations !== undefined
         && fingerprint(userAnnotations(current.annotations)) !== fingerprint(annotations)
@@ -382,12 +383,12 @@ export const UnitProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (saasservicemgmt.deleteProjectsLocationsUnits({ name: output.name })
+      ;(effect { return (try (saasservicemgmt.deleteProjectsLocationsUnits({ name: output.name })
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(getByName(output.name), output.name)
     },
   })

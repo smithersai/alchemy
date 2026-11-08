@@ -89,7 +89,7 @@ export const SubnetGroupProvider = (): infer _ =>
       const readGroup = effect (name: string) => {
         const response = memorydb
           .describeSubnetGroups({ SubnetGroupName: name }) catch effect (e) => match (e) {
-            when { _tag: "SubnetGroupNotFoundFault" }: try Effect.undefined;
+            when { _tag: "SubnetGroupNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.SubnetGroups?.[0]
@@ -117,10 +117,11 @@ export const SubnetGroupProvider = (): infer _ =>
         stables: ["subnetGroupName", "subnetGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
             (try toName(id, olds ?? { subnetIds: [] }))
-              !== (try toName(id, news ?? { subnetIds: [] }))
+              !== (try toName(id, resolved ?? { subnetIds: [] }))
           ) {
             return { action: "replace" } as const
           }
@@ -131,7 +132,7 @@ export const SubnetGroupProvider = (): infer _ =>
           const group = try readGroup(name)
           if (!group?.ARN) return undefined
           const attrs = try toAttrs(group)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -155,7 +156,7 @@ export const SubnetGroupProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "SubnetGroupAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "SubnetGroupAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try readGroup(name)
@@ -191,7 +192,7 @@ export const SubnetGroupProvider = (): infer _ =>
           const arn = observed.ARN
           if (arn) {
             const observedTags = try readMemoryDbTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
             }
@@ -213,7 +214,7 @@ export const SubnetGroupProvider = (): infer _ =>
           // it. NotFound is success (idempotent delete).
           try (effect {
             return memorydb.deleteSubnetGroup({ SubnetGroupName: output.subnetGroupName }) catch effect (e) => match (e) {
-              when { _tag: "SubnetGroupNotFoundFault" }: try Effect.void;
+              when { _tag: "SubnetGroupNotFoundFault" }: (undefined as void);
               default: throw e;
             }
           }
@@ -234,7 +235,7 @@ export const SubnetGroupProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (group) => try toAttrs(group), { concurrency: 4 }))),
       }
     },
   )

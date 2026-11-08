@@ -55,15 +55,17 @@ export const rfc1035 = (name: string, fallback = "node"): string => {
   return next.slice(0, MAX_NAME_LENGTH);
 };
 
-export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
-  lastSegment(location ?? defaultLocation).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  defaultLocation: string,
+) => lastSegment(location ?? defaultLocation).toLowerCase();
 
 export const normalizeEnum = (value: string | undefined, fallback: string) => {
   const next = (value ?? fallback).toUpperCase();
   return next.length === 0 || next.endsWith("_UNSPECIFIED") ? fallback : next;
 };
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const resourceName = (project: string, location: string, blockchainNodeId: string) =>
@@ -101,12 +103,13 @@ export const parseName = (name: string, defaultLocation: string) => {
   };
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -131,16 +134,20 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameEnum = (left: string | undefined, right: string | undefined) =>
-  (left ?? "").toUpperCase() === (right ?? "").toUpperCase();
+export const sameEnum = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "").toUpperCase() === (right ?? "").toUpperCase();
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>
@@ -174,7 +181,7 @@ export const replaceOnIdentity = (input: {
 const READY_STATES = new Set(["RUNNING", "SYNCING"]);
 const FAILED_STATES = new Set(["ERROR", "DELETING"]);
 
-export const isReadyState = (state: string | undefined) => {
+export const isReadyState = /** @throws {never} */ (state: string | undefined) => {
   const value = (state ?? "").toUpperCase();
   return value.length === 0 || READY_STATES.has(value);
 };

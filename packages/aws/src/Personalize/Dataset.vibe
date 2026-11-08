@@ -105,7 +105,7 @@ export const DatasetProvider = (): infer _ =>
       const describe = effect (datasetArn: string) => {
         const response = personalize
           .describeDataset({ datasetArn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.dataset
@@ -148,14 +148,15 @@ export const DatasetProvider = (): infer _ =>
         stables: ["datasetArn", "name"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (
             oldName !== newName
-            || (olds.schemaArn ?? undefined) !== (news.schemaArn ?? undefined)
-            || (olds.datasetGroupArn ?? undefined) !== (news.datasetGroupArn ?? undefined)
-            || (olds.datasetType ?? undefined) !== (news.datasetType ?? undefined)
+            || (olds.schemaArn ?? undefined) !== (resolved.schemaArn ?? undefined)
+            || (olds.datasetGroupArn ?? undefined) !== (resolved.datasetGroupArn ?? undefined)
+            || (olds.datasetType ?? undefined) !== (resolved.datasetType ?? undefined)
           ) {
             return { action: "replace" } as const
           }
@@ -167,7 +168,7 @@ export const DatasetProvider = (): infer _ =>
           if (dataset === undefined) return undefined
           const attrs = toAttrs(dataset)
           const tags = try readPersonalizeTags(dataset.datasetArn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -181,7 +182,7 @@ export const DatasetProvider = (): infer _ =>
           // same-named dataset behind with no persisted state — adopt it by
           // name and converge.
           if (dataset === undefined) {
-            const arn = ((try personalize
+            const arn = (effect { return ((try personalize
               .createDataset({
                 name,
                 schemaArn: news.schemaArn,
@@ -191,7 +192,7 @@ export const DatasetProvider = (): infer _ =>
                   tagKey,
                   tagValue,
                 })),
-              })).datasetArn!) catch effect (error) => match (error) {
+              })).datasetArn!) }) catch effect (error) => match (error) {
                 when { _tag: "ResourceAlreadyExistsException" }: try effect {
                   const existing = try findArnByName(name, news.datasetGroupArn)
                   return (existing === undefined ? throw error : existing)
@@ -212,7 +213,7 @@ export const DatasetProvider = (): infer _ =>
         delete: effect ({ output }) => {
           try (effect {
             return personalize.deleteDataset({ datasetArn: output.datasetArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }

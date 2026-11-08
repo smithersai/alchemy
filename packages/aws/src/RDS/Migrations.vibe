@@ -14,8 +14,6 @@ import * as rdsdata from "@distilled.cloud/aws/rds-data"
 import * as secretsmanager from "@distilled.cloud/aws/secrets-manager"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import { withMigrationConnection, type MigrationConnectionTarget } from "./MigrationConnection.vibe"
 import type { MigrationRunnerRequest, MigrationRunnerResponse } from "./MigrationRunnerHandler.vibe"
 
@@ -55,11 +53,13 @@ interface MigrationTarget {
 const describeTarget = effect (instance: rds.DBInstance) => {
   const identifier = instance.DBInstanceIdentifier ?? "unknown"
   if (instance.DBClusterIdentifier) {
-    const cluster = ((try rds
-      .describeDBClusters({ DBClusterIdentifier: instance.DBClusterIdentifier })).DBClusters?.[0]) catch effect (e) => match (e) {
-        when { _tag: "DBClusterNotFoundFault" }: try Effect.undefined;
-        default: throw e;
-      }
+    const cluster = effect {
+      return ((try rds
+        .describeDBClusters({ DBClusterIdentifier: instance.DBClusterIdentifier })).DBClusters?.[0])
+    } catch effect (e) => match (e) {
+      when { _tag: "DBClusterNotFoundFault" }: undefined;
+      default: throw e;
+    }
     if (!cluster) {
       throw new MigrationError({
         message: `DB cluster '${instance.DBClusterIdentifier}' of instance '${identifier}' not found`,
@@ -133,11 +133,16 @@ const makeDataApiExecutor = effect (options: {
           resourceArn,
           secretArn,
           database,
-          sql: inlineSqlParams(sql, params ?? [], dialect),
+          sql: try Effect.orDie(
+            Effect.try({ try: () => inlineSqlParams(sql, params ?? [], dialect), catch: (e) => e }),
+          ),
           formatRecordsAs: "JSON",
         })
           |> Effect.retry(%, resumeRetry)
-          |> Effect.mapError(%, migrationError("Data API query")))
+          |> Effect.mapError(
+            %,
+            try Effect.orDie(Effect.try({ try: () => migrationError("Data API query"), catch: (e) => e })),
+          ))
         return try Effect.try({
           try: () =>
             (result.formattedRecords ? JSON.parse(result.formattedRecords) : []) as Array<
@@ -157,14 +162,17 @@ const makeDataApiExecutor = effect (options: {
         database,
       })
         |> Effect.retry(%, resumeRetry)
-        |> Effect.mapError(%, migrationError("Data API begin transaction")))
+        |> Effect.mapError(
+          %,
+          try Effect.orDie(Effect.try({ try: () => migrationError("Data API begin transaction"), catch: (e) => e })),
+        ))
       if (!transactionId) {
         throw new MigrationError({ message: "Data API returned no transaction id" })
       }
       try (effect {
         try Effect.forEach(
           statements,
-          (sql) => executeStatement({ resourceArn, secretArn, database, sql, transactionId }),
+          effect (sql) => try executeStatement({ resourceArn, secretArn, database, sql, transactionId }),
           { discard: true },
         )
         try commitTransaction({ resourceArn, secretArn, transactionId })
@@ -172,7 +180,10 @@ const makeDataApiExecutor = effect (options: {
         |> Effect.onError(%, effect () =>
           try (rollbackTransaction({ resourceArn, secretArn, transactionId })
             |> Effect.ignore(%)))
-        |> Effect.mapError(%, migrationError("Data API migration batch")))
+        |> Effect.mapError(
+          %,
+          try Effect.orDie(Effect.try({ try: () => migrationError("Data API migration batch"), catch: (e) => e })),
+        ))
     },
   } satisfies SqlExecutor
 }
@@ -193,16 +204,24 @@ const makeRunnerExecutor = effect (options: {
       FunctionName: functionArn,
       Payload: JSON.stringify(request),
     })
-      |> Effect.mapError(%, migrationError(`Invoking migration runner ${functionArn}`)))
-    const body = response.Payload
-      ? (try (response.Payload
-        |> Stream.decodeText()(%)
-        |> Stream.mkString(%))) catch effect (cause) => {
-          throw new MigrationError({
-            message: `Failed to read the migration runner's response: ${cause.message}`,
-            cause,
-          })
-        }
+      |> Effect.mapError(
+        %,
+        try Effect.orDie(
+          Effect.try({ try: () => migrationError(`Invoking migration runner ${functionArn}`), catch: (e) => e }),
+        ),
+      ))
+    const payload = response.Payload
+    const body = payload
+      ? (effect {
+        return (try (payload
+          |> Stream.decodeText()(%)
+          |> Stream.mkString(%)))
+      }) catch effect (cause) => {
+        throw new MigrationError({
+          message: `Failed to read the migration runner's response: ${cause.message}`,
+          cause,
+        })
+      }
       : ""
     const parsed = try Effect.try({
       try: () => JSON.parse(body) as MigrationRunnerResponse & { errorMessage?: string },
@@ -225,7 +244,14 @@ const makeRunnerExecutor = effect (options: {
 
   return {
     dialect: target.dialect,
-    query: (sql, params) => call({ op: "query", target, sql: inlineSqlParams(sql, params ?? [], target.dialect) }),
+    query: effect (sql, params) =>
+      try call({
+        op: "query",
+        target,
+        sql: try Effect.orDie(
+          Effect.try({ try: () => inlineSqlParams(sql, params ?? [], target.dialect), catch: (e) => e }),
+        ),
+      }),
     batch: effect (statements) =>
       try (call({ op: "batch", target, statements })
         |> Effect.asVoid(%)),
@@ -235,7 +261,10 @@ const makeRunnerExecutor = effect (options: {
 const readSecretCredentials = effect (secretArn: string) => {
   const value = try (secretsmanager
     .getSecretValue({ SecretId: secretArn })
-    |> Effect.mapError(%, migrationError(`Reading secret ${secretArn}`)))
+    |> Effect.mapError(
+      %,
+      try Effect.orDie(Effect.try({ try: () => migrationError(`Reading secret ${secretArn}`), catch: (e) => e })),
+    ))
   const secretString = value.SecretString === undefined
     ? "{}"
     : typeof value.SecretString === "string"

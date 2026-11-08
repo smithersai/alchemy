@@ -23,7 +23,7 @@ import {
   variableExpr,
 } from "./Jsonata.ts";
 import type { AslNode, RetryOptions } from "./Node.vibe";
-import { isSfnEffect, type SfnEffect } from "./Program.vibe";
+import { isSfnEffect, type SfnEffect } from "./Program.ts";
 
 /**
  * A program failed to compile to ASL — e.g. yielding a non-`Sfn` value

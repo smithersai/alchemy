@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as kv from "@distilled.cloud/aws/kinesis-video"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -132,13 +133,17 @@ export const StreamProvider = (): infer _ =>
       ) => props.streamName ?? (try createPhysicalName({ id, maxLength: 256 }))
 
       const observeStream = effect (streamName: string) =>
-        (try kv.describeStream({ StreamName: streamName })).StreamInfo catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try kv.describeStream({ StreamName: streamName })).StreamInfo
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
       const fetchObservedTags = effect (streamArn: string) =>
-        (compactTags((try kv.listTagsForStream({ StreamARN: streamArn })).Tags)) catch effect (e) => match (e) {
+        (effect {
+          return (compactTags((try kv.listTagsForStream({ StreamARN: streamArn })).Tags))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -168,11 +173,14 @@ export const StreamProvider = (): infer _ =>
             streamArn: info.StreamARN,
           }
           const tags = try fetchObservedTags(info.StreamARN)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName) {
@@ -195,7 +203,9 @@ export const StreamProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...props.tags, ...internalTags }
           // Wire unit is whole hours (DataRetentionInHours).
-          const desiredRetention = toWireHours(props.dataRetention)
+          const desiredRetention = try Effect.orDie(
+            Effect.try({ try: () => toWireHours(props.dataRetention), catch: (e) => e }),
+          )
 
           // 1. OBSERVE — cloud state is authoritative
           let info = try observeStream(streamName)
@@ -300,7 +310,7 @@ export const StreamProvider = (): infer _ =>
           // A CREATING/UPDATING stream rejects deletion with
           // ResourceInUseException — retry through the transition (bounded).
           retryWhileResourceInUse(kv.deleteStream({ StreamARN: output.streamArn })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
           // DeleteStream is accepted immediately; the name stays reserved

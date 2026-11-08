@@ -224,14 +224,16 @@ const getGroup = effect (name: string) =>
     }
 
 const lookupLinks = effect (locationParent: string, entry: string, project: string) =>
-  ((try collectPages(
-    dataplex.lookupEntryLinksProjectsLocations.pages({
-      name: locationParent,
-      entry,
-      pageSize: 10,
-    }),
-    (page) => page.entryLinks,
-  )).map((item) => toAttrs(item, project))) catch effect (e) => match (e) {
+  (effect {
+    return ((try collectPages(
+      dataplex.lookupEntryLinksProjectsLocations.pages({
+        name: locationParent,
+        entry,
+        pageSize: 10,
+      }),
+      (page) => page.entryLinks,
+    )).map((item) => toAttrs(item, project)))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [];
     default: throw e;
   }
@@ -250,24 +252,31 @@ export const EntryGroupsEntryLinkProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = linkTypeOf(olds?.entryLinkType ?? output?.entryLinkType)
-      const nextType = linkTypeOf(news.entryLinkType ?? previousType)
+      const nextType = linkTypeOf(resolved_.entryLinkType ?? previousType)
       const previousRefs = refsKey(olds?.entryReferences ?? output?.entryReferences)
-      const nextRefs = refsKey(news.entryReferences ?? olds?.entryReferences)
-      return replaceOnIdentity({
-        previousId: olds?.entryLinkId ?? output?.entryLinkId,
-        nextId: news.entryLinkId ?? olds?.entryLinkId ?? output?.entryLinkId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.entryGroup ?? output?.entryGroup,
-        nextParent: news.entryGroup ?? olds?.entryGroup ?? output?.entryGroup,
-        extra: nextType !== previousType || nextRefs !== previousRefs,
-      })
+      const nextRefs = refsKey(resolved_.entryReferences ?? olds?.entryReferences)
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.entryLinkId ?? output?.entryLinkId,
+            nextId: resolved_.entryLinkId ?? olds?.entryLinkId ?? output?.entryLinkId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved_.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.entryGroup ?? output?.entryGroup,
+            nextParent: resolved_.entryGroup ?? olds?.entryGroup ?? output?.entryGroup,
+            extra: nextType !== previousType || nextRefs !== previousRefs,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -289,8 +298,10 @@ export const EntryGroupsEntryLinkProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const group = try getGroup(attrs.entryGroup)
-      if (group === undefined) return Unowned(attrs)
-      return hasAlchemyLabelMap(group.labels) ? attrs : Unowned(attrs)
+      if (group === undefined) return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try Effect.orDie(Effect.try({ try: () => hasAlchemyLabelMap(group.labels), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -316,7 +327,10 @@ export const EntryGroupsEntryLinkProvider = (): infer _ =>
             }),
             (page) => page.entries,
           ) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
-          const locationParent = `projects/${env.project}/locations/${parseName(group.name, "entryGroups").location}`
+          const name2 = group.name
+          const locationParent = `projects/${env.project}/locations/${
+            (try Effect.orDie(Effect.try({ try: () => parseName(name2, "entryGroups"), catch: (e) => e }))).location
+          }`
           const pages = try Effect.forEach(
             entries,
             effect (entry) =>
@@ -357,20 +371,22 @@ export const EntryGroupsEntryLinkProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (dataplex
-          .createProjectsLocationsEntryGroupsEntryLinks({
-            parent: resolved.parent,
-            entryLinkId,
-            body: {
-              entryLinkType,
-              entryReferences,
-              aspects: news.aspects,
-            },
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try getByName(name);
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsEntryGroupsEntryLinks({
+              parent: resolved.parent,
+              entryLinkId,
+              body: {
+                entryLinkType,
+                entryReferences,
+                aspects: news.aspects,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(name);
+          default: throw e;
+        }
         current = created ?? undefined
         if (current === undefined) {
           current = try waitUntilExists(getByName(name), name)
@@ -381,7 +397,9 @@ export const EntryGroupsEntryLinkProvider = (): infer _ =>
         throw new DataplexNotResolved({ resourceName: name })
       }
 
-      const aspectsChanged = news.aspects !== undefined && fingerprint(news.aspects) !== fingerprint(current.aspects)
+      const aspectsChanged = news.aspects !== undefined
+        && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.aspects), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.aspects), catch: (e) => e })))
 
       if (aspectsChanged) {
         current = try retryQuota(

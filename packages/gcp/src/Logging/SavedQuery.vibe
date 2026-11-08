@@ -265,7 +265,7 @@ const toAttrs = (query: logging.SavedQuery, project: string, location: string): 
 const getByName = effect (name: string) =>
   logging
     .getProjectsLocationsSavedQueries({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -274,15 +274,18 @@ export const SavedQueryProvider = (): infer _ =>
     stables: ["name", "savedQueryId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.savedQueryId ?? output?.savedQueryId
       const idChanged = previousId !== undefined
-        && news.savedQueryId !== undefined
-        && news.savedQueryId !== previousId
+        && resolved.savedQueryId !== undefined
+        && resolved.savedQueryId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       if (!idChanged && !locationChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -295,8 +298,12 @@ export const SavedQueryProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, location)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -327,7 +334,9 @@ export const SavedQueryProvider = (): infer _ =>
       const savedQueryId = try toId(id, news.savedQueryId, output?.savedQueryId)
       const name = resourceName(env.project, location, savedQueryId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const desiredDisplayName = news.displayName ?? savedQueryId
       const desiredVisibility = news.visibility ?? DEFAULT_VISIBILITY
       const desiredLogging = toLoggingQueryBody(news.loggingQuery)
@@ -359,9 +368,19 @@ export const SavedQueryProvider = (): infer _ =>
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const visibilityChanged = (current.visibility ?? DEFAULT_VISIBILITY) !== desiredVisibility
       const loggingChanged = news.loggingQuery !== undefined
-        && !jsonEqual(loggingQueryOf(current.loggingQuery), news.loggingQuery)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, loggingQueryOf(current.loggingQuery), news.loggingQuery),
+            catch: (e) => e,
+          }),
+        ))
       const opsChanged = news.opsAnalyticsQuery !== undefined
-        && !jsonEqual(opsAnalyticsQueryOf(current.opsAnalyticsQuery), news.opsAnalyticsQuery)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, opsAnalyticsQueryOf(current.opsAnalyticsQuery), news.opsAnalyticsQuery),
+            catch: (e) => e,
+          }),
+        ))
 
       const updateMask = [
         displayNameChanged ? "displayName" : undefined,
@@ -391,7 +410,7 @@ export const SavedQueryProvider = (): infer _ =>
     delete: effect ({ output }) => {
       logging
         .deleteProjectsLocationsSavedQueries({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

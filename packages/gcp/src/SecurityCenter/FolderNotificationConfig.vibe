@@ -154,13 +154,20 @@ export const FolderNotificationConfigProvider = (): infer _ =>
     stables: ["name", "configId", "folder", "folderId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.configId ?? output?.configId, news.configId)
-          ?? replaceOn(
-            olds?.folder ?? output?.folder,
-            news.folder !== undefined ? folderParent(news.folder) : undefined,
-          )
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.configId ?? output?.configId, resolved.configId)
+              ?? replaceOn(
+                olds?.folder ?? output?.folder,
+                resolved.folder !== undefined ? folderParent(resolved.folder) : undefined,
+              ),
+          catch: (e) => e,
+        }))
       )
     },
 
@@ -172,21 +179,25 @@ export const FolderNotificationConfigProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, folder, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const folder = try tryResolveFolder()
       if (folder === undefined) return []
-      return (Array.from(
-        try (scc.listFoldersNotificationConfigs
-          .pages({ parent: folder, pageSize: 100 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.notificationConfigs ?? []))
-          |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
-          |> Stream.map(%, (config) => toAttrs(config, folder, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (scc.listFoldersNotificationConfigs
+            .pages({ parent: folder, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.notificationConfigs ?? []))
+            |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
+            |> Stream.map(%, (config) => toAttrs(config, folder, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -195,7 +206,9 @@ export const FolderNotificationConfigProvider = (): infer _ =>
       const configId = try toPhysicalId(id, news.configId, output?.configId)
       const name = resourceName(folder, configId)
       const ownership = try createInternalLabels(id)
-      const description = encodeDescription(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const pubsubTopic = news.pubsubTopic
       const filter = news.filter ?? ""
       const streamingConfig = { filter }

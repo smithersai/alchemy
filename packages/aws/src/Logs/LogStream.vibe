@@ -87,7 +87,7 @@ export const LogStreamProvider = (): infer _ =>
           const perGroup = try Effect.forEach(
             groups,
             effect (logGroupName) =>
-              (Array.from(
+              (effect { return (Array.from(
                 try (logs.describeLogStreams.pages({ logGroupName })
                   |> Stream.runCollect(%)),
               )
@@ -103,17 +103,18 @@ export const LogStreamProvider = (): infer _ =>
                   logStreamName: stream.logStreamName,
                   logGroupName,
                   logStreamArn: stream.arn,
-                }))) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+                }))) }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
             { concurrency: 10 },
           )
           return perGroup.flat()
         },
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if (olds.logGroupName !== news.logGroupName) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if (olds.logGroupName !== resolved.logGroupName) {
             return { action: "replace" } as const
           }
-          if ((try toLogStreamName(id, olds)) !== (try toLogStreamName(id, news))) {
+          if ((try toLogStreamName(id, olds)) !== (try toLogStreamName(id, resolved))) {
             return { action: "replace" } as const
           }
         },
@@ -139,7 +140,7 @@ export const LogStreamProvider = (): infer _ =>
           if (!observed) {
             logs
               .createLogStream({ logGroupName, logStreamName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
             observed = try observe(logGroupName, logStreamName)
@@ -154,7 +155,7 @@ export const LogStreamProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          ;(try (logs
+          ;(effect { return (try (logs
             .deleteLogStream({
               logGroupName: output.logGroupName,
               logStreamName: output.logStreamName,
@@ -165,8 +166,8 @@ export const LogStreamProvider = (): infer _ =>
                 || error._tag === "ServiceUnavailableException",
               schedule: Schedule.exponential(100),
               times: 8,
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            }))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
 

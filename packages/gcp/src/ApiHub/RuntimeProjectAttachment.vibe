@@ -131,35 +131,54 @@ export const RuntimeProjectAttachmentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousProject = projectIdOf(olds?.runtimeProject ?? output?.runtimeProject, "")
-      const nextProject = projectIdOf(
-        news.runtimeProject ?? olds?.runtimeProject ?? output?.runtimeProject,
-        previousProject,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId: olds?.runtimeProjectAttachmentId ?? output?.runtimeProjectAttachmentId,
-        nextId: news.runtimeProjectAttachmentId
-          ?? olds?.runtimeProjectAttachmentId
-          ?? output?.runtimeProjectAttachmentId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousProject.length > 0 && nextProject.length > 0 && previousProject !== nextProject,
-      })
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousProject = try Effect.orDie(
+        Effect.try({ try: () => projectIdOf(olds?.runtimeProject ?? output?.runtimeProject, ""), catch: (e) => e }),
+      )
+      const nextProject = try Effect.orDie(Effect.try({
+        try: () =>
+          projectIdOf(
+            resolved.runtimeProject ?? olds?.runtimeProject ?? output?.runtimeProject,
+            previousProject,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.runtimeProjectAttachmentId ?? output?.runtimeProjectAttachmentId,
+            nextId: resolved.runtimeProjectAttachmentId
+              ?? olds?.runtimeProjectAttachmentId
+              ?? output?.runtimeProjectAttachmentId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousProject.length > 0 && nextProject.length > 0 && previousProject !== nextProject,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
-      const runtimeProjectId = projectIdOf(
-        olds?.runtimeProject ?? output?.runtimeProject,
-        env.project,
-      )
+      const runtimeProjectId = try Effect.orDie(Effect.try({
+        try: () =>
+          projectIdOf(
+            olds?.runtimeProject ?? output?.runtimeProject,
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
       const attachmentId = olds?.runtimeProjectAttachmentId ?? output?.runtimeProjectAttachmentId ?? runtimeProjectId
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, attachmentId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
@@ -167,38 +186,50 @@ export const RuntimeProjectAttachmentProvider = (): infer _ =>
       // Attachments cannot carry ownership metadata. Adopt only when the
       // observed id matches the deterministic runtime project id we would
       // have created; anything else is foreign.
-      return attrs.runtimeProjectAttachmentId === attachmentId ? attrs : Unowned(attrs)
+      return attrs.runtimeProjectAttachmentId === attachmentId
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       // No labels or description — return nothing so nuke does not
       // delete foreign attachments.
-      return (Array.from(
-        try (apihub.listProjectsLocationsRuntimeProjectAttachments
-          .pages({
-            parent: locationParent(env.project, env.region),
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.runtimeProjectAttachments ?? []))
-          |> Stream.filter(%, (item) =>
-            projectIdOf(item.runtimeProject, "") === env.project
-            || parseName(item.name ?? "", "runtimeProjectAttachments", env.region).id
-              === env.project)
-          |> Stream.map(%, (item) => toAttrs(item, env.project, env.region))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (apihub.listProjectsLocationsRuntimeProjectAttachments
+            .pages({
+              parent: try Effect.orDie(
+                Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e }),
+              ),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.runtimeProjectAttachments ?? []))
+            |> Stream.filter(%, (item) =>
+              projectIdOf(item.runtimeProject, "") === env.project
+              || parseName(item.name ?? "", "runtimeProjectAttachments", env.region).id
+                === env.project)
+            |> Stream.map(%, (item) => toAttrs(item, env.project, env.region))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const runtimeProject = projectNameOf(news.runtimeProject, env.project)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const runtimeProject = try Effect.orDie(
+        Effect.try({ try: () => projectNameOf(news.runtimeProject, env.project), catch: (e) => e }),
+      )
       const attachmentId = news.runtimeProjectAttachmentId
         ?? output?.runtimeProjectAttachmentId
-        ?? projectIdOf(runtimeProject, env.project)
+        ?? (try Effect.orDie(Effect.try({ try: () => projectIdOf(runtimeProject, env.project), catch: (e) => e })))
       const name = resourceName(env.project, location, attachmentId)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 

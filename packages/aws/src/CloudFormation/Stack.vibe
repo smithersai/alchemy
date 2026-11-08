@@ -241,7 +241,7 @@ export const StackProvider = (): infer _ =>
        * `StackNotFound`) or a fully-deleted stack reads as absent.
        */
       const describe = effect (nameOrId: string) => {
-        const response = ((try cloudformation.describeStacks({ StackName: nameOrId })).Stacks ?? []) catch effect (
+        const response = (effect { return ((try cloudformation.describeStacks({ StackName: nameOrId })).Stacks ?? []) }) catch effect (
           e,
         ) => match (e) { when { _tag: "StackNotFound" }: []; default: throw e; }
         const stack = response[0]
@@ -312,8 +312,9 @@ export const StackProvider = (): infer _ =>
         stables: ["stackName", "stackId"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -323,7 +324,7 @@ export const StackProvider = (): infer _ =>
           if (stack === undefined) return undefined
           const attrs = toAttrs(stack)
           const tags = toTagRecord(stack.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -355,7 +356,7 @@ export const StackProvider = (): infer _ =>
               NotificationARNs: news.notificationARNs,
               DisableRollback: news.disableRollback,
               OnFailure: news.onFailure,
-              TimeoutInMinutes: toWireMinutes(news.timeout),
+              TimeoutInMinutes: try Effect.orDie(Effect.try({ try: () => toWireMinutes(news.timeout), catch: (e) => e })),
               Tags: toWireTags(desiredTags),
             })
             const settled = try waitForSettled(created.StackId!, name)
@@ -372,7 +373,7 @@ export const StackProvider = (): infer _ =>
 
           // 3. Sync — submit the desired template/params/tags. An unchanged
           // template is a no-op (typed NoUpdateToPerform); skip the wait.
-          const didUpdate = (try (cloudformation
+          const didUpdate = (effect { return (try (cloudformation
             .updateStack({
               StackName: observed.StackId!,
               TemplateBody: news.templateBody,
@@ -384,7 +385,7 @@ export const StackProvider = (): infer _ =>
               DisableRollback: news.disableRollback,
               Tags: toWireTags(desiredTags),
             })
-            |> Effect.as(%, true))) catch effect (e) => match (e) {
+            |> Effect.as(%, true))) }) catch effect (e) => match (e) {
               when { _tag: "NoUpdateToPerform" }: false;
               default: throw e;
             }
@@ -409,7 +410,7 @@ export const StackProvider = (): infer _ =>
         },
 
         list: effect () =>
-          (Array.from(
+          (effect { return (Array.from(
             try (cloudformation.describeStacks.pages({})
               |> Stream.runCollect(%)),
           )
@@ -428,7 +429,7 @@ export const StackProvider = (): infer _ =>
                   },
                 ]
                 : []
-            )) catch effect (e) => match (e) { when { _tag: "StackNotFound" }: []; default: throw e; },
+            )) }) catch effect (e) => match (e) { when { _tag: "StackNotFound" }: []; default: throw e; },
       }
     },
   )

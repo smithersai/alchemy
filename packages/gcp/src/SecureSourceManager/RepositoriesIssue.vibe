@@ -174,7 +174,10 @@ const findMatching = effect (repository: string, id: string, title: string, body
   const items = try listOnRepository(repository)
   for (const item of items) {
     if (try ownedByAlchemy(id, item.body)) return item
-    if (sameText(item.title, title) && sameText(item.body, body)) {
+    if (
+      (try Effect.orDie(Effect.try({ try: () => sameText(item.title, title), catch: (e) => e })))
+      && (try Effect.orDie(Effect.try({ try: () => sameText(item.body, body), catch: (e) => e })))
+    ) {
       return item
     }
   }
@@ -193,31 +196,48 @@ export const RepositoriesIssueProvider = (): infer _ =>
     stables: ["name", "issueId", "repository", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId: olds?.issueId ?? output?.issueId,
-        nextId: news.issueId ?? olds?.issueId ?? output?.issueId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: location,
-        previousParent: olds?.repository ?? output?.repository,
-        nextParent: expandName(news.repository, env.project, location, "repositories"),
-      })
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.issueId ?? output?.issueId,
+            nextId: resolved.issueId ?? olds?.issueId ?? output?.issueId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: location,
+            previousParent: olds?.repository ?? output?.repository,
+            nextParent: expandName(resolved.repository, env.project, location, "repositories"),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const repository = expandName(
-        olds?.repository ?? output?.repository ?? "",
-        env.project,
-        location,
-        "repositories",
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandName(
+            olds?.repository ?? output?.repository ?? "",
+            env.project,
+            location,
+            "repositories",
+          ),
+        catch: (e) => e,
+      }))
       const issueId = olds?.issueId ?? output?.issueId
       const name = output?.name
         ?? (issueId !== undefined && repository.length > 0 ? resourceName(repository, issueId) : "")
@@ -228,9 +248,11 @@ export const RepositoriesIssueProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(existing.body)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(existing.body), catch: (e) => e }))
       // A matching issue found without a recorded id could be anyone's.
-      return recorded || (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return recorded || (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -241,8 +263,12 @@ export const RepositoriesIssueProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const repository = expandName(news.repository, env.project, location, "repositories")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandName(news.repository, env.project, location, "repositories"), catch: (e) => e }),
+      )
       const body = news.body
       const name = output?.name ?? (news.issueId !== undefined ? resourceName(repository, news.issueId) : "")
 
@@ -262,7 +288,9 @@ export const RepositoriesIssueProvider = (): infer _ =>
           }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           const operation = try waitForOperation(created)
-          const createdName = nameFromOperation(operation)
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => nameFromOperation(operation), catch: (e) => e }),
+          )
           if (createdName !== undefined) {
             current = try waitUntilExists(getByName(createdName), createdName)
           }

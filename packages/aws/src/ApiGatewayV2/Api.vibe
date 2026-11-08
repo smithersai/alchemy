@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as agw2 from "@distilled.cloud/aws/apigatewayv2"
 import { deepEqual, isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -179,7 +180,7 @@ export const ApiProvider = (): infer _ =>
       const getApiSafe = effect (apiId: string) =>
         agw2
           .getApi({ ApiId: apiId }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -187,7 +188,7 @@ export const ApiProvider = (): infer _ =>
         stables: ["apiId", "apiEndpoint"],
 
         list: effect () => {
-          const items = try collectAllPages((NextToken) => agw2.getApis({ NextToken }))
+          const items = try collectAllPages(effect (NextToken) => try agw2.getApis({ NextToken }))
           return items.filter((api) => api.ApiId != null).map((api) => snapshotFromApi(api))
         },
 
@@ -198,8 +199,9 @@ export const ApiProvider = (): infer _ =>
           return snapshotFromApi(api)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldProtocol = olds.protocolType ?? "HTTP"
           const newProtocol = news.protocolType ?? "HTTP"
           if (oldProtocol !== newProtocol) {
@@ -249,7 +251,10 @@ export const ApiProvider = (): infer _ =>
               && snapshot.routeSelectionExpression !== routeSelectionExpression)
             || snapshot.apiKeySelectionExpression !== news.apiKeySelectionExpression
             || (news.corsConfiguration !== undefined
-              && !deepEqual(snapshot.corsConfiguration, news.corsConfiguration))
+              && !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(snapshot.corsConfiguration, news.corsConfiguration),
+                catch: (error) => error,
+              }))))
             || (snapshot.disableExecuteApiEndpoint ?? false)
               !== (news.disableExecuteApiEndpoint ?? false)
             || (news.disableSchemaValidation !== undefined
@@ -278,15 +283,20 @@ export const ApiProvider = (): infer _ =>
           if (news.corsConfiguration === undefined && snapshot.corsConfiguration !== undefined) {
             agw2
               .deleteCorsConfiguration({ ApiId: apiId }) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.void;
+                when { _tag: "NotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
 
           // 3b. SYNC TAGS — diff against OBSERVED cloud tags.
-          if (!deepEqual(snapshot.tags, desiredTags)) {
+          if (
+            !(try Effect.orDie(Effect.try({
+              try: () => deepEqual(snapshot.tags, desiredTags),
+              catch: (error) => error,
+            })))
+          ) {
             try syncTags({
-              resourceArn: apiArn(region, apiId),
+              resourceArn: try Effect.orDie(Effect.try({ try: () => apiArn(region, apiId), catch: (e) => e })),
               oldTags: snapshot.tags,
               newTags: desiredTags,
             })
@@ -303,7 +313,7 @@ export const ApiProvider = (): infer _ =>
             effect {
               return agw2
                 .deleteApi({ ApiId: output.apiId }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

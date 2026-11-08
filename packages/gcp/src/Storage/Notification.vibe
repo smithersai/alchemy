@@ -261,10 +261,12 @@ const getById = effect (bucketName: string, notificationId: string) =>
     .getNotifications({
       bucket: bucketName,
       notification: notificationId,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const listOnBucket = effect (bucketName: string) =>
-  ((try storage.listNotifications({ bucket: bucketName })).items ?? []) catch effect (e) => match (e) {
+  (effect {
+    return ((try storage.listNotifications({ bucket: bucketName })).items ?? [])
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as Array<storage.Notification>;
     default: throw e;
   }
@@ -292,16 +294,16 @@ const deleteById = effect (bucketName: string, notificationId: string) =>
     .deleteNotifications({
       bucket: bucketName,
       notification: notificationId,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
 
 const ensureGcsServiceIdentity = effect (project: string, email: string) => {
   const projectNumber = email.match(/^service-(\d+)@/)?.[1] ?? project
   const operation = serviceusage
     .generateServiceIdentityServices({
       parent: `projects/${projectNumber}/services/storage.googleapis.com`,
-    }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
   if (operation === undefined) return
-  waitForOperation(operation, effect (name) => try serviceusage.getOperations({ name }), {
+  try waitForOperation(operation, effect (name) => try serviceusage.getOperations({ name }), {
     budget: "2 minutes",
     interval: "2 seconds",
   })
@@ -358,10 +360,13 @@ export const NotificationProvider = (): infer _ =>
     stables: ["notificationId", "bucketName", "project", "selfLink"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       if (output === undefined && olds === undefined) return undefined
       const env = try GcpEnvironment.current
-      if (immutableChanged(news, olds, output, env.project)) {
+      if (immutableChanged(resolved, olds, output, env.project)) {
         return { action: "replace" as const, deleteFirst: true }
       }
       return undefined
@@ -381,8 +386,11 @@ export const NotificationProvider = (): infer _ =>
       const attrs = toAttrs(existing, bucketName, env.project)
       // Configs created before markers were dropped still carry them.
       const owned = (existing.id !== undefined && existing.id === output?.notificationId)
-        || (try hasAlchemyLabels(id, tagRecord(existing.custom_attributes)))
-      return owned ? attrs : Unowned(attrs)
+        || (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.custom_attributes), catch: (e) => e })),
+        ))
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -417,7 +425,9 @@ export const NotificationProvider = (): infer _ =>
       const bucketName = news.bucketName
       const payloadFormat = news.payloadFormat ?? DEFAULT_PAYLOAD_FORMAT
       const canonicalTopic = toCanonicalTopic(news.topic, env.project)
-      const desiredAttributes = toLabels(news.customAttributes)
+      const desiredAttributes = try Effect.orDie(
+        Effect.try({ try: () => toLabels(news.customAttributes), catch: (e) => e }),
+      )
 
       let current: storage.Notification | undefined
       if (output?.notificationId) {

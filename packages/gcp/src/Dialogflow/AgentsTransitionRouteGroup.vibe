@@ -214,21 +214,25 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsTransitionRouteGroups.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transitionRouteGroups ?? []))
-      |> Stream.filter(%, (group) => hasOwnershipMarker(group.displayName))
-      |> Stream.map(%, (group) => toAttrs(group, project, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsTransitionRouteGroups.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transitionRouteGroups ?? []))
+        |> Stream.filter(%, (group) => hasOwnershipMarker(group.displayName))
+        |> Stream.map(%, (group) => toAttrs(group, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsTransitionRouteGroups.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transitionRouteGroups ?? []))
-      |> Stream.filter(%, (group) => group.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsTransitionRouteGroups.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transitionRouteGroups ?? []))
+        |> Stream.filter(%, (group) => group.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const AgentsTransitionRouteGroupProvider = (): infer _ =>
@@ -236,24 +240,31 @@ export const AgentsTransitionRouteGroupProvider = (): infer _ =>
     stables: ["name", "transitionRouteGroupId", "agent", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
-      if (previousAgent !== undefined && news.agent !== previousAgent) {
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.transitionRouteGroupId ?? output?.transitionRouteGroupId
       if (
         previousId !== undefined
-        && news.transitionRouteGroupId !== undefined
-        && news.transitionRouteGroupId !== previousId
+        && resolved.transitionRouteGroupId !== undefined
+        && resolved.transitionRouteGroupId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousLocation = olds?.location ?? output?.location
       if (
-        previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousLocation !== undefined
+            && resolved.location !== undefined
+            && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -262,8 +273,12 @@ export const AgentsTransitionRouteGroupProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
       const transitionRouteGroupId = try toResourceId(
         id,
         olds?.transitionRouteGroupId,
@@ -275,12 +290,19 @@ export const AgentsTransitionRouteGroupProvider = (): infer _ =>
         const ownership = try internalLabels(id)
         existing = try findByDisplayName(
           agent,
-          encodeOwnershipLine(ownership, olds?.displayName, MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH),
+          try Effect.orDie(
+            Effect.try({
+              try: () => encodeOwnershipLine(ownership, olds?.displayName, MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH),
+              catch: (e) => e,
+            }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, agent)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -295,8 +317,15 @@ export const AgentsTransitionRouteGroupProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
-        const agent = expandAgent(news.agent, env.project, location)
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
         const transitionRouteGroupId = try toResourceId(
           id,
           news.transitionRouteGroupId,
@@ -304,11 +333,15 @@ export const AgentsTransitionRouteGroupProvider = (): infer _ =>
         )
         const name = output?.name ?? resourceName(agent, transitionRouteGroupId)
         const ownership = try internalLabels(id)
-        const displayName = encodeOwnershipLine(
-          ownership,
-          news.displayName,
-          MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH,
-        )
+        const displayName = try Effect.orDie(Effect.try({
+          try: () =>
+            encodeOwnershipLine(
+              ownership,
+              news.displayName,
+              MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH,
+            ),
+          catch: (e) => e,
+        }))
         const body: dialogflow.GoogleCloudDialogflowCxV3TransitionRouteGroup = {
           displayName,
           transitionRoutes: news.transitionRoutes,
@@ -338,16 +371,24 @@ export const AgentsTransitionRouteGroupProvider = (): infer _ =>
 
         const currentName = current.name ?? name
         const displayChanged = !sameText(current.displayName, displayName)
-        const routesChanged = fingerprint(routesOf(current.transitionRoutes)) !== fingerprint(news.transitionRoutes)
+        const value = routesOf(current.transitionRoutes)
+        const routesChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.transitionRoutes), catch: (e) => e })))
 
         if (displayChanged || routesChanged) {
           current = try dialogflow.patchProjectsLocationsAgentsTransitionRouteGroups({
             name: currentName,
             languageCode: news.languageCode,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              routesChanged ? "transition_routes" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  routesChanged ? "transition_routes" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }

@@ -1797,7 +1797,7 @@ import {
 } from "./MigrationCenter/Source.vibe";
 import { GetModelHttp as GetMlModelHttp } from "./ML/GetModelHttp.vibe";
 import { GetVersionHttp as GetMlVersionHttp } from "./ML/GetVersionHttp.vibe";
-import { Model as MlModel, ModelProvider as MlModelProvider } from "./ML/Model.vibe";
+import { Model as MlModel, ModelProvider as MlModelProvider } from "./ML/Model.ts";
 import { ModelsVersion, ModelsVersionProvider } from "./ML/ModelsVersion.vibe";
 import { PredictHttp as PredictMlHttp } from "./ML/PredictHttp.vibe";
 import { AlertPolicy, AlertPolicyProvider } from "./Monitoring/AlertPolicy.vibe";

@@ -4,8 +4,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 /**
@@ -145,7 +143,9 @@ export const FilterProvider = (): infer _ =>
             : try findByName(try toName(id, olds ?? {}))
           if (!live) return undefined
           const attrs = buildAttrs(live)
-          return (try hasAlchemyTags(id, live.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, live.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         list: effect () =>
           Array.from(
@@ -204,7 +204,9 @@ export const FilterProvider = (): infer _ =>
 
           // 3b. SYNC tags — diff against OBSERVED cloud tags so adoption
           // converges foreign tags too.
-          const { upsert, removed } = diffTags(tagRecord(live.tags), desiredTags)
+          const { upsert, removed } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(tagRecord(live.tags), desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try inspector2.tagResource({
               resourceArn: live.arn,
@@ -227,7 +229,7 @@ export const FilterProvider = (): infer _ =>
           // Idempotent — the filter may already be gone.
           inspector2
             .deleteFilter({ arn: output.arn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

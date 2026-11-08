@@ -31,3 +31,9 @@ the input files are content-hashed (scoped by `memo.include`).
 ```sh
 bun run destroy
 ```
+
+## Type checking
+
+The deployment config uses the React JSX transform when checking imported UI
+modules. This keeps the deployment and test program compatible with the
+framework and the shared interaction UI.

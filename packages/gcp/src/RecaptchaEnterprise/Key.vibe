@@ -483,34 +483,37 @@ export const KeyProvider = (): infer _ =>
     stables: ["name", "keyId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.keyId ?? output?.keyId
-      if (news.keyId !== undefined && previousId !== undefined && news.keyId !== previousId) {
+      if (resolved.keyId !== undefined && previousId !== undefined && resolved.keyId !== previousId) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousKind = kindOf(olds ?? output ?? {})
-      const nextKind = kindOf(news, previousKind)
+      const nextKind = kindOf(resolved, previousKind)
       if (previousKind !== nextKind) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousType = olds?.webSettings?.integrationType ?? output?.webSettings?.integrationType
-      const nextType = news.webSettings?.integrationType
+      const nextType = resolved.webSettings?.integrationType
       if (previousType !== undefined && nextType !== undefined && previousType !== nextType) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousAmp = olds?.webSettings?.allowAmpTraffic ?? output?.webSettings?.allowAmpTraffic
       if (
-        news.webSettings?.allowAmpTraffic !== undefined
+        resolved.webSettings?.allowAmpTraffic !== undefined
         && previousAmp !== undefined
-        && news.webSettings.allowAmpTraffic !== previousAmp
+        && resolved.webSettings.allowAmpTraffic !== previousAmp
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       if (
-        (news.wafSettings !== undefined
+        (resolved.wafSettings !== undefined
           || olds?.wafSettings !== undefined
           || output?.wafSettings !== undefined)
-        && wafFingerprint(news.wafSettings)
+        && wafFingerprint(resolved.wafSettings)
           !== wafFingerprint(olds?.wafSettings ?? output?.wafSettings)
       ) {
         return { action: "replace" as const, deleteFirst: false }
@@ -518,7 +521,7 @@ export const KeyProvider = (): infer _ =>
       const previousTesting = olds?.testingOptions ?? output?.testingOptions
       if (
         (olds !== undefined || output !== undefined)
-        && testingFingerprint(toTestingOptions(news.testingOptions))
+        && testingFingerprint(toTestingOptions(resolved.testingOptions))
           !== testingFingerprint(toTestingOptions(previousTesting))
       ) {
         return { action: "replace" as const, deleteFirst: false }
@@ -537,7 +540,12 @@ export const KeyProvider = (): infer _ =>
       const existing = try findOwnedKey(env.project, id, name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -551,7 +559,7 @@ export const KeyProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const lookupName = output?.name
@@ -632,7 +640,7 @@ export const KeyProvider = (): infer _ =>
       if (output.name.length === 0) return
       recaptchaenterprise
         .deleteProjectsKeys({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

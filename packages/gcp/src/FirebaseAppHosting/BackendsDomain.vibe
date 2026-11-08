@@ -236,44 +236,74 @@ export const BackendsDomainProvider = (): infer _ =>
     stables: ["name", "domainId", "backend", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const previousParent = (olds?.backend ?? output?.backend)
-        ? expandParent(
-          olds?.backend ?? output?.backend ?? "",
-          env.project,
-          previousLocation,
-          "backends",
-        )
+        ? try Effect.orDie(Effect.try({
+          try: () =>
+            expandParent(
+              olds?.backend ?? output?.backend ?? "",
+              env.project,
+              previousLocation,
+              "backends",
+            ),
+          catch: (e) => e,
+        }))
         : undefined
-      const nextParent = expandParent(news.backend, env.project, location, "backends")
-      return replaceOnIdentity({
-        previousId: olds?.domainId ?? output?.domainId,
-        nextId: news.domainId ?? olds?.domainId ?? output?.domainId,
-        previousLocation,
-        nextLocation: location,
-        previousParent,
-        nextParent,
-      })
+      const nextParent = try Effect.orDie(
+        Effect.try({ try: () => expandParent(resolved.backend, env.project, location, "backends"), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.domainId ?? output?.domainId,
+            nextId: resolved.domainId ?? olds?.domainId ?? output?.domainId,
+            previousLocation,
+            nextLocation: location,
+            previousParent,
+            nextParent,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const domainId = try toDomainId(id, olds?.domainId, output?.domainId)
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const backend = output?.backend
-        ?? (olds?.backend ? expandParent(olds.backend, env.project, location, "backends") : undefined)
+        ?? (olds?.backend
+          ? try Effect.orDie(
+            Effect.try({ try: () => expandParent(olds.backend, env.project, location, "backends"), catch: (e) => e }),
+          )
+          : undefined)
       const name = output?.name ?? (backend ? resourceName(backend, domainId) : undefined)
       if (name === undefined) return undefined
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -285,11 +315,15 @@ export const BackendsDomainProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const domainId = try toDomainId(id, news.domainId, output?.domainId)
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const backend = expandParent(news.backend, env.project, location, "backends")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const backend = try Effect.orDie(
+        Effect.try({ try: () => expandParent(news.backend, env.project, location, "backends"), catch: (e) => e }),
+      )
       const name = resourceName(backend, domainId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
@@ -321,15 +355,22 @@ export const BackendsDomainProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
-      const mask = fieldMask([
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const fields = [
         (upsert.length > 0 || removed.length > 0) && "labels",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAnnotations), catch: (e) => e })))
         && "annotations",
         !sameText(current.displayName, news.displayName) && "displayName",
         !sameBool(current.disabled, desiredDisabled) && "disabled",
-        fingerprint(toServe(current.serve)) !== fingerprint(news.serve) && "serve",
-      ])
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, toServe(current.serve)), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.serve), catch: (e) => e }))) && "serve",
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const operation = try firebaseapphosting.patchProjectsLocationsBackendsDomains({
@@ -352,15 +393,17 @@ export const BackendsDomainProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (firebaseapphosting
-        .deleteProjectsLocationsBackendsDomains({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (firebaseapphosting
+          .deleteProjectsLocationsBackendsDomains({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

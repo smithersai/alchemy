@@ -206,9 +206,9 @@ const toAttrs = (current: firestore.Document, project: string): infer _ => {
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : firestore
+const getByName = effect (name: string) => (name.length === 0 ? undefined : firestore
   .getProjectsDatabasesDocuments({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -227,24 +227,27 @@ export const DocumentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousDatabase = olds?.database ?? output?.databaseId
       const previousCollection = olds?.collectionId ?? output?.collectionId
       const previousParent = olds?.parentPath ?? output?.parentPath
       const previousId = olds?.documentId ?? output?.documentId
       if (
         (previousDatabase !== undefined
-          && news.database !== undefined
-          && news.database !== previousDatabase)
+          && resolved.database !== undefined
+          && resolved.database !== previousDatabase)
         || (previousCollection !== undefined
-          && news.collectionId !== undefined
-          && news.collectionId !== previousCollection)
+          && resolved.collectionId !== undefined
+          && resolved.collectionId !== previousCollection)
         || (previousParent !== undefined
-          && news.parentPath !== undefined
-          && parentPathOf(news.parentPath) !== parentPathOf(previousParent))
+          && resolved.parentPath !== undefined
+          && parentPathOf(resolved.parentPath) !== parentPathOf(previousParent))
         || (previousId !== undefined
-          && news.documentId !== undefined
-          && news.documentId !== previousId)
+          && resolved.documentId !== undefined
+          && resolved.documentId !== previousId)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -266,7 +269,9 @@ export const DocumentProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -319,7 +324,7 @@ export const DocumentProvider = (): infer _ =>
       if (!output.name) return
       firestore
         .deleteProjectsDatabasesDocuments({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

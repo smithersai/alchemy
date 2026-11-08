@@ -5,9 +5,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Stream from "effect/Stream"
 import type { AccountID } from "../Environment.ts"
 import { normalizePolicyDocument } from "../IAM/Policy.vibe"
 import type { Providers } from "../Providers.ts"
@@ -158,8 +155,8 @@ export const TopicProvider = (): infer _ =>
 
       const rows = try Effect.forEach(
         topicArns,
-        (topicArn) =>
-          readTopic({
+        effect (topicArn) =>
+          try readTopic({
             id: "",
             topicArn,
             topicName: topicArn.split(":").at(-1) ?? topicArn,
@@ -202,23 +199,28 @@ export const TopicProvider = (): infer _ =>
           ? output.dataProtectionPolicy
           : state.dataProtectionPolicy,
       }
-      return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyTags(id, attrs.tags))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     stables: ["topicArn", "topicName", "fifo"],
     diff: effect ({ id, news = {}, olds = {} }) => {
-      if (!isResolved(news)) return undefined
-      if ((news.fifo ?? false) !== (olds.fifo ?? false)) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if ((resolved.fifo ?? false) !== (olds.fifo ?? false)) {
         return { action: "replace" } as const
       }
 
       const oldTopicName = try toTopicName(id, olds)
-      const newTopicName = try toTopicName(id, news)
+      const newTopicName = try toTopicName(id, resolved)
 
       if (oldTopicName !== newTopicName) {
         return { action: "replace" } as const
       }
 
-      if (olds.dataProtectionPolicy !== undefined && news.dataProtectionPolicy === undefined) {
+      if (olds.dataProtectionPolicy !== undefined && resolved.dataProtectionPolicy === undefined) {
         return { action: "replace" } as const
       }
     },
@@ -249,7 +251,7 @@ export const TopicProvider = (): infer _ =>
       // the delta.
       const observedState = sns
         .getTopicAttributes({ TopicArn: topicArn }) catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
       const observedAttributes = toAttributeMap(observedState?.Attributes)
@@ -288,7 +290,9 @@ export const TopicProvider = (): infer _ =>
           default: throw e;
         }
       const observedTags = toTagMap(observedTagsResp.Tags)
-      const { removed, upsert } = diffTags(observedTags, desiredTags)
+      const { removed, upsert } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+      )
 
       if (upsert.length > 0) {
         try sns.tagResource({
@@ -308,11 +312,13 @@ export const TopicProvider = (): infer _ =>
       // getDataProtectionPolicy on FIFO topics, so we skip it there.
       let observedPolicy: string | undefined
       if (!isFifo) {
-        observedPolicy = (try sns.getDataProtectionPolicy({ ResourceArn: topicArn })).DataProtectionPolicy catch effect (
+        observedPolicy = (effect {
+          return (try sns.getDataProtectionPolicy({ ResourceArn: topicArn })).DataProtectionPolicy
+        }) catch effect (
           e,
         ) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
-          when { _tag: "InvalidParameterException" }: try Effect.undefined;
+          when { _tag: "NotFoundException" }: undefined;
+          when { _tag: "InvalidParameterException" }: undefined;
           default: throw e;
         }
       }
@@ -343,8 +349,8 @@ export const TopicProvider = (): infer _ =>
         .deleteTopic({
           TopicArn: output.topicArn,
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.void;
-          when { _tag: "InvalidParameterException" }: try Effect.void;
+          when { _tag: "NotFoundException" }: (undefined as void);
+          when { _tag: "InvalidParameterException" }: (undefined as void);
           default: throw e;
         }
     },
@@ -424,23 +430,27 @@ const readTopic = effect ({
         ResourceArn: resolvedTopicArn,
       }),
       effect {
-        return (try sns
-          .getDataProtectionPolicy({
-            ResourceArn: resolvedTopicArn,
-          })).DataProtectionPolicy catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" } or { _tag: "FifoTopicDataProtectionUnsupported" }: try Effect.undefined;
-            default: throw e;
-          }
+        return (effect {
+          return (try sns
+            .getDataProtectionPolicy({
+              ResourceArn: resolvedTopicArn,
+            })).DataProtectionPolicy
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" } or { _tag: "FifoTopicDataProtectionUnsupported" }: undefined;
+          default: throw e;
+        }
       },
     ],
     { concurrency: "unbounded" },
   ) catch effect (e) =>
-    match (e) {
-      when { _tag: "NotFoundException" }: try Effect.undefined;
-      when { _tag: "InvalidParameterException" }: try Effect.undefined;
-      default: throw e;
-    } catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+    (effect {
+      return match (e) {
+        when { _tag: "NotFoundException" }: undefined;
+        when { _tag: "InvalidParameterException" }: undefined;
+        default: throw e;
+      }
+    }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 

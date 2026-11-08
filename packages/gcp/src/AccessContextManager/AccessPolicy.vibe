@@ -23,7 +23,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.vibe"
+} from "./internal.ts"
 
 export type AccessPolicyProps = {
   /**
@@ -136,7 +136,7 @@ const toAttrs = (policy: acm.AccessPolicy): AccessPolicy["Attributes"] => {
 
 const getByName = effect (name: string) =>
   acm.getAccessPolicies({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   }
 
@@ -163,17 +163,20 @@ export const AccessPolicyProvider = (): infer _ =>
     stables: ["name", "policyId", "parent"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      const nextParent = news.parent ?? previousParent
+      const nextParent = resolved.parent ?? previousParent
       const parentChanged = previousParent !== undefined
         && nextParent !== undefined
         && lastSegment(previousParent) !== lastSegment(nextParent)
 
       const previousScopes = olds?.scopes ?? output?.scopes
-      const scopesChanged = news.scopes !== undefined
+      const scopesChanged = resolved.scopes !== undefined
         && previousScopes !== undefined
-        && !sameStringList(news.scopes, previousScopes)
+        && !sameStringList(resolved.scopes, previousScopes)
 
       return replaceOnIdentity(parentChanged || scopesChanged)
     },
@@ -183,7 +186,9 @@ export const AccessPolicyProvider = (): infer _ =>
       const existing = try observe(id, output?.name, organization)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try ownedByAlchemy(id, existing.title)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.title))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -215,11 +220,11 @@ export const AccessPolicyProvider = (): infer _ =>
               parent: organization,
               scopes: desiredScopes.length > 0 ? desiredScopes : undefined,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           // ALREADY_EXISTS (6): a concurrent create won the race.
           const settled = waitForOperation(created) catch effect (error) => match (error) {
-            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? created : throw error);
+            when { _tag: "GCP.OperationFailed" }: (error.code === 6 ? created : throw error);
             default: throw error;
           }
           const createdName = resourceNameFromOperation(settled, "accessPolicies/")
@@ -264,7 +269,7 @@ export const AccessPolicyProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const operation = acm
         .deleteAccessPolicies({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

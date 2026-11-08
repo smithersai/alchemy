@@ -197,7 +197,7 @@ const toAttrs = (profile: apigee.GoogleCloudApigeeV1SecurityProfileV2, organizat
 const getByName = effect (name: string) =>
   apigee
     .getOrganizationsSecurityProfilesV2({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -215,16 +215,19 @@ export const SecurityProfilesV2Provider = (): infer _ =>
     stables: ["name", "securityProfileV2Id", "organization", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const previousId = olds?.securityProfileV2Id ?? output?.securityProfileV2Id
       const previousOrg = olds?.organization ?? output?.organization
       if (
         (previousId !== undefined
-          && news.securityProfileV2Id !== undefined
-          && news.securityProfileV2Id !== previousId)
+          && resolved_.securityProfileV2Id !== undefined
+          && resolved_.securityProfileV2Id !== previousId)
         || (previousOrg !== undefined
-          && news.organization !== undefined
-          && news.organization !== previousOrg)
+          && resolved_.organization !== undefined
+          && resolved_.organization !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -244,23 +247,32 @@ export const SecurityProfilesV2Provider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (apigee.listOrganizationsSecurityProfilesV2
-          .pages({
-            parent: orgParent(env.project),
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfilesV2 ?? []))
-          |> Stream.filter(%, (profile) => profile.googleDefined !== true && hasOwnershipMarker(profile.description))
-          |> Stream.map(%, (profile) => toAttrs(profile, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsSecurityProfilesV2
+            .pages({
+              parent: orgParent(env.project),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfilesV2 ?? []))
+            |> Stream.filter(
+              %,
+              (profile) => profile.googleDefined !== true && hasOwnershipMarker(profile.description),
+            )
+            |> Stream.map(%, (profile) => toAttrs(profile, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as SecurityProfilesV2["Attributes"][];
         default: throw e;
       }
@@ -277,7 +289,9 @@ export const SecurityProfilesV2Provider = (): infer _ =>
       )
       const name = resourceName(organization, securityProfileV2Id)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const desiredConfigs = configsOf(news.profileAssessmentConfigs ?? DEFAULT_ASSESSMENTS)
 
       let current = try getByName(output?.name ?? name)
@@ -321,7 +335,7 @@ export const SecurityProfilesV2Provider = (): infer _ =>
     delete: effect ({ output }) => {
       apigee
         .deleteOrganizationsSecurityProfilesV2({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

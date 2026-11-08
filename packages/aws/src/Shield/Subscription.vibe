@@ -77,8 +77,8 @@ export { SubscriptionResource as Subscription }
 // `describeSubscription` fails with the (patched) typed `SubscriptionNotFound`
 // when the account is not subscribed — collapse it to `undefined`.
 const observeSubscription = effect {
-  return (try shield.describeSubscription({})).Subscription catch effect (e) => match (e) {
-    when { _tag: "SubscriptionNotFound" }: try Effect.undefined;
+  return (effect { return (try shield.describeSubscription({})).Subscription }) catch effect (e) => match (e) {
+    when { _tag: "SubscriptionNotFound" }: undefined;
     default: throw e;
   }
 }
@@ -106,7 +106,7 @@ export const SubscriptionProvider = (): infer _ =>
           // Shield subscriptions carry no tags, so ownership cannot be
           // verified from cloud state alone. Treat it as ours only when we
           // have prior state; otherwise gate adoption behind --adopt.
-          return output ? attrs : Unowned(attrs)
+          return output ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         // Account-level singleton — report the single subscription, if any.
@@ -125,7 +125,7 @@ export const SubscriptionProvider = (): infer _ =>
           if (!subscription) {
             shield
               .createSubscription({}) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
             subscription = (try shield
@@ -160,10 +160,10 @@ export const SubscriptionProvider = (): infer _ =>
           // 1-year commitment ends (LockedSubscriptionException). Warn and
           // leave it in place rather than wedging the destroy.
           shield.deleteSubscription({}) catch effect (e) =>
-            match (e) {
-              when { _tag: "SubscriptionNotFound" } or { _tag: "ResourceNotFoundException" }: try Effect.void;
+            (effect { return match (e) {
+              when { _tag: "SubscriptionNotFound" } or { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
-            } catch effect (error) => match (error) {
+            } }) catch effect (error) => match (error) {
               when { _tag: "LockedSubscriptionException" }: try Effect.logWarning(
                 "Shield Advanced subscription is locked for its 1-year commitment and cannot be cancelled yet; leaving it in place.",
                 error,

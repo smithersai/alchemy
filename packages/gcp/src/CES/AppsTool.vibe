@@ -265,28 +265,41 @@ export const AppsToolProvider = (): infer _ =>
     stables: ["name", "toolId", "app", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousKind = toolKind(olds ?? output ?? {})
-      const nextKind = toolKind(news)
-      return replaceOnIdentity({
-        previousId: olds?.toolId ?? output?.toolId,
-        nextId: news.toolId,
-        previousParent: olds?.app ?? output?.app,
-        nextParent: news.app,
-        extra: previousKind !== nextKind && previousKind !== "clientFunction",
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousKind = try Effect.orDie(Effect.try({ try: () => toolKind(olds ?? output ?? {}), catch: (e) => e }))
+      const nextKind = try Effect.orDie(Effect.try({ try: () => toolKind(resolved), catch: (e) => e }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.toolId ?? output?.toolId,
+            nextId: resolved.toolId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+            extra: previousKind !== nextKind && previousKind !== "clientFunction",
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const app = olds?.app ? expandApp(olds.app, env.project, location) : output?.app
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
       const toolId = try toPhysicalId(id, olds?.toolId, output?.toolId)
       const name = output?.name ?? (app !== undefined ? resourceName(app, toolId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region, app)
-      return output !== undefined || olds?.toolId === undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds?.toolId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -300,12 +313,16 @@ export const AppsToolProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const app = expandApp(news.app, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
       const toolId = try toPhysicalId(id, news.toolId, output?.toolId)
       const name = output?.name ?? resourceName(app, toolId)
       const body = toBody(news)
-      const kind = toolKind(body)
+      const kind = try Effect.orDie(Effect.try({ try: () => toolKind(body), catch: (e) => e }))
 
       let current = try getByName(name)
 
@@ -327,43 +344,51 @@ export const AppsToolProvider = (): infer _ =>
       const currentName = current.name ?? name
       const executionChanged = !sameText(current.executionType, body.executionType)
       const timeoutChanged = !sameText(current.timeout, body.timeout)
-      const fakeChanged = !sameJson(current.toolFakeConfig, body.toolFakeConfig)
-      const variantChanged = !sameJson(variantOf(current, kind), variantOf(body, kind))
+      const fakeChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.toolFakeConfig, body.toolFakeConfig), catch: (e) => e }),
+      ))
+      const left = variantOf(current, kind)
+      const right = variantOf(body, kind)
+      const variantChanged = !(try Effect.orDie(Effect.try({ try: () => sameJson(left, right), catch: (e) => e })))
 
       if (executionChanged || timeoutChanged || fakeChanged || variantChanged) {
         current = try retryTransient(
           ces.patchProjectsLocationsAppsTools({
             name: currentName,
-            updateMask: updateMaskOf(
-              executionChanged ? "execution_type" : undefined,
-              timeoutChanged ? "timeout" : undefined,
-              fakeChanged ? "tool_fake_config" : undefined,
-              variantChanged
-                ? kind === "clientFunction"
-                  ? "client_function"
-                  : kind === "pythonFunction"
-                  ? "python_function"
-                  : kind === "googleSearchTool"
-                  ? "google_search_tool"
-                  : kind === "openApiTool"
-                  ? "open_api_tool"
-                  : kind === "widgetTool"
-                  ? "widget_tool"
-                  : kind === "fileSearchTool"
-                  ? "file_search_tool"
-                  : kind === "dataStoreTool"
-                  ? "data_store_tool"
-                  : kind === "agentTool"
-                  ? "agent_tool"
-                  : kind === "remoteAgentTool"
-                  ? "remote_agent_tool"
-                  : kind === "connectorTool"
-                  ? "connector_tool"
-                  : kind === "systemTool"
-                  ? "system_tool"
-                  : "mcp_tool"
-                : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  executionChanged ? "execution_type" : undefined,
+                  timeoutChanged ? "timeout" : undefined,
+                  fakeChanged ? "tool_fake_config" : undefined,
+                  variantChanged
+                    ? kind === "clientFunction"
+                      ? "client_function"
+                      : kind === "pythonFunction"
+                      ? "python_function"
+                      : kind === "googleSearchTool"
+                      ? "google_search_tool"
+                      : kind === "openApiTool"
+                      ? "open_api_tool"
+                      : kind === "widgetTool"
+                      ? "widget_tool"
+                      : kind === "fileSearchTool"
+                      ? "file_search_tool"
+                      : kind === "dataStoreTool"
+                      ? "data_store_tool"
+                      : kind === "agentTool"
+                      ? "agent_tool"
+                      : kind === "remoteAgentTool"
+                      ? "remote_agent_tool"
+                      : kind === "connectorTool"
+                      ? "connector_tool"
+                      : kind === "systemTool"
+                      ? "system_tool"
+                      : "mcp_tool"
+                    : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body,
           }),
         )

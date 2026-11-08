@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as controltower from "@distilled.cloud/aws/controltower"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -143,8 +144,8 @@ const retryWhileControlConflict = effect <A, E extends { readonly _tag: string }
     schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(40)]),
   })
 
-const waitForControlOperation = (operationIdentifier: string) =>
-  retryWhileControlOperationPending(
+const waitForControlOperation = effect (operationIdentifier: string) =>
+  try retryWhileControlOperationPending(
     effect {
       const { controlOperation } = try controltower.getControlOperation({
         operationIdentifier,
@@ -167,21 +168,25 @@ const waitForControlOperation = (operationIdentifier: string) =>
   )
 
 const readEnabledControl = effect (enabledControlArn: string) =>
-  (try controltower.getEnabledControl({ enabledControlIdentifier: enabledControlArn })).enabledControlDetails catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try controltower.getEnabledControl({ enabledControlIdentifier: enabledControlArn })).enabledControlDetails
+  }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
 // Find an enabled control by (controlIdentifier, targetIdentifier) —
 // covers the create-race and lost-output cases where we don't have the
 // ARN cached.
 const findEnabledControlArn = effect (controlIdentifier: string, targetIdentifier: string) =>
-  (Array.from(
-    try (controltower.listEnabledControls.pages({ targetIdentifier })
-      |> Stream.runCollect(%)),
-  )
-    .flatMap((page) => page.enabledControls)
-    .find((summary) => summary.controlIdentifier === controlIdentifier)?.arn) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-      default: throw e;
-    }
+  (effect {
+    return (Array.from(
+      try (controltower.listEnabledControls.pages({ targetIdentifier })
+        |> Stream.runCollect(%)),
+    )
+      .flatMap((page) => page.enabledControls)
+      .find((summary) => summary.controlIdentifier === controlIdentifier)?.arn)
+  }) catch effect (e) => match (e) {
+    when { _tag: "ResourceNotFoundException" }: undefined;
+    default: throw e;
+  }
 
 export const EnabledControlProvider = (): infer _ =>
   Provider.effect(
@@ -207,10 +212,13 @@ export const EnabledControlProvider = (): infer _ =>
             targetIdentifier: details.targetIdentifier ?? olds?.targetIdentifier ?? "",
           }
           const tags = try observeControlTowerTags(arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.controlIdentifier !== olds.controlIdentifier
             || news.targetIdentifier !== olds.targetIdentifier
@@ -287,7 +295,7 @@ export const EnabledControlProvider = (): infer _ =>
               enabledControlIdentifier: output.enabledControlArn,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
           if (result !== undefined) {

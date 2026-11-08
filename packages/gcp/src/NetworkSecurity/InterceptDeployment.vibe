@@ -175,22 +175,43 @@ export const InterceptDeploymentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.interceptDeploymentId ?? output?.interceptDeploymentId
-      const nextId = news.interceptDeploymentId
-        ? rfc1035(news.interceptDeploymentId, "intercept-deployment")
-        : previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        DEFAULT_ZONE,
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.interceptDeploymentId
+            ? rfc1035(resolved.interceptDeploymentId, "intercept-deployment")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
       )
-      const previousGroup = linkKey(
-        olds?.interceptDeploymentGroup ?? output?.interceptDeploymentGroup,
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
+      const previousGroup = try Effect.orDie(Effect.try({
+        try: () =>
+          linkKey(
+            olds?.interceptDeploymentGroup ?? output?.interceptDeploymentGroup,
+          ),
+        catch: (e) => e,
+      }))
+      const nextGroup = try Effect.orDie(
+        Effect.try({ try: () => linkKey(resolved.interceptDeploymentGroup), catch: (e) => e }),
       )
-      const nextGroup = linkKey(news.interceptDeploymentGroup)
-      const previousRule = linkKey(olds?.forwardingRule ?? output?.forwardingRule)
-      const nextRule = linkKey(news.forwardingRule)
+      const previousRule = try Effect.orDie(
+        Effect.try({ try: () => linkKey(olds?.forwardingRule ?? output?.forwardingRule), catch: (e) => e }),
+      )
+      const nextRule = try Effect.orDie(Effect.try({ try: () => linkKey(resolved.forwardingRule), catch: (e) => e }))
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -210,19 +231,26 @@ export const InterceptDeploymentProvider = (): infer _ =>
         output?.interceptDeploymentId,
         "intercept-deployment",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, interceptDeploymentId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networksecurity.listProjectsLocationsInterceptDeployments.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.interceptDeployments,
@@ -240,34 +268,42 @@ export const InterceptDeploymentProvider = (): infer _ =>
         output?.interceptDeploymentId,
         "intercept-deployment",
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_ZONE)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, interceptDeploymentId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const interceptDeploymentGroup = canonicalizeLink(news.interceptDeploymentGroup)
-      const forwardingRule = canonicalizeLink(news.forwardingRule)
+      const interceptDeploymentGroup = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(news.interceptDeploymentGroup), catch: (e) => e }),
+      )
+      const forwardingRule = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(news.forwardingRule), catch: (e) => e }),
+      )
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networksecurity
-          .createProjectsLocationsInterceptDeployments({
-            parent: parentOf(env.project, location),
-            interceptDeploymentId,
-            body: {
-              interceptDeploymentGroup,
-              forwardingRule,
-              description: news.description,
-              labels: desiredLabels,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsInterceptDeployments({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              interceptDeploymentId,
+              body: {
+                interceptDeploymentGroup,
+                forwardingRule,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -275,13 +311,19 @@ export const InterceptDeploymentProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networksecurity.patchProjectsLocationsInterceptDeployments({
@@ -301,13 +343,15 @@ export const InterceptDeploymentProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networksecurity
-        .deleteProjectsLocationsInterceptDeployments({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsInterceptDeployments({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

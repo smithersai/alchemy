@@ -159,14 +159,22 @@ export const DatasetsConsentStoresUserDataMappingProvider = (): infer _ =>
     stables: ["name", "userDataMappingId", "consentStore", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousParent = olds?.consentStore ?? output?.consentStore
       const nextParent = storeOf(
-        news.consentStore,
+        resolved.consentStore,
         env.project,
-        normalizeLocation(news.location ?? output?.location, env.region),
-        news.dataset,
+        try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(resolved.location ?? output?.location, env.region),
+            catch: (e) => e,
+          }),
+        ),
+        resolved.dataset,
       )
       if (previousParent !== undefined && previousParent !== nextParent) {
         return { action: "replace" as const, deleteFirst: false }
@@ -179,7 +187,9 @@ export const DatasetsConsentStoresUserDataMappingProvider = (): infer _ =>
       const existing = try getByName(output?.name ?? "")
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return hasOwnedDataId(existing.dataId) ? attrs : Unowned(attrs)
+      return (try Effect.orDie(Effect.try({ try: () => hasOwnedDataId(existing.dataId), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -205,10 +215,12 @@ export const DatasetsConsentStoresUserDataMappingProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const consentStore = storeOf(news.consentStore, env.project, location, news.dataset)
       const ownership = try createInternalLabels(id)
-      const dataId = encodeDataId(ownership, news.dataId)
+      const dataId = try Effect.orDie(Effect.try({ try: () => encodeDataId(ownership, news.dataId), catch: (e) => e }))
 
       let current = try getByName(output?.name ?? "")
 
@@ -234,17 +246,26 @@ export const DatasetsConsentStoresUserDataMappingProvider = (): infer _ =>
       const currentName = current.name ?? output?.name ?? ""
       const userChanged = !sameText(current.userId, news.userId)
       const dataChanged = !sameText(current.dataId, dataId)
-      const attrsChanged = !sameJson(current.resourceAttributes, news.resourceAttributes)
+      const attrsChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.resourceAttributes, news.resourceAttributes),
+          catch: (e) => e,
+        }),
+      ))
 
       if (userChanged || dataChanged || attrsChanged) {
         current = try retryTransient(
           healthcare.patchProjectsLocationsDatasetsConsentStoresUserDataMappings({
             name: currentName,
-            updateMask: updateMaskOf(
-              userChanged ? "userId" : undefined,
-              dataChanged ? "dataId" : undefined,
-              attrsChanged ? "resourceAttributes" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  userChanged ? "userId" : undefined,
+                  dataChanged ? "dataId" : undefined,
+                  attrsChanged ? "resourceAttributes" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               userId: news.userId,
               dataId,

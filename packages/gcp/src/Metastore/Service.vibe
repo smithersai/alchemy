@@ -328,51 +328,73 @@ export const ServiceProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousVersion = olds?.hiveMetastoreConfig?.version ?? output?.hiveMetastoreConfig?.version
-      const nextVersion = news.hiveMetastoreConfig?.version ?? previousVersion
+      const nextVersion = resolved.hiveMetastoreConfig?.version ?? previousVersion
       const previousNetwork = olds?.network ?? output?.network
       const previousDatabase = olds?.databaseType ?? output?.databaseType
       const previousChannel = olds?.releaseChannel ?? output?.releaseChannel
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.serviceId ?? output?.serviceId,
-        nextId: news.serviceId ?? olds?.serviceId ?? output?.serviceId,
+        nextId: resolved.serviceId ?? olds?.serviceId ?? output?.serviceId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         extra: (previousVersion !== undefined
           && nextVersion !== undefined
           && nextVersion !== previousVersion)
           || (previousNetwork !== undefined
-            && news.network !== undefined
-            && news.network !== previousNetwork)
+            && resolved.network !== undefined
+            && resolved.network !== previousNetwork)
           || (previousDatabase !== undefined
-            && news.databaseType !== undefined
-            && news.databaseType !== previousDatabase)
+            && resolved.databaseType !== undefined
+            && resolved.databaseType !== previousDatabase)
           || (previousChannel !== undefined
-            && news.releaseChannel !== undefined
-            && news.releaseChannel !== previousChannel)
+            && resolved.releaseChannel !== undefined
+            && resolved.releaseChannel !== previousChannel)
           || (olds?.encryptionConfig !== undefined
-            && news.encryptionConfig !== undefined
-            && fingerprint(news.encryptionConfig) !== fingerprint(olds.encryptionConfig))
+            && resolved.encryptionConfig !== undefined
+            && (try Effect.orDie(
+                Effect.try({ try: fingerprint.bind(undefined, resolved.encryptionConfig), catch: (e) => e }),
+              ))
+              !== (try Effect.orDie(Effect.try({
+                try: fingerprint.bind(undefined, olds.encryptionConfig),
+                catch: (e) => e,
+              }))))
           || (olds?.networkConfig !== undefined
-            && news.networkConfig !== undefined
-            && fingerprint(news.networkConfig) !== fingerprint(olds.networkConfig)),
-      })
+            && resolved.networkConfig !== undefined
+            && (try Effect.orDie(
+                Effect.try({ try: fingerprint.bind(undefined, resolved.networkConfig), catch: (e) => e }),
+              )) !== (try Effect.orDie(Effect.try({
+                try: fingerprint.bind(undefined, olds.networkConfig),
+                catch: (e) => e,
+              })))),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const serviceId = try toPhysicalId(id, olds?.serviceId, output?.serviceId, "service")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, serviceId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -384,11 +406,13 @@ export const ServiceProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const serviceId = try toPhysicalId(id, news.serviceId, output?.serviceId, "service")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, serviceId)
       const hive = desiredHiveConfig(news.hiveMetastoreConfig)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -440,18 +464,24 @@ export const ServiceProvider = (): infer _ =>
       const observedLabels = tagRecord(current.labels)
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const labelsChanged = upsert.length > 0 || removed.length > 0
-      const hiveChanged = fingerprint({
-        configOverrides: current.hiveMetastoreConfig?.configOverrides,
-        endpointProtocol: current.hiveMetastoreConfig?.endpointProtocol,
-        kerberosConfig: current.hiveMetastoreConfig?.kerberosConfig,
-        auxiliaryVersions: current.hiveMetastoreConfig?.auxiliaryVersions,
-      })
-        !== fingerprint({
-          configOverrides: hive.configOverrides,
-          endpointProtocol: hive.endpointProtocol,
-          kerberosConfig: hive.kerberosConfig,
-          auxiliaryVersions: hive.auxiliaryVersions,
-        })
+      const hiveChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, {
+          configOverrides: current.hiveMetastoreConfig?.configOverrides,
+          endpointProtocol: current.hiveMetastoreConfig?.endpointProtocol,
+          kerberosConfig: current.hiveMetastoreConfig?.kerberosConfig,
+          auxiliaryVersions: current.hiveMetastoreConfig?.auxiliaryVersions,
+        }),
+        catch: (e) => e,
+      })))
+        !== (try Effect.orDie(Effect.try({
+          try: fingerprint.bind(undefined, {
+            configOverrides: hive.configOverrides,
+            endpointProtocol: hive.endpointProtocol,
+            kerberosConfig: hive.kerberosConfig,
+            auxiliaryVersions: hive.auxiliaryVersions,
+          }),
+          catch: (e) => e,
+        })))
       const mask = fieldMask([
         labelsChanged && "labels",
         news.port !== undefined && news.port !== current.port && "port",
@@ -460,19 +490,47 @@ export const ServiceProvider = (): infer _ =>
         && (current.deletionProtection === true) !== (news.deletionProtection === true)
         && "deletionProtection",
         news.scalingConfig !== undefined
-        && fingerprint(current.scalingConfig) !== fingerprint(news.scalingConfig)
+        && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.scalingConfig), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.scalingConfig),
+            catch: (e) => e,
+          })))
         && "scalingConfig",
         news.telemetryConfig !== undefined
-        && fingerprint(current.telemetryConfig) !== fingerprint(news.telemetryConfig)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.telemetryConfig), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.telemetryConfig),
+            catch: (e) => e,
+          })))
         && "telemetryConfig",
         news.scheduledBackup !== undefined
-        && fingerprint(current.scheduledBackup) !== fingerprint(news.scheduledBackup)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.scheduledBackup), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.scheduledBackup),
+            catch: (e) => e,
+          })))
         && "scheduledBackup",
         news.metadataIntegration !== undefined
-        && fingerprint(current.metadataIntegration) !== fingerprint(news.metadataIntegration)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.metadataIntegration), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.metadataIntegration),
+            catch: (e) => e,
+          })))
         && "metadataIntegration",
         news.maintenanceWindow !== undefined
-        && fingerprint(current.maintenanceWindow) !== fingerprint(news.maintenanceWindow)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.maintenanceWindow), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.maintenanceWindow),
+            catch: (e) => e,
+          })))
         && "maintenanceWindow",
         hiveChanged && "hiveMetastoreConfig",
       ])
@@ -528,13 +586,15 @@ export const ServiceProvider = (): infer _ =>
           }
         }
       }
-      const operation = (try (metastore
-        .deleteProjectsLocationsServices({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (metastore
+          .deleteProjectsLocationsServices({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

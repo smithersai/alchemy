@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as sesv2 from "@distilled.cloud/aws/sesv2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -135,7 +136,7 @@ export const CustomVerificationEmailTemplateProvider = (): infer _ =>
       const getTemplate = effect (name: string) =>
         sesv2
           .getCustomVerificationEmailTemplate({ TemplateName: name }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -143,12 +144,14 @@ export const CustomVerificationEmailTemplateProvider = (): infer _ =>
       // `read` pays it — `list` deletes by name.
       const getTemplateTags = effect (name: string) => {
         const { accountId, region } = try AWSEnvironment.current
-        return (toTagRecord(
-          (try sesv2
-            .listTagsForResource({
-              ResourceArn: templateArnOf(region, accountId, name),
-            })).Tags,
-        )) catch effect (e) => match (e) {
+        return (effect {
+          return (toTagRecord(
+            (try sesv2
+              .listTagsForResource({
+                ResourceArn: templateArnOf(region, accountId, name),
+              })).Tags,
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -178,11 +181,12 @@ export const CustomVerificationEmailTemplateProvider = (): infer _ =>
           const tags = try getTemplateTags(name)
           return (try hasAlchemyTags(id, tags))
             ? { templateName: name }
-            : Unowned({ templateName: name })
+            : (try Effect.orDie(Effect.try({ try: () => Unowned({ templateName: name }), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName) {
@@ -263,7 +267,10 @@ export const CustomVerificationEmailTemplateProvider = (): infer _ =>
           sesv2
             .deleteCustomVerificationEmailTemplate({
               TemplateName: output.templateName,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
         },
       })
     },

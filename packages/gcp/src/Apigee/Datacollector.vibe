@@ -140,20 +140,27 @@ export const DatacollectorProvider = (): infer _ =>
     stables: ["name", "dataCollectorId", "organization", "type", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.dataCollectorId ?? output?.dataCollectorId
       const previousOrg = olds?.organization ?? output?.organization
       const previousType = olds?.type ?? output?.type ?? DEFAULT_TYPE
-      const nextType = news.type ?? DEFAULT_TYPE
+      const nextType = resolved.type ?? DEFAULT_TYPE
       const idChanged = previousId !== undefined
-        && news.dataCollectorId !== undefined
-        && news.dataCollectorId !== previousId
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+        && resolved.dataCollectorId !== undefined
+        && resolved.dataCollectorId !== previousId
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
       const typeChanged = previousType !== nextType
       if (idChanged || orgChanged || typeChanged) {
-        const sameName = !idChanged && !orgChanged && (news.dataCollectorId ?? previousId) === previousId
+        const sameName = !idChanged && !orgChanged && (resolved.dataCollectorId ?? previousId) === previousId
         return { action: "replace" as const, deleteFirst: sameName }
       }
       return undefined
@@ -161,7 +168,12 @@ export const DatacollectorProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const dataCollectorId = try dcCollectorId(
         id,
         olds?.dataCollectorId,
@@ -171,8 +183,12 @@ export const DatacollectorProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -191,7 +207,9 @@ export const DatacollectorProvider = (): infer _ =>
           default: throw e;
         }
         for (const collector of collectors) {
-          if (hasOwnershipMarker(collector.description)) {
+          if (
+            try Effect.orDie(Effect.try({ try: () => hasOwnershipMarker(collector.description), catch: (e) => e }))
+          ) {
             rows.push(toAttrs(collector, organization))
           }
         }
@@ -201,7 +219,9 @@ export const DatacollectorProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const dataCollectorId = try dcCollectorId(
         id,
         news.dataCollectorId,
@@ -210,7 +230,9 @@ export const DatacollectorProvider = (): infer _ =>
       const name = resourceName(organization, dataCollectorId)
       const type = news.type ?? DEFAULT_TYPE
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 

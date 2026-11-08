@@ -16,7 +16,6 @@ import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -254,7 +253,7 @@ const isMissing = isMissingStripeResource
 
 const getById = effect (account: string, id: string) =>
   try (GetAccountExternalAccount({ account, id })
-    |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissing, effect () => undefined))
 
 const listExternalAccounts = effect (account: string) => {
   const accounts: StripeExternalAccount[] = []
@@ -265,7 +264,7 @@ const listExternalAccounts = effect (account: string) => {
       limit: LIST_PAGE_SIZE,
       ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
     })
-      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+      |> Effect.catchIf(%, isMissing, effect () => undefined))
     if (response === undefined) {
       break
     }
@@ -292,7 +291,7 @@ const listAllConnectAccounts = effect () => {
       |> Effect.catchIf(
         %,
         (e) => e._tag === "InvalidRequestError" || e._tag === "Forbidden" || e._tag === "Unauthorized",
-        effect () => try Effect.undefined,
+        effect () => undefined,
       ))
     if (response === undefined) {
       break
@@ -314,7 +313,7 @@ const findByAlchemyId = effect (logicalId: string, account?: string | undefined)
     const eas = try listExternalAccounts(accountId)
     const matches: StripeExternalAccount[] = []
     for (const ea of eas) {
-      if (try hasAlchemyMetadata(logicalId, tagRecord(ea.metadata))) {
+      if (try hasAlchemyMetadata(logicalId, try Effect.orDie(Effect.try({ try: () => tagRecord(ea.metadata), catch: (e) => e })))) {
         matches.push(ea)
       }
     }
@@ -382,8 +381,9 @@ export const AccountExternalAccountProvider = (): infer _ =>
     nuke: { dependsOn: ["Stripe.Account"] },
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, olds, output)) {
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
+      if (shouldReplace(resolved_, olds, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -398,7 +398,7 @@ export const AccountExternalAccountProvider = (): infer _ =>
       })
       if (existing === undefined || account === undefined) return undefined
       const attrs = toAttrs(account, existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -438,9 +438,9 @@ export const AccountExternalAccountProvider = (): infer _ =>
           metadata,
           ...(desiredDefault !== undefined ? { default_for_currency: desiredDefault } : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-account-external-account-${instanceId}`,
-          })(%)
+          }), catch: (e) => e })))(%)
           |> Effect.catchIf(%, (e) =>
             e._tag === "InvalidRequestError" || e._tag === "Conflict", effect (e) =>
             try effect {
@@ -453,8 +453,8 @@ export const AccountExternalAccountProvider = (): infer _ =>
       }
 
       const attrs = toAttrs(news.account, current)
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const defaultChanged = desiredDefault !== undefined && attrs.defaultForCurrency !== desiredDefault
       const holderNameChanged = attrs.object === "bank_account" && (attrs.accountHolderName ?? "") !== desiredHolderName
@@ -511,6 +511,6 @@ export const AccountExternalAccountProvider = (): infer _ =>
         id: output.id,
       })
         |> Effect.catchIf(%, isMissing, effect () =>
-          try Effect.void))
+          (undefined as void)))
     },
   })

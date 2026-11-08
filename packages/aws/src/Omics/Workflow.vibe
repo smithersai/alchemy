@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as omics from "@distilled.cloud/aws/omics"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -5,9 +6,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { fetchOmicsTags, syncOmicsTags } from "./internal.ts"
 
@@ -164,9 +162,13 @@ export const WorkflowProvider = (): infer _ =>
             until: (w) => w.status === "ACTIVE" || w.status === "FAILED",
           }))
         if (final.status === "FAILED") {
-          throw omics.ValidationException.make({
-            message: `Workflow ${workflowId} failed: ${final.statusMessage ?? "unknown"}`,
-          })
+          throw try Effect.orDie(Effect.try({
+            try: () =>
+              omics.ValidationException.make({
+                message: `Workflow ${workflowId} failed: ${final.statusMessage ?? "unknown"}`,
+              }),
+            catch: (e) => e,
+          }))
         }
         return final
       }
@@ -188,7 +190,7 @@ export const WorkflowProvider = (): infer _ =>
           if (output?.workflowId === undefined) return undefined
           const found = omics
             .getWorkflow({ id: output.workflowId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (found === undefined || found.id === undefined) return undefined
@@ -199,10 +201,13 @@ export const WorkflowProvider = (): infer _ =>
             status: found.status ?? "",
           }
           const tags = try fetchOmicsTags(found.arn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const prev = olds ?? {}
           if (
             (prev.engine ?? "WDL") !== (news.engine ?? "WDL")
@@ -222,7 +227,7 @@ export const WorkflowProvider = (): infer _ =>
             ? undefined
             : omics
               .getWorkflow({ id: output.workflowId }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
 
@@ -284,7 +289,7 @@ export const WorkflowProvider = (): infer _ =>
         delete: effect ({ output }) => {
           omics
             .deleteWorkflow({ id: output.workflowId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

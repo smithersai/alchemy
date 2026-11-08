@@ -198,21 +198,25 @@ const toAttrs = (doc: apigee.GoogleCloudApigeeV1ApiDoc, org: string, siteId: str
 }
 
 const getByName = effect (name: string) =>
-  (unwrap(try apigee.getOrganizationsSitesApidocs({ name }))) catch effect (e) => match (e) {
+  (effect {
+    return (unwrap(try apigee.getOrganizationsSitesApidocs({ name })))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
     default: throw e;
   }
 
 const listBySite = effect (org: string, siteId: string) =>
-  (Array.from(
-    try (apigee.listOrganizationsSitesApidocs
-      .pages({
-        parent: siteParent(org, siteId),
-        pageSize: 100,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.data ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (apigee.listOrganizationsSitesApidocs
+        .pages({
+          parent: siteParent(org, siteId),
+          pageSize: 100,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.data ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
     default: throw e;
   }
@@ -240,17 +244,24 @@ export const SitesApidocProvider = (): infer _ =>
     stables: ["name", "apiDocId", "organization", "siteId", "apiProductName"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousSite = olds?.siteId ?? output?.siteId
-      const siteChanged = previousSite !== undefined && news.siteId !== previousSite
+      const siteChanged = previousSite !== undefined && resolved.siteId !== previousSite
       const previousOrg = olds?.organization ?? output?.organization
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization, previousOrg) !== previousOrg
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization, previousOrg) !== previousOrg,
+        catch: (e) => e,
+      }))
       const previousProduct = olds?.apiProductName ?? output?.apiProductName
-      const productChanged = previousProduct !== undefined && news.apiProductName !== previousProduct
+      const productChanged = previousProduct !== undefined && resolved.apiProductName !== previousProduct
       const previousId = olds?.apiDocId ?? output?.apiDocId
-      const idChanged = previousId !== undefined && news.apiDocId !== undefined && news.apiDocId !== previousId
+      const idChanged = previousId !== undefined && resolved.apiDocId !== undefined && resolved.apiDocId !== previousId
       if (siteChanged || orgChanged || productChanged || idChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -259,7 +270,9 @@ export const SitesApidocProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const org = orgIdOf(olds?.organization ?? output?.organization, env.project)
+      const org = try Effect.orDie(
+        Effect.try({ try: () => orgIdOf(olds?.organization ?? output?.organization, env.project), catch: (e) => e }),
+      )
       const siteId = olds?.siteId ?? output?.siteId
       if (siteId === undefined) return undefined
       const apiDocId = olds?.apiDocId ?? output?.apiDocId
@@ -273,12 +286,16 @@ export const SitesApidocProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, org, siteId)
       const generated = try toTitle(id, undefined)
-      return attrs.title === generated ? attrs : Unowned(attrs)
+      return attrs.title === generated
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const org = orgIdOf(news.organization ?? output?.organization, env.project)
+      const org = try Effect.orDie(
+        Effect.try({ try: () => orgIdOf(news.organization ?? output?.organization, env.project), catch: (e) => e }),
+      )
       const siteId = news.siteId
       const title = try toTitle(id, news.title, output?.title)
       const desiredDescription = news.description
@@ -290,13 +307,15 @@ export const SitesApidocProvider = (): infer _ =>
         : try findByProduct(org, siteId, news.apiProductName)
 
       if (current === undefined) {
-        const created = (unwrap(
-          try apigee
-            .createOrganizationsSitesApidocs({
-              parent: siteParent(org, siteId),
-              body: toBody(news, title, desiredDescription),
-            }),
-        )) catch effect (e) => match (e) {
+        const created = (effect {
+          return (unwrap(
+            try apigee
+              .createOrganizationsSitesApidocs({
+                parent: siteParent(org, siteId),
+                body: toBody(news, title, desiredDescription),
+              }),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "Conflict" }: try findByProduct(org, siteId, news.apiProductName);
           default: throw e;
         }

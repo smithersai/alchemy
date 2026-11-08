@@ -503,20 +503,22 @@ const toAttrs = (config: bqdt.TransferConfig, project: string, location: string)
 const getByName = effect (name: string) =>
   bqdt
     .getProjectsLocationsTransferConfigs({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listAt = effect (parent: string) =>
-  (Array.from(
-    try (bqdt.listProjectsLocationsTransferConfigs
-      .pages({
-        parent,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transferConfigs ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as bqdt.TransferConfig[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (bqdt.listProjectsLocationsTransferConfigs
+        .pages({
+          parent,
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transferConfigs ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as bqdt.TransferConfig[]; default: throw e; }
 
 const findOwned = effect (
   parent: string,
@@ -564,26 +566,31 @@ const retryTransient = effect <A, E extends { _tag: string }, R>(effect: A!E!R) 
     }))
 
 const listLocationParents = effect (project: string, region: string) =>
-  (Array.from(
-    try (bqdt.listProjectsLocations
-      .pages({
-        name: `projects/${project}`,
-        pageSize: 100,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.locations ?? []))
-      |> Stream.map(%, (location) => location.name)
-      |> Stream.filter(%, (name): name is string => !!name && name.length > 0)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [parentOf(project, region)]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (bqdt.listProjectsLocations
+        .pages({
+          name: `projects/${project}`,
+          pageSize: 100,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.locations ?? []))
+        |> Stream.map(%, (location) => location.name)
+        |> Stream.filter(%, (name): name is string => !!name && name.length > 0)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [parentOf(project, region)]; default: throw e; }
 
 export const TransferConfigProvider = (): infer _ =>
   Provider.succeed(TransferConfig, {
     stables: ["name", "transferConfigId", "project", "location", "dataSourceId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = typeof news.location === "string" ? news.location : undefined
+      const nextLocation = typeof resolved.location === "string" ? resolved.location : undefined
       if (
         previousLocation !== undefined
         && nextLocation !== undefined
@@ -593,7 +600,7 @@ export const TransferConfigProvider = (): infer _ =>
       }
 
       const previousSource = olds?.dataSourceId ?? output?.dataSourceId
-      const nextSource = typeof news.dataSourceId === "string" ? news.dataSourceId : undefined
+      const nextSource = typeof resolved.dataSourceId === "string" ? resolved.dataSourceId : undefined
       if (
         previousSource !== undefined
         && nextSource !== undefined
@@ -615,7 +622,7 @@ export const TransferConfigProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project, location)
       return (try hasAlchemyLabels(id, parseDisplayName(existing.displayName).labels))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -760,11 +767,13 @@ export const TransferConfigProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (bqdt.deleteProjectsLocationsTransferConfigs({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try (bqdt.deleteProjectsLocationsTransferConfigs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

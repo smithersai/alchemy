@@ -156,36 +156,37 @@ const waitUntilExists = effect (name: string) =>
     }))
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (aiplatform.listProjectsLocationsTensorboards.pages({ parent, pageSize: 100 })
       |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
       |> Stream.filter(%, (board) => Object.keys(board.labels ?? {}).some((key) => key.startsWith("alchemy-")))
       |> Stream.map(%, (board) => toAttrs(board, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string, project: string) =>
-  (try effect {
+  (effect { return (try effect {
     const option = try (aiplatform.listProjectsLocationsTensorboards.pages({ parent, pageSize: 100 })
       |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
       |> Stream.filter(%, (board) => board.displayName === displayName)
       |> Stream.runHead(%))
     return (option._tag === "Some" ? toAttrs(option.value, project) : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const TensorboardProvider = (): infer _ =>
   Provider.succeed(Tensorboard, {
     stables: ["name", "tensorboardId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = news.location ?? previousLocation
+      const nextLocation = resolved.location ?? previousLocation
       if (previousLocation !== undefined && previousLocation !== nextLocation) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousKey = olds?.encryptionSpec?.kmsKeyName ?? output?.encryptionSpec?.kmsKeyName
-      const nextKey = news.encryptionSpec?.kmsKeyName
+      const nextKey = resolved.encryptionSpec?.kmsKeyName
       if (previousKey !== undefined && nextKey !== undefined && previousKey !== nextKey) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -204,10 +205,10 @@ export const TensorboardProvider = (): infer _ =>
         const fetched = try getByName(match.name)
         if (fetched === undefined) return undefined
         const attrs = toAttrs(fetched, env.project)
-        return (try hasAlchemyLabels(id, tagRecord(fetched.labels))) ? attrs : Unowned(attrs)
+        return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(fetched.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
       }
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -221,7 +222,7 @@ export const TensorboardProvider = (): infer _ =>
       const location = news.location ?? output?.location ?? env.region
       const parent = locationParent(env.project, location)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? output?.displayName ?? lastSegment(id)
@@ -248,7 +249,7 @@ export const TensorboardProvider = (): infer _ =>
           const done = try waitForOperation(created, {
             alreadyExistsOk: true,
           })
-          const createdName = resourceNameFromOperation(done) ?? output?.name ?? ""
+          const createdName = (try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }))) ?? output?.name ?? ""
           if (createdName.length > 0) {
             current = try waitUntilExists(createdName)
           }
@@ -269,7 +270,7 @@ export const TensorboardProvider = (): infer _ =>
 
       const name = current.name ?? ""
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayChanged = (current.displayName ?? "") !== displayName
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")

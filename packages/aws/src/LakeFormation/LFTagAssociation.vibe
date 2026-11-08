@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as lf from "@distilled.cloud/aws/lakeformation"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -30,9 +33,14 @@ export interface LFTagAssignmentSpec {
  * Lake Formation returns per-tag failures with a 200 response — surfaced as
  * a typed error so partial failures fail the deploy.
  */
-export error LFTagAssociationError {
-  mutable message: string
-  mutable failures: lf.LFTagError[]
+export class LFTagAssociationError extends $MutableErrorBase("LFTagAssociationError")<{
+  message: string
+
+  failures: lf.LFTagError[]
+}> {
+  static {
+    $MutableErrorMatcher(this, "LFTagAssociationError", true)
+  }
 }
 
 export interface LFTagAssociationProps {
@@ -122,7 +130,7 @@ const failuresToError = effect (
       }`,
       failures: real,
     })
-    : try Effect.void)
+    : (undefined as void))
 }
 
 const sortedValues = (values: string[] | undefined): string[] => [...(values ?? [])].sort()
@@ -152,7 +160,9 @@ export const LFTagAssociationProvider = (): infer _ =>
         list: effect () => [],
 
         read: effect ({ olds, output }) => {
-          const resource = output?.resource ?? (olds !== undefined ? toWireResource(olds.resource) : undefined)
+          const resource = output?.resource ?? (olds !== undefined
+            ? try Effect.orDie(Effect.try({ try: () => toWireResource(olds.resource), catch: (e) => e }))
+            : undefined)
           if (resource === undefined) return undefined
           const catalogId = output?.catalogId ?? olds?.catalogId
           const observed = try observe(resource, catalogId)
@@ -169,11 +179,17 @@ export const LFTagAssociationProvider = (): infer _ =>
           }
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
-            JSON.stringify(toWireResource(news.resource))
-              !== JSON.stringify(toWireResource(olds.resource))
+            JSON.stringify(try Effect.orDie(Effect.try({ try: () => toWireResource(news.resource), catch: (e) => e })))
+              !== JSON.stringify(
+                try Effect.orDie(Effect.try({
+                  try: () => toWireResource(olds.resource),
+                  catch: (e) => e,
+                })),
+              )
           ) {
             return { action: "replace" } as const
           }
@@ -184,7 +200,7 @@ export const LFTagAssociationProvider = (): infer _ =>
         },
 
         reconcile: effect ({ news, olds, session }) => {
-          const resource = toWireResource(news.resource)
+          const resource = try Effect.orDie(Effect.try({ try: () => toWireResource(news.resource), catch: (e) => e }))
 
           // 1. OBSERVE
           const observed = try observe(resource, news.catalogId)
@@ -251,19 +267,21 @@ export const LFTagAssociationProvider = (): infer _ =>
           const observed = try observe(output.resource, output.catalogId)
           const keys = output.lfTags.map((t) => t.tagKey).filter((k) => observed.has(k))
           if (keys.length === 0) return
-          const response = (try (lf
-            .removeLFTagsFromResource({
-              Resource: output.resource,
-              CatalogId: output.catalogId,
-              LFTags: keys.map((k) => ({
-                TagKey: k,
-                TagValues: observed.get(k)!,
-              })),
-            })
-            |> retryWhileConcurrentModification(%))) catch effect (e) => match (e) {
-              when { _tag: "EntityNotFoundException" }: {} as lf.RemoveLFTagsFromResourceResponse;
-              default: throw e;
-            }
+          const response = (effect {
+            return (try (lf
+              .removeLFTagsFromResource({
+                Resource: output.resource,
+                CatalogId: output.catalogId,
+                LFTags: keys.map((k) => ({
+                  TagKey: k,
+                  TagValues: observed.get(k)!,
+                })),
+              })
+              |> retryWhileConcurrentModification(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "EntityNotFoundException" }: {} as lf.RemoveLFTagsFromResourceResponse;
+            default: throw e;
+          }
           try failuresToError("RemoveLFTagsFromResource", response.Failures)
         },
       })

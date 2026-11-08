@@ -233,7 +233,7 @@ const chartObjects = effect (
   releaseName: string,
 ) => {
   const namespace = props.namespace ?? "default"
-  const redactions = props.values === undefined ? [] : collectRedactedSecrets(props.values)
+  const redactions = try Effect.orDie(Effect.try({ try: () => props.values === undefined ? [] : collectRedactedSecrets(props.values), catch: (e) => e }))
   const rendered = try renderHelmChart({
     chart: props.chart,
     repo: props.repo,
@@ -267,22 +267,23 @@ export const HelmChartProvider = (): infer _ =>
         // them to alchemy; refresh happens per-instance through `read`.
         list: effect () => [] as HelmChart["Attributes"][],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return
-          const releaseName = try resolveReleaseName(id, news, output)
-          const oldCluster = connectionIdentity(tryConnectionOf(olds?.cluster))
-          const newCluster = connectionIdentity(tryConnectionOf(news.cluster))
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          const releaseName = try resolveReleaseName(id, resolved, output)
+          const oldCluster = try Effect.orDie(Effect.try({ try: () => connectionIdentity(tryConnectionOf(olds?.cluster)), catch: (e) => e }))
+          const newCluster = try Effect.orDie(Effect.try({ try: () => connectionIdentity(tryConnectionOf(resolved.cluster)), catch: (e) => e }))
           // Object identity is the (cluster, release, namespace) triple —
           // moving any of it means a different set of objects.
           if (
             output
             && ((oldCluster !== undefined && newCluster !== undefined && oldCluster !== newCluster)
               || output.releaseName !== releaseName
-              || output.namespace !== (news.namespace ?? "default"))
+              || output.namespace !== (resolved.namespace ?? "default"))
           ) {
             return { action: "replace" } as const
           }
           if (output) {
-            const hash = try computeChartHash(news, releaseName)
+            const hash = try computeChartHash(resolved, releaseName)
             if (hash !== output.code.hash) {
               return { action: "update" } as const
             }
@@ -291,7 +292,7 @@ export const HelmChartProvider = (): infer _ =>
         reconcile: effect ({ id, news, olds, output, session }) => {
           const releaseName = try resolveReleaseName(id, news, output)
           const namespace = news.namespace ?? "default"
-          const connection = toConnection(news.cluster)
+          const connection = try Effect.orDie(Effect.try({ try: () => toConnection(news.cluster), catch: (e) => e }))
           const transport = try connectCluster(connection)
           const hash = try computeChartHash(news, releaseName)
 
@@ -336,7 +337,7 @@ export const HelmChartProvider = (): infer _ =>
         },
         read: effect ({ output }) => {
           if (!output) return undefined
-          const connection = connectionOfOutput(output)
+          const connection = try Effect.orDie(Effect.try({ try: () => connectionOfOutput(output), catch: (e) => e }))
           if (!connection) return undefined
           // ClusterNotFound fails the drift row. undefined means an object is gone.
           // GETs only: a dry-run PATCH needs `patch`, and re-rendering a chart
@@ -345,9 +346,9 @@ export const HelmChartProvider = (): infer _ =>
           const notes = try Effect.forEach(
             output.objects,
             effect (object) => {
-              const key = kubernetesObjectKey(object)
+              const key = try Effect.orDie(Effect.try({ try: () => kubernetesObjectKey(object), catch: (e) => e }))
               const observed = readObject({ transport, object }) catch effect (e) => match (e) {
-                when { _tag: "KubernetesNotFound" }: try Effect.undefined;
+                when { _tag: "KubernetesNotFound" }: undefined;
                 default: throw e;
               }
               if (!observed) return `missing:${key}`
@@ -370,7 +371,7 @@ export const HelmChartProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          const connection = connectionOfOutput(output)
+          const connection = try Effect.orDie(Effect.try({ try: () => connectionOfOutput(output), catch: (e) => e }))
           if (!connection) return
           const transport = try ifClusterExists(connectCluster(connection))
           if (!transport) return

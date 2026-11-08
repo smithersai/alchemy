@@ -155,7 +155,7 @@ const createFeatureGroupName = effect (
 const fetchFeatureGroupTags = effect (arn: string) => {
   const response = sagemaker
     .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      when { _tag: "AccessDeniedException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -166,7 +166,7 @@ const fetchFeatureGroupTags = effect (arn: string) => {
 const describeFeatureGroupOrUndefined = effect (name: string) =>
   sagemaker
     .describeFeatureGroup({ FeatureGroupName: name }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFound" }: try Effect.undefined;
+      when { _tag: "ResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -211,8 +211,8 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(60)]),
   })
 
-const waitForFeatureGroup = (name: string, target: "Created" | "Gone") =>
-  retryWhileNotReady(
+const waitForFeatureGroup = effect (name: string, target: "Created" | "Gone") =>
+  try retryWhileNotReady(
     effect {
       const described = try describeFeatureGroupOrUndefined(name)
       if (target === "Gone") {
@@ -276,10 +276,11 @@ export const FeatureGroupProvider = (): infer _ =>
           }
           const attrs = toAttrs(described)
           const tags = try fetchFeatureGroupTags(attrs.featureGroupArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The feature group schema and stores are fixed at creation —
           // everything except tags replaces.
@@ -294,10 +295,10 @@ export const FeatureGroupProvider = (): infer _ =>
             props.description,
           ]
           const oldName = try createFeatureGroupName(id, olds)
-          const newName = try createFeatureGroupName(id, news)
+          const newName = try createFeatureGroupName(id, resolved)
           if (
             oldName !== newName
-            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(news))
+            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(resolved))
           ) {
             return { action: "replace" } as const
           }
@@ -332,7 +333,7 @@ export const FeatureGroupProvider = (): infer _ =>
                   Key,
                   Value,
                 })),
-              }) catch effect (e) => match (e) { when { _tag: "ResourceInUse" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) { when { _tag: "ResourceInUse" }: (undefined as void); default: throw e; }
             try session.note(`Creating feature group ${name}...`)
           }
 
@@ -348,7 +349,7 @@ export const FeatureGroupProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchFeatureGroupTags(attrs.featureGroupArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: attrs.featureGroupArn,
@@ -369,7 +370,7 @@ export const FeatureGroupProvider = (): infer _ =>
           sagemaker
             .deleteFeatureGroup({
               FeatureGroupName: output.featureGroupName,
-            }) catch effect (e) => match (e) { when { _tag: "ResourceNotFound" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) { when { _tag: "ResourceNotFound" }: (undefined as void); default: throw e; }
           try waitForFeatureGroup(output.featureGroupName, "Gone")
         },
       }

@@ -351,7 +351,7 @@ const readFleetById = effect (
 ) => {
   const described = deadline
     .getFleet({ farmId, fleetId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -379,10 +379,10 @@ const findFleetByDisplayName = effect (
   displayName: string,
   arnOf: (path: string) => string,
 ) => {
-  const summaries = (Array.from(
+  const summaries = (effect { return (Array.from(
     try (deadline.listFleets.items({ farmId })
       |> EffectStream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  )) }) catch effect (e) => match (e) {
     when { _tag: "ResourceNotFoundException" }: [] as deadline.FleetSummary[];
     default: throw e;
   }
@@ -420,8 +420,8 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("6 seconds"), Schedule.recurs(9)]),
   })
 
-const waitForFleetActive = (farmId: string, fleetId: string, arnOf: (path: string) => string) =>
-  retryWhileNotReady(
+const waitForFleetActive = effect (farmId: string, fleetId: string, arnOf: (path: string) => string) =>
+  try retryWhileNotReady(
     effect {
       const state = try readFleetById(farmId, fleetId, arnOf)
       if (state === undefined) {
@@ -449,14 +449,14 @@ const waitUntilFleetGone = effect (farmId: string, fleetId: string) =>
     effect {
       const described = deadline
         .getFleet({ farmId, fleetId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (described !== undefined) {
         throw new FleetNotReady({ fleetId, status: described.status })
       }
     },
-  ) catch effect (e) => match (e) { when { _tag: "FleetNotReady" }: try Effect.void; default: throw e; }
+  ) catch effect (e) => match (e) { when { _tag: "FleetNotReady" }: (undefined as void); default: throw e; }
 
 export const FleetProvider = (): infer _ =>
   Provider.effect(
@@ -476,13 +476,14 @@ export const FleetProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The parent farm is fixed at creation.
-          if (olds.farmId !== news.farmId) {
+          if (olds.farmId !== resolved.farmId) {
             return { action: "replace" } as const
           }
         },
@@ -527,7 +528,7 @@ export const FleetProvider = (): infer _ =>
           const described = state.described
           const needsUpdate = displayName !== described.displayName
             || (news.description !== undefined
-              && news.description !== (asPlain(described.description) ?? ""))
+              && news.description !== ((try Effect.orDie(Effect.try({ try: () => asPlain(described.description), catch: (e) => e }))) ?? ""))
             || news.roleArn !== described.roleArn
             || (news.minWorkerCount !== undefined
               && news.minWorkerCount !== described.minWorkerCount)
@@ -572,7 +573,7 @@ export const FleetProvider = (): infer _ =>
               fleetId: output.fleetId,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
           // Fleet deletion drains workers asynchronously; wait until gone so

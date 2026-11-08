@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import type * as lambda from "@distilled.cloud/aws/lambda"
 import * as Lambda from "@distilled.cloud/aws/lambda"
 import { isResolved } from "alchemy/Diff"
@@ -125,17 +127,24 @@ export interface Permission extends
 export const Permission = Resource<Permission>("AWS.Lambda.Permission")
 
 /** A Lambda function's resource policy is not valid JSON. */
-export error InvalidLambdaResourcePolicy {
-  mutable message: string
-  mutable cause?: unknown
+export class InvalidLambdaResourcePolicy extends $MutableErrorBase("InvalidLambdaResourcePolicy")<{
+
+   message: string;
+
+   cause?: unknown;
+}> {static {
+    $MutableErrorMatcher(this, "InvalidLambdaResourcePolicy", true);
+}
+
+
 }
 
 export const PermissionProvider = (): infer _ =>
   Provider.effect(
     Permission,
     effect {
-      const createStatementId = (id: string) =>
-        createPhysicalName({
+      const createStatementId = effect (id: string) =>
+        try createPhysicalName({
           id,
           maxLength: 100,
           delimiter: "-",
@@ -207,7 +216,7 @@ export const PermissionProvider = (): infer _ =>
           const perFunction = try Effect.forEach(
             functionNames,
             effect (functionName) =>
-              (try effect {
+              (effect { return (try effect {
                 const { Policy } = try Lambda.getPolicy({
                   FunctionName: functionName,
                 })
@@ -232,7 +241,7 @@ export const PermissionProvider = (): infer _ =>
                     statementId: s.Sid,
                     functionName,
                   }))
-              }) catch effect (e) => match (e) {
+              }) }) catch effect (e) => match (e) {
                 when { _tag: "ResourceNotFoundException" }: [] as PermissionAttrs[];
                 default: throw e;
               },
@@ -246,11 +255,12 @@ export const PermissionProvider = (): infer _ =>
           const statementId = output?.statementId ?? (try createStatementId(id))
           const statement = try findStatement(functionName, statementId)
           if (statement === undefined) return undefined
-          return { statementId, functionName, statement: plainJson(statement) }
+          return { statementId, functionName, statement: try Effect.orDie(Effect.try({ try: () => plainJson(statement), catch: (e) => e })) }
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
-          if (news.functionName !== olds.functionName) {
+          const resolved__ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved__ === undefined) return
+          if (resolved__.functionName !== olds.functionName) {
             return { action: "replace" } as const
           }
         },
@@ -269,7 +279,7 @@ export const PermissionProvider = (): infer _ =>
               FunctionName: news.functionName,
               StatementId: statementId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }
@@ -293,7 +303,7 @@ export const PermissionProvider = (): infer _ =>
           return {
             statementId,
             functionName: news.functionName,
-            statement: statement && plainJson(statement),
+            statement: statement && (try Effect.orDie(Effect.try({ try: () => plainJson(statement), catch: (e) => e }))),
           }
         },
         delete: effect ({ output }) => {
@@ -301,7 +311,7 @@ export const PermissionProvider = (): infer _ =>
             FunctionName: output.functionName,
             StatementId: output.statementId,
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

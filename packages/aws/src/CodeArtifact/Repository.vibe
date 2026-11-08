@@ -147,7 +147,7 @@ export const RepositoryProvider = (): infer _ =>
       ) => {
         const response = codeartifact
           .describeRepository({ domain, domainOwner, repository: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.repository
@@ -168,7 +168,8 @@ export const RepositoryProvider = (): infer _ =>
       const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
         const observed = codeartifact
           .listTagsForResource({ resourceArn: arn }) catch () => undefined
-        const { removed, upsert } = diffTags(toTagRecord(observed?.tags), desiredTags)
+        const oldTags = toTagRecord(observed?.tags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try codeartifact.tagResource({
             resourceArn: arn,
@@ -187,14 +188,15 @@ export const RepositoryProvider = (): infer _ =>
         stables: ["repositoryName", "repositoryArn", "domainName"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // The containing domain is immutable — replace on change.
           if (
-            (news?.domain ?? undefined) !== (olds?.domain ?? undefined)
-            || (news?.domainOwner ?? undefined) !== (olds?.domainOwner ?? undefined)
+            (resolved?.domain ?? undefined) !== (olds?.domain ?? undefined)
+            || (resolved?.domainOwner ?? undefined) !== (olds?.domainOwner ?? undefined)
           ) {
             return { action: "replace" } as const
           }
@@ -207,11 +209,11 @@ export const RepositoryProvider = (): infer _ =>
           const repository = try getRepository(domain, olds?.domainOwner, name)
           if (repository?.arn === undefined) return undefined
           const attrs = toAttrs(repository, name, domain)
-          const tags = (toTagRecord(
+          const tags = (effect { return (toTagRecord(
             (try codeartifact
               .listTagsForResource({ resourceArn: attrs.repositoryArn })).tags,
-          )) catch () => ({})
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          )) }) catch () => ({})
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -227,7 +229,7 @@ export const RepositoryProvider = (): infer _ =>
 
           // 2. Ensure — create if missing. Tolerate a concurrent-create race.
           if (observed?.arn === undefined) {
-            observed = (try codeartifact
+            observed = (effect { return (try codeartifact
               .createRepository({
                 domain,
                 domainOwner,
@@ -240,7 +242,7 @@ export const RepositoryProvider = (): infer _ =>
                   key,
                   value,
                 })),
-              })).repository catch effect (e) => match (e) {
+              })).repository }) catch effect (e) => match (e) {
                 when { _tag: "ConflictException" }: try getRepository(domain, domainOwner, name);
                 default: throw e;
               }
@@ -297,7 +299,7 @@ export const RepositoryProvider = (): infer _ =>
         },
 
         delete: effect ({ output, olds }) => {
-          ;(try (codeartifact
+          ;(effect { return (try (codeartifact
             .deleteRepository({
               domain: output.domainName,
               domainOwner: output.domainOwner || olds?.domainOwner,
@@ -307,8 +309,8 @@ export const RepositoryProvider = (): infer _ =>
               while: (e): boolean => e._tag === "ConflictException",
               schedule: Schedule.spaced("2 seconds"),
               times: 10,
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            }))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

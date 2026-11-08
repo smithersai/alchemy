@@ -145,6 +145,7 @@ export const createFlyVolumeName = Effect.fn(function* (id: string) {
 /**
  * Sanitize a user-supplied Fly App / Volume / Secret name: lowercase,
  * DNS-compatible (`[a-z0-9-]`), force a leading letter, max 30 chars.
+ * @throws {never}
  */
 export const sanitizeFlyAppName = (name: string): string => {
   const lowered = name

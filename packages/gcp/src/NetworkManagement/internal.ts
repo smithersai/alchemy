@@ -122,7 +122,7 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
@@ -141,7 +141,7 @@ export const canonicalizeLink = (value: string | undefined) => {
     .replace(/\/+$/, "");
 };
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>

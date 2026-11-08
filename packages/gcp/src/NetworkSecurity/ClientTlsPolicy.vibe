@@ -236,19 +236,34 @@ export const ClientTlsPolicyProvider = (): infer _ =>
     stables: ["name", "clientTlsPolicyId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.clientTlsPolicyId ?? output?.clientTlsPolicyId
-      const nextId = news.clientTlsPolicyId
-        ? rfc1035(news.clientTlsPolicyId, "client-tls-policy")
-        : previousId
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.clientTlsPolicyId
+            ? rfc1035(resolved.clientTlsPolicyId, "client-tls-policy")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -266,19 +281,29 @@ export const ClientTlsPolicyProvider = (): infer _ =>
         output?.clientTlsPolicyId,
         "client-tls-policy",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = output?.name ?? resourceName(env.project, location, clientTlsPolicyId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networksecurity.listProjectsLocationsClientTlsPolicies.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.clientTlsPolicies,
@@ -296,10 +321,15 @@ export const ClientTlsPolicyProvider = (): infer _ =>
         output?.clientTlsPolicyId,
         "client-tls-policy",
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
       const name = resourceName(env.project, location, clientTlsPolicyId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredCa = (news.serverValidationCa ?? []).map(toCa)
@@ -308,23 +338,25 @@ export const ClientTlsPolicyProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networksecurity
-          .createProjectsLocationsClientTlsPolicies({
-            parent: parentOf(env.project, location),
-            clientTlsPolicyId,
-            body: {
-              description: news.description,
-              labels: desiredLabels,
-              sni: news.sni,
-              serverValidationCa: desiredCa,
-              clientCertificate: desiredClient,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsClientTlsPolicies({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              clientTlsPolicyId,
+              body: {
+                description: news.description,
+                labels: desiredLabels,
+                sni: news.sni,
+                serverValidationCa: desiredCa,
+                clientCertificate: desiredClient,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -332,20 +364,35 @@ export const ClientTlsPolicyProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const sniChanged = (current.sni ?? "") !== (news.sni ?? "")
-      const caChanged = !sameJson((current.serverValidationCa ?? []).map(toCa), desiredCa)
-      const clientChanged = !sameJson(toProvider(current.clientCertificate), desiredClient)
+      const caChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, (current.serverValidationCa ?? []).map(toCa), desiredCa),
+          catch: (e) => e,
+        }),
+      ))
+      const left = toProvider(current.clientCertificate)
+      const clientChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left, desiredClient),
+        catch: (e) => e,
+      })))
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["sni", sniChanged],
-        ["serverValidationCa", caChanged],
-        ["clientCertificate", clientChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["sni", sniChanged],
+            ["serverValidationCa", caChanged],
+            ["clientCertificate", clientChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networksecurity.patchProjectsLocationsClientTlsPolicies({
@@ -368,13 +415,15 @@ export const ClientTlsPolicyProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networksecurity
-        .deleteProjectsLocationsClientTlsPolicies({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsClientTlsPolicies({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

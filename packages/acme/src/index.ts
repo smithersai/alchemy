@@ -2,7 +2,7 @@ export * from "./Account.vibe";
 export * from "./Certificate.vibe";
 export * from "./CertificateAuthority.ts";
 export * from "./Client.vibe";
-export * from "./Dns.vibe";
+export * from "./Dns.ts";
 export * from "./DnsSolver.vibe";
 export * from "./Errors.vibe";
 export * from "./IssueCertificate.vibe";

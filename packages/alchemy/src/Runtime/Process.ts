@@ -60,9 +60,11 @@ export interface HostRuntimeContext extends ProcessContext {
  * scopes. Without a signal, a nested `Effect.scoped` runner must finish its own
  * finalizers before the host can observe completion or failure. Applications must
  * bound that cleanup; the host cannot observe an opaque scope's earlier body exit.
+ * @throws {never}
  */
 export const createHostRuntimeContext =
   (type: string) =>
+  /** @throws {never} */
   (id: string): HostRuntimeContext => {
     const runners: Effect.Effect<void, never, any>[] = [];
     const env: Record<string, any> = {};
@@ -127,9 +129,11 @@ export const createHostRuntimeContext =
  * context so an impl shape's `run` effect is registered as a one-shot runner
  * (the container exits when it completes) and the HTTP server only boots when
  * the impl actually declares a `fetch` handler.
+ * @throws {never}
  */
 export const createContainerRuntimeContext =
   (type: string) =>
+  /** @throws {never} */
   (id: string): HostRuntimeContext => {
     const base = createHostRuntimeContext(type)(id);
     // Capture the host serve BEFORE Object.assign overwrites `base.serve`

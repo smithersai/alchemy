@@ -109,14 +109,15 @@ export const expandParent = (
   return `projects/${project}/locations/${location}/${collection}/${value}`;
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
 export const replaceOnIdentity = (input: {
@@ -160,7 +161,7 @@ export const isReadyState = (state: string | undefined) =>
 export const isFailedState = (state: string | undefined) =>
   FAILED_STATES.has((state ?? "").toUpperCase());
 
-export const isDeletingState = (state: string | undefined) =>
+export const isDeletingState = /** @throws {never} */ (state: string | undefined) =>
   (state ?? "").toUpperCase() === "DELETING";
 
 /**

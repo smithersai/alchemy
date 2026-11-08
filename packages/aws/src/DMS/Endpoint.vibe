@@ -203,7 +203,7 @@ export const EndpointProvider = (): infer _ =>
           .describeEndpoints({
             Filters: [{ Name: "endpoint-id", Values: [identifier] }],
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.Endpoints?.[0]
@@ -263,12 +263,13 @@ export const EndpointProvider = (): infer _ =>
         stables: ["endpointIdentifier", "endpointArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? ({} as EndpointProps))) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? ({} as EndpointProps))) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
           // KMS key is create-only.
-          if ((news.kmsKeyId ?? undefined) !== (olds?.kmsKeyId ?? undefined)) {
+          if ((resolved.kmsKeyId ?? undefined) !== (olds?.kmsKeyId ?? undefined)) {
             return { action: "replace" } as const
           }
         },
@@ -278,7 +279,7 @@ export const EndpointProvider = (): infer _ =>
           const endpoint = try findEndpoint(name)
           if (!endpoint?.EndpointArn) return undefined
           const attrs = try toAttrs(endpoint)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -291,7 +292,7 @@ export const EndpointProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
           if (observed === undefined) {
-            observed = (try dms
+            observed = (effect { return (try dms
               .createEndpoint({
                 EndpointIdentifier: name,
                 EndpointType: news.endpointType,
@@ -302,7 +303,7 @@ export const EndpointProvider = (): infer _ =>
                   Value,
                 })),
                 ...buildSettings(news),
-              })).Endpoint catch effect (e) => match (e) {
+              })).Endpoint }) catch effect (e) => match (e) {
                 when { _tag: "ResourceAlreadyExistsFault" }: try findEndpoint(name);
                 default: throw e;
               }
@@ -329,7 +330,7 @@ export const EndpointProvider = (): infer _ =>
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const arn = observed.EndpointArn
           const observedTags = try readTags(arn)
-          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try dms.addTagsToResource({ ResourceArn: arn, Tags: upsert })
           }
@@ -347,7 +348,7 @@ export const EndpointProvider = (): infer _ =>
         delete: effect ({ output }) => {
           dms
             .deleteEndpoint({ EndpointArn: output.endpointArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundFault" }: try Effect.void;
+              when { _tag: "ResourceNotFoundFault" }: (undefined as void);
               default: throw e;
             }
         },
@@ -365,7 +366,7 @@ export const EndpointProvider = (): infer _ =>
           }
             |> Effect.flatMap(
               %,
-              Effect.forEach((endpoint) => toAttrs(endpoint), {
+              Effect.forEach(effect (endpoint) => try toAttrs(endpoint), {
                 concurrency: 4,
               }),
             )),

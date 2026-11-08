@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as omics from "@distilled.cloud/aws/omics"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -7,8 +8,6 @@ import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
 import { toWireMinutes } from "alchemy/Util/Duration"
 import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { fetchOmicsTags, syncOmicsTags } from "./internal.ts"
 
@@ -119,7 +118,7 @@ export const RunGroupProvider = (): infer _ =>
           if (output?.runGroupId === undefined) return undefined
           const found = omics
             .getRunGroup({ id: output.runGroupId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (found === undefined || found.id === undefined) return undefined
@@ -129,16 +128,20 @@ export const RunGroupProvider = (): infer _ =>
             name: found.name ?? "",
           }
           const tags = try fetchOmicsTags(found.arn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
         // No replacement path: every prop (name + limits) is mutable via
         // updateRunGroup. Return undefined to run the default update path.
         diff: effect ({ news }) => {
-          if (!isResolved(news)) return undefined
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(news), catch: (e) => e })))) return undefined
         },
         reconcile: effect ({ id, news, output, session }) => {
           const name = output?.name ?? (try createName(id, news))
-          const maxDurationMinutes = toWireMinutes(news.maxDuration)
+          const maxDurationMinutes = try Effect.orDie(
+            Effect.try({ try: () => toWireMinutes(news.maxDuration), catch: (e) => e }),
+          )
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...news.tags, ...internalTags }
 
@@ -147,7 +150,7 @@ export const RunGroupProvider = (): infer _ =>
             ? undefined
             : omics
               .getRunGroup({ id: output.runGroupId }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
 
@@ -209,7 +212,7 @@ export const RunGroupProvider = (): infer _ =>
         delete: effect ({ output }) => {
           omics
             .deleteRunGroup({ id: output.runGroupId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

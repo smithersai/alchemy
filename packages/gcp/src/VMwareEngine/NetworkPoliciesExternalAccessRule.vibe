@@ -244,32 +244,48 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      return replaceOnIdentity({
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const input = {
         previousId: olds?.externalAccessRuleId ?? output?.externalAccessRuleId,
-        nextId: news.externalAccessRuleId
-          ? rfc1035(news.externalAccessRuleId, "rule")
+        nextId: resolved.externalAccessRuleId
+          ? rfc1035(resolved.externalAccessRuleId, "rule")
           : (olds?.externalAccessRuleId ?? output?.externalAccessRuleId),
         previousLocation,
         nextLocation: normalizeLocation(
-          news.location ?? locationFromName(news.networkPolicy, previousLocation),
+          resolved.location
+            ?? (try Effect.orDie(
+              Effect.try({
+                try: locationFromName.bind(undefined, resolved.networkPolicy, previousLocation),
+                catch: (e) => e,
+              }),
+            )),
           env.region,
         ),
         previousParent: olds?.networkPolicy ?? output?.networkPolicy,
-        nextParent: news.networkPolicy,
-      })
+        nextParent: resolved.networkPolicy,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.networkPolicy ? locationFromName(olds.networkPolicy, env.region) : undefined),
-        env.region,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location
+              ?? output?.location
+              ?? (olds?.networkPolicy ? locationFromName(olds.networkPolicy, env.region) : undefined),
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentPolicyName(
         env.project,
         location,
@@ -285,8 +301,12 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -319,10 +339,14 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? output?.location ?? locationFromName(news.networkPolicy, env.region),
-        env.region,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location ?? locationFromName(news.networkPolicy, env.region),
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentPolicyName(env.project, location, news.networkPolicy)
       const ruleId = try toPhysicalId(
         id,
@@ -332,7 +356,9 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
       )
       const name = resourceNameOf(parent, ruleId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const priority = news.priority ?? 1000
       const action = news.action ?? "ALLOW"
       const ipProtocol = news.ipProtocol ?? "tcp"
@@ -344,26 +370,28 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsNetworkPoliciesExternalAccessRules({
-            parent,
-            externalAccessRuleId: ruleId,
-            body: {
-              priority,
-              action,
-              ipProtocol,
-              sourceIpRanges,
-              destinationIpRanges,
-              sourcePorts,
-              destinationPorts,
-              description: desiredDescription,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsNetworkPoliciesExternalAccessRules({
+              parent,
+              externalAccessRuleId: ruleId,
+              body: {
+                priority,
+                action,
+                ipProtocol,
+                sourceIpRanges,
+                destinationIpRanges,
+                sourcePorts,
+                destinationPorts,
+                description: desiredDescription,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -384,23 +412,41 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
       const priorityChanged = (current.priority ?? 0) !== priority
       const actionChanged = (current.action ?? "") !== action
       const protocolChanged = (current.ipProtocol ?? "") !== ipProtocol
-      const sourceRangesChanged = !sameJson(ipRangesOf(current.sourceIpRanges), sourceIpRanges)
-      const destRangesChanged = !sameJson(
-        ipRangesOf(current.destinationIpRanges),
-        destinationIpRanges,
-      )
-      const sourcePortsChanged = !sameJson(current.sourcePorts, sourcePorts)
-      const destPortsChanged = !sameJson(current.destinationPorts, destinationPorts)
-      const updateMask = changedFields([
-        ["description", descriptionChanged],
-        ["priority", priorityChanged],
-        ["action", actionChanged],
-        ["ipProtocol", protocolChanged],
-        ["sourceIpRanges", sourceRangesChanged],
-        ["destinationIpRanges", destRangesChanged],
-        ["sourcePorts", sourcePortsChanged],
-        ["destinationPorts", destPortsChanged],
-      ])
+      const left = ipRangesOf(current.sourceIpRanges)
+      const sourceRangesChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left, sourceIpRanges),
+        catch: (e) => e,
+      })))
+      const left2 = ipRangesOf(current.destinationIpRanges)
+      const destRangesChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameJson(
+            left2,
+            destinationIpRanges,
+          ),
+        catch: (e) => e,
+      })))
+      const sourcePortsChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.sourcePorts, sourcePorts),
+        catch: (e) => e,
+      })))
+      const destPortsChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.destinationPorts, destinationPorts), catch: (e) => e }),
+      ))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["description", descriptionChanged],
+            ["priority", priorityChanged],
+            ["action", actionChanged],
+            ["ipProtocol", protocolChanged],
+            ["sourceIpRanges", sourceRangesChanged],
+            ["destinationIpRanges", destRangesChanged],
+            ["sourcePorts", sourcePortsChanged],
+            ["destinationPorts", destPortsChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try vmwareengine.patchProjectsLocationsNetworkPoliciesExternalAccessRules({
@@ -430,15 +476,17 @@ export const NetworkPoliciesExternalAccessRuleProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsNetworkPoliciesExternalAccessRules({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsNetworkPoliciesExternalAccessRules({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

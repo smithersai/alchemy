@@ -263,7 +263,7 @@ const toAttrs = (sink: logging.LogSink, organization: string, project: string): 
 const getByName = effect (name: string) =>
   logging
     .getOrganizationsSinks({ sinkName: name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -288,13 +288,16 @@ export const OrganizationSinkProvider = (): infer _ =>
     stables: ["name", "sinkId", "organization", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previous = olds?.sinkId ?? output?.sinkId
-      const idChanged = previous !== undefined && news.sinkId !== undefined && news.sinkId !== previous
+      const idChanged = previous !== undefined && resolved.sinkId !== undefined && resolved.sinkId !== previous
       const previousOrg = olds?.organization ?? output?.organization
       const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && news.organization !== previousOrg
+        && resolved.organization !== undefined
+        && resolved.organization !== previousOrg
       if (!idChanged && !orgChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -310,25 +313,31 @@ export const OrganizationSinkProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      return (Array.from(
-        try (logging.listOrganizationsSinks
-          .pages({
-            parent: organization,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sinks ?? []))
-          |> Stream.filter(%, (sink) => hasOwnershipMarker(sink.description))
-          |> Stream.map(%, (sink) => toAttrs(sink, organization, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (logging.listOrganizationsSinks
+            .pages({
+              parent: organization,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sinks ?? []))
+            |> Stream.filter(%, (sink) => hasOwnershipMarker(sink.description))
+            |> Stream.map(%, (sink) => toAttrs(sink, organization, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -337,7 +346,9 @@ export const OrganizationSinkProvider = (): infer _ =>
       const sinkId = try toPhysicalId(id, news.sinkId, output?.sinkId, "s")
       const name = resourceName(organization, sinkId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -421,7 +432,7 @@ export const OrganizationSinkProvider = (): infer _ =>
     delete: effect ({ output }) => {
       logging
         .deleteOrganizationsSinks({ sinkName: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

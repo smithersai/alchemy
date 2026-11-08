@@ -138,15 +138,17 @@ const getByName = effect (name: string) =>
   }
 
 const listPages = effect (project: string) =>
-  (Array.from(
-    try (monitoring.listProjectsGroups
-      .pages({
-        name: parentOf(project),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.group ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (monitoring.listProjectsGroups
+        .pages({
+          name: try Effect.orDie(Effect.try({ try: () => parentOf(project), catch: (e) => e })),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.group ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const listOwned = effect (project: string) => {
   const groups = try listPages(project)
@@ -158,7 +160,12 @@ const listOwned = effect (project: string) => {
 const findOwned = effect (project: string, id: string) => {
   const groups = try listPages(project)
   for (const group of groups) {
-    if (try hasAlchemyLabels(id, parseMarker(group.displayName).labels)) {
+    if (
+      try hasAlchemyLabels(
+        id,
+        (try Effect.orDie(Effect.try({ try: () => parseMarker(group.displayName), catch: (e) => e }))).labels,
+      )
+    ) {
       return group
     }
   }
@@ -197,9 +204,12 @@ export const GroupProvider = (): infer _ =>
       const existing = try observe(env.project, id, output?.name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, parseMarker(existing.displayName).labels))
+      return (try hasAlchemyLabels(
+          id,
+          (try Effect.orDie(Effect.try({ try: () => parseMarker(existing.displayName), catch: (e) => e }))).labels,
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -211,7 +221,9 @@ export const GroupProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
       const ownership = try createInternalLabels(id)
-      const encodedDisplayName = encodeDisplayName(ownership, displayName)
+      const encodedDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeDisplayName(ownership, displayName), catch: (e) => e }),
+      )
       const desiredParent = news.parentName ?? ""
       const desiredCluster = news.isCluster === true
 
@@ -220,7 +232,7 @@ export const GroupProvider = (): infer _ =>
       if (current === undefined) {
         const created = try (monitoring
           .createProjectsGroups({
-            name: parentOf(env.project),
+            name: try Effect.orDie(Effect.try({ try: () => parentOf(env.project), catch: (e) => e })),
             body: {
               displayName: encodedDisplayName,
               filter: news.filter,
@@ -263,10 +275,12 @@ export const GroupProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (monitoring.deleteProjectsGroups({ name: output.name, recursive: true })
-        |> retryConcurrentEdits(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
-          default: throw e;
-        }
+      ;(effect {
+        return (try (monitoring.deleteProjectsGroups({ name: output.name, recursive: true })
+          |> retryConcurrentEdits(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
     },
   })

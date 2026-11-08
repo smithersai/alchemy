@@ -217,32 +217,46 @@ export const RepositoriesHookProvider = (): infer _ =>
     stables: ["name", "hookId", "repository", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
         previousId: olds?.hookId ?? output?.hookId,
-        nextId: news.hookId ? rfc1035(news.hookId, "hook") : (olds?.hookId ?? output?.hookId),
+        nextId: resolved.hookId ? rfc1035(resolved.hookId, "hook") : (olds?.hookId ?? output?.hookId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.repository ?? output?.repository,
-        nextParent: expandName(news.repository, env.project, location, "repositories"),
-      })
+        nextParent: expandName(resolved.repository, env.project, location, "repositories"),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const hookId = try toPhysicalId(id, olds?.hookId, output?.hookId, "hook")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const repository = expandName(
-        olds?.repository ?? output?.repository ?? "",
-        env.project,
-        location,
-        "repositories",
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandName(
+            olds?.repository ?? output?.repository ?? "",
+            env.project,
+            location,
+            "repositories",
+          ),
+        catch: (e) => e,
+      }))
       const name = output?.name ?? (repository.length > 0 ? resourceName(repository, hookId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
@@ -252,8 +266,11 @@ export const RepositoriesHookProvider = (): infer _ =>
       // before ownership moved off the URI still carry query markers.
       const owned = output !== undefined
         || olds?.hookId === undefined
-        || (try hasAlchemyLabels(id, parseTargetUriOwnership(existing.targetUri)))
-      return owned ? attrs : Unowned(attrs)
+        || (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => parseTargetUriOwnership(existing.targetUri), catch: (e) => e })),
+        ))
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -265,8 +282,12 @@ export const RepositoriesHookProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const hookId = try toPhysicalId(id, news.hookId, output?.hookId, "hook")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const repository = expandName(news.repository, env.project, location, "repositories")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandName(news.repository, env.project, location, "repositories"), catch: (e) => e }),
+      )
       const name = resourceName(repository, hookId)
       const targetUri = news.targetUri
       const events = toEvents(news.events)
@@ -296,14 +317,18 @@ export const RepositoriesHookProvider = (): infer _ =>
         throw new ResourceNotResolved({ resourceName: name })
       }
 
-      const mask = fieldMask([
+      const fields = [
         !sameText(current.targetUri, targetUri) && "targetUri",
-        fingerprint(toEvents(current.events)) !== fingerprint(events) && "events",
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, toEvents(current.events)), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(events), catch: (e) => e }))) && "events",
         (current.disabled === true) !== (news.disabled === true) && "disabled",
         !sameText(current.sensitiveQueryString, news.sensitiveQueryString)
         && "sensitiveQueryString",
-        fingerprint(current.pushOption) !== fingerprint(news.pushOption) && "pushOption",
-      ])
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.pushOption), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.pushOption), catch: (e) => e })))
+        && "pushOption",
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const operation = try ssm.patchProjectsLocationsRepositoriesHooks({

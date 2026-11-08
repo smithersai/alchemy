@@ -193,13 +193,15 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (apihub.listProjectsLocationsPluginsInstances.pages({ parent, pageSize: 1000 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.pluginInstances ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(item.displayName))
-      |> Stream.map(%, (item) => toAttrs(item, project, region))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (apihub.listProjectsLocationsPluginsInstances.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.pluginInstances ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(item.displayName))
+        |> Stream.map(%, (item) => toAttrs(item, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const waitUntilReady = effect (name: string) =>
   try effect {
@@ -244,29 +246,52 @@ export const PluginsInstanceProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const extra = olds !== undefined
-        && (!sameJson(news.authConfig, olds.authConfig)
-          || !sameJson(news.additionalConfig, olds.additionalConfig)
-          || !sameText(news.sourceProjectId, olds.sourceProjectId)
-          || !sameJson(news.sourceEnvironmentsConfig, olds.sourceEnvironmentsConfig)
-          || !sameJson(
-            (news.actions ?? DEFAULT_ACTIONS).map((action) => action.actionId),
-            (olds.actions ?? DEFAULT_ACTIONS).map((action) => action.actionId),
+        && (!(try Effect.orDie(
+          Effect.try({ try: () => sameJson(resolved.authConfig, olds.authConfig), catch: (e) => e }),
+        ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameJson(resolved.additionalConfig, olds.additionalConfig), catch: (e) => e }),
           ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameText(resolved.sourceProjectId, olds.sourceProjectId), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({
+              try: () => sameJson(resolved.sourceEnvironmentsConfig, olds.sourceEnvironmentsConfig),
+              catch: (e) => e,
+            }),
+          ))
+          || !(try Effect.orDie(Effect.try({
+            try: () =>
+              sameJson(
+                (resolved.actions ?? DEFAULT_ACTIONS).map((action) => action.actionId),
+                (olds.actions ?? DEFAULT_ACTIONS).map((action) => action.actionId),
+              ),
+            catch: (e) => e,
+          }))))
       const previousPlugin = olds?.plugin ?? output?.plugin
-      const pluginChanged = previousPlugin !== undefined && news.plugin !== undefined && news.plugin !== previousPlugin
-      const identity = replaceOnIdentity({
-        previousId: olds?.pluginInstanceId ?? output?.pluginInstanceId,
-        nextId: news.pluginInstanceId ?? olds?.pluginInstanceId ?? output?.pluginInstanceId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: extra || pluginChanged,
-      })
+      const pluginChanged = previousPlugin !== undefined && resolved.plugin !== undefined
+        && resolved.plugin !== previousPlugin
+      const identity = try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.pluginInstanceId ?? output?.pluginInstanceId,
+            nextId: resolved.pluginInstanceId ?? olds?.pluginInstanceId ?? output?.pluginInstanceId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: extra || pluginChanged,
+          }),
+        catch: (e) => e,
+      }))
       if (identity !== undefined) return identity
       if (pluginChanged) {
         return { action: "replace" as const, deleteFirst: false }
@@ -286,13 +311,17 @@ export const PluginsInstanceProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       return try listAt(
-        `${locationParent(env.project, env.region)}/plugins/-`,
+        `${try Effect.orDie(
+          Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e }),
+        )}/plugins/-`,
         env.project,
         env.region,
       )
@@ -301,14 +330,22 @@ export const PluginsInstanceProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const plugin = news.plugin
-      const parsedPlugin = parseName(plugin, "plugins", env.region)
-      const location = normalizeLocation(
-        news.location ?? parsedPlugin.location ?? output?.location,
-        env.region,
+      const parsedPlugin = try Effect.orDie(
+        Effect.try({ try: () => parseName(plugin, "plugins", env.region), catch: (e) => e }),
       )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? parsedPlugin.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const pluginName = plugin.includes("/")
         ? plugin
-        : `${locationParent(env.project, location)}/plugins/${plugin}`
+        : `${try Effect.orDie(
+          Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+        )}/plugins/${plugin}`
       const pluginInstanceId = try toPhysicalId(
         id,
         news.pluginInstanceId,
@@ -316,11 +353,15 @@ export const PluginsInstanceProvider = (): infer _ =>
       )
       const name = resourceName(pluginName, pluginInstanceId)
       const ownership = try ownershipLabels(id)
-      const displayName = encodeOwnershipLine(
-        ownership,
-        news.displayName,
-        MAX_PLUGIN_INSTANCE_DISPLAY_NAME_LENGTH,
-      )
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            news.displayName,
+            MAX_PLUGIN_INSTANCE_DISPLAY_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
       const actions = news.actions ?? DEFAULT_ACTIONS
 
       let current = try getByName(output?.name ?? name)
@@ -358,13 +399,25 @@ export const PluginsInstanceProvider = (): infer _ =>
       const currentName = current.name ?? name
       let ready = try waitUntilReady(currentName)
 
-      const observedDisplay = parseOwnership(ready.displayName).text
-      const displayChanged = !sameText(observedDisplay, news.displayName)
-      const scheduleChanged = !sameJson(scheduleOf(ready.actions), scheduleOf(actions))
-      const updateMask = updateMaskOf(
-        displayChanged ? "display_name" : undefined,
-        scheduleChanged ? "actions" : undefined,
-      )
+      const observedDisplay = (try Effect.orDie(Effect.try({
+        try: () => parseOwnership(ready.displayName),
+        catch: (e) => e,
+      }))).text
+      const displayChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(observedDisplay, news.displayName),
+        catch: (e) => e,
+      })))
+      const left = scheduleOf(ready.actions)
+      const right = scheduleOf(actions)
+      const scheduleChanged = !(try Effect.orDie(Effect.try({ try: () => sameJson(left, right), catch: (e) => e })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            scheduleChanged ? "actions" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         ready = try apihub.patchProjectsLocationsPluginsInstances({
@@ -382,13 +435,15 @@ export const PluginsInstanceProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apihub
-        .deleteProjectsLocationsPluginsInstances({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apihub
+          .deleteProjectsLocationsPluginsInstances({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

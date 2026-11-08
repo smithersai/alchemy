@@ -5,8 +5,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import {
   retryGaDeletion,
@@ -179,16 +177,20 @@ const toAttributes = (
 })
 
 const describeAccelerator = effect (acceleratorArn: string) =>
-  (try withGaRegion(ga.describeAccelerator({ AcceleratorArn: acceleratorArn }))).Accelerator catch effect (e) => match (e) {
-    when { _tag: "AcceleratorNotFoundException" }: try Effect.undefined;
+  (effect {
+    return (try withGaRegion(ga.describeAccelerator({ AcceleratorArn: acceleratorArn }))).Accelerator
+  }) catch effect (e) => match (e) {
+    when { _tag: "AcceleratorNotFoundException" }: undefined;
     default: throw e;
   }
 
 const describeFlowLogs = effect (acceleratorArn: string) =>
-  (try withGaRegion(
-    ga.describeAcceleratorAttributes({ AcceleratorArn: acceleratorArn }),
-  )).AcceleratorAttributes catch effect (e) => match (e) {
-    when { _tag: "AcceleratorNotFoundException" }: try Effect.undefined;
+  (effect {
+    return (try withGaRegion(
+      ga.describeAcceleratorAttributes({ AcceleratorArn: acceleratorArn }),
+    )).AcceleratorAttributes
+  }) catch effect (e) => match (e) {
+    when { _tag: "AcceleratorNotFoundException" }: undefined;
     default: throw e;
   }
 
@@ -198,9 +200,13 @@ const findAcceleratorByName = effect (name: string) => {
 }
 
 const fetchTags = effect (resourceArn: string) =>
-  (Object.fromEntries(
-    ((try withGaRegion(ga.listTagsForResource({ ResourceArn: resourceArn }))).Tags ?? []).map((t) => [t.Key, t.Value]),
-  )) catch () => ({}) as Record<string, string>
+  (effect {
+    return (Object.fromEntries(
+      ((try withGaRegion(ga.listTagsForResource({ ResourceArn: resourceArn }))).Tags ?? []).map((
+        t,
+      ) => [t.Key, t.Value]),
+    ))
+  }) catch () => ({}) as Record<string, string>
 
 /**
  * Global Accelerator's listener and endpoint-group resources are untagged
@@ -210,11 +216,13 @@ const fetchTags = effect (resourceArn: string) =>
  * ordering and deletes each child through its own provider.
  */
 const deleteAcceleratorChildren = effect (acceleratorArn: string) => {
-  const listeners = (Array.from(
-    try withGaRegion(
-      ga.listListeners.items({ AcceleratorArn: acceleratorArn }).pipe(Stream.runCollect),
-    ),
-  )) catch effect (e) => match (e) {
+  const listeners = (effect {
+    return (Array.from(
+      try withGaRegion(
+        ga.listListeners.items({ AcceleratorArn: acceleratorArn }).pipe(Stream.runCollect),
+      ),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "AcceleratorNotFoundException" }: [] as ga.Listener[];
     default: throw e;
   }
@@ -226,37 +234,46 @@ const deleteAcceleratorChildren = effect (acceleratorArn: string) => {
     effect (listener) => {
       if (!listener.ListenerArn) return
       const listenerArn = listener.ListenerArn
-      const endpointGroups = (Array.from(
-        try withGaRegion(
-          ga.listEndpointGroups.items({ ListenerArn: listenerArn }).pipe(Stream.runCollect),
-        ),
-      )) catch effect (e) => match (e) {
+      const endpointGroups = (effect {
+        return (Array.from(
+          try withGaRegion(
+            ga.listEndpointGroups.items({ ListenerArn: listenerArn }).pipe(Stream.runCollect),
+          ),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "ListenerNotFoundException" }: [] as ga.EndpointGroup[];
         default: throw e;
       }
 
       try Effect.forEach(
         endpointGroups,
-        effect (group) => (group.EndpointGroupArn
-          ? (try (ga
-            .deleteEndpointGroup({
-              EndpointGroupArn: group.EndpointGroupArn,
-            })
-            |> withGaRegion(%)
-            |> retryGaDeletion(%))) catch effect (e) => match (e) {
-              when { _tag: "EndpointGroupNotFoundException" }: try Effect.void;
+        effect (group) => {
+          const endpointGroupArn = group.EndpointGroupArn
+          return (endpointGroupArn
+            ? (effect {
+              return (try (ga
+                .deleteEndpointGroup({
+                  EndpointGroupArn: endpointGroupArn,
+                })
+                |> withGaRegion(%)
+                |> retryGaDeletion(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "EndpointGroupNotFoundException" }: (undefined as void);
               default: throw e;
             }
-          : try Effect.void),
+            : (undefined as void))
+        },
         { discard: true },
       ) // Endpoint-group detachment is asynchronous. The same bounded retry
        // used by the child provider waits until the listener is deletable.
-      ;(try (ga.deleteListener({ ListenerArn: listenerArn })
-        |> withGaRegion(%)
-        |> retryUntilListenerDeletable(%))) catch effect (e) => match (e) {
-          when { _tag: "ListenerNotFoundException" }: try Effect.void;
-          default: throw e;
-        }
+      ;(effect {
+        return (try (ga.deleteListener({ ListenerArn: listenerArn })
+          |> withGaRegion(%)
+          |> retryUntilListenerDeletable(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "ListenerNotFoundException" }: (undefined as void);
+        default: throw e;
+      }
     },
     { discard: true },
   )
@@ -266,16 +283,14 @@ export const AcceleratorProvider = (): infer _ =>
   Provider.succeed(Accelerator, {
     stables: ["acceleratorArn", "dnsName", "dualStackDnsName", "ipAddresses"],
     // Top-level, account-scoped collection: enumerate every accelerator.
-    list: () =>
-      withGaRegion(
-        ga.listAccelerators.items({}).pipe(
-          Stream.runCollect,
-          Effect.map((chunk) =>
+    list: effect () =>
+      try withGaRegion(
+        ga.listAccelerators.items({})
+          |> Stream.runCollect(%)
+          |> Effect.map(%, (chunk) =>
             Array.from(chunk)
               .filter((a) => a.AcceleratorArn !== undefined)
-              .map((a) => toAttributes(a, a.AcceleratorArn!))
-          ),
-        ),
+              .map((a) => toAttributes(a, a.AcceleratorArn!))),
       ),
     read: effect ({ id, olds, output }) => {
       let live = output?.acceleratorArn
@@ -291,18 +306,23 @@ export const AcceleratorProvider = (): infer _ =>
       const flowLogs = try describeFlowLogs(live.AcceleratorArn)
       const attrs = toAttributes(live, live.AcceleratorArn, flowLogs)
       const tags = try fetchTags(live.AcceleratorArn)
-      return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyTags(id, tags))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     diff: effect ({ id, news, olds }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       // Static BYOIP addresses are the accelerator's identity — changing
       // them requires a replacement. Name, ipAddressType, and enabled are
       // all mutable via updateAccelerator.
-      if (JSON.stringify(news.ipAddresses ?? []) !== JSON.stringify(olds.ipAddresses ?? [])) {
+      if (JSON.stringify(resolved.ipAddresses ?? []) !== JSON.stringify(olds.ipAddresses ?? [])) {
         return { action: "replace" } as const
       }
       const oldName = try createAcceleratorName(id, olds)
-      const newName = try createAcceleratorName(id, news)
+      const newName = try createAcceleratorName(id, resolved)
       if (oldName !== newName) {
         // Renames are applied in place by reconcile.
         return undefined
@@ -400,7 +420,9 @@ export const AcceleratorProvider = (): infer _ =>
 
       // Sync tags against OBSERVED cloud tags so adoption converges.
       const observedTags = try fetchTags(acceleratorArn)
-      const { upsert, removed } = diffTags(observedTags, desiredTags)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+      )
       if (upsert.length > 0) {
         try withGaRegion(ga.tagResource({ ResourceArn: acceleratorArn, Tags: upsert }))
       }
@@ -418,24 +440,28 @@ export const AcceleratorProvider = (): infer _ =>
         try deleteAcceleratorChildren(acceleratorArn)
       }
       // An accelerator must be disabled before it can be deleted.
-      const exists = (try effect {
-        try (ga
-          .updateAccelerator({
-            AcceleratorArn: acceleratorArn,
-            Enabled: false,
-          })
-          |> withGaRegion(%)
-          |> retryGaTransaction(%))
-        return true
+      const exists = (effect {
+        return (try effect {
+          try (ga
+            .updateAccelerator({
+              AcceleratorArn: acceleratorArn,
+              Enabled: false,
+            })
+            |> withGaRegion(%)
+            |> retryGaTransaction(%))
+          return true
+        })
       }) catch effect (e) => match (e) { when { _tag: "AcceleratorNotFoundException" }: false; default: throw e; }
       if (!exists) return
       try session.note("waiting for accelerator to disable") // The disable propagates asynchronously; deleteAccelerator rejects with
        // AcceleratorNotDisabledException until it lands, so retry bounded.
-      ;(try (ga.deleteAccelerator({ AcceleratorArn: acceleratorArn })
-        |> withGaRegion(%)
-        |> retryUntilAcceleratorDeletable(%))) catch effect (e) => match (e) {
-          when { _tag: "AcceleratorNotFoundException" }: try Effect.void;
-          default: throw e;
-        }
+      ;(effect {
+        return (try (ga.deleteAccelerator({ AcceleratorArn: acceleratorArn })
+          |> withGaRegion(%)
+          |> retryUntilAcceleratorDeletable(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "AcceleratorNotFoundException" }: (undefined as void);
+        default: throw e;
+      }
     },
   })

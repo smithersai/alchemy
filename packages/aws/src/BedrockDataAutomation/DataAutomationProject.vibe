@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as bda from "@distilled.cloud/aws/bedrock-data-automation"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -12,8 +15,8 @@ import { bdaConfigEquals, readBdaTags, syncBdaTags, toBdaTagList, unredact } fro
 // provider lifecycle op leaks its conditional return type into declaration
 // emit and widens the provider layer for every consumer of `AWS.providers()`.
 const repeatUntilProjectSettled = effect <E, R>(
-  self: bda.DataAutomationProject | undefined!E!R,
-): bda.DataAutomationProject | undefined!E!R =>
+  self: (bda.DataAutomationProject | undefined)!E!R,
+): (bda.DataAutomationProject | undefined)!E!R =>
   try Effect.repeat(self, {
     schedule: Schedule.fixed("3 seconds"),
     until: (project) => project === undefined || project.status !== "IN_PROGRESS",
@@ -161,9 +164,14 @@ export const DataAutomationProject = Resource<DataAutomationProject>(
  * Raised when a Data Automation project reaches the terminal `FAILED` status
  * during provisioning or update.
  */
-export error DataAutomationProjectFailed {
-  mutable projectArn: string
-  mutable message: string
+export class DataAutomationProjectFailed extends $MutableErrorBase("DataAutomationProjectFailed")<{
+  projectArn: string
+
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DataAutomationProjectFailed", true)
+  }
 }
 
 export const DataAutomationProjectProvider = (): infer _ =>
@@ -186,8 +194,10 @@ export const DataAutomationProjectProvider = (): infer _ =>
         projectArn: string,
         projectStage?: bda.DataAutomationProjectStage | undefined,
       ) =>
-        (try bda.getDataAutomationProject({ projectArn, projectStage })).project catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try bda.getDataAutomationProject({ projectArn, projectStage })).project
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -243,11 +253,14 @@ export const DataAutomationProjectProvider = (): infer _ =>
           if (found === undefined) return undefined
           const attrs = toAttributes(found)
           const tags = try readBdaTags(projectArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (
@@ -275,25 +288,27 @@ export const DataAutomationProjectProvider = (): infer _ =>
           //    the typed ConflictException, which we treat as a race and
           //    re-observe by name. Wait for the async provisioning to settle.
           if (live === undefined) {
-            const projectArn = (try bda
-              .createDataAutomationProject({
-                projectName,
-                projectDescription: news.projectDescription,
-                projectStage: news.projectStage,
-                projectType: news.projectType,
-                standardOutputConfiguration: news.standardOutputConfiguration,
-                customOutputConfiguration: news.customOutputConfiguration,
-                overrideConfiguration: news.overrideConfiguration,
-                dataAutomationLibraryConfiguration: news.dataAutomationLibraryConfiguration,
-                encryptionConfiguration: news.encryptionConfiguration,
-                tags: toBdaTagList(desiredTags),
-              })).projectArn catch effect (conflict) => match (conflict) {
-                when { _tag: "ConflictException" }: try effect {
-                  const arn = try findProjectArn(projectName)
-                  return arn === undefined ? throw conflict : arn
-                };
-                default: throw conflict;
-              }
+            const projectArn = (effect {
+              return (try bda
+                .createDataAutomationProject({
+                  projectName,
+                  projectDescription: news.projectDescription,
+                  projectStage: news.projectStage,
+                  projectType: news.projectType,
+                  standardOutputConfiguration: news.standardOutputConfiguration,
+                  customOutputConfiguration: news.customOutputConfiguration,
+                  overrideConfiguration: news.overrideConfiguration,
+                  dataAutomationLibraryConfiguration: news.dataAutomationLibraryConfiguration,
+                  encryptionConfiguration: news.encryptionConfiguration,
+                  tags: try Effect.orDie(Effect.try({ try: () => toBdaTagList(desiredTags), catch: (e) => e })),
+                })).projectArn
+            }) catch effect (conflict) => match (conflict) {
+              when { _tag: "ConflictException" }: try effect {
+                const arn = try findProjectArn(projectName)
+                return arn === undefined ? throw conflict : arn
+              };
+              default: throw conflict;
+            }
             live = try waitForSettled(projectArn, news.projectStage)
           }
           if (live === undefined) {
@@ -306,12 +321,25 @@ export const DataAutomationProjectProvider = (): infer _ =>
           // 3. SYNC — diff OBSERVED configuration against desired; apply the
           //    idempotent PUT only on drift. The server may fill defaulted
           //    fields, in which case the PUT re-applies harmlessly.
-          const drift = unredact(live.projectDescription ?? "") !== (news.projectDescription ?? "")
-            || !bdaConfigEquals(live.standardOutputConfiguration, news.standardOutputConfiguration)
+          const currentProject = live
+          const drift = (try Effect.orDie(Effect.try({
+                try: () => unredact(currentProject.projectDescription ?? ""),
+                catch: (e) => e,
+              }))) !== (news.projectDescription ?? "")
+            || !(try Effect.orDie(Effect.try({
+              try: () => bdaConfigEquals(currentProject.standardOutputConfiguration, news.standardOutputConfiguration),
+              catch: (e) => e,
+            })))
             || (news.customOutputConfiguration !== undefined
-              && !bdaConfigEquals(live.customOutputConfiguration, news.customOutputConfiguration))
+              && !(try Effect.orDie(Effect.try({
+                try: () => bdaConfigEquals(currentProject.customOutputConfiguration, news.customOutputConfiguration),
+                catch: (e) => e,
+              }))))
             || (news.overrideConfiguration !== undefined
-              && !bdaConfigEquals(live.overrideConfiguration, news.overrideConfiguration))
+              && !(try Effect.orDie(Effect.try({
+                try: () => bdaConfigEquals(currentProject.overrideConfiguration, news.overrideConfiguration),
+                catch: (e) => e,
+              }))))
             || (news.encryptionConfiguration !== undefined
               && live.kmsKeyId !== news.encryptionConfiguration.kmsKeyId)
           if (drift) {
@@ -338,7 +366,7 @@ export const DataAutomationProjectProvider = (): infer _ =>
         delete: effect ({ output }) => {
           bda
             .deleteDataAutomationProject({ projectArn: output.projectArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

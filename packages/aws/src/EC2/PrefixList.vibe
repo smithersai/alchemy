@@ -183,8 +183,8 @@ export const PrefixListProvider = (): infer _ =>
       })
 
       const describePrefixList = effect (prefixListId: string) =>
-        ((try ec2.describeManagedPrefixLists({ PrefixListIds: [prefixListId] })).PrefixLists?.[0]) catch effect (e) => match (e) {
-          when { _tag: "InvalidPrefixListID.NotFound" }: try Effect.undefined;
+        (effect { return ((try ec2.describeManagedPrefixLists({ PrefixListIds: [prefixListId] })).PrefixLists?.[0]) }) catch effect (e) => match (e) {
+          when { _tag: "InvalidPrefixListID.NotFound" }: undefined;
           default: throw e;
         }
 
@@ -263,15 +263,16 @@ export const PrefixListProvider = (): infer _ =>
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldFamily = olds.addressFamily ?? "IPv4"
-          const newFamily = news.addressFamily ?? "IPv4"
+          const newFamily = resolved.addressFamily ?? "IPv4"
           if (oldFamily !== newFamily) {
             return { action: "replace" }
           }
           // MaxEntries can only be increased in place; a decrease requires
           // replacement.
-          if (news.maxEntries < olds.maxEntries) {
+          if (resolved.maxEntries < olds.maxEntries) {
             return { action: "replace" }
           }
           // prefixListName, maxEntries (increase), entries, tags → in-place.
@@ -303,7 +304,7 @@ export const PrefixListProvider = (): infer _ =>
               TagSpecifications: [
                 {
                   ResourceType: "prefix-list",
-                  Tags: createTagsList(desiredTags),
+                  Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                 },
               ],
             })
@@ -367,7 +368,7 @@ export const PrefixListProvider = (): infer _ =>
             string,
             string
           >) ?? {}
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [prefixListId],
@@ -387,7 +388,7 @@ export const PrefixListProvider = (): infer _ =>
           try session.note(`Deleting managed prefix list: ${prefixListId}`)
           try (effect {
             return ec2.deleteManagedPrefixList({ PrefixListId: prefixListId }) catch effect (e) => match (e) {
-              when { _tag: "InvalidPrefixListID.NotFound" }: try Effect.void;
+              when { _tag: "InvalidPrefixListID.NotFound" }: (undefined as void);
               default: throw e;
             }
           }

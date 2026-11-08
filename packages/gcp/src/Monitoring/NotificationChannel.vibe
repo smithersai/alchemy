@@ -185,7 +185,7 @@ const getByName = effect (name: string) =>
     }
 
 const listOwned = effect (project: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (monitoring.listProjectsNotificationChannels
       .pages({
         name: parentOf(project),
@@ -198,10 +198,10 @@ const listOwned = effect (project: string) =>
       )
       |> Stream.map(%, (channel) => toAttrs(channel, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (project: string, id: string) => {
-  const owned = (Array.from(
+  const owned = (effect { return (Array.from(
     try (monitoring.listProjectsNotificationChannels
       .pages({
         name: parentOf(project),
@@ -209,9 +209,9 @@ const findOwned = effect (project: string, id: string) => {
       })
       |> Stream.flatMap(%, (page) => Stream.fromIterable(page.notificationChannels ?? []))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
   for (const channel of owned) {
-    if (try hasAlchemyLabels(id, tagRecord(channel.userLabels))) {
+    if (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(channel.userLabels), catch: (e) => e })))) {
       return channel
     }
   }
@@ -231,9 +231,10 @@ export const NotificationChannelProvider = (): infer _ =>
     stables: ["name", "notificationChannelId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previous = olds?.type ?? output?.type
-      if (previous !== undefined && news.type !== previous) {
+      if (previous !== undefined && resolved.type !== previous) {
         return { action: "replace" as const, deleteFirst: true }
       }
       return undefined
@@ -244,7 +245,7 @@ export const NotificationChannelProvider = (): infer _ =>
       const existing = try observe(env.project, id, output?.name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.userLabels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.userLabels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -256,7 +257,7 @@ export const NotificationChannelProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
       const desiredUserLabels = {
-        ...toLabels(news.userLabels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.userLabels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredLabels = news.labels ?? {}
@@ -295,7 +296,7 @@ export const NotificationChannelProvider = (): infer _ =>
 
       const name = current.name ?? output?.name ?? ""
       const observedUserLabels = tagRecord(current.userLabels)
-      const { upsert, removed } = diffLabels(observedUserLabels, desiredUserLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedUserLabels, desiredUserLabels), catch: (e) => e }))
       const userLabelsChanged = upsert.length > 0 || removed.length > 0
       const labelsChanged = !recordsEqual(channelLabels(current.labels), desiredLabels)
       const displayNameChanged = (current.displayName ?? "") !== displayName

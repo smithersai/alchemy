@@ -41,14 +41,16 @@ export const imageSourceTrigger = effect (options: {
   isExternal: boolean | undefined
 }) => {
   const { source } = options
-  const kind = imageSourceKind(source)
+  const kind = try Effect.orDie(Effect.try({ try: () => imageSourceKind(source), catch: (e) => e }))
 
   if (kind === "main") {
     const imageSource = try makeImageSource
     const plan = try imageSource.watchMain({
       source: source as BundledImageSource,
       isExternal: options.isExternal,
-      bootstrap: makeBunBootstrap(source.handler ?? "default"),
+      bootstrap: try Effect.orDie(
+        Effect.try({ try: () => makeBunBootstrap(source.handler ?? "default"), catch: (e) => e }),
+      ),
     })
     // Rolldown's first build runs when the watcher starts, before any file
     // changed; the deploy already built that exact graph. Only a build that
@@ -61,7 +63,7 @@ export const imageSourceTrigger = effect (options: {
         event,
       ) => (event._tag === "Error"
         ? try Effect.logWarning(`rebuild failed: ${event.error.message}`)
-        : try Effect.void)
+        : (undefined as void))
       ),
       Stream.filter((event) => {
         if (event._tag === "Start") {
@@ -86,8 +88,14 @@ export const imageSourceTrigger = effect (options: {
     const context = path.resolve(source.context)
     const streams: Stream.Stream<unknown, any>[] = [fs.watch(context, { recursive: true })]
     // A path Dockerfile living OUTSIDE the context dir is watched too.
-    if (source.dockerfile !== undefined && !isInlineDockerfile(source.dockerfile)) {
-      const dockerfile = path.resolve(source.dockerfile)
+    if (
+      source.dockerfile !== undefined
+      && !(try Effect.orDie(Effect.try({
+        try: () => isInlineDockerfile(source.dockerfile),
+        catch: (error) => error,
+      })))
+    ) {
+      const dockerfile = path.resolve(source.dockerfile as string)
       if (!dockerfile.startsWith(`${context}/`)) {
         streams.push(fs.watch(path.dirname(dockerfile)))
       }

@@ -201,35 +201,52 @@ export const AppsAgentProvider = (): infer _ =>
     stables: ["name", "agentId", "app", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = normalizeLocation(news.location, env.region)
+      const nextLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(resolved.location, env.region), catch: (e) => e }),
+      )
       if (
         previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation, env.region) !== nextLocation
+        && resolved.location !== undefined
+        && (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(previousLocation, env.region), catch: (e) => e }),
+          )) !== nextLocation
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
-      return replaceOnIdentity({
-        previousId: olds?.agentId ?? output?.agentId,
-        nextId: news.agentId,
-        previousParent: olds?.app ?? output?.app,
-        nextParent: news.app,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.agentId ?? output?.agentId,
+            nextId: resolved.agentId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const app = olds?.app ? expandApp(olds.app, env.project, location) : output?.app
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
       const agentId = try toPhysicalId(id, olds?.agentId, output?.agentId)
       const name = output?.name ?? (app !== undefined ? resourceName(app, agentId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region, app)
-      return output !== undefined || olds?.agentId === undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds?.agentId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -243,8 +260,12 @@ export const AppsAgentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const app = expandApp(news.app, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
       const agentId = try toPhysicalId(id, news.agentId, output?.agentId)
       const name = output?.name ?? resourceName(app, agentId)
       const description = news.description
@@ -284,13 +305,30 @@ export const AppsAgentProvider = (): infer _ =>
       const displayChanged = !sameText(current.displayName, displayName)
       const descriptionChanged = !sameText(current.description, description)
       const instructionChanged = !sameText(current.instruction, news.instruction)
-      const modelChanged = !sameJson(current.modelSettings, news.modelSettings)
-      const toolsChanged = !sameJson(current.tools, news.tools)
-      const toolsetsChanged = !sameJson(current.toolsets, news.toolsets)
-      const childrenChanged = !sameJson(current.childAgents, news.childAgents)
-      const guardrailsChanged = !sameJson(current.guardrails, news.guardrails)
-      const rulesChanged = !sameJson(current.transferRules, news.transferRules)
-      const remoteChanged = !sameJson(current.remoteDialogflowAgent, news.remoteDialogflowAgent)
+      const modelChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.modelSettings, news.modelSettings), catch: (e) => e }),
+      ))
+      const toolsChanged =
+        !(try Effect.orDie(Effect.try({ try: sameJson.bind(undefined, current.tools, news.tools), catch: (e) => e })))
+      const toolsetsChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.toolsets, news.toolsets),
+        catch: (e) => e,
+      })))
+      const childrenChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.childAgents, news.childAgents), catch: (e) => e }),
+      ))
+      const guardrailsChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.guardrails, news.guardrails), catch: (e) => e }),
+      ))
+      const rulesChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.transferRules, news.transferRules), catch: (e) => e }),
+      ))
+      const remoteChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.remoteDialogflowAgent, news.remoteDialogflowAgent),
+          catch: (e) => e,
+        }),
+      ))
 
       if (
         displayChanged
@@ -307,18 +345,22 @@ export const AppsAgentProvider = (): infer _ =>
         current = try retryTransient(
           ces.patchProjectsLocationsAppsAgents({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              descriptionChanged ? "description" : undefined,
-              instructionChanged ? "instruction" : undefined,
-              modelChanged ? "model_settings" : undefined,
-              toolsChanged ? "tools" : undefined,
-              toolsetsChanged ? "toolsets" : undefined,
-              childrenChanged ? "child_agents" : undefined,
-              guardrailsChanged ? "guardrails" : undefined,
-              rulesChanged ? "transfer_rules" : undefined,
-              remoteChanged ? "remote_dialogflow_agent" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  instructionChanged ? "instruction" : undefined,
+                  modelChanged ? "model_settings" : undefined,
+                  toolsChanged ? "tools" : undefined,
+                  toolsetsChanged ? "toolsets" : undefined,
+                  childrenChanged ? "child_agents" : undefined,
+                  guardrailsChanged ? "guardrails" : undefined,
+                  rulesChanged ? "transfer_rules" : undefined,
+                  remoteChanged ? "remote_dialogflow_agent" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               displayName,
               description,

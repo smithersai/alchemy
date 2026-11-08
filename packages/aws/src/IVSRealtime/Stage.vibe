@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ivsrealtime from "@distilled.cloud/aws/ivs-realtime"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -119,8 +121,14 @@ export const Stage = Resource<Stage>("AWS.IVSRealtime.Stage")
  * Raised when the IVS Real-Time API returns a stage missing its ARN or
  * name.
  */
-export error IvsRealtimeStageIncomplete {
-  mutable message: string
+export class IvsRealtimeStageIncomplete extends $MutableErrorBase("IvsRealtimeStageIncomplete")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "IvsRealtimeStageIncomplete", true);
+}
+
+
 }
 
 /**
@@ -196,9 +204,9 @@ export const StageProvider = (): infer _ =>
       }
 
       const getByArn = effect (arn: string) => {
-        const response = (try (ivsrealtime.getStage({ arn })
-          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        const response = (effect { return (try (ivsrealtime.getStage({ arn })
+          |> retryWhileThrottled(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.stage
@@ -229,7 +237,7 @@ export const StageProvider = (): infer _ =>
             : try findByName(try toName(id, olds ?? {}))
           if (stage === undefined) return undefined
           const attrs = try toAttrs(stage)
-          return (try hasAlchemyTags(id, toTagRecord(stage.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, toTagRecord(stage.tags))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -296,10 +304,10 @@ export const StageProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Deleting a stage with an active session raises
           // ConflictException — retry through a bounded window.
-          ;(try (ivsrealtime.deleteStage({ arn: output.stageArn })
+          ;(effect { return (try (ivsrealtime.deleteStage({ arn: output.stageArn })
             |> retryWhileThrottled(%)
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            |> retryWhileConflict(%))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },
@@ -317,7 +325,7 @@ export const StageProvider = (): infer _ =>
                 effect (summary) =>
                   try effect {
                     const stage = try getByArn(summary.arn)
-                    return (stage === undefined ? try Effect.undefined : try toAttrs(stage))
+                    return (stage === undefined ? undefined : try toAttrs(stage))
                   },
                 { concurrency: 5 },
               ),

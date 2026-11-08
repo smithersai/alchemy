@@ -40,7 +40,7 @@ export const rfc1035 = (name: string, fallback = "ds"): string => {
 export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
   lastSegment(location ?? defaultLocation).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const toPhysicalId = (
@@ -102,12 +102,13 @@ export const networkOf = (value: string, project: string) => {
   return `projects/${project}/global/networks/${trimmed}`;
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -132,10 +133,11 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const emptyMessage = (value: unknown) => (value === undefined ? undefined : {});
+export const emptyMessage = /** @throws {never} */ (value: unknown) =>
+  value === undefined ? undefined : {};
 
 export const replaceOnIdentity = (input: {
   previousId: string | undefined;

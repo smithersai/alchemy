@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -176,8 +177,9 @@ export const LifecyclePolicyProvider = (): infer _ =>
           return toAttributes(detail)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if ((olds.type ?? LIFECYCLE_POLICY_TYPE) !== (news.type ?? LIFECYCLE_POLICY_TYPE)) {
             return { action: "replace" } as const
           }
@@ -199,16 +201,18 @@ export const LifecyclePolicyProvider = (): infer _ =>
 
           // 2. ENSURE — create if missing; tolerate a concurrent create race
           if (detail?.name === undefined) {
-            detail = (try aoss
-              .createLifecyclePolicy({
-                type,
-                name,
-                policy,
-                description: news.description,
-              })).lifecyclePolicyDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try observe(type, name);
-                default: throw e;
-              }
+            detail = (effect {
+              return (try aoss
+                .createLifecyclePolicy({
+                  type,
+                  name,
+                  policy,
+                  description: news.description,
+                })).lifecyclePolicyDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try observe(type, name);
+              default: throw e;
+            }
           } else {
             // 3. SYNC — update policy/description when observed drifts from desired
             const policyDrift = canonicalizePolicy(detail.policy) !== canonicalizePolicy(policy)
@@ -226,9 +230,13 @@ export const LifecyclePolicyProvider = (): infer _ =>
           }
 
           if (detail?.name === undefined) {
-            throw aoss.ResourceNotFoundException.make({
-              message: `lifecycle policy ${type}/${name} not visible after reconcile`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                aoss.ResourceNotFoundException.make({
+                  message: `lifecycle policy ${type}/${name} not visible after reconcile`,
+                }),
+              catch: (e) => e,
+            }))
           }
           try session.note(`${type}/${name}`)
           return toAttributes(detail)
@@ -241,7 +249,7 @@ export const LifecyclePolicyProvider = (): infer _ =>
               name: output.policyName,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

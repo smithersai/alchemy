@@ -188,7 +188,7 @@ export const DBInstanceProvider = (): infer _ =>
           .describeDBInstances({
             DBInstanceIdentifier: instanceId,
           }) catch effect (e) => match (e) {
-            when { _tag: "DBInstanceNotFoundFault" }: try Effect.undefined;
+            when { _tag: "DBInstanceNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.DBInstances?.[0]
@@ -198,7 +198,7 @@ export const DBInstanceProvider = (): infer _ =>
         if (!arn) return {} as Record<string, string>
         const response = neptune
           .listTagsForResource({ ResourceName: arn }) catch effect (e) => match (e) {
-            when { _tag: "DBInstanceNotFoundFault" }: try Effect.undefined;
+            when { _tag: "DBInstanceNotFoundFault" }: undefined;
             default: throw e;
           }
         return toTagRecord(response?.TagList)
@@ -240,7 +240,7 @@ export const DBInstanceProvider = (): infer _ =>
         // are not surfaced inline — emit an empty tag map rather than a
         // per-item `listTagsForResource` fan-out.
         list: effect () =>
-          (Array.from(
+          (effect { return (Array.from(
             try (neptune.describeDBInstances
               .pages({ Filters: [{ Name: "engine", Values: ["neptune"] }] })
               |> Stream.runCollect(%)),
@@ -254,24 +254,25 @@ export const DBInstanceProvider = (): infer _ =>
                 } => instance.DBInstanceArn != null,
               )
               .map((instance) => toAttrs({ instance, tags: {} }))
-          )) catch effect (e) => match (e) {
+          )) }) catch effect (e) => match (e) {
             when { _tag: "DBInstanceNotFoundFault" }: [] as DBInstance["Attributes"][];
             default: throw e;
           },
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
             (try toIdentifier(id, olds ?? ({} as DBInstanceProps)))
-              !== (try toIdentifier(id, news))
+              !== (try toIdentifier(id, resolved))
           ) {
             return { action: "replace" } as const
           }
           // Immutable props — any change forces a fresh instance.
           if (
             olds !== undefined
-            && ((olds.engine ?? "neptune") !== (news.engine ?? "neptune")
-              || olds.dbClusterIdentifier !== news.dbClusterIdentifier
-              || olds.availabilityZone !== news.availabilityZone)
+            && ((olds.engine ?? "neptune") !== (resolved.engine ?? "neptune")
+              || olds.dbClusterIdentifier !== resolved.dbClusterIdentifier
+              || olds.availabilityZone !== resolved.availabilityZone)
           ) {
             return { action: "replace" } as const
           }
@@ -320,7 +321,7 @@ export const DBInstanceProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "DBInstanceAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "DBInstanceAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
 
@@ -367,7 +368,7 @@ export const DBInstanceProvider = (): infer _ =>
 
           // Sync tags — diff observed cloud tags against desired.
           const observedTags = try readTags(dbInstanceArn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0 && dbInstanceArn) {
             try neptune.addTagsToResource({
               ResourceName: dbInstanceArn,
@@ -390,18 +391,18 @@ export const DBInstanceProvider = (): infer _ =>
               DBInstanceIdentifier: output.dbInstanceIdentifier,
               SkipFinalSnapshot: true,
             }) catch effect (e) => match (e) {
-              when { _tag: "DBInstanceNotFoundFault" }: try Effect.void;
+              when { _tag: "DBInstanceNotFoundFault" }: (undefined as void);
               default: throw e;
             }
           // Block until the instance is fully gone so a dependent cluster or
           // subnet group is not torn down while Neptune still references it.
           Effect.repeat(
             effect {
-              return (try (neptune
+              return (effect { return (try (neptune
                 .describeDBInstances({
                   DBInstanceIdentifier: output.dbInstanceIdentifier,
                 })
-                |> Effect.as(%, true))) catch effect (e) => match (e) {
+                |> Effect.as(%, true))) }) catch effect (e) => match (e) {
                   when { _tag: "DBInstanceNotFoundFault" }: false;
                   default: throw e;
                 }
@@ -410,7 +411,7 @@ export const DBInstanceProvider = (): infer _ =>
               schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
               until: (exists) => exists === false,
             },
-          ) catch effect (e) => try Effect.void
+          ) catch effect (e) => (undefined as void)
         },
       }
     },

@@ -133,12 +133,19 @@ export const UsersSshPublicKeyProvider = (): infer _ =>
     stables: ["name", "user", "fingerprint", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousUser = olds?.user ?? output?.user ?? DEFAULT_USER
-      const nextUser = toUserId(news.user, news.user)
-      const oldUser = toUserId(previousUser, previousUser)
+      const nextUser = try Effect.orDie(
+        Effect.try({ try: () => toUserId(resolved.user, resolved.user), catch: (e) => e }),
+      )
+      const oldUser = try Effect.orDie(
+        Effect.try({ try: () => toUserId(previousUser, previousUser), catch: (e) => e }),
+      )
       if (
-        news.user !== undefined
+        resolved.user !== undefined
         && nextUser !== oldUser
         && nextUser !== DEFAULT_USER
         && oldUser !== DEFAULT_USER
@@ -148,8 +155,10 @@ export const UsersSshPublicKeyProvider = (): infer _ =>
       const previousKey = olds?.key ?? output?.key
       if (
         previousKey !== undefined
-        && news.key !== undefined
-        && !sameText(news.key.trim(), previousKey.trim())
+        && resolved.key !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: () => sameText(resolved.key.trim(), previousKey.trim()), catch: (e) => e }),
+        ))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -158,20 +167,24 @@ export const UsersSshPublicKeyProvider = (): infer _ =>
 
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
-      const user = toUserId(olds?.user, output?.user)
+      const user = try Effect.orDie(Effect.try({ try: () => toUserId(olds?.user, output?.user), catch: (e) => e }))
       const byName = try getSshPublicKey(
-        output?.name ?? (output?.fingerprint ? resourceName(user, output.fingerprint) : ""),
+        output?.name ?? (output?.fingerprint
+          ? try Effect.orDie(Effect.try({ try: () => resourceName(user, output.fingerprint), catch: (e) => e }))
+          : ""),
       )
       if (byName !== undefined) return toAttrs(byName, user, env.project)
       if (olds === undefined) return undefined
       // No labels: an identical key without state may belong to anyone.
       const found = try findKeyByText(user, olds.key, env.project)
-      return found === undefined ? undefined : Unowned(toAttrs(found, user, env.project))
+      return found === undefined
+        ? undefined
+        : (try Effect.orDie(Effect.try({ try: () => Unowned(toAttrs(found, user, env.project)), catch: (e) => e })))
     },
 
     reconcile: effect ({ news, output }) => {
       const env = try GcpEnvironment.current
-      const user = toUserId(news.user, output?.user)
+      const user = try Effect.orDie(Effect.try({ try: () => toUserId(news.user, output?.user), catch: (e) => e }))
       const desiredKey = news.key.trim()
 
       let current = try getSshPublicKey(output?.name ?? "")
@@ -182,7 +195,7 @@ export const UsersSshPublicKeyProvider = (): infer _ =>
       if (current === undefined) {
         const created = retryConflict(
           oslogin.createUsersSshPublicKeys({
-            parent: toUserParent(user),
+            parent: (try Effect.orDie(Effect.try({ try: toUserParent.bind(undefined, user), catch: (e) => e }))),
             body: {
               key: desiredKey,
               expirationTimeUsec: news.expirationTimeUsec,
@@ -197,7 +210,10 @@ export const UsersSshPublicKeyProvider = (): infer _ =>
 
       if (current === undefined) {
         throw new UsersSshPublicKeyNotResolved({
-          resourceName: output?.name ?? resourceName(user, output?.fingerprint ?? ""),
+          resourceName: output?.name
+            ?? (try Effect.orDie(
+              Effect.try({ try: () => resourceName(user, output?.fingerprint ?? ""), catch: (e) => e }),
+            )),
         })
       }
 
@@ -222,7 +238,11 @@ export const UsersSshPublicKeyProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const name = output.name
-        || (output.fingerprint ? resourceName(output.user || DEFAULT_USER, output.fingerprint) : "")
+        || (output.fingerprint
+          ? try Effect.orDie(
+            Effect.try({ try: () => resourceName(output.user || DEFAULT_USER, output.fingerprint), catch: (e) => e }),
+          )
+          : "")
       if (name.length === 0) return
       try (oslogin.deleteUsersSshPublicKeys({ name })
         |> retryConflict(%)

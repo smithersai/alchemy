@@ -98,9 +98,11 @@ export interface ResolveImageOptions {
  * the consumer's project.
  */
 export const makeBunBootstrap =
+  /** @throws {never} */
   (handler: string) =>
-  (importPath: string): string =>
-    `
+    /** @throws {never} */
+    (importPath: string): string =>
+      `
 import { bootstrap } from "@alchemy.run/aws/Bootstrap/Ecs";
 import { ${handler} as entrypoint } from ${JSON.stringify(importPath)};
 

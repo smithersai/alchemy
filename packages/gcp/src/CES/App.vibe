@@ -258,52 +258,79 @@ export const AppProvider = (): infer _ =>
     stables: ["name", "appId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = normalizeLocation(news.location, env.region)
+      const nextLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(resolved.location, env.region), catch: (e) => e }),
+      )
       if (
         previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation, env.region) !== nextLocation
+        && resolved.location !== undefined
+        && (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(previousLocation, env.region), catch: (e) => e }),
+          )) !== nextLocation
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
-      return replaceOnIdentity({
-        previousId: olds?.appId ?? output?.appId,
-        nextId: news.appId,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.appId ?? output?.appId,
+            nextId: resolved.appId,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const appId = olds?.appId
         ?? output?.appId
-        ?? (output?.name ? parseResourceName(output.name, "apps", env.region).id : "")
+        ?? (output?.name
+          ? (try Effect.orDie(
+            Effect.try({ try: () => parseResourceName(output.name, "apps", env.region), catch: (e) => e }),
+          )).id
+          : "")
       const name = output?.name ?? (appId.length > 0 ? resourceName(env.project, location, appId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
       const labeled = try ownedByAlchemyLabels(id, existing.metadata)
       const described = try ownedByAlchemy(id, existing.description)
-      return labeled || described ? attrs : Unowned(attrs)
+      return labeled || described
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const apps = try listApps(locationParent(env.project, env.region))
+      const apps = try listApps(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+      )
       return apps.filter(isOwnedApp).map((app) => toAttrs(app, env.project, env.region))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const appId = try toPhysicalId(id, news.appId, output?.appId)
       const name = output?.name ?? resourceName(env.project, location, appId)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const metadata = { ...news.metadata, ...ownership }
       const displayName = news.displayName ?? appId
       const timeZoneSettings = timeZoneSettingsOf(news)
@@ -346,17 +373,34 @@ export const AppProvider = (): infer _ =>
       const currentName = current.name ?? name
       const displayChanged = !sameText(current.displayName, displayName)
       const descriptionChanged = !sameText(current.description, description)
-      const metadataChanged = !sameJson(current.metadata, metadata)
+      const metadataChanged =
+        !(try Effect.orDie(Effect.try({ try: sameJson.bind(undefined, current.metadata, metadata), catch: (e) => e })))
       const instructionChanged = !sameText(current.globalInstruction, news.globalInstruction)
       const modeChanged = !sameText(current.toolExecutionMode, news.toolExecutionMode)
-      const zoneChanged = !sameJson(current.timeZoneSettings, timeZoneSettings)
-      const modelChanged = !sameJson(current.modelSettings, modelSettings)
+      const zoneChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.timeZoneSettings, timeZoneSettings), catch: (e) => e }),
+      ))
+      const modelChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.modelSettings, modelSettings), catch: (e) => e }),
+      ))
       const rootChanged = !sameText(current.rootAgent, news.rootAgent)
-      const guardrailsChanged = !sameJson(current.guardrails, news.guardrails)
+      const guardrailsChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.guardrails, news.guardrails), catch: (e) => e }),
+      ))
       const lockedChanged = (current.locked === true) !== (news.locked === true)
       const pinnedChanged = (current.pinned === true) !== (news.pinned === true)
-      const channelChanged = !sameJson(current.defaultChannelProfile, news.defaultChannelProfile)
-      const languageChanged = !sameJson(current.languageSettings, news.languageSettings)
+      const channelChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.defaultChannelProfile, news.defaultChannelProfile),
+          catch: (e) => e,
+        }),
+      ))
+      const languageChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.languageSettings, news.languageSettings),
+          catch: (e) => e,
+        }),
+      ))
 
       if (
         displayChanged
@@ -376,21 +420,25 @@ export const AppProvider = (): infer _ =>
         current = try retryTransient(
           ces.patchProjectsLocationsApps({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              descriptionChanged ? "description" : undefined,
-              metadataChanged ? "metadata" : undefined,
-              instructionChanged ? "global_instruction" : undefined,
-              modeChanged ? "tool_execution_mode" : undefined,
-              zoneChanged ? "time_zone_settings" : undefined,
-              modelChanged ? "model_settings" : undefined,
-              rootChanged ? "root_agent" : undefined,
-              guardrailsChanged ? "guardrails" : undefined,
-              lockedChanged ? "locked" : undefined,
-              pinnedChanged ? "pinned" : undefined,
-              channelChanged ? "default_channel_profile" : undefined,
-              languageChanged ? "language_settings" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  metadataChanged ? "metadata" : undefined,
+                  instructionChanged ? "global_instruction" : undefined,
+                  modeChanged ? "tool_execution_mode" : undefined,
+                  zoneChanged ? "time_zone_settings" : undefined,
+                  modelChanged ? "model_settings" : undefined,
+                  rootChanged ? "root_agent" : undefined,
+                  guardrailsChanged ? "guardrails" : undefined,
+                  lockedChanged ? "locked" : undefined,
+                  pinnedChanged ? "pinned" : undefined,
+                  channelChanged ? "default_channel_profile" : undefined,
+                  languageChanged ? "language_settings" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               displayName,
               description,

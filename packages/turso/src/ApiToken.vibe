@@ -118,27 +118,28 @@ export const ApiTokenProvider = (): infer _ =>
         }
 
       const revoke = effect (name: string) =>
-        (try (turso.revokeAPIToken({ tokenName: name })
-          |> Effect.asVoid(%))) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.void;
+        (effect { return (try (turso.revokeAPIToken({ tokenName: name })
+          |> Effect.asVoid(%))) }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: (undefined as void);
             default: throw e;
           }
 
       return {
         stables: ["id", "name", "organization", "group", "scopes", "token"],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const name = output?.name ?? (try tokenName(id, olds?.name))
           // Turso tokens are immutable: any change mints a new one.
           if (
-            (news.name !== undefined && news.name !== name)
-            || news.group !== olds?.group
-            || !deepEqual(news.scopes ?? [], olds?.scopes ?? [])
+            (resolved.name !== undefined && resolved.name !== name)
+            || resolved.group !== olds?.group
+            || !(try Effect.orDie(Effect.try({ try: () => deepEqual(resolved.scopes ?? [], olds?.scopes ?? []), catch: (e) => e })))
           ) {
             // A pinned name can't be held by two tokens at once.
             return {
               action: "replace",
-              deleteFirst: news.name !== undefined && news.name === name,
+              deleteFirst: resolved.name !== undefined && resolved.name === name,
             } as const
           }
         },
@@ -151,14 +152,14 @@ export const ApiTokenProvider = (): infer _ =>
           if (previous !== undefined && previous.id === observed.id) return previous
           // The secret is only revealed at creation, so a token we have no
           // state for can't be adopted with its value — reconcile re-mints.
-          return Unowned({
+          return try Effect.orDie(Effect.try({ try: () => Unowned({
             id: observed.id ?? "",
             name,
             organization: observed.organization ?? "",
             group: observed.group,
             scopes: observed.scopes ?? [],
             token: Redacted.make(""),
-          })
+          }), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, session }) => {
           const org = output?.organization ?? (try organization)

@@ -63,7 +63,8 @@ export const rfc1035 = (name: string, fallback = "ad", maxLength = MAX_NAME_LENG
 
 export const normalizeLocation = (location: string) => lastSegment(location).toLowerCase();
 
-export const globalParent = (project: string) => `projects/${project}/locations/${GLOBAL_LOCATION}`;
+export const globalParent = /** @throws {never} */ (project: string) =>
+  `projects/${project}/locations/${GLOBAL_LOCATION}`;
 
 export const parseName = (name: string, collection: string) => {
   const parts = name.split("/").filter((part) => part.length > 0);
@@ -142,20 +143,21 @@ export const toDomainName = (
     return `${first}${DOMAIN_SUFFIX}`;
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
 export const sameText = (left: string | undefined, right: string | undefined) =>
   (left ?? "") === (right ?? "");
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as budgets from "@distilled.cloud/aws/budgets"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -285,13 +286,17 @@ export const BudgetActionProvider = (): infer _ =>
     BudgetAction,
     effect {
       const syncTags = effect (arn: string, desired: Record<string, string>) => {
-        const observed = (Object.fromEntries(
-          ((try budgets.listTagsForResource({ ResourceARN: arn })).ResourceTags ?? []).map((t) => [t.Key, t.Value]),
-        )) catch effect (e) => match (e) {
+        const observed = (effect {
+          return (Object.fromEntries(
+            ((try budgets.listTagsForResource({ ResourceARN: arn })).ResourceTags ?? []).map((t) => [t.Key, t.Value]),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
-        const { removed, upsert } = diffTags(observed, desired)
+        const { removed, upsert } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }),
+        )
         if (upsert.length > 0) {
           try budgets.tagResource({
             ResourceARN: arn,
@@ -337,14 +342,15 @@ export const BudgetActionProvider = (): infer _ =>
               BudgetName: output.budgetName,
               ActionId: output.actionId,
             }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.undefined;
+              when { _tag: "NotFoundException" }: undefined;
               default: throw e;
             }
           if (!found?.Action) return undefined
           return attrs(accountId, output.budgetName, output.actionId)
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.budgetName !== news.budgetName || olds.actionType !== news.actionType) {
             return { action: "replace" } as const
           }
@@ -368,15 +374,17 @@ export const BudgetActionProvider = (): infer _ =>
           // OBSERVE — the action ID is server-generated, so `output` is the
           // only handle; cloud state stays authoritative via describe.
           const observed = output
-            ? (try budgets
-              .describeBudgetAction({
-                AccountId: accountId,
-                BudgetName: output.budgetName,
-                ActionId: output.actionId,
-              })).Action catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.undefined;
-                default: throw e;
-              }
+            ? (effect {
+              return (try budgets
+                .describeBudgetAction({
+                  AccountId: accountId,
+                  BudgetName: output.budgetName,
+                  ActionId: output.actionId,
+                })).Action
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: undefined;
+              default: throw e;
+            }
             : undefined
 
           let actionId: string
@@ -439,17 +447,19 @@ export const BudgetActionProvider = (): infer _ =>
           return attrs(accountId, news.budgetName, actionId)
         },
         delete: effect ({ output }) => {
-          ;(try (budgets
-            .deleteBudgetAction({
-              AccountId: output.accountId,
-              BudgetName: output.budgetName,
-              ActionId: output.actionId,
-            })
-            |> Effect.retry(%, {
-              while: (e): boolean => e._tag === "ResourceLockedException",
-              schedule: Schedule.exponential("2 seconds"),
-              times: 6,
-            }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+          ;(effect {
+            return (try (budgets
+              .deleteBudgetAction({
+                AccountId: output.accountId,
+                BudgetName: output.budgetName,
+                ActionId: output.actionId,
+              })
+              |> Effect.retry(%, {
+                while: (e): boolean => e._tag === "ResourceLockedException",
+                schedule: Schedule.exponential("2 seconds"),
+                times: 6,
+              })))
+          }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
         },
       })
     },

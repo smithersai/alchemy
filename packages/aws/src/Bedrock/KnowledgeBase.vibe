@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as bedrock from "@distilled.cloud/aws/bedrock-agent"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -152,8 +153,10 @@ export const KnowledgeBaseProvider = (): infer _ =>
         props.name ?? (try createPhysicalName({ id, maxLength: 100 }))
 
       const getKbOrUndefined = effect (knowledgeBaseId: string) =>
-        (try bedrock.getKnowledgeBase({ knowledgeBaseId })).knowledgeBase catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try bedrock.getKnowledgeBase({ knowledgeBaseId })).knowledgeBase
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -165,14 +168,18 @@ export const KnowledgeBaseProvider = (): infer _ =>
       }
 
       const fetchObservedTags = effect (resourceArn: string) =>
-        (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>) catch effect (
+        (effect {
+          return (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>)
+        }) catch effect (
           e,
         ) => match (e) { when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>; default: throw e; }
 
       const waitForSettled = effect (knowledgeBaseId: string) =>
         try (effect {
-          return (try bedrock.getKnowledgeBase({ knowledgeBaseId })).knowledgeBase catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          return (effect {
+            return (try bedrock.getKnowledgeBase({ knowledgeBaseId })).knowledgeBase
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         }
@@ -224,11 +231,14 @@ export const KnowledgeBaseProvider = (): infer _ =>
             roleArn: kb.roleArn,
           }
           const tags = try fetchObservedTags(kb.knowledgeBaseArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? ({} as KnowledgeBaseProps))
           const newName = try createName(id, news ?? ({} as KnowledgeBaseProps))
           if (oldName !== newName) {
@@ -327,7 +337,7 @@ export const KnowledgeBaseProvider = (): infer _ =>
               knowledgeBaseId: output.knowledgeBaseId,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

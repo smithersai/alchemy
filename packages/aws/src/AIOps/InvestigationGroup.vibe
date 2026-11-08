@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aiops from "@distilled.cloud/aws/aiops"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -221,7 +222,7 @@ export const InvestigationGroupProvider = (): infer _ =>
       const observeByArn = effect (arn: string) =>
         aiops
           .getInvestigationGroup({ identifier: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -243,14 +244,16 @@ export const InvestigationGroupProvider = (): infer _ =>
       }
 
       const observedTags = effect (arn: string) =>
-        (try effect {
-          const r = try aiops.listTagsForResource({ resourceArn: arn })
+        (effect {
+          return (try effect {
+            const r = try aiops.listTagsForResource({ resourceArn: arn })
 
-          const tags: Record<string, string> = {}
-          for (const [key, value] of Object.entries(r.tags ?? {})) {
-            if (value !== undefined) tags[key] = value
-          }
-          return tags
+            const tags: Record<string, string> = {}
+            for (const [key, value] of Object.entries(r.tags ?? {})) {
+              if (value !== undefined) tags[key] = value
+            }
+            return tags
+          })
         }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
@@ -290,10 +293,13 @@ export const InvestigationGroupProvider = (): infer _ =>
           }
           const attrs = toAttributes(live)
           const tags = try observedTags(live.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           // Only one investigation group may exist per Region, so a
@@ -322,21 +328,23 @@ export const InvestigationGroupProvider = (): infer _ =>
           //    the conflict is a real error (a foreign group occupies the
           //    Region's single slot) and is propagated.
           if (live === undefined) {
-            live = (try effect {
-              const created = try (aiops
-                .createInvestigationGroup({
-                  name,
-                  roleArn: news.roleArn,
-                  retentionInDays: toWireDays(news.retention),
-                  encryptionConfiguration: news.encryptionConfiguration,
-                  tagKeyBoundaries: news.tagKeyBoundaries,
-                  chatbotNotificationChannel: news.chatbotNotificationChannel,
-                  isCloudTrailEventHistoryEnabled: news.isCloudTrailEventHistoryEnabled,
-                  crossAccountConfigurations: news.crossAccountConfigurations,
-                  tags: desiredTags,
-                })
-                |> retryWhileRolePropagates(%))
-              return (created.arn === undefined ? try observe(name, undefined) : try observeByArn(created.arn))
+            live = (effect {
+              return (try effect {
+                const created = try (aiops
+                  .createInvestigationGroup({
+                    name,
+                    roleArn: news.roleArn,
+                    retentionInDays: toWireDays(news.retention),
+                    encryptionConfiguration: news.encryptionConfiguration,
+                    tagKeyBoundaries: news.tagKeyBoundaries,
+                    chatbotNotificationChannel: news.chatbotNotificationChannel,
+                    isCloudTrailEventHistoryEnabled: news.isCloudTrailEventHistoryEnabled,
+                    crossAccountConfigurations: news.crossAccountConfigurations,
+                    tags: desiredTags,
+                  })
+                  |> retryWhileRolePropagates(%))
+                return (created.arn === undefined ? try observe(name, undefined) : try observeByArn(created.arn))
+              })
             }) catch effect (error) => match (error) {
               when { _tag: "ConflictException" }: try effect {
                 const existing = try observe(name, undefined)
@@ -404,16 +412,18 @@ export const InvestigationGroupProvider = (): infer _ =>
           //     `policy: undefined` leaves any existing policy unmanaged;
           //     `policy: []` deletes it.
           if (arn !== undefined && news.policy !== undefined) {
-            const observedPolicy = (try aiops
-              .getInvestigationGroupPolicy({ identifier: arn })).policy catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const observedPolicy = (effect {
+              return (try aiops
+                .getInvestigationGroupPolicy({ identifier: arn })).policy
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
+              default: throw e;
+            }
             if (news.policy.length === 0) {
               if (observedPolicy !== undefined) {
                 aiops
                   .deleteInvestigationGroupPolicy({ identifier: arn }) catch effect (e) => match (e) {
-                    when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                    when { _tag: "ResourceNotFoundException" }: (undefined as void);
                     default: throw e;
                   }
               }
@@ -469,7 +479,7 @@ export const InvestigationGroupProvider = (): infer _ =>
         delete: effect ({ output }) => {
           aiops
             .deleteInvestigationGroup({ identifier: output.arn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

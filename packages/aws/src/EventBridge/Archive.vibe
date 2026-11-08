@@ -136,13 +136,14 @@ export const ArchiveProvider = (): infer _ =>
       return {
         stables: ["archiveName", "archiveArn", "eventSourceArn"],
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createArchiveName(id, olds)
-          const newName = try createArchiveName(id, news)
+          const newName = try createArchiveName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
-          if (olds.eventSourceArn !== news.eventSourceArn) {
+          if (olds.eventSourceArn !== resolved.eventSourceArn) {
             return { action: "replace" } as const
           }
         },
@@ -152,7 +153,7 @@ export const ArchiveProvider = (): infer _ =>
           const archiveName = output?.archiveName ?? (try createArchiveName(id, olds ?? {}))
           const described = eventbridge
             .describeArchive({ ArchiveName: archiveName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (!described?.ArchiveName || !described.ArchiveArn) {
@@ -193,13 +194,13 @@ export const ArchiveProvider = (): infer _ =>
         reconcile: effect ({ id, news, output, session }) => {
           const archiveName = output?.archiveName ?? (try createArchiveName(id, news))
           const eventPattern = news.eventPattern ? JSON.stringify(news.eventPattern) : undefined
-          const retentionDays = toWireDays(news.retention)
+          const retentionDays = try Effect.orDie(Effect.try({ try: () => toWireDays(news.retention), catch: (e) => e }))
 
           // Observe — live cloud state is authoritative; a vanished archive
           // falls through to create.
           const observed = eventbridge
             .describeArchive({ ArchiveName: archiveName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -215,7 +216,7 @@ export const ArchiveProvider = (): infer _ =>
                 RetentionDays: retentionDays,
                 KmsKeyIdentifier: news.kmsKeyIdentifier,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
           } else {
@@ -244,7 +245,7 @@ export const ArchiveProvider = (): infer _ =>
         delete: effect ({ output }) => {
           eventbridge
             .deleteArchive({ ArchiveName: output.archiveName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

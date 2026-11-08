@@ -129,7 +129,7 @@ interface FarmState {
 const readFarmById = effect (farmId: string, arnOf: (path: string) => string) => {
   const described = deadline
     .getFarm({ farmId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -175,7 +175,7 @@ export const FarmProvider = (): infer _ =>
           )
           const states = try Effect.forEach(
             summaries,
-            (summary) => readFarmById(summary.farmId, arnOf),
+            effect (summary) => try readFarmById(summary.farmId, arnOf),
             { concurrency: 4 },
           )
           return states
@@ -190,13 +190,14 @@ export const FarmProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The KMS key is fixed at creation.
-          if ((olds.kmsKeyArn ?? undefined) !== (news.kmsKeyArn ?? undefined)) {
+          if ((olds.kmsKeyArn ?? undefined) !== (resolved.kmsKeyArn ?? undefined)) {
             return { action: "replace" } as const
           }
         },
@@ -237,7 +238,7 @@ export const FarmProvider = (): infer _ =>
           const described = state.described
           const needsUpdate = displayName !== described.displayName
             || (news.description !== undefined
-              && news.description !== (asPlain(described.description) ?? ""))
+              && news.description !== ((try Effect.orDie(Effect.try({ try: () => asPlain(described.description), catch: (e) => e }))) ?? ""))
             || (news.costScaleFactor !== undefined
               && news.costScaleFactor !== described.costScaleFactor)
           if (needsUpdate) {
@@ -275,7 +276,7 @@ export const FarmProvider = (): infer _ =>
           // Child deletion (queues, fleets) finishes asynchronously; the
           // farm rejects deletion with ConflictException until it settles.
           retryWhileConflict(deadline.deleteFarm({ farmId: output.farmId })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
           // Deadline auto-creates log groups under /aws/deadline/{farmId}/

@@ -176,10 +176,10 @@ const toAttrs = (
 const getByName = effect (
   name: string,
 ) => (name.length === 0
-  ? try Effect.undefined
+  ? undefined
   : aiplatform.getReasoningEnginesSandboxEnvironments({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
-    when { _tag: "SandboxEnvironmentsNotEnabled" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
+    when { _tag: "SandboxEnvironmentsNotEnabled" }: undefined;
     default: throw e;
   })
 
@@ -209,12 +209,14 @@ const waitUntilGone = effect (name: string) =>
     }))
 
 const listSandboxes = effect (parent: string) =>
-  ((try collectPages(
-    aiplatform.listReasoningEnginesSandboxEnvironments.pages({
-      parent,
-      pageSize: 100,
-    }),
-  )).flatMap((page) => page.sandboxEnvironments ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return ((try collectPages(
+      aiplatform.listReasoningEnginesSandboxEnvironments.pages({
+        parent,
+        pageSize: 100,
+      }),
+    )).flatMap((page) => page.sandboxEnvironments ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [];
     default: throw e;
   }
@@ -243,12 +245,15 @@ export const ReasoningEnginesSandboxEnvironmentProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = lastSegment(olds?.reasoningEngine ?? output?.reasoningEngine ?? "")
-      const nextParent = lastSegment(news.reasoningEngine)
+      const nextParent = lastSegment(resolved.reasoningEngine)
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
-      const templateChanged = (news.sandboxEnvironmentTemplate ?? "") !== (olds?.sandboxEnvironmentTemplate ?? "")
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
+      const templateChanged = (resolved.sandboxEnvironmentTemplate ?? "") !== (olds?.sandboxEnvironmentTemplate ?? "")
       const replace = (previousParent.length > 0 && previousParent !== nextParent)
         || previousLocation !== nextLocation
         || (olds !== undefined && templateChanged)
@@ -272,7 +277,9 @@ export const ReasoningEnginesSandboxEnvironmentProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const parsed = parseDisplayName(existing.displayName)
-      return (try ownedById(id, parsed.labels)) ? attrs : Unowned(attrs)
+      return (try ownedById(id, parsed.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -305,31 +312,35 @@ export const ReasoningEnginesSandboxEnvironmentProvider = (): infer _ =>
 
       if (current === undefined) {
         const created = try (effect {
-          return (try (aiplatform
-            .createReasoningEnginesSandboxEnvironments({
-              parent,
-              body: {
-                displayName,
-                sandboxEnvironmentTemplate: news.sandboxEnvironmentTemplate,
-                sandboxEnvironmentSnapshot: news.sandboxEnvironmentSnapshot,
-                spec: news.spec,
-                ttl: news.ttl,
-                owner: news.owner,
-              },
-            })
-            |> GcpRetry.none(%))) catch effect (e) => match (e) {
-              when { _tag: "SandboxEnvironmentsNotEnabled" }: try Effect.undefined;
-              when { _tag: "BadRequest" }: try Effect.undefined;
-              when { _tag: "Conflict" }: try Effect.undefined;
-              default: throw e;
-            }
+          return (effect {
+            return (try (aiplatform
+              .createReasoningEnginesSandboxEnvironments({
+                parent,
+                body: {
+                  displayName,
+                  sandboxEnvironmentTemplate: news.sandboxEnvironmentTemplate,
+                  sandboxEnvironmentSnapshot: news.sandboxEnvironmentSnapshot,
+                  spec: news.spec,
+                  ttl: news.ttl,
+                  owner: news.owner,
+                },
+              })
+              |> GcpRetry.none(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "SandboxEnvironmentsNotEnabled" }: undefined;
+            when { _tag: "BadRequest" }: undefined;
+            when { _tag: "Conflict" }: undefined;
+            default: throw e;
+          }
         }
           |> Effect.timeoutOption(%, "20 seconds"))
         const createdOp = Option.getOrUndefined(created)
         if (createdOp !== undefined) {
           try waitForOperation(createdOp, { alreadyExistsOk: true })
         }
-        const createdName = createdOp !== undefined ? resourceNameFromOperation(createdOp) : undefined
+        const createdName = createdOp !== undefined
+          ? try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(createdOp), catch: (e) => e }))
+          : undefined
         current = createdName !== undefined
           ? try waitUntilExists(createdName)
           : try findOwned(parent, id)
@@ -348,7 +359,7 @@ export const ReasoningEnginesSandboxEnvironmentProvider = (): infer _ =>
       const operation = aiplatform
         .deleteReasoningEnginesSandboxEnvironments({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

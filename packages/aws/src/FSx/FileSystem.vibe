@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as fsx from "@distilled.cloud/aws/fsx"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -192,8 +193,10 @@ export const FileSystemProvider = (): infer _ =>
       }
 
       const findById = effect (fileSystemId: string) =>
-        ((try fsx.describeFileSystems({ FileSystemIds: [fileSystemId] })).FileSystems?.[0]) catch effect (e) => match (e) {
-          when { _tag: "FileSystemNotFound" }: try Effect.undefined;
+        (effect {
+          return ((try fsx.describeFileSystems({ FileSystemIds: [fileSystemId] })).FileSystems?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "FileSystemNotFound" }: undefined;
           default: throw e;
         }
 
@@ -243,11 +246,14 @@ export const FileSystemProvider = (): infer _ =>
             dnsName: fs.DNSName,
             vpcId: fs.VpcId,
           }
-          return (try hasAlchemyTags(id, fsxTagsToRecord(fs.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, fsxTagsToRecord(fs.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const replaced = news.fileSystemType !== olds.fileSystemType
             || news.kmsKeyId !== olds.kmsKeyId
             || (news.storageType ?? "SSD") !== (olds.storageType ?? "SSD")
@@ -353,7 +359,7 @@ export const FileSystemProvider = (): infer _ =>
             .deleteFileSystem({
               FileSystemId: output.fileSystemId,
               ...deleteConfigFor(fs),
-            }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: (undefined as void); default: throw e; }
         },
       })
     },

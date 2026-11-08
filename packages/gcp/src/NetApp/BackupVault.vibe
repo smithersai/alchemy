@@ -237,29 +237,33 @@ export const BackupVaultProvider = (): infer _ =>
     stables: ["name", "backupVaultId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.backupVaultType ?? output?.backupVaultType
       const previousRegion = olds?.backupRegion ?? output?.backupRegion
       const previousKms = olds?.kmsConfig ?? output?.kmsConfig
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.backupVaultId ?? output?.backupVaultId,
-        nextId: news.backupVaultId ?? olds?.backupVaultId ?? output?.backupVaultId,
+        nextId: resolved.backupVaultId ?? olds?.backupVaultId ?? output?.backupVaultId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         extra: (previousType !== undefined
-          && news.backupVaultType !== undefined
-          && news.backupVaultType !== previousType)
+          && resolved.backupVaultType !== undefined
+          && resolved.backupVaultType !== previousType)
           || (previousRegion !== undefined
-            && news.backupRegion !== undefined
-            && news.backupRegion !== previousRegion)
+            && resolved.backupRegion !== undefined
+            && resolved.backupRegion !== previousRegion)
           || (previousKms !== undefined
-            && news.kmsConfig !== undefined
-            && news.kmsConfig !== previousKms),
-      })
+            && resolved.kmsConfig !== undefined
+            && resolved.kmsConfig !== previousKms),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -270,12 +274,19 @@ export const BackupVaultProvider = (): infer _ =>
         output?.backupVaultId,
         "backupvault",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, backupVaultId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -292,20 +303,30 @@ export const BackupVaultProvider = (): infer _ =>
         output?.backupVaultId,
         "backupvault",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, backupVaultId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const backupRegion = news.backupRegion === undefined
-        ? undefined
-        : news.backupRegion.includes("/")
-        ? news.backupRegion
-        : parentOf(env.project, news.backupRegion)
-      const kmsConfig = news.kmsConfig === undefined
-        ? undefined
-        : expandParent(news.kmsConfig, env.project, location, "kmsConfigs")
+      const backupRegion = try Effect.orDie(Effect.try({
+        try: () =>
+          news.backupRegion === undefined
+            ? undefined
+            : news.backupRegion.includes("/")
+            ? news.backupRegion
+            : parentOf(env.project, news.backupRegion),
+        catch: (e) => e,
+      }))
+      const kmsConfig = try Effect.orDie(Effect.try({
+        try: () =>
+          news.kmsConfig === undefined
+            ? undefined
+            : expandParent(news.kmsConfig, env.project, location, "kmsConfigs"),
+        catch: (e) => e,
+      }))
 
       let current = try getByName(output?.name ?? name)
 
@@ -344,8 +365,15 @@ export const BackupVaultProvider = (): infer _ =>
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         (current.description ?? "") !== (news.description ?? "") && "description",
-        fingerprint(toRetention(current.backupRetentionPolicy))
-          !== fingerprint(news.backupRetentionPolicy) && "backupRetentionPolicy",
+        (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, toRetention(current.backupRetentionPolicy)),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.backupRetentionPolicy), catch: (e) => e }),
+          )) && "backupRetentionPolicy",
       ])
 
       if (mask.length > 0) {
@@ -371,13 +399,15 @@ export const BackupVaultProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (netapp
-        .deleteProjectsLocationsBackupVaults({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (netapp
+          .deleteProjectsLocationsBackupVaults({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

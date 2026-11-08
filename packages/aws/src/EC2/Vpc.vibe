@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as EC2 from "@distilled.cloud/aws/ec2"
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -423,18 +425,19 @@ export const VpcProvider = (): infer _ =>
             ...vpcToAttributes(vpc, region, accountId, tags),
             ...(try readDnsAttributes(vpc.VpcId)),
           }
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (
-            somePropsAreDifferent(olds, news, [
+            try Effect.orDie(Effect.try({ try: () => somePropsAreDifferent(olds, resolved, [
               "cidrBlock",
               "instanceTenancy",
               "ipv4IpamPoolId",
               "ipv6IpamPoolId",
               "ipv6CidrBlock",
-            ])
+            ]), catch: (e) => e }))
           ) {
             return { action: "replace" }
           }
@@ -487,7 +490,7 @@ export const VpcProvider = (): infer _ =>
                 TagSpecifications: [
                   {
                     ResourceType: "vpc",
-                    Tags: createTagsList(desiredTags),
+                    Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                   },
                 ],
                 DryRun: false,
@@ -540,7 +543,7 @@ export const VpcProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (vpc.Tags ?? []).map((tag: EC2.Tag) => [tag.Key!, tag.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [vpcId],
@@ -597,13 +600,13 @@ export const VpcProvider = (): infer _ =>
 
           // 1. Attempt to delete VPC
           try (effect {
-            return (try (ec2
+            return (effect { return (try (ec2
               .deleteVpc({
                 VpcId: vpcId,
                 DryRun: false,
               })
-              |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
-                when { _tag: "InvalidVpcID.NotFound" }: try Effect.void;
+              |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
+                when { _tag: "InvalidVpcID.NotFound" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -615,12 +618,12 @@ export const VpcProvider = (): infer _ =>
                 || (e._tag === "ValidationError" && e.message?.includes("DependencyViolation")),
               schedule: Schedule.fixed(5000).pipe(
                 Schedule.upTo({ duration: "5 minutes" }),
-                Schedule.tap(({ attempt }) =>
-                  session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
+                Schedule.tap(effect ({ attempt }) =>
+                  try session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
                 ),
               ),
             })
-            |> Effect.tapError(%, (e) => session.note(`VPC delete failed: ${e._tag} - ${e.message}`)))
+            |> Effect.tapError(%, effect (e) => try session.note(`VPC delete failed: ${e._tag} - ${e.message}`)))
 
           // 2. Wait for VPC to be fully deleted
           try waitForVpcDeleted(vpcId, session)
@@ -632,9 +635,16 @@ export const VpcProvider = (): infer _ =>
   )
 
 // Retryable error: VPC is still pending
-error VpcPending {
-  mutable vpcId: string
-  mutable state: string
+class VpcPending extends $MutableErrorBase("VpcPending")<{
+
+   vpcId: string;
+
+   state: string;
+}> {static {
+    $MutableErrorMatcher(this, "VpcPending", true);
+}
+
+
 }
 
 // Retryable error: VPC still exists during deletion
@@ -671,7 +681,7 @@ const waitForVpcAvailable = effect (vpcId: string, session?: ScopedPlanStatusSes
       schedule: Schedule.max([Schedule.fixed(2000), Schedule.recurs(30)]).pipe(
         Schedule.tap(effect (
           { attempt },
-        ) => (session ? try session.note(`Waiting for VPC to be available... (${attempt * 2}s)`) : try Effect.void)),
+        ) => (session ? try session.note(`Waiting for VPC to be available... (${attempt * 2}s)`) : (undefined as void))),
       ),
     }))
 
@@ -697,6 +707,6 @@ const waitForVpcDeleted = effect (vpcId: string, session: ScopedPlanStatusSessio
       while: (e) => e instanceof VpcStillExists,
       schedule: Schedule.fixed(2000).pipe(
         Schedule.upTo({ duration: "5 minutes" }),
-        Schedule.tap(({ attempt }) => session.note(`Waiting for VPC deletion... (${attempt * 2}s)`)),
+        Schedule.tap(effect ({ attempt }) => try session.note(`Waiting for VPC deletion... (${attempt * 2}s)`)),
       ),
     }))

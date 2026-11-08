@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as Namespace from "alchemy/Namespace"
 import * as Output from "alchemy/Output"
 import type lambda from "aws-lambda"
@@ -40,7 +41,7 @@ export const KafkaEventSource = Layer.effect(
       cluster: ServerlessCluster,
       props: KafkaEventSourceProps,
       process: (
-        stream: Stream<MSKRecord, never, StreamReq>,
+        stream: Stream.Stream<MSKRecord, never, StreamReq>,
       ) => void!never!Req,
     ) => {
       // Deploy-time: grant the IAM actions MSK IAM authentication requires and
@@ -69,13 +70,27 @@ export const KafkaEventSource = Layer.effect(
                   // Topic-level: read records + describe topics.
                   Effect: "Allow",
                   Action: ["kafka-cluster:DescribeTopic", "kafka-cluster:ReadData"],
-                  Resource: [cluster.clusterArn.pipe(Output.map(topicArnGlob))],
+                  Resource: [
+                    cluster.clusterArn.pipe(
+                      try Effect.orDie(Effect.try({
+                        try: () => Output.map(topicArnGlob),
+                        catch: (e) => e,
+                      })),
+                    ),
+                  ],
                 },
                 {
                   // Consumer-group-level: join/commit as a consumer group.
                   Effect: "Allow",
                   Action: ["kafka-cluster:DescribeGroup", "kafka-cluster:AlterGroup"],
-                  Resource: [cluster.clusterArn.pipe(Output.map(groupArnGlob))],
+                  Resource: [
+                    cluster.clusterArn.pipe(
+                      try Effect.orDie(Effect.try({
+                        try: () => Output.map(groupArnGlob),
+                        catch: (e) => e,
+                      })),
+                    ),
+                  ],
                 },
                 {
                   // The poller reaches the cluster through ENIs in its VPC;
@@ -94,7 +109,12 @@ export const KafkaEventSource = Layer.effect(
                   Condition: {
                     StringEquals: {
                       "aws:RequestedRegion": cluster.clusterArn.pipe(
-                        Output.map((arn) => arn.split(":")[3]!),
+                        try Effect.orDie(
+                          Effect.try({
+                            try: () => Output.map((arn: string) => arn.split(":")[3]!),
+                            catch: (error) => error,
+                          }),
+                        ),
                       ),
                     },
                   },
@@ -104,18 +124,34 @@ export const KafkaEventSource = Layer.effect(
                   // the cluster's security groups.
                   Effect: "Allow",
                   Action: ["ec2:CreateNetworkInterface"],
-                  Resource: Output.all(
-                    cluster.clusterArn,
-                    cluster.subnetIds,
-                    cluster.securityGroupIds,
-                  ).pipe(
-                    Output.map(([clusterArn, subnetIds, securityGroupIds]) => [
-                      `${ec2ArnPrefix(clusterArn)}network-interface/*`,
-                      ...subnetIds.map((id) => `${ec2ArnPrefix(clusterArn)}subnet/${id}`),
-                      ...securityGroupIds.map(
-                        (id) => `${ec2ArnPrefix(clusterArn)}security-group/${id}`,
+                  Resource: (try Effect.orDie(Effect.try({
+                    try: () =>
+                      Output.all(
+                        cluster.clusterArn,
+                        cluster.subnetIds,
+                        cluster.securityGroupIds,
                       ),
-                    ]),
+                    catch: (e) => e,
+                  }))).pipe(
+                    try Effect.orDie(
+                      Effect.try({
+                        try: () =>
+                          Output.map((
+                            [clusterArn, subnetIds, securityGroupIds]: readonly [
+                              string,
+                              readonly string[],
+                              readonly string[],
+                            ],
+                          ) => [
+                            `${ec2ArnPrefix(clusterArn)}network-interface/*`,
+                            ...subnetIds.map((id) => `${ec2ArnPrefix(clusterArn)}subnet/${id}`),
+                            ...securityGroupIds.map(
+                              (id) => `${ec2ArnPrefix(clusterArn)}security-group/${id}`,
+                            ),
+                          ]),
+                        catch: (error) => error,
+                      }),
+                    ),
                   ),
                 },
                 {
@@ -124,15 +160,27 @@ export const KafkaEventSource = Layer.effect(
                   Action: ["ec2:DeleteNetworkInterface"],
                   Resource: [
                     cluster.clusterArn.pipe(
-                      Output.map((arn) => `${ec2ArnPrefix(arn)}network-interface/*`),
+                      try Effect.orDie(
+                        Effect.try({
+                          try: () => Output.map((arn: string) => `${ec2ArnPrefix(arn)}network-interface/*`),
+                          catch: (error) => error,
+                        }),
+                      ),
                     ),
                   ],
                   Condition: {
                     ArnEquals: {
-                      "ec2:Subnet": Output.all(cluster.clusterArn, cluster.subnetIds).pipe(
-                        Output.map(([clusterArn, subnetIds]) =>
-                          subnetIds.map((id) => `${ec2ArnPrefix(clusterArn)}subnet/${id}`)
-                        ),
+                      "ec2:Subnet": (try Effect.orDie(Effect.try({
+                        try: () => Output.all(cluster.clusterArn, cluster.subnetIds),
+                        catch: (e) => e,
+                      }))).pipe(
+                        try Effect.orDie(Effect.try({
+                          try: () =>
+                            Output.map(([clusterArn, subnetIds]: readonly [string, readonly string[]]) =>
+                              subnetIds.map((id) => `${ec2ArnPrefix(clusterArn)}subnet/${id}`)
+                            ),
+                          catch: (error) => error,
+                        })),
                       ),
                     },
                   },
@@ -143,7 +191,9 @@ export const KafkaEventSource = Layer.effect(
             try Mapping(
               `AWS.Lambda.EventSourceMapping(${host.LogicalId}, ${cluster.LogicalId})`,
               {
-                functionName: Lambda.qualifiedNameOf(host),
+                functionName: try Effect.orDie(
+                  Effect.try({ try: () => Lambda.qualifiedNameOf(host), catch: (e) => e }),
+                ),
                 eventSourceArn: cluster.clusterArn,
                 topics: props.topics,
                 amazonManagedKafkaEventSourceConfig: props.consumerGroupId

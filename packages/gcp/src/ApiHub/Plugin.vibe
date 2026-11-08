@@ -213,13 +213,15 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (apihub.listProjectsLocationsPlugins.pages({ parent, pageSize: 1000 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.plugins ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
-      |> Stream.map(%, (item) => toAttrs(item, project, region))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (apihub.listProjectsLocationsPlugins.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.plugins ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+        |> Stream.map(%, (item) => toAttrs(item, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const actionsOf = (news: PluginProps): infer _ => news.actionsConfig ?? DEFAULT_PLUGIN_ACTIONS
 
@@ -233,55 +235,92 @@ export const PluginProvider = (): infer _ =>
     stables: ["name", "pluginId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const extra = olds !== undefined
-        && (!sameText(news.displayName, olds.displayName)
-          || !sameText(news.description, olds.description)
-          || !sameJson(news.documentation, olds.documentation)
-          || !sameJson(news.actionsConfig, olds.actionsConfig)
-          || !sameText(news.pluginCategory, olds.pluginCategory)
-          || !sameText(news.gatewayType, olds.gatewayType)
-          || !sameJson(news.hostingService, olds.hostingService)
-          || !sameJson(news.configTemplate, olds.configTemplate)
-          || !sameJson(news.type, olds.type))
-      return replaceOnIdentity({
-        previousId: olds?.pluginId ?? output?.pluginId,
-        nextId: news.pluginId ?? olds?.pluginId ?? output?.pluginId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra,
-      })
+        && (!(try Effect.orDie(
+          Effect.try({ try: () => sameText(resolved.displayName, olds.displayName), catch: (e) => e }),
+        ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameText(resolved.description, olds.description), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameJson(resolved.documentation, olds.documentation), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameJson(resolved.actionsConfig, olds.actionsConfig), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameText(resolved.pluginCategory, olds.pluginCategory), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameText(resolved.gatewayType, olds.gatewayType), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameJson(resolved.hostingService, olds.hostingService), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(
+            Effect.try({ try: () => sameJson(resolved.configTemplate, olds.configTemplate), catch: (e) => e }),
+          ))
+          || !(try Effect.orDie(Effect.try({ try: () => sameJson(resolved.type, olds.type), catch: (e) => e }))))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.pluginId ?? output?.pluginId,
+            nextId: resolved.pluginId ?? olds?.pluginId ?? output?.pluginId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const pluginId = try toPhysicalId(id, olds?.pluginId, output?.pluginId)
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, pluginId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return try listAt(locationParent(env.project, env.region), env.project, env.region)
+      return try listAt(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+        env.project,
+        env.region,
+      )
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const pluginId = try toPhysicalId(id, news.pluginId, output?.pluginId)
       const name = resourceName(env.project, location, pluginId)
       const ownership = try ownershipLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = displayNameOf(news, pluginId)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -328,12 +367,14 @@ export const PluginProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apihub.deleteProjectsLocationsPlugins({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apihub.deleteProjectsLocationsPlugins({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

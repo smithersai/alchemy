@@ -114,12 +114,14 @@ const toAttrs = (acl: storage.ObjectAccessControl, bucketName: string): infer _ 
 const getByEntity = effect (bucketName: string, entity: string) =>
   storage
     .getDefaultObjectAccessControls({ bucket: bucketName, entity }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOnBucket = effect (bucketName: string) =>
-  ((try storage.listDefaultObjectAccessControls({ bucket: bucketName })).items ?? []) catch effect (e) => match (e) {
+  (effect {
+    return ((try storage.listDefaultObjectAccessControls({ bucket: bucketName })).items ?? [])
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as storage.ObjectAccessControl[];
     default: throw e;
   }
@@ -143,15 +145,18 @@ export const DefaultObjectAccessControlProvider = (): infer _ =>
     stables: ["bucketName", "entity", "id", "selfLink"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousBucket = olds?.bucketName ?? output?.bucketName
       const previousEntity = olds?.entity ?? output?.entity
-      if (previousBucket !== undefined && news.bucketName !== previousBucket) {
+      if (previousBucket !== undefined && resolved.bucketName !== previousBucket) {
         return { action: "replace" as const, deleteFirst: false }
       }
       if (
         previousEntity !== undefined
-        && normalizeEntity(news.entity) !== normalizeEntity(previousEntity)
+        && normalizeEntity(resolved.entity) !== normalizeEntity(previousEntity)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -237,7 +242,7 @@ export const DefaultObjectAccessControlProvider = (): infer _ =>
       if (!bucketName || !entity) return
       storage
         .deleteDefaultObjectAccessControls({ bucket: bucketName, entity }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       try waitUntilGone(bucketName, entity)

@@ -269,19 +269,26 @@ export const BillingSavedQueryProvider = (): infer _ =>
     stables: ["name", "savedQueryId", "billingAccountId", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.savedQueryId ?? output?.savedQueryId
       const idChanged = previousId !== undefined
-        && news.savedQueryId !== undefined
-        && news.savedQueryId !== previousId
+        && resolved.savedQueryId !== undefined
+        && resolved.savedQueryId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       const previousAccount = olds?.billingAccountId ?? output?.billingAccountId
-      const accountChanged = previousAccount !== undefined
-        && news.billingAccountId !== undefined
-        && billingAccountIdOf(news.billingAccountId) !== billingAccountIdOf(previousAccount)
+      const accountChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousAccount !== undefined
+          && resolved.billingAccountId !== undefined
+          && billingAccountIdOf(resolved.billingAccountId) !== billingAccountIdOf(previousAccount),
+        catch: (e) => e,
+      }))
       if (!idChanged && !locationChanged && !accountChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -297,25 +304,33 @@ export const BillingSavedQueryProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, billingAccountId, location)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const billingAccountId = try lookupProjectBillingAccountId(env.project)
       if (billingAccountId === undefined) return []
-      return (Array.from(
-        try (logging.listBillingAccountsLocationsSavedQueries
-          .pages({
-            parent: `${billingAccountParent(billingAccountId)}/locations/-`,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.savedQueries ?? []))
-          |> Stream.filter(%, (query) => hasOwnershipMarker(query.description))
-          |> Stream.map(%, (query) => toAttrs(query, billingAccountId, DEFAULT_LOCATION))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (logging.listBillingAccountsLocationsSavedQueries
+            .pages({
+              parent: `${try Effect.orDie(
+                Effect.try({ try: () => billingAccountParent(billingAccountId), catch: (e) => e }),
+              )}/locations/-`,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.savedQueries ?? []))
+            |> Stream.filter(%, (query) => hasOwnershipMarker(query.description))
+            |> Stream.map(%, (query) => toAttrs(query, billingAccountId, DEFAULT_LOCATION))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: [] as BillingSavedQuery["Attributes"][];
         default: throw e;
       }
@@ -330,7 +345,9 @@ export const BillingSavedQueryProvider = (): infer _ =>
       const savedQueryId = try toPhysicalId(id, news.savedQueryId, output?.savedQueryId, "q")
       const name = resourceName(billingAccountId, location, savedQueryId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const desiredVisibility = news.visibility ?? "PRIVATE"
 
       let current = try getByName(output?.name ?? name)
@@ -353,9 +370,19 @@ export const BillingSavedQueryProvider = (): infer _ =>
       const displayNameChanged = (current.displayName ?? "") !== news.displayName
       const visibilityChanged = (current.visibility ?? "PRIVATE") !== desiredVisibility
       const loggingChanged = news.loggingQuery !== undefined
-        && !jsonEqual(toLoggingQuery(current.loggingQuery), news.loggingQuery)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, toLoggingQuery(current.loggingQuery), news.loggingQuery),
+            catch: (e) => e,
+          }),
+        ))
       const opsChanged = news.opsAnalyticsQuery !== undefined
-        && !jsonEqual(toOpsQuery(current.opsAnalyticsQuery), news.opsAnalyticsQuery)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, toOpsQuery(current.opsAnalyticsQuery), news.opsAnalyticsQuery),
+            catch: (e) => e,
+          }),
+        ))
 
       const updateMask = [
         descriptionChanged ? "description" : undefined,

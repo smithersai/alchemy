@@ -232,30 +232,36 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsPlaybooksExamples.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.examples ?? []))
-      |> Stream.filter(%, (example) =>
-        hasOwnershipMarker(example.displayName) || hasOwnershipMarker(example.description))
-      |> Stream.map(%, (example) =>
-        toAttrs(example, project, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsPlaybooksExamples.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.examples ?? []))
+        |> Stream.filter(%, (example) =>
+          hasOwnershipMarker(example.displayName) || hasOwnershipMarker(example.description))
+        |> Stream.map(%, (example) =>
+          toAttrs(example, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const listPlaybooks = effect (agent: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent: agent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent: agent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsPlaybooksExamples.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.examples ?? []))
-      |> Stream.filter(%, (example) => example.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsPlaybooksExamples.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.examples ?? []))
+        |> Stream.filter(%, (example) => example.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const AgentsPlaybooksExampleProvider = (): infer _ =>
@@ -263,16 +269,19 @@ export const AgentsPlaybooksExampleProvider = (): infer _ =>
     stables: ["name", "exampleId", "playbook", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.playbook ?? output?.playbook
-      if (previousParent !== undefined && news.playbook !== previousParent) {
+      if (previousParent !== undefined && resolved.playbook !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.exampleId ?? output?.exampleId
       if (
         previousId !== undefined
-        && news.exampleId !== undefined
-        && news.exampleId !== previousId
+        && resolved.exampleId !== undefined
+        && resolved.exampleId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -289,14 +298,16 @@ export const AgentsPlaybooksExampleProvider = (): infer _ =>
         const ownership = try internalLabels(id)
         existing = try findByDisplayName(
           playbook,
-          encodeOwnershipLine(ownership, olds?.displayName),
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, playbook)
       const named = try ownedByAlchemy(id, existing.displayName)
       const described = try ownedByAlchemy(id, existing.description)
-      return named || described ? attrs : Unowned(attrs)
+      return named || described ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -325,8 +336,12 @@ export const AgentsPlaybooksExampleProvider = (): infer _ =>
         const exampleId = try toResourceId(id, news.exampleId, output?.exampleId)
         const name = output?.name ?? resourceName(playbook, exampleId)
         const ownership = try internalLabels(id)
-        const displayName = encodeOwnershipLine(ownership, news.displayName)
-        const description = encodeOwnership(ownership, news.description)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
         const conversationState = news.conversationState ?? DEFAULT_STATE
         const actions = news.actions ?? DEFAULT_ACTIONS
         const body: dialogflow.GoogleCloudDialogflowCxV3Example = {
@@ -364,10 +379,18 @@ export const AgentsPlaybooksExampleProvider = (): infer _ =>
         const displayChanged = (current.displayName ?? "") !== displayName
         const descriptionChanged = (current.description ?? "") !== description
         const stateChanged = (current.conversationState ?? DEFAULT_STATE) !== conversationState
-        const actionsChanged = fingerprint(actionsOf(current.actions)) !== fingerprint(actions)
+        const value = actionsOf(current.actions)
+        const actionsChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(actions), catch: (e) => e })))
         const languageChanged = !sameText(current.languageCode, news.languageCode)
-        const inputChanged = fingerprint(current.playbookInput) !== fingerprint(news.playbookInput)
-        const outputChanged = fingerprint(current.playbookOutput) !== fingerprint(news.playbookOutput)
+        const inputChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.playbookInput), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.playbookInput), catch: (e) => e })))
+        const outputChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.playbookOutput), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.playbookOutput), catch: (e) => e })))
 
         if (
           displayChanged

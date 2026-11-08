@@ -65,9 +65,10 @@ export const rfc1035 = (name: string, fallback = "apim"): string => {
   return next.slice(0, MAX_NAME_LENGTH);
 };
 
-export const normalizeLocation = (location: string) => lastSegment(location).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (location: string) =>
+  lastSegment(location).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${normalizeLocation(location)}`;
 
 export const resourceName = (project: string, location: string, collection: string, id: string) =>
@@ -188,7 +189,7 @@ export const fingerprint = (value: unknown): string => JSON.stringify(canonical(
 
 export const sameJson = (left: unknown, right: unknown) => fingerprint(left) === fingerprint(right);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>

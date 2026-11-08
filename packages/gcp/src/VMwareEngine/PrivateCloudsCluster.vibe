@@ -330,35 +330,57 @@ export const PrivateCloudsClusterProvider = (): infer _ =>
     stables: ["name", "clusterId", "privateCloud", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
-      return replaceOnIdentity({
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const input = {
         previousId: olds?.clusterId ?? output?.clusterId,
-        nextId: news.clusterId
-          ? rfc1035(news.clusterId, "cluster")
+        nextId: resolved.clusterId
+          ? rfc1035(resolved.clusterId, "cluster")
           : (olds?.clusterId ?? output?.clusterId),
         previousLocation,
         nextLocation: normalizeLocation(
-          news.location ?? locationFromName(news.privateCloud, previousLocation),
+          resolved.location
+            ?? (try Effect.orDie(
+              Effect.try({
+                try: locationFromName.bind(undefined, resolved.privateCloud, previousLocation),
+                catch: (e) => e,
+              }),
+            )),
           DEFAULT_ZONE,
         ),
         previousParent: olds?.privateCloud ?? output?.privateCloud,
-        nextParent: news.privateCloud,
-        extra: !sameJson(
-          stretchedOf(news.stretchedClusterConfig),
-          stretchedOf(olds?.stretchedClusterConfig ?? output?.stretchedClusterConfig),
-        ),
-      })
+        nextParent: resolved.privateCloud,
+        extra: !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(
+              undefined,
+              stretchedOf(resolved.stretchedClusterConfig),
+              stretchedOf(olds?.stretchedClusterConfig ?? output?.stretchedClusterConfig),
+            ),
+            catch: (e) => e,
+          }),
+        )),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
-        DEFAULT_ZONE,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location
+              ?? output?.location
+              ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentCloudName(
         env.project,
         location,
@@ -371,7 +393,11 @@ export const PrivateCloudsClusterProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       if (output?.name === (existing.name ?? name)) return attrs
       const parentCloud = try getParentCloud(attrs.privateCloud)
-      return hasOwnershipMarker(parentCloud?.description) ? attrs : Unowned(attrs)
+      return (try Effect.orDie(
+          Effect.try({ try: () => hasOwnershipMarker(parentCloud?.description), catch: (e) => e }),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -405,10 +431,14 @@ export const PrivateCloudsClusterProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
-        DEFAULT_ZONE,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentCloudName(env.project, location, news.privateCloud)
       const clusterId = try toPhysicalId(id, news.clusterId, output?.clusterId, "cluster")
       const name = resourceNameOf(parent, clusterId)
@@ -418,21 +448,23 @@ export const PrivateCloudsClusterProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsPrivateCloudsClusters({
-            parent,
-            clusterId,
-            body: {
-              nodeTypeConfigs,
-              autoscalingSettings: news.autoscalingSettings,
-              stretchedClusterConfig: news.stretchedClusterConfig,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateCloudsClusters({
+              parent,
+              clusterId,
+              body: {
+                nodeTypeConfigs,
+                autoscalingSettings: news.autoscalingSettings,
+                stretchedClusterConfig: news.stretchedClusterConfig,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -449,15 +481,29 @@ export const PrivateCloudsClusterProvider = (): infer _ =>
         (item) => item.state,
       )
 
-      const nodesChanged = !sameJson(nodeTypeConfigsOf(current.nodeTypeConfigs), nodeTypeConfigs)
-      const autoscalingChanged = !sameJson(
-        autoscalingOf(current.autoscalingSettings),
-        autoscalingOf(news.autoscalingSettings),
-      )
-      const updateMask = changedFields([
-        ["nodeTypeConfigs", nodesChanged],
-        ["autoscalingSettings", autoscalingChanged],
-      ])
+      const left = nodeTypeConfigsOf(current.nodeTypeConfigs)
+      const nodesChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left, nodeTypeConfigs),
+        catch: (e) => e,
+      })))
+      const left2 = autoscalingOf(current.autoscalingSettings)
+      const right = autoscalingOf(news.autoscalingSettings)
+      const autoscalingChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameJson(
+            left2,
+            right,
+          ),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["nodeTypeConfigs", nodesChanged],
+            ["autoscalingSettings", autoscalingChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try vmwareengine.patchProjectsLocationsPrivateCloudsClusters({
@@ -482,13 +528,15 @@ export const PrivateCloudsClusterProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (output.management) return
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsPrivateCloudsClusters({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateCloudsClusters({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

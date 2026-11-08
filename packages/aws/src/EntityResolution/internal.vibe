@@ -1,7 +1,6 @@
 import * as entityresolution from "@distilled.cloud/aws/entityresolution"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * Coerce an Entity Resolution wire tag map (values decode as
@@ -37,7 +36,9 @@ export const syncEntityResolutionTags = effect (
   desiredTags: Record<string, string>,
 ) => {
   const observedTags = try readEntityResolutionTags(arn)
-  const { removed, upsert } = diffTags(observedTags, desiredTags)
+  const { removed, upsert } = try Effect.orDie(
+    Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+  )
   if (upsert.length > 0) {
     try entityresolution.tagResource({
       resourceArn: arn,
@@ -62,10 +63,10 @@ export const syncEntityResolutionTags = effect (
  * helper so declaration emit stays clean (inlining `Effect.retry` erases
  * `E`/`R` to `unknown` for every consumer).
  */
-export const retryRolePropagation = <A, E, R>(
+export const retryRolePropagation = effect <A, E, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ =>
       entityresolution.AccessDeniedException.is(e)
       && typeof e.message === "string"

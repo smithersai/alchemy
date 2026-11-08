@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as appsignals from "@distilled.cloud/aws/application-signals"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -258,15 +259,19 @@ export const ServiceLevelObjectiveProvider = (): infer _ =>
 
       // `Id` accepts the SLO name or ARN interchangeably.
       const observeSlo = effect (id: string) =>
-        (try appsignals.getServiceLevelObjective({ Id: id })).Slo catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try appsignals.getServiceLevelObjective({ Id: id })).Slo
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
       const observedTags = effect (sloArn: string) =>
-        (Object.fromEntries(
-          ((try appsignals.listTagsForResource({ ResourceArn: sloArn })).Tags ?? []).map((t) => [t.Key, t.Value]),
-        )) catch effect (e) => match (e) {
+        (effect {
+          return (Object.fromEntries(
+            ((try appsignals.listTagsForResource({ ResourceArn: sloArn })).Tags ?? []).map((t) => [t.Key, t.Value]),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -293,10 +298,13 @@ export const ServiceLevelObjectiveProvider = (): infer _ =>
             evaluationType: found.EvaluationType,
           }
           const tags = try observedTags(found.Arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createSloName(id, olds ?? {})
           const newName = try createSloName(id, news ?? {})
           if (oldName !== newName) {
@@ -325,15 +333,17 @@ export const ServiceLevelObjectiveProvider = (): infer _ =>
             // 2. ENSURE — create when missing; a concurrent create surfaces
             //    as the typed ConflictException, which we treat as a race
             //    and re-observe.
-            live = (try appsignals
-              .createServiceLevelObjective({
-                Name: sloName,
-                ...desired,
-                Tags: createTagsList(desiredTags),
-              })).Slo catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try observeSlo(sloName);
-                default: throw e;
-              }
+            live = (effect {
+              return (try appsignals
+                .createServiceLevelObjective({
+                  Name: sloName,
+                  ...desired,
+                  Tags: createTagsList(desiredTags),
+                })).Slo
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try observeSlo(sloName);
+              default: throw e;
+            }
           } else if (!subsetMatches(desired, observedState(live))) {
             // 3. SYNC — converge every mutable aspect with a single PATCH;
             //    skipped entirely when the observed state already satisfies
@@ -374,7 +384,7 @@ export const ServiceLevelObjectiveProvider = (): infer _ =>
         },
         delete: effect ({ output }) => {
           appsignals.deleteServiceLevelObjective({ Id: output.sloName }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

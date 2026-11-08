@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as kinesis from "@distilled.cloud/aws/kinesis"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -140,7 +142,7 @@ const readConsumer = effect ({
       ConsumerName: consumerName,
       ConsumerARN: consumerArn,
     }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 
@@ -163,33 +165,39 @@ const readConsumer = effect ({
 // registry is eventually consistent — describeStreamConsumer can briefly
 // return ResourceNotFoundException for a consumer the registry just
 // confirmed exists. Poll up to ~10s before giving up.
-error ConsumerRegistryNotConsistent {
-  mutable consumerName: string
+class ConsumerRegistryNotConsistent extends $MutableErrorBase("ConsumerRegistryNotConsistent")<{
+  consumerName: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "ConsumerRegistryNotConsistent", true)
+  }
 }
 
 const adoptExistingConsumer = effect (streamArn: string, consumerName: string) =>
-  (try (effect {
-    const state = try readConsumer({
-      streamArn,
-      consumerName,
-    })
+  (effect {
+    return (try (effect {
+      const state = try readConsumer({
+        streamArn,
+        consumerName,
+      })
 
-    if (!state) {
-      throw new ConsumerRegistryNotConsistent({ consumerName })
+      if (!state) {
+        throw new ConsumerRegistryNotConsistent({ consumerName })
+      }
+
+      return state
     }
-
-    return state
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "ConsumerRegistryNotConsistent",
+        schedule: Schedule.max([Schedule.exponential(250), Schedule.recurs(8)]),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "ConsumerRegistryNotConsistent" }: throw new StreamConsumerUnexpectedResponse({
+      message: `consumer ${consumerName} exists but could not be read after `
+        + `~10s of registry-consistency retries`,
+    });
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "ConsumerRegistryNotConsistent",
-      schedule: Schedule.max([Schedule.exponential(250), Schedule.recurs(8)]),
-    }))) catch effect (e) => match (e) {
-      when { _tag: "ConsumerRegistryNotConsistent" }: throw new StreamConsumerUnexpectedResponse({
-        message: `consumer ${consumerName} exists but could not be read after `
-          + `~10s of registry-consistency retries`,
-      });
-      default: throw e;
-    }
 
 const waitForConsumerStatus = effect (consumerArn: string, expectedStatus: ConsumerStatus) =>
   try (effect {
@@ -208,7 +216,7 @@ const waitForConsumerStatus = effect (consumerArn: string, expectedStatus: Consu
     }))
 
 const waitForConsumerDeleted = effect (consumerArn: string) =>
-  (try (effect {
+  (effect {
     try kinesis.describeStreamConsumer({
       ConsumerARN: consumerArn,
     })
@@ -217,7 +225,10 @@ const waitForConsumerDeleted = effect (consumerArn: string) =>
     |> Effect.retry(%, {
       while: (e: { _tag: string }) => e._tag === "ConsumerStillExists" || e._tag === "ParseError",
       schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(60)]),
-    }))) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.void; default: throw e; }
+    })) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: (undefined as void);
+      default: throw e;
+    }
 
 export const StreamConsumerProvider = (): infer _ =>
   Provider.succeed(StreamConsumer, {
@@ -238,19 +249,24 @@ export const StreamConsumerProvider = (): infer _ =>
         consumerArn: output?.consumerArn,
       })
       if (!state) return undefined
-      return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+      return (try hasAlchemyTags(id, state.tags as Tags))
+        ? state
+        : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
     },
     diff: effect ({ id, news, olds }) => {
-      if (!isResolved(news)) return
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
       const oldConsumerName = try createConsumerName(id, olds)
-      const newConsumerName = try createConsumerName(id, news)
+      const newConsumerName = try createConsumerName(id, resolved)
       if (oldConsumerName !== newConsumerName) {
         return { action: "replace" } as const
       }
       if (
-        typeof news.streamArn === "string"
+        typeof resolved.streamArn === "string"
         && typeof olds.streamArn === "string"
-        && news.streamArn !== olds.streamArn
+        && resolved.streamArn !== olds.streamArn
       ) {
         return { action: "replace" } as const
       }
@@ -276,21 +292,23 @@ export const StreamConsumerProvider = (): infer _ =>
       // brief registry-consistency wait, then re-read and continue the
       // sync path.
       if (state === undefined) {
-        ;(try (kinesis
-          .registerStreamConsumer({
-            StreamARN: streamArn,
-            ConsumerName: consumerName,
-            Tags: desiredTags,
-          })
-          |> Effect.retry(%, {
-            while: (e) => e._tag === "ResourceNotFoundException",
-            schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
-          })
-          |> Effect.asVoid(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceInUseException" }: try (adoptExistingConsumer(streamArn, consumerName)
-              |> Effect.asVoid(%));
-            default: throw e;
-          }
+        ;(effect {
+          return (try (kinesis
+            .registerStreamConsumer({
+              StreamARN: streamArn,
+              ConsumerName: consumerName,
+              Tags: desiredTags,
+            })
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ResourceNotFoundException",
+              schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+            })
+            |> Effect.asVoid(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceInUseException" }: try (adoptExistingConsumer(streamArn, consumerName)
+            |> Effect.asVoid(%));
+          default: throw e;
+        }
 
         state = try adoptExistingConsumer(streamArn, consumerName)
         try waitForConsumerStatus(state.consumerArn, "ACTIVE")
@@ -311,7 +329,9 @@ export const StreamConsumerProvider = (): infer _ =>
       // may bring us a consumer that already has its own tag set; diffing
       // against `state.tags` (fetched fresh) lets the reconciler converge
       // ownership without fighting whatever was there before.
-      const { removed, upsert } = diffTags(state.tags, desiredTags)
+      const { removed, upsert } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }),
+      )
 
       if (removed.length > 0) {
         try kinesis.untagResource({
@@ -350,7 +370,7 @@ export const StreamConsumerProvider = (): infer _ =>
         .deregisterStreamConsumer({
           ConsumerARN: output.consumerArn,
         }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.void;
+          when { _tag: "ResourceNotFoundException" }: (undefined as void);
           default: throw e;
         }
 
@@ -372,15 +392,17 @@ export const StreamConsumerProvider = (): infer _ =>
       const consumers = (try Effect.forEach(
         streamArns,
         effect (streamArn) =>
-          (Array.from(
-            try (kinesis.listStreamConsumers.pages({ StreamARN: streamArn })
-              |> Stream.runCollect(%)),
-          ).flatMap((page) =>
-            (page.Consumers ?? []).map((consumer) => ({
-              streamArn,
-              consumer,
-            }))
-          )) catch effect (e) => match (e) {
+          (effect {
+            return (Array.from(
+              try (kinesis.listStreamConsumers.pages({ StreamARN: streamArn })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.Consumers ?? []).map((consumer) => ({
+                streamArn,
+                consumer,
+              }))
+            ))
+          }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: [] as {
               streamArn: string
               consumer: kinesis.Consumer
@@ -393,15 +415,17 @@ export const StreamConsumerProvider = (): infer _ =>
       const hydrated = try Effect.forEach(
         consumers,
         effect ({ streamArn, consumer }) =>
-          ({
-            consumerName: consumer.ConsumerName,
-            consumerArn: consumer.ConsumerARN,
-            consumerStatus: consumer.ConsumerStatus as ConsumerStatus,
-            streamArn: streamArn as StreamArn,
-            consumerCreationTimestamp: consumer.ConsumerCreationTimestamp,
-            tags: toTagRecord((try kinesis.listTagsForResource({ ResourceARN: consumer.ConsumerARN })).Tags),
+          (effect {
+            return ({
+              consumerName: consumer.ConsumerName,
+              consumerArn: consumer.ConsumerARN,
+              consumerStatus: consumer.ConsumerStatus as ConsumerStatus,
+              streamArn: streamArn as StreamArn,
+              consumerCreationTimestamp: consumer.ConsumerCreationTimestamp,
+              tags: toTagRecord((try kinesis.listTagsForResource({ ResourceARN: consumer.ConsumerARN })).Tags),
+            })
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           },
         { concurrency: 10 },

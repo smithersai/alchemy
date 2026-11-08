@@ -112,42 +112,43 @@ export const VolumeProvider = (): infer _ =>
       return Volume.Provider.of({
         list: effect () => [],
         read: effect ({ id, instanceId, olds, output }) => {
-          const context = dockerContextName(olds?.context)
+          const context = try Effect.orDie(Effect.try({ try: () => dockerContextName(olds?.context), catch: (e) => e }))
           const name = try dockerPhysicalName(id, olds, instanceId)
           const info = try (docker.volume
             .inspect(name, context)
-            |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => try Effect.undefined))
+            |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => undefined))
           if (!info) return undefined
           const attrs = toVolumeAttributes(info)
           if (output) return attrs
           // Without prior state, only adopt a volume that carries our branding;
           // anything else is foreign and gated behind `--adopt`.
           const owned = try hasAlchemyTags(id, info.Labels ?? undefined)
-          return owned ? attrs : Unowned(attrs)
+          return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, instanceId, output, news, olds }) => {
-          if (!isResolved(news)) return undefined
-          if (dockerContextName(olds?.context) !== dockerContextName(news?.context)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try Effect.orDie(Effect.try({ try: () => dockerContextName(olds?.context), catch: (e) => e }))) !== (try Effect.orDie(Effect.try({ try: () => dockerContextName(resolved?.context), catch: (e) => e })))) {
             return { action: "replace" as const, deleteFirst: true }
           }
-          const args = try makeVolumeArgs(id, news, instanceId)
+          const args = try makeVolumeArgs(id, resolved, instanceId)
           // Auto-generated names are engine-owned: the deployed name stays
           // authoritative even if the generator would name this id differently
           // today. Only an explicit user-provided name can force a replace.
-          const desiredName = news?.name ?? output?.name ?? args.name
+          const desiredName = resolved?.name ?? output?.name ?? args.name
           if (
             output?.name !== desiredName
             || output?.driver !== args.driver
             || !Equal.equals(output?.driverOpts ?? {}, args.opt ?? {})
             // Compare only user labels; internal `alchemy::*` branding lives on
             // the observed volume but must not drive replacement.
-            || !Equal.equals(stripInternalTags(output?.labels), args.label ?? {})
+            || !Equal.equals(try Effect.orDie(Effect.try({ try: () => stripInternalTags(output?.labels), catch: (e) => e })), args.label ?? {})
           ) {
             return { action: "replace" as const, deleteFirst: true }
           }
         },
         reconcile: effect ({ id, instanceId, news, output }) => {
-          const context = dockerContextName(news?.context)
+          const context = try Effect.orDie(Effect.try({ try: () => dockerContextName(news?.context), catch: (e) => e }))
           const args = try makeVolumeArgs(id, news, instanceId)
           // Prefer the deployed name: regenerating would target a different
           // volume if the generator's output for this id ever drifts.
@@ -163,8 +164,8 @@ export const VolumeProvider = (): infer _ =>
         },
         delete: effect ({ olds, output }) =>
           try (docker.volume
-            .remove(output.name, dockerContextName(olds?.context))
-            |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => try Effect.void)),
+            .remove(output.name, try Effect.orDie(Effect.try({ try: () => dockerContextName(olds?.context), catch: (e) => e })))
+            |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => (undefined as void))),
       })
     },
   )

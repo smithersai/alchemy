@@ -205,14 +205,19 @@ const resourceName = (parent: string, entryId: string): infer _ => `${parent}/en
 const toEntryId = effect (id: string, explicit: string | undefined, existing: string | undefined) => {
   if (explicit !== undefined) return explicit
   if (existing !== undefined) return existing
-  return rfc1035(
-    try createPhysicalName({
-      id,
-      maxLength: MAX_NAME_LENGTH,
-      lowercase: true,
-    }),
-    "entry",
-  )
+  const name = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return try Effect.orDie(Effect.try({
+    try: () =>
+      rfc1035(
+        name,
+        "entry",
+      ),
+    catch: (e) => e,
+  }))
 }
 
 const sourceLabels = (news: EntryGroupsEntryProps, ownership: Record<string, string>): infer _ => ({
@@ -267,18 +272,20 @@ const getByName = effect (name: string) =>
   }
 
 const listEntriesUnder = effect (parent: string, project: string) =>
-  ((try collectPages(
-    dataplex.listProjectsLocationsEntryGroupsEntries.pages({
-      parent,
-      pageSize: 100,
-    }),
-    (page) => page.entries,
-  ))
-    .filter((item) => hasAlchemyLabelMap(item.entrySource?.labels))
-    .map((item) => toAttrs(item, project))) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: [];
-      default: throw e;
-    }
+  (effect {
+    return ((try collectPages(
+      dataplex.listProjectsLocationsEntryGroupsEntries.pages({
+        parent,
+        pageSize: 100,
+      }),
+      (page) => page.entries,
+    ))
+      .filter((item) => hasAlchemyLabelMap(item.entrySource?.labels))
+      .map((item) => toAttrs(item, project)))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
 
 export const EntryGroupsEntryProvider = (): infer _ =>
   Provider.succeed(EntryGroupsEntry, {
@@ -295,24 +302,31 @@ export const EntryGroupsEntryProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.entryType ?? output?.entryType ?? ""
-      const nextType = news.entryType ?? previousType
+      const nextType = resolved_.entryType ?? previousType
       const previousParentEntry = olds?.parentEntry ?? output?.parentEntry ?? ""
-      const nextParentEntry = news.parentEntry ?? previousParentEntry
-      return replaceOnIdentity({
-        previousId: olds?.entryId ?? output?.entryId,
-        nextId: news.entryId ?? olds?.entryId ?? output?.entryId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.entryGroup ?? output?.entryGroup,
-        nextParent: news.entryGroup ?? olds?.entryGroup ?? output?.entryGroup,
-        extra: nextType !== previousType || nextParentEntry !== previousParentEntry,
-      })
+      const nextParentEntry = resolved_.parentEntry ?? previousParentEntry
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.entryId ?? output?.entryId,
+            nextId: resolved_.entryId ?? olds?.entryId ?? output?.entryId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved_.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.entryGroup ?? output?.entryGroup,
+            nextParent: resolved_.entryGroup ?? olds?.entryGroup ?? output?.entryGroup,
+            extra: nextType !== previousType || nextParentEntry !== previousParentEntry,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -328,9 +342,12 @@ export const EntryGroupsEntryProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.entrySource?.labels)))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.entrySource?.labels), catch: (e) => e })),
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -378,22 +395,24 @@ export const EntryGroupsEntryProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (dataplex
-          .createProjectsLocationsEntryGroupsEntries({
-            parent: resolved.parent,
-            entryId,
-            body: {
-              entryType: news.entryType,
-              parentEntry: news.parentEntry,
-              fullyQualifiedName: news.fullyQualifiedName,
-              aspects: news.aspects,
-              entrySource: desiredSource,
-            },
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try getByName(name);
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsEntryGroupsEntries({
+              parent: resolved.parent,
+              entryId,
+              body: {
+                entryType: news.entryType,
+                parentEntry: news.parentEntry,
+                fullyQualifiedName: news.fullyQualifiedName,
+                aspects: news.aspects,
+                entrySource: desiredSource,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(name);
+          default: throw e;
+        }
         current = created ?? undefined
         if (current === undefined) {
           current = try waitUntilExists(getByName(name), name)
@@ -405,10 +424,14 @@ export const EntryGroupsEntryProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.entrySource?.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredSourceLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredSourceLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const fqnChanged = (current.fullyQualifiedName ?? "") !== (news.fullyQualifiedName ?? "")
-      const aspectsChanged = news.aspects !== undefined && fingerprint(news.aspects) !== fingerprint(current.aspects)
+      const aspectsChanged = news.aspects !== undefined
+        && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.aspects), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.aspects), catch: (e) => e })))
       const sourceChanged = (current.entrySource?.resource ?? "") !== (news.entrySource?.resource ?? "")
         || (current.entrySource?.system ?? "") !== (news.entrySource?.system ?? "")
         || (current.entrySource?.platform ?? "") !== (news.entrySource?.platform ?? "")

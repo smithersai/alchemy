@@ -3,9 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Predicate from "effect/Predicate"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 const TypeId = "Cloudflare.Account.Account" as const
@@ -154,15 +151,16 @@ export const AccountProvider = (): infer _ =>
     stables: ["accountId", "type", "createdOn", "parentOrgId", "parentOrgName"],
 
     diff: effect ({ olds, news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
       // The account type cannot be changed after creation — Cloudflare
       // rejects it with `UpdateAccountTypeNotSupported`.
       const oldType = output?.type ?? olds?.type ?? "standard"
-      if ((news.type ?? "standard") !== oldType) {
+      if ((resolved_.type ?? "standard") !== oldType) {
         return { action: "replace" } as const
       }
       // The tenant unit is a create-only placement decision.
-      if ((olds?.unit?.id ?? undefined) !== (news.unit?.id ?? undefined)) {
+      if ((olds?.unit?.id ?? undefined) !== (resolved_.unit?.id ?? undefined)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -235,7 +233,7 @@ export const AccountProvider = (): infer _ =>
       // `InvalidRoute` (code 7003): that's success too.
       accounts
         .deleteAccount({ accountId: output.accountId }) catch effect (e) => match (e) {
-          when { _tag: "InvalidRoute" }: try Effect.void;
+          when { _tag: "InvalidRoute" }: (undefined as void);
           default: throw e;
         }
     },
@@ -253,8 +251,8 @@ type ObservedAccount =
  * code 7003).
  */
 const getAccount = effect (accountId: string) =>
-  (try accounts.getAccount({ accountId })) catch effect (e) => match (e) {
-    when { _tag: "InvalidRoute" }: try Effect.undefined;
+  (effect { return (try accounts.getAccount({ accountId })) }) catch effect (e) => match (e) {
+    when { _tag: "InvalidRoute" }: undefined;
     default: throw e;
   }
 

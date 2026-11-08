@@ -107,20 +107,22 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   apigee
     .getOrganizationsInstancesAttachments({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
 const listByInstance = effect (parent: string) =>
-  (Array.from(
-    try (apigee.listOrganizationsInstancesAttachments
-      .pages({
-        parent,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.attachments ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (apigee.listOrganizationsInstancesAttachments
+        .pages({
+          parent,
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.attachments ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }:
       [] as apigee.GoogleCloudApigeeV1InstanceAttachment[];
     default: throw e;
@@ -142,17 +144,20 @@ export const InstancesAttachmentProvider = (): infer _ =>
     stables: ["name", "attachmentId", "instanceId", "organization", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousInstance = olds?.instance ?? output?.instanceId
       const previousEnv = olds?.environment ?? output?.environment
       const previousOrg = olds?.organization ?? output?.organization
       if (
         (previousInstance !== undefined
-          && instanceIdOf(news.instance) !== instanceIdOf(previousInstance))
-        || (previousEnv !== undefined && news.environment !== previousEnv)
+          && instanceIdOf(resolved.instance) !== instanceIdOf(previousInstance))
+        || (previousEnv !== undefined && resolved.environment !== previousEnv)
         || (previousOrg !== undefined
-          && news.organization !== undefined
-          && news.organization !== previousOrg)
+          && resolved.organization !== undefined
+          && resolved.organization !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -213,7 +218,7 @@ export const InstancesAttachmentProvider = (): infer _ =>
           .createOrganizationsInstancesAttachments({
             parent,
             body: { environment: news.environment },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
@@ -232,7 +237,7 @@ export const InstancesAttachmentProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const deleted = apigee
         .deleteOrganizationsInstancesAttachments({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
           default: throw e;
         }
       if (deleted !== undefined) {

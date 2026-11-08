@@ -241,45 +241,52 @@ const toAttrs = (question: cci.GoogleCloudContactcenterinsightsV1QaQuestion, pro
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsQaScorecardsRevisionsQaQuestions({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listRevisions = effect (parent: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsQaScorecardsRevisions.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecardRevisions ?? []))
-      |> Stream.map(%, (revision) => revision.name ?? "")
-      |> Stream.filter(%, (name) => name.length > 0)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsQaScorecardsRevisions.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecardRevisions ?? []))
+        |> Stream.map(%, (revision) => revision.name ?? "")
+        |> Stream.filter(%, (name) => name.length > 0)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsQaScorecardsRevisionsQaQuestions.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaQuestions ?? []))
-      |> Stream.filter(%, (question) => hasOwnershipMarker(question.answerInstructions))
-      |> Stream.map(%, (question) => toAttrs(question, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsQaScorecardsRevisionsQaQuestions.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaQuestions ?? []))
+        |> Stream.filter(%, (question) => hasOwnershipMarker(question.answerInstructions))
+        |> Stream.map(%, (question) => toAttrs(question, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const QaScorecardsRevisionsQaQuestionProvider = (): infer _ =>
   Provider.succeed(QaScorecardsRevisionsQaQuestion, {
     stables: ["name", "qaQuestionId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.qaQuestionId ?? output?.qaQuestionId
       if (
         previousId !== undefined
-        && news.qaQuestionId !== undefined
-        && news.qaQuestionId !== previousId
+        && resolved.qaQuestionId !== undefined
+        && resolved.qaQuestionId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -293,7 +300,9 @@ export const QaScorecardsRevisionsQaQuestionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.answerInstructions)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.answerInstructions))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -320,27 +329,29 @@ export const QaScorecardsRevisionsQaQuestionProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (cci
-          .createProjectsLocationsQaScorecardsRevisionsQaQuestions({
-            parent: news.parent,
-            qaQuestionId,
-            body: {
-              questionBody: news.questionBody,
-              abbreviation: news.abbreviation,
-              questionType: news.questionType,
-              answerInstructions,
-              order: news.order,
-              answerChoices: news.answerChoices,
-              tags: tags.length > 0 ? tags : undefined,
-              predefinedQuestionConfig: news.predefinedQuestionConfig,
-              qaQuestionDataOptions: news.qaQuestionDataOptions,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "QaScorecardPreconditionFailed",
-            times: 8,
-            schedule: Schedule.exponential("250 millis"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        const created = (effect {
+          return (try (cci
+            .createProjectsLocationsQaScorecardsRevisionsQaQuestions({
+              parent: news.parent,
+              qaQuestionId,
+              body: {
+                questionBody: news.questionBody,
+                abbreviation: news.abbreviation,
+                questionType: news.questionType,
+                answerInstructions,
+                order: news.order,
+                answerChoices: news.answerChoices,
+                tags: tags.length > 0 ? tags : undefined,
+                predefinedQuestionConfig: news.predefinedQuestionConfig,
+                qaQuestionDataOptions: news.qaQuestionDataOptions,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "QaScorecardPreconditionFailed",
+              times: 8,
+              schedule: Schedule.exponential("250 millis"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
         current = created ?? undefined
       }
 
@@ -395,6 +406,6 @@ export const QaScorecardsRevisionsQaQuestionProvider = (): infer _ =>
       cci
         .deleteProjectsLocationsQaScorecardsRevisionsQaQuestions({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

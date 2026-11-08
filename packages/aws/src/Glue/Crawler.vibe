@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as glue from "@distilled.cloud/aws/glue"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -241,8 +242,10 @@ export const CrawlerProvider = (): infer _ =>
       ) => props.crawlerName ?? (try createPhysicalName({ id, maxLength: 255 }))
 
       const observe = effect (name: string) =>
-        (try glue.getCrawler({ Name: name })).Crawler catch effect (e) => match (e) {
-          when { _tag: "EntityNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try glue.getCrawler({ Name: name })).Crawler
+        }) catch effect (e) => match (e) {
+          when { _tag: "EntityNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -269,7 +272,10 @@ export const CrawlerProvider = (): infer _ =>
           const name = output?.crawlerName ?? (try createName(id, olds ?? {}))
           const crawler = try observe(name)
           if (crawler?.Name === undefined) return undefined
-          const arn = crawlerArn(region, accountId, crawler.Name)
+          const crawlerName2 = crawler.Name
+          const arn = try Effect.orDie(
+            Effect.try({ try: () => crawlerArn(region, accountId, crawlerName2), catch: (e) => e }),
+          )
           const attrs = {
             crawlerName: crawler.Name,
             crawlerArn: arn,
@@ -278,11 +284,14 @@ export const CrawlerProvider = (): infer _ =>
             state: crawler.State,
           }
           const tags = try fetchObservedTags(arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -294,7 +303,7 @@ export const CrawlerProvider = (): infer _ =>
           const name = output?.crawlerName ?? (try createName(id, news))
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...news.tags, ...internalTags }
-          const arn = crawlerArn(region, accountId, name)
+          const arn = try Effect.orDie(Effect.try({ try: () => crawlerArn(region, accountId, name), catch: (e) => e }))
 
           const common = {
             Role: news.role,
@@ -321,17 +330,19 @@ export const CrawlerProvider = (): infer _ =>
 
           // 2. ENSURE / 3. SYNC
           if (crawler === undefined) {
-            ;(try (glue
-              .createCrawler({
-                Name: name,
-                ...common,
-                Tags: desiredTags,
-              })
-              |> retryWhileRoleNotAssumable(%)
-              |> retryWhileCrawlerTargetNotReady(%))) catch effect (e) => match (e) {
-                when { _tag: "AlreadyExistsException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (glue
+                .createCrawler({
+                  Name: name,
+                  ...common,
+                  Tags: desiredTags,
+                })
+                |> retryWhileRoleNotAssumable(%)
+                |> retryWhileCrawlerTargetNotReady(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "AlreadyExistsException" }: (undefined as void);
+              default: throw e;
+            }
           } else {
             // updateCrawler fails with CrawlerRunningException mid-crawl and
             // with GlueRoleNotAssumable during IAM propagation.
@@ -372,7 +383,7 @@ export const CrawlerProvider = (): infer _ =>
               glue
                 .stopCrawler({ Name: name }) catch effect (e) => match (e) {
                   when { _tag: "CrawlerNotRunningException" } or { _tag: "CrawlerStoppingException" } or { _tag: "EntityNotFoundException" }:
-                    try Effect.void;
+                    (undefined as void);
                   default: throw e;
                 }
             }
@@ -387,7 +398,7 @@ export const CrawlerProvider = (): infer _ =>
             if (crawler === undefined) return
 
             retryCrawlerDelete(glue.deleteCrawler({ Name: name })) catch effect (e) => match (e) {
-              when { _tag: "EntityNotFoundException" }: try Effect.void;
+              when { _tag: "EntityNotFoundException" }: (undefined as void);
               default: throw e;
             }
 
@@ -397,9 +408,13 @@ export const CrawlerProvider = (): infer _ =>
               times: 15,
             })
             if (remaining !== undefined) {
-              throw glue.OperationTimeoutException.make({
-                message: `crawler ${name} remained visible after delete for 30 seconds`,
-              })
+              throw try Effect.orDie(Effect.try({
+                try: () =>
+                  glue.OperationTimeoutException.make({
+                    message: `crawler ${name} remained visible after delete for 30 seconds`,
+                  }),
+                catch: (e) => e,
+              }))
             }
           }
 

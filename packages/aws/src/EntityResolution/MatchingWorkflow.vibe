@@ -5,9 +5,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { readEntityResolutionTags, retryRolePropagation, syncEntityResolutionTags } from "./internal.vibe"
 
@@ -142,7 +139,7 @@ export const MatchingWorkflowProvider = (): infer _ =>
       const getByName = effect (workflowName: string) =>
         entityresolution
           .getMatchingWorkflow({ workflowName }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -160,13 +157,18 @@ export const MatchingWorkflowProvider = (): infer _ =>
           // getMatchingWorkflow does not return tags — read them via
           // listTagsForResource for the ownership check.
           const tags = try readEntityResolutionTags(workflow.workflowArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
@@ -187,21 +189,23 @@ export const MatchingWorkflowProvider = (): infer _ =>
           //    response is a structural subset of the Get shape (it omits
           //    createdAt/updatedAt).
           if (workflow === undefined) {
-            ;(try (entityresolution
-              .createMatchingWorkflow({
-                workflowName: name,
-                description: news.description,
-                inputSourceConfig: news.inputSourceConfig,
-                outputSourceConfig: news.outputSourceConfig,
-                resolutionTechniques: news.resolutionTechniques,
-                incrementalRunConfig: news.incrementalRunConfig,
-                roleArn: news.roleArn,
-                tags: desiredTags,
-              })
-              |> retryRolePropagation(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (entityresolution
+                .createMatchingWorkflow({
+                  workflowName: name,
+                  description: news.description,
+                  inputSourceConfig: news.inputSourceConfig,
+                  outputSourceConfig: news.outputSourceConfig,
+                  resolutionTechniques: news.resolutionTechniques,
+                  incrementalRunConfig: news.incrementalRunConfig,
+                  roleArn: news.roleArn,
+                  tags: desiredTags,
+                })
+                |> retryRolePropagation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             workflow = try entityresolution.getMatchingWorkflow({
               workflowName: name,
             })
@@ -226,7 +230,7 @@ export const MatchingWorkflowProvider = (): infer _ =>
             incrementalRunConfig: workflow.incrementalRunConfig ?? undefined,
             roleArn: workflow.roleArn,
           }
-          if (!deepEqual(observed, desired)) {
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(observed, desired), catch: (e) => e })))) {
             // The update response omits workflowArn/createdAt/updatedAt;
             // the ARN is stable, so keep the observed Get shape.
             try (entityresolution

@@ -388,7 +388,7 @@ const toAttrs = (routine: bigquery.Routine, project: string): infer _ => {
 const getByRef = effect (projectId: string, datasetId: string, routineId: string) =>
   bigquery
     .getRoutines({ projectId, datasetId, routineId }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -491,19 +491,22 @@ export const RoutineProvider = (): infer _ =>
     stables: ["name", "id", "routineId", "datasetId", "project", "routineType", "creationTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const previousRoutineId = olds?.routineId ?? output?.routineId
-      const nextRoutineId = news.routineId ?? previousRoutineId
-      const routineIdChanged = news.routineId !== undefined
+      const nextRoutineId = resolved_.routineId ?? previousRoutineId
+      const routineIdChanged = resolved_.routineId !== undefined
         && previousRoutineId !== undefined
-        && news.routineId !== previousRoutineId
+        && resolved_.routineId !== previousRoutineId
 
       const previousDataset = olds?.datasetId ?? output?.datasetId
-      const nextDataset = datasetIdOf(news.datasetId)
+      const nextDataset = datasetIdOf(resolved_.datasetId)
       const datasetChanged = previousDataset !== undefined && datasetIdOf(previousDataset) !== nextDataset
 
       const previousType = (olds?.routineType ?? output?.routineType ?? "").toUpperCase()
-      const typeChanged = previousType.length > 0 && news.routineType.toUpperCase() !== previousType
+      const typeChanged = previousType.length > 0 && resolved_.routineType.toUpperCase() !== previousType
 
       if (!routineIdChanged && !datasetChanged && !typeChanged) {
         return undefined
@@ -528,22 +531,24 @@ export const RoutineProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       return (try hasAlchemyLabels(id, parseDescription(existing.description).labels))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const datasets = (Array.from(
-        try (bigquery.listDatasets
-          .pages({
-            projectId: env.project,
-            maxResults: 1000,
-            all: true,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
-          |> Stream.filter(%, (dataset) => hasAlchemyDatasetLabels(dataset.labels))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      const datasets = (effect {
+        return (Array.from(
+          try (bigquery.listDatasets
+            .pages({
+              projectId: env.project,
+              maxResults: 1000,
+              all: true,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
+            |> Stream.filter(%, (dataset) => hasAlchemyDatasetLabels(dataset.labels))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: [] as bigquery.DatasetListDatasetsItem[];
         default: throw e;
       }
@@ -554,19 +559,21 @@ export const RoutineProvider = (): infer _ =>
           if (datasetId === undefined) {
             return [] as ReturnType<typeof toAttrs>[]
           }
-          return (Array.from(
-            try (bigquery.listRoutines
-              .pages({
-                projectId: env.project,
-                datasetId,
-                maxResults: 1000,
-                readMask: "description,routineType,language",
-              })
-              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.routines ?? []))
-              |> Stream.filter(%, (routine) => hasOwnershipMarker(routine.description))
-              |> Stream.map(%, (routine) => toAttrs(routine, env.project))
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) {
+          return (effect {
+            return (Array.from(
+              try (bigquery.listRoutines
+                .pages({
+                  projectId: env.project,
+                  datasetId,
+                  maxResults: 1000,
+                  readMask: "description,routineType,language",
+                })
+                |> Stream.flatMap(%, (page) => Stream.fromIterable(page.routines ?? []))
+                |> Stream.filter(%, (routine) => hasOwnershipMarker(routine.description))
+                |> Stream.map(%, (routine) => toAttrs(routine, env.project))
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) {
             when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
             default: throw e;
           }
@@ -644,6 +651,6 @@ export const RoutineProvider = (): infer _ =>
           projectId: output.project,
           datasetId: output.datasetId,
           routineId: output.routineId,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

@@ -28,6 +28,7 @@ export const ReadNamespaceHttp = Layer.effect(
   ),
 );
 
+/** @throws {never} */
 export const makeReadKVHttpClient = (
   auth: KVAuth,
   namespaceId: Effect.Effect<string>,

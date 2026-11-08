@@ -177,26 +177,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (mc.listProjectsLocationsDiscoveryClients
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryClients ?? []))
-      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (mc.listProjectsLocationsDiscoveryClients
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryClients ?? []))
         |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.DiscoveryClient[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (mc.listProjectsLocationsDiscoveryClients
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryClients ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.DiscoveryClient[]; default: throw e; };
     default: throw e;
   }
 
@@ -205,25 +209,32 @@ export const DiscoveryClientProvider = (): infer _ =>
     stables: ["name", "discoveryClientId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousSource = olds?.source ?? output?.source
-      const nextSource = news.source
+      const nextSource = resolved.source
       const sourceChanged = previousSource !== undefined
         && nextSource !== undefined
         && previousSource !== nextSource
         && !previousSource.endsWith(`/${nextSource}`)
         && !nextSource.endsWith(`/${previousSource}`)
-      return replaceOnIdentity({
-        previousId: olds?.discoveryClientId ?? output?.discoveryClientId,
-        nextId: news.discoveryClientId ?? olds?.discoveryClientId ?? output?.discoveryClientId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: sourceChanged,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.discoveryClientId ?? output?.discoveryClientId,
+            nextId: resolved.discoveryClientId ?? olds?.discoveryClientId ?? output?.discoveryClientId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: sourceChanged,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -234,12 +245,19 @@ export const DiscoveryClientProvider = (): infer _ =>
         output?.discoveryClientId,
         "discclient",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, discoveryClientId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -256,11 +274,13 @@ export const DiscoveryClientProvider = (): infer _ =>
         output?.discoveryClientId,
         "discclient",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, discoveryClientId)
       const source = sourceOf(news.source, env.project, location)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? discoveryClientId
@@ -328,13 +348,15 @@ export const DiscoveryClientProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (mc
-        .deleteProjectsLocationsDiscoveryClients({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (mc
+          .deleteProjectsLocationsDiscoveryClients({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

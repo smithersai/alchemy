@@ -14,7 +14,7 @@ import * as HttpClient from "effect/http/HttpClient"
 import * as Layer from "effect/Layer"
 import * as Redacted from "effect/Redacted"
 import type { CertificateAuthority } from "./CertificateAuthority.ts"
-import { waitForTxt, type PropagationOptions } from "./Dns.vibe"
+import { waitForTxt, type PropagationOptions } from "./Dns.ts"
 import type { DnsChallengeRecord, DnsSolver } from "./DnsSolver.vibe"
 import {
   ChallengeFailed,
@@ -209,7 +209,7 @@ const chooseChain = effect (
   preferredChain: string | undefined,
 ) => {
   const matches = effect (chain: string) => {
-    const blocks = splitPemChain(chain)
+    const blocks = try Effect.orDie(Effect.try({ try: () => splitPemChain(chain), catch: (e) => e }))
     const top = blocks[blocks.length - 1]
     if (top === undefined) return false
     const parsed = parseCertificate(top) catch () => undefined
@@ -231,7 +231,7 @@ const chooseChain = effect (
  */
 export const issueCertificate = effect <R = never>(
   request: IssueRequest<R>,
-): IssuedCertificate!IssueError!Acme.Credentials | HttpClient.HttpClient | R => {
+): IssuedCertificate!IssueError!(Acme.Credentials | HttpClient.HttpClient | R) => {
   const resolve = try Acme.Credentials
   const config = try resolve
   const jwk = try Acme.Jose.parseJwk(config.accountKey)
@@ -271,11 +271,17 @@ export const issueCertificate = effect <R = never>(
   }
   const key = try generateKey(request.keyAlgorithm ?? "ES256")
   const csr = try createCsr({ key, identifiers: request.identifiers })
-  try retry(acme.finalizeOrder({ url: order.finalize, csr: csrToBase64Url(csr) }), {
-    while: (error) => error._tag === "AcmeOrderNotReady",
-    schedule: Schedule.spaced("1 second"),
-    times: 8,
-  })
+  try retry(
+    acme.finalizeOrder({
+      url: order.finalize,
+      csr: try Effect.orDie(Effect.try({ try: () => csrToBase64Url(csr), catch: (e) => e })),
+    }),
+    {
+      while: (error) => error._tag === "AcmeOrderNotReady",
+      schedule: Schedule.spaced("1 second"),
+      times: 8,
+    },
+  )
 
   const settled = try repeat(acme.getOrder({ url: orderUrl }), {
     schedule: Schedule.spaced("2 seconds"),
@@ -296,7 +302,7 @@ export const issueCertificate = effect <R = never>(
     url: settled.certificate,
   })
   const chain = try chooseChain(downloaded, request.preferredChain)
-  const certificate = splitPemChain(chain)[0] ?? chain
+  const certificate = (try Effect.orDie(Effect.try({ try: () => splitPemChain(chain), catch: (e) => e })))[0] ?? chain
   const parsed = try parseCertificate(certificate)
   return toIssued({
     certificate,
@@ -363,8 +369,9 @@ export type RevokeError = PkiError | acme.RevokeCertificateError
 /** Revoke a certificate. `AcmeAlreadyRevoked` is folded into success. */
 export const revokeCertificate = effect (
   request: RevokeRequest,
-): void!RevokeError!Acme.Credentials | HttpClient.HttpClient => {
-  const leaf = splitPemChain(request.certificate)[0] ?? request.certificate
+): void!RevokeError!(Acme.Credentials | HttpClient.HttpClient) => {
+  const leaf = (try Effect.orDie(Effect.try({ try: () => splitPemChain(request.certificate), catch: (e) => e })))[0]
+    ?? request.certificate
   const der = try Effect.try({
     // Effect.try's first argument is plain TypeScript, not VibeLang.
     try: () => fromPem(leaf),
@@ -372,7 +379,7 @@ export const revokeCertificate = effect (
   })
   const revoke = effect {
     acme.revokeCertificate({
-      certificate: Acme.Jose.base64url(der),
+      certificate: try Effect.orDie(Effect.try({ try: () => Acme.Jose.base64url(der), catch: (e) => e })),
       reason: request.reason === undefined ? undefined : REASON_CODES[request.reason],
     }) catch effect (error) => match (error) {
       when { _tag: "AcmeAlreadyRevoked" }: undefined;

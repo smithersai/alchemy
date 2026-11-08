@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as efs from "@distilled.cloud/aws/efs"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { deepEqual, isResolved } from "alchemy/Diff"
@@ -122,9 +125,14 @@ export const AccessPoint = Resource<AccessPoint>("AWS.EFS.AccessPoint")
  * Internal marker error used to drive the bounded wait for an access point
  * to reach the `available` lifecycle state.
  */
-export error AccessPointNotAvailable {
-  mutable accessPointId: string
-  mutable state: string
+export class AccessPointNotAvailable extends $MutableErrorBase("AccessPointNotAvailable")<{
+  accessPointId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "AccessPointNotAvailable", true)
+  }
 }
 
 /**
@@ -134,7 +142,7 @@ export error AccessPointNotAvailable {
  */
 const retryUntilAccessPointAvailable = effect <E extends { _tag: string }, R>(
   self: efs.AccessPointDescription!E!R,
-): efs.AccessPointDescription!E | AccessPointNotAvailable!R =>
+): efs.AccessPointDescription!(E | AccessPointNotAvailable)!R =>
   try Effect.retry(
     Effect.flatMap(self, effect (ap) => (ap.LifeCycleState === "available" ? ap : throw new AccessPointNotAvailable({
       accessPointId: ap.AccessPointId ?? "",
@@ -185,15 +193,19 @@ export const AccessPointProvider = (): infer _ =>
       const createToken = effect (id: string) => try createPhysicalName({ id, maxLength: 64 })
 
       const findById = effect (accessPointId: string) =>
-        ((try efs.describeAccessPoints({ AccessPointId: accessPointId })).AccessPoints?.[0]) catch effect (e) => match (e) {
-          when { _tag: "AccessPointNotFound" }: try Effect.undefined;
+        (effect {
+          return ((try efs.describeAccessPoints({ AccessPointId: accessPointId })).AccessPoints?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "AccessPointNotFound" }: undefined;
           default: throw e;
         }
 
       const findByToken = effect (fileSystemId: string, token: string) =>
-        ((try efs.describeAccessPoints({ FileSystemId: fileSystemId })).AccessPoints?.find((ap) =>
-          ap.ClientToken === token
-        )) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: try Effect.undefined; default: throw e; }
+        (effect {
+          return ((try efs.describeAccessPoints({ FileSystemId: fileSystemId })).AccessPoints?.find((ap) =>
+            ap.ClientToken === token
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: undefined; default: throw e; }
 
       return AccessPoint.Provider.of({
         stables: ["accessPointId", "accessPointArn", "fileSystemId"],
@@ -208,15 +220,17 @@ export const AccessPointProvider = (): infer _ =>
           const perSystem = try Effect.forEach(
             systems,
             effect (fs) =>
-              (((try efs.describeAccessPoints({ FileSystemId: fs.FileSystemId })).AccessPoints ?? [])
-                .filter(
-                  (ap) => ap.AccessPointId !== undefined && ap.LifeCycleState !== "deleted",
-                )
-                .map((ap) => ({
-                  accessPointId: ap.AccessPointId!,
-                  accessPointArn: ap.AccessPointArn!,
-                  fileSystemId: ap.FileSystemId!,
-                }))) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: []; default: throw e; },
+              (effect {
+                return (((try efs.describeAccessPoints({ FileSystemId: fs.FileSystemId })).AccessPoints ?? [])
+                  .filter(
+                    (ap) => ap.AccessPointId !== undefined && ap.LifeCycleState !== "deleted",
+                  )
+                  .map((ap) => ({
+                    accessPointId: ap.AccessPointId!,
+                    accessPointArn: ap.AccessPointArn!,
+                    fileSystemId: ap.FileSystemId!,
+                  })))
+              }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: []; default: throw e; },
             { concurrency: 5 },
           )
           return perSystem.flat()
@@ -236,18 +250,28 @@ export const AccessPointProvider = (): infer _ =>
             accessPointArn: ap.AccessPointArn!,
             fileSystemId: ap.FileSystemId!,
           }
-          return (try hasAlchemyTags(id, efsTagsToRecord(ap.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, efsTagsToRecord(ap.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // posixUser, rootDirectory, and the file system are all immutable on
         // an access point — any change replaces it. Only tags update in
         // place.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news) || olds === undefined) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))
+            || olds === undefined
+          ) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.fileSystemId !== olds.fileSystemId
-            || !deepEqual(news.posixUser, olds.posixUser)
-            || !deepEqual(news.rootDirectory, olds.rootDirectory)
+            || !(try Effect.orDie(
+              Effect.try({ try: () => deepEqual(news.posixUser, olds.posixUser), catch: (error) => error }),
+            ))
+            || !(try Effect.orDie(
+              Effect.try({ try: () => deepEqual(news.rootDirectory, olds.rootDirectory), catch: (error) => error }),
+            ))
           ) {
             return { action: "replace" } as const
           }
@@ -326,7 +350,7 @@ export const AccessPointProvider = (): infer _ =>
         delete: effect ({ output }) => {
           efs
             .deleteAccessPoint({ AccessPointId: output.accessPointId }) catch effect (e) => match (e) {
-              when { _tag: "AccessPointNotFound" }: try Effect.void;
+              when { _tag: "AccessPointNotFound" }: (undefined as void);
               default: throw e;
             }
         },

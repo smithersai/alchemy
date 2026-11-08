@@ -15,7 +15,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const parentOf = (name: string) => {
+export const parentOf = /** @throws {never} */ (name: string) => {
   const parts = name.split("/").filter((part) => part.length > 0);
   if (parts.length >= 4) return parts.slice(0, -2).join("/");
   return "";
@@ -27,24 +27,28 @@ export const expandName = (value: string, collection: string) => {
   return `${collection}/${trimmed}`;
 };
 
-export const expandCustomer = (value: string) => expandName(value, "customers");
+export const expandCustomer = /** @throws {never} */ (value: string) =>
+  expandName(value, "customers");
 
-export const expandNode = (value: string) => expandName(value, "nodes");
+export const expandNode = /** @throws {never} */ (value: string) => expandName(value, "nodes");
 
-export const expandPath = (value: string) => value.replace(/\/+$/, "").trim();
+export const expandPath = /** @throws {never} */ (value: string) =>
+  value.replace(/\/+$/, "").trim();
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => sameJson([...(left ?? [])].slice().sort(), [...(right ?? [])].slice().sort());
 
-export const updateMaskOf = (...fields: Array<string | undefined>) =>
+export const updateMaskOf = /** @throws {never} */ (...fields: Array<string | undefined>) =>
   fields.filter((field): field is string => field !== undefined).join(",");
 
 export const replaceOnIdentity = (input: {
@@ -565,7 +569,7 @@ export const findOwnedNodeNodeNode = (id: string, parent: string) =>
     return match === undefined ? undefined : { row: match, parent };
   });
 
-export const findDeviceBySerial = (
+export const findDeviceBySerial = /** @throws {never} */ (
   rows: readonly sasportal.SasPortalDevice[],
   serialNumber: string | undefined,
 ) => {
@@ -892,7 +896,7 @@ export type DeviceGrant = {
   state?: string;
 };
 
-export const frequencyRangesOf = (
+export const frequencyRangesOf = /** @throws {never} */ (
   ranges: sasportal.SasPortalFrequencyRangeList | undefined,
 ): FrequencyRange[] | undefined => {
   if (ranges === undefined) return undefined;
@@ -902,7 +906,7 @@ export const frequencyRangesOf = (
   }));
 };
 
-export const deviceConfigOf = (
+export const deviceConfigOf = /** @throws {never} */ (
   config: sasportal.SasPortalDeviceConfig | undefined,
 ): DeviceConfig | undefined => {
   if (config === undefined) return undefined;
@@ -918,7 +922,7 @@ export const deviceConfigOf = (
   };
 };
 
-export const deviceMetadataOf = (
+export const deviceMetadataOf = /** @throws {never} */ (
   metadata: sasportal.SasPortalDeviceMetadata | undefined,
 ): DeviceMetadata | undefined => {
   if (metadata === undefined) return undefined;
@@ -961,7 +965,7 @@ export const deviceBody = (input: {
   deviceMetadata: input.deviceMetadata,
 });
 
-export const signedDeviceBody = (input: {
+export const signedDeviceBody = /** @throws {never} */ (input: {
   encodedDevice: string;
   installerId: string;
 }): sasportal.SasPortalCreateSignedDeviceRequest => ({

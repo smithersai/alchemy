@@ -184,7 +184,9 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const lookupAt = effect (parent: string) =>
-  (try apihub.lookupProjectsLocationsApiHubInstances({ parent })).apiHubInstance catch effect (e) => match (e) {
+  (effect {
+    return (try apihub.lookupProjectsLocationsApiHubInstances({ parent })).apiHubInstance
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: try Effect.undefined;
     default: throw e;
   }
@@ -204,26 +206,35 @@ export const ApiHubInstanceProvider = (): infer _ =>
     stables: ["name", "apiHubInstanceId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.apiHubInstanceId ?? output?.apiHubInstanceId,
-        nextId: news.apiHubInstanceId ?? olds?.apiHubInstanceId ?? output?.apiHubInstanceId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (news.config?.cmekKeyName ?? olds?.config?.cmekKeyName)
-            !== (olds?.config?.cmekKeyName ?? output?.cmekKeyName)
-          || (news.config?.encryptionType ?? olds?.config?.encryptionType)
-            !== (olds?.config?.encryptionType ?? output?.encryptionType),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.apiHubInstanceId ?? output?.apiHubInstanceId,
+            nextId: resolved.apiHubInstanceId ?? olds?.apiHubInstanceId ?? output?.apiHubInstanceId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (resolved.config?.cmekKeyName ?? olds?.config?.cmekKeyName)
+                !== (olds?.config?.cmekKeyName ?? output?.cmekKeyName)
+              || (resolved.config?.encryptionType ?? olds?.config?.encryptionType)
+                !== (olds?.config?.encryptionType ?? output?.encryptionType),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const apiHubInstanceId = try toPhysicalId(
         id,
         olds?.apiHubInstanceId,
@@ -233,24 +244,36 @@ export const ApiHubInstanceProvider = (): infer _ =>
       const name = output?.name ?? resourceName(env.project, location, apiHubInstanceId)
       let existing = try getByName(name)
       if (existing === undefined) {
-        existing = try lookupAt(locationParent(env.project, location))
+        existing = try lookupAt(
+          try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e })),
+        )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const labeled = try hasAlchemyLabels(id, tagRecord(existing.labels))
+      const labeled = try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+      )
       const described = try ownedByLabelsOrDescription(
         id,
         existing.labels,
         existing.description,
       )
-      return labeled || described ? attrs : Unowned(attrs)
+      return labeled || described
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const existing = try lookupAt(locationParent(env.project, env.region))
+      const existing = try lookupAt(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+      )
       if (existing === undefined) return []
-      if (!hasAlchemyLabelMap(existing.labels) && !hasOwnershipMarker(existing.description)) {
+      if (
+        !(try Effect.orDie(Effect.try({ try: () => hasAlchemyLabelMap(existing.labels), catch: (e) => e })))
+        && !(try Effect.orDie(Effect.try({ try: () => hasOwnershipMarker(existing.description), catch: (e) => e })))
+      ) {
         return []
       }
       return [toAttrs(existing, env.project, env.region)]
@@ -258,8 +281,12 @@ export const ApiHubInstanceProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const apiHubInstanceId = try toPhysicalId(
         id,
         news.apiHubInstanceId,
@@ -269,10 +296,12 @@ export const ApiHubInstanceProvider = (): infer _ =>
       const name = resourceName(env.project, location, apiHubInstanceId)
       const ownership = try createInternalLabels(id)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...ownership,
       }
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const config = configOf(news)
 
       let current = try getByName(output?.name ?? name)
@@ -310,11 +339,15 @@ export const ApiHubInstanceProvider = (): infer _ =>
       if (disableChanged || vertexChanged || syncChanged) {
         const operation = try apihub.patchProjectsLocationsApiHubInstances({
           name: currentName,
-          updateMask: updateMaskOf(
-            disableChanged ? "config.disable_search" : undefined,
-            vertexChanged ? "config.vertex_location" : undefined,
-            syncChanged ? "config.agent_registry_sync_config" : undefined,
-          ),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              updateMaskOf(
+                disableChanged ? "config.disable_search" : undefined,
+                vertexChanged ? "config.vertex_location" : undefined,
+                syncChanged ? "config.agent_registry_sync_config" : undefined,
+              ),
+            catch: (e) => e,
+          })),
           body: {
             name: currentName,
             config,
@@ -349,7 +382,9 @@ const ownedByLabelsOrDescription = effect (
   labels: Record<string, string | undefined> | null | undefined,
   description: string | undefined,
 ) => {
-  if (try hasAlchemyLabels(id, tagRecord(labels))) return true
-  const parsed = parseOwnership(description)
+  if (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(labels), catch: (e) => e })))) {
+    return true
+  }
+  const parsed = try Effect.orDie(Effect.try({ try: () => parseOwnership(description), catch: (e) => e }))
   return try hasAlchemyLabels(id, parsed.labels)
 }

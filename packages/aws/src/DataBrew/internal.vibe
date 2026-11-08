@@ -1,7 +1,6 @@
 import * as databrew from "@distilled.cloud/aws/databrew"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /** ARN partition — the testing account is on the standard AWS partition. */
 const PARTITION = "aws"
@@ -23,8 +22,8 @@ export const fetchObservedTags = effect (
 ) =>
   try withSpan(
     effect {
-      const response = try (databrew
-        .listTagsForResource({ ResourceArn: resourceArn }) |> Effect.orElseSucceed(%, () => ({ Tags: undefined })))
+      const response = databrew
+        .listTagsForResource({ ResourceArn: resourceArn }) catch () => ({ Tags: undefined })
       return cleanMap(response.Tags)
     },
     "AWS.DataBrew.fetchObservedTags",
@@ -42,7 +41,9 @@ export const syncTags = effect (
 ) =>
   try withSpan(
     effect {
-      const { upsert, removed } = diffTags(observed, desired)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }),
+      )
       if (upsert.length > 0) {
         try databrew.tagResource({
           ResourceArn: resourceArn,
@@ -70,10 +71,10 @@ export const syncTags = effect (
  * does not leak into the provider's declaration emit and widen
  * `AWS.providers()` for downstream consumers.
  */
-export const retryWhileConflict = <A, E extends { _tag: string }, R>(
+export const retryWhileConflict = effect <A, E extends { _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ConflictException",
     schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(24)]),
   })
@@ -85,10 +86,10 @@ export const retryWhileConflict = <A, E extends { _tag: string }, R>(
  * entity for the data access role ...", patched into a typed tag).
  * Explicitly typed for the same declaration-emit reason as above.
  */
-export const retryWhileRoleNotAssumable = <A, E extends { _tag: string }, R>(
+export const retryWhileRoleNotAssumable = effect <A, E extends { _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     // A freshly-attached S3 policy on the role also propagates lazily and
     // surfaces as AccessDeniedException ("Access denied to s3:GetObject for
     // arn:...:role/... Error: Forbidden") while DataBrew validates the

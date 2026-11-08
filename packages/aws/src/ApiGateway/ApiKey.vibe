@@ -110,8 +110,9 @@ export const ApiKeyProvider = (): infer _ =>
       return {
         stables: ["id"] as const,
         diff: effect ({ news: newsIn, olds }) => {
-          if (!isResolved(newsIn)) return
-          const news = newsIn as ApiKeyProps
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          const news = resolved as ApiKeyProps
           if (
             // API Gateway never returns the key value after create, so rotating
             // a user-supplied value is modeled as replacement instead of patch.
@@ -125,7 +126,7 @@ export const ApiKeyProvider = (): infer _ =>
           if (!output?.id) return undefined
           const k = ag
             .getApiKey({ apiKey: output.id, includeValue: false }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.undefined;
+              when { _tag: "NotFoundException" }: undefined;
               default: throw e;
             }
           if (!k?.id) return undefined
@@ -133,7 +134,7 @@ export const ApiKeyProvider = (): infer _ =>
             id: k.id,
             name: k.name,
             enabled: k.enabled,
-            tags: tagRecord(k.tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(k.tags), catch: (e) => e })),
           }
         },
         list: effect () =>
@@ -152,10 +153,11 @@ export const ApiKeyProvider = (): infer _ =>
           ),
         reconcile: effect ({ id, news: newsIn, output, session }) => {
           const { region } = try AWSEnvironment.current
-          if (!isResolved(newsIn)) {
+          const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }))
+          if (resolved_ === undefined) {
             return try Effect.die("ApiKey props were not resolved")
           }
-          const news = newsIn as ApiKeyProps
+          const news = resolved_ as ApiKeyProps
           const name = try generatedName(id, news)
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...news.tags, ...internalTags }
@@ -167,7 +169,7 @@ export const ApiKeyProvider = (): infer _ =>
           let observed = output?.id
             ? ag
               .getApiKey({ apiKey: output.id, includeValue: false }) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.undefined;
+                when { _tag: "NotFoundException" }: undefined;
                 default: throw e;
               }
             : undefined
@@ -196,9 +198,9 @@ export const ApiKeyProvider = (): infer _ =>
                 when { _tag: "ConflictException" }: try effect {
                   const existing = try readByName(id, name)
                   if (existing) return existing
-                  throw ag.ConflictException.make({
+                  throw try Effect.orDie(Effect.try({ try: () => ag.ConflictException.make({
                     message: `API key '${name}' already exists and is not managed by alchemy`,
-                  })
+                  }), catch: (e) => e }))
                 };
                 default: throw e;
               }
@@ -244,10 +246,10 @@ export const ApiKeyProvider = (): infer _ =>
 
           // Sync tags — diff observed cloud tags against desired so adoption
           // converges without fighting whatever tag set was already there.
-          const observedTags = tagRecord(observed.tags)
-          if (!deepEqual(observedTags, desiredTags)) {
+          const observedTags = try Effect.orDie(Effect.try({ try: () => tagRecord(observed.tags), catch: (e) => e }))
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(observedTags, desiredTags), catch: (e) => e })))) {
             try syncTags({
-              resourceArn: apiKeyArn(region, apiKeyId),
+              resourceArn: try Effect.orDie(Effect.try({ try: () => apiKeyArn(region, apiKeyId), catch: (e) => e })),
               oldTags: observedTags,
               newTags: desiredTags,
             })
@@ -263,13 +265,13 @@ export const ApiKeyProvider = (): infer _ =>
             id: final.id,
             name: final.name,
             enabled: final.enabled,
-            tags: tagRecord(final.tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(final.tags), catch: (e) => e })),
           }
         },
         delete: effect ({ output, session }) => {
           ag
             .deleteApiKey({ apiKey: output.id }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.void;
+              when { _tag: "NotFoundException" }: (undefined as void);
               default: throw e;
             }
           try session.note(`Deleted API key ${output.id}`)

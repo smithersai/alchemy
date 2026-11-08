@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as controltower from "@distilled.cloud/aws/controltower"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -148,8 +149,8 @@ const retryWhileBaselineConflict = effect <A, E extends { readonly _tag: string 
     schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(40)]),
   })
 
-const waitForBaselineOperation = (operationIdentifier: string) =>
-  retryWhileBaselineOperationPending(
+const waitForBaselineOperation = effect (operationIdentifier: string) =>
+  try retryWhileBaselineOperationPending(
     effect {
       const { baselineOperation } = try controltower.getBaselineOperation({
         operationIdentifier,
@@ -172,7 +173,10 @@ const waitForBaselineOperation = (operationIdentifier: string) =>
   )
 
 const readEnabledBaseline = effect (enabledBaselineArn: string) =>
-  (try controltower.getEnabledBaseline({ enabledBaselineIdentifier: enabledBaselineArn })).enabledBaselineDetails catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try controltower.getEnabledBaseline({ enabledBaselineIdentifier: enabledBaselineArn }))
+      .enabledBaselineDetails
+  }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
 // Find an enabled baseline by (baselineIdentifier, targetIdentifier) —
 // covers the create-race and lost-output cases where we don't have the
@@ -238,10 +242,13 @@ export const EnabledBaselineProvider = (): infer _ =>
             targetIdentifier: olds?.targetIdentifier ?? "",
           })
           const tags = try observeControlTowerTags(arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.baselineIdentifier !== olds.baselineIdentifier
             || news.targetIdentifier !== olds.targetIdentifier
@@ -315,7 +322,7 @@ export const EnabledBaselineProvider = (): infer _ =>
               enabledBaselineIdentifier: output.enabledBaselineArn,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
           if (result !== undefined) {

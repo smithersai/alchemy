@@ -201,7 +201,9 @@ const toAttrs = (template: analyticshub.QueryTemplate, project: string): infer _
 
 const getByName = effect (name: string) => {
   if (name.length === 0) return undefined
-  const parsed = parseResourceName(name, "queryTemplates")
+  const parsed = try Effect.orDie(
+    Effect.try({ try: () => parseResourceName(name, "queryTemplates"), catch: (e) => e }),
+  )
   const items = try listQueryTemplates(parsed.parent)
   return items.find(effect (item) => (item.name ?? "") === name)
 }
@@ -219,33 +221,43 @@ export const DataExchangesQueryTemplateProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousDisplay = olds?.displayName ?? output?.displayName
-      const nextDisplay = news.displayName
+      const nextDisplay = resolved.displayName
       const previousDocs = olds?.documentation ?? output?.documentation
-      const nextDocs = news.documentation
-      return replaceOnIdentity({
+      const nextDocs = resolved.documentation
+      const input = {
         previousId: olds?.queryTemplateId ?? output?.queryTemplateId,
-        nextId: news.queryTemplateId,
+        nextId: resolved.queryTemplateId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.dataExchange ?? output?.dataExchange,
-        nextParent: parentExchange(news.dataExchange, env.project, location),
+        nextParent: parentExchange(resolved.dataExchange, env.project, location),
         extra: (previousDisplay !== undefined
           && nextDisplay !== undefined
           && previousDisplay !== nextDisplay)
           || (previousDocs !== undefined && nextDocs !== undefined && previousDocs !== nextDocs),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const queryTemplateId = try toPhysicalId(
         id,
         olds?.queryTemplateId,
@@ -258,13 +270,18 @@ export const DataExchangesQueryTemplateProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedById(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedById(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const exchanges = try listExchangesInProject(env.project, env.region)
-      const templates = try listChildResources(namedOf(exchanges), listQueryTemplates)
+      const templates = try listChildResources(
+        try Effect.orDie(Effect.try({ try: () => namedOf(exchanges), catch: (e) => e })),
+        listQueryTemplates,
+      )
       return templates
         .filter((item) => hasOwnershipMarker(item.description))
         .map((item) => toAttrs(item, env.project))
@@ -272,7 +289,9 @@ export const DataExchangesQueryTemplateProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const dataExchange = parentExchange(news.dataExchange, env.project, location)
       const queryTemplateId = try toPhysicalId(
         id,
@@ -281,8 +300,12 @@ export const DataExchangesQueryTemplateProvider = (): infer _ =>
       )
       const name = output?.name ?? resourceName(dataExchange, queryTemplateId)
       const ownership = try ownershipLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
-      const displayName = displayNameOf(news.displayName, queryTemplateId)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => displayNameOf(news.displayName, queryTemplateId), catch: (e) => e }),
+      )
       const body: analyticshub.QueryTemplate = {
         displayName,
         description: desiredDescription,
@@ -330,12 +353,16 @@ export const DataExchangesQueryTemplateProvider = (): infer _ =>
         current = try retryTransient(
           analyticshub.patchProjectsLocationsDataExchangesQueryTemplates({
             name: currentName,
-            updateMask: updateMaskOf(
-              descriptionChanged ? "description" : undefined,
-              contactChanged ? "primaryContact" : undefined,
-              proposerChanged ? "proposer" : undefined,
-              routineChanged ? "routine" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  descriptionChanged ? "description" : undefined,
+                  contactChanged ? "primaryContact" : undefined,
+                  proposerChanged ? "proposer" : undefined,
+                  routineChanged ? "routine" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { name: currentName, ...body },
           }),
         )

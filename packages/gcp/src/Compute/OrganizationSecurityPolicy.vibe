@@ -217,12 +217,14 @@ const normalizeParent = (value: string): string => {
 }
 
 const projectParent = effect (project: string) =>
-  (try effect {
-    const resource = try resourcemanager.getProjects({ name: `projects/${project}` })
-    return resource.parent !== undefined && resource.parent.length > 0
-      ? normalizeParent(resource.parent)
-      : undefined
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const resource = try resourcemanager.getProjects({ name: `projects/${project}` })
+      return resource.parent !== undefined && resource.parent.length > 0
+        ? normalizeParent(resource.parent)
+        : undefined
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const resolveParent = effect (news: { parent?: string }, output: { parent?: string } | undefined) => {
   const explicit = news.parent ?? output?.parent
@@ -373,21 +375,23 @@ const toAttrs = (
 const getById = effect (securityPolicy: string) =>
   compute
     .getOrganizationSecurityPolicies({ securityPolicy }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const findByShortName = effect (parentId: string, shortName: string) =>
-  Array.from(
-    try (compute.listOrganizationSecurityPolicies
-      .items({
-        parentId,
-        maxResults: 500,
-        returnPartialSuccess: true,
-      })
-      |> Stream.filter(%, (policy) => policy.shortName === shortName)
-      |> Stream.runCollect(%)),
-  )[0] catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return Array.from(
+      try (compute.listOrganizationSecurityPolicies
+        .items({
+          parentId,
+          maxResults: 500,
+          returnPartialSuccess: true,
+        })
+        |> Stream.filter(%, (policy) => policy.shortName === shortName)
+        |> Stream.runCollect(%)),
+    )[0]
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const observe = effect (securityPolicyId: string | undefined, parentId: string, shortName: string) => {
   if (securityPolicyId !== undefined && securityPolicyId.length > 0) {
@@ -495,7 +499,7 @@ const syncRules = effect (
         priority,
       }),
       { ignoreNotFound: true },
-    ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
   }
 }
 
@@ -513,17 +517,20 @@ export const OrganizationSecurityPolicyProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved__ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved__ === undefined) return undefined
       const previousName = olds?.shortName ?? output?.shortName
-      const nextName = news.shortName ?? previousName
+      const nextName = resolved__.shortName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
       const previousParent = olds?.parent ?? output?.parent
-      const nextParent = news.parent !== undefined ? normalizeParent(news.parent) : previousParent
+      const nextParent = resolved__.parent !== undefined ? normalizeParent(resolved__.parent) : previousParent
       const parentChanged = previousParent !== undefined
         && nextParent !== undefined
         && normalizeParent(previousParent) !== normalizeParent(nextParent)
       const previousType = typeOf(olds?.type ?? output?.type)
-      const nextType = typeOf(news.type ?? output?.type)
+      const nextType = typeOf(resolved__.type ?? output?.type)
       if (nameChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -544,7 +551,9 @@ export const OrganizationSecurityPolicyProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -553,17 +562,19 @@ export const OrganizationSecurityPolicyProvider = (): infer _ =>
       if (parents.length === 0) return []
       const listed: OrganizationSecurityPolicy["Attributes"][] = []
       for (const parentId of parents) {
-        const chunk = (Array.from(
-          try (compute.listOrganizationSecurityPolicies
-            .items({
-              parentId,
-              maxResults: 500,
-              returnPartialSuccess: true,
-            })
-            |> Stream.filter(%, (policy) => hasOwnershipMarker(policy.description))
-            |> Stream.map(%, (policy) => toAttrs(policy, env.project))
-            |> Stream.runCollect(%)),
-        )) catch effect (e) => match (e) {
+        const chunk = (effect {
+          return (Array.from(
+            try (compute.listOrganizationSecurityPolicies
+              .items({
+                parentId,
+                maxResults: 500,
+                returnPartialSuccess: true,
+              })
+              |> Stream.filter(%, (policy) => hasOwnershipMarker(policy.description))
+              |> Stream.map(%, (policy) => toAttrs(policy, env.project))
+              |> Stream.runCollect(%)),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" }: [] as OrganizationSecurityPolicy["Attributes"][];
           default: throw e;
         }
@@ -600,7 +611,7 @@ export const OrganizationSecurityPolicyProvider = (): infer _ =>
             },
           }),
           { ignoreAlreadyExists: true },
-        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         const createdId = inserted !== undefined ? idFromOperation(inserted) : ""
         current = try awaitResource(
           createdId.length > 0 ? createdId : (output?.securityPolicyId ?? ""),
@@ -693,16 +704,18 @@ export const OrganizationSecurityPolicyProvider = (): infer _ =>
       if (securityPolicyId.length === 0) return
       const parentId = output.parent.length > 0 ? normalizeParent(output.parent) : undefined
       try (effect {
-        return (try waitOrganizationOperation(
-          try compute
-            .deleteOrganizationSecurityPolicies({
-              securityPolicy: securityPolicyId,
-            }),
-          parentId,
-          {
-            ignore: ["RESOURCE_NOT_FOUND"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        return (effect {
+          return (try waitOrganizationOperation(
+            try compute
+              .deleteOrganizationSecurityPolicies({
+                securityPolicy: securityPolicyId,
+              }),
+            parentId,
+            {
+              ignore: ["RESOURCE_NOT_FOUND"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",

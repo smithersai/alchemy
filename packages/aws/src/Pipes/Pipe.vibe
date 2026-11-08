@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as pipes from "@distilled.cloud/aws/pipes"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -184,10 +187,16 @@ export const Pipe = Resource<Pipe>("AWS.Pipes.Pipe")
  * `DELETE_FAILED`, ...). Carries the pipe's `StateReason` so the
  * misconfiguration (usually IAM) is visible in the failure.
  */
-export error PipeFailed {
-  mutable pipeName: string
-  mutable state: string
-  mutable stateReason: string | undefined
+export class PipeFailed extends $MutableErrorBase("PipeFailed")<{
+  pipeName: string
+
+  state: string
+
+  stateReason: string | undefined
+}> {
+  static {
+    $MutableErrorMatcher(this, "PipeFailed", true)
+  }
 }
 
 /**
@@ -196,22 +205,38 @@ export error PipeFailed {
  * bounded wait (~60s). Surfaces the
  * last observed state instead of hanging the deploy.
  */
-export error PipeStateTimeout {
-  mutable pipeName: string
-  mutable state: string | undefined
-  mutable message: string
+export class PipeStateTimeout extends $MutableErrorBase("PipeStateTimeout")<{
+  pipeName: string
+
+  state: string | undefined
+
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "PipeStateTimeout", true)
+  }
 }
 
 /** Internal poll signal: the pipe is still in a transitional state. */
-error PipeStillTransitioning {
-  mutable pipeName: string
-  mutable state: string
+class PipeStillTransitioning extends $MutableErrorBase("PipeStillTransitioning")<{
+  pipeName: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "PipeStillTransitioning", true)
+  }
 }
 
 /** Internal poll signal: the pipe still exists after a delete. */
-error PipeStillPresent {
-  mutable pipeName: string
-  mutable state: string | undefined
+class PipeStillPresent extends $MutableErrorBase("PipeStillPresent")<{
+  pipeName: string
+
+  state: string | undefined
+}> {
+  static {
+    $MutableErrorMatcher(this, "PipeStillPresent", true)
+  }
 }
 
 const TRANSITIONAL_STATES: ReadonlySet<string> = new Set([
@@ -224,11 +249,11 @@ const TRANSITIONAL_STATES: ReadonlySet<string> = new Set([
 
 const isFailedState = (state: string): infer _ => state.includes("FAILED")
 
-const unwrap = (value: string | Redacted<string> | undefined): string | undefined =>
+const unwrap = (value: string | Redacted.Redacted<string> | undefined): string | undefined =>
   value === undefined ? undefined : Redacted.isRedacted(value) ? Redacted.value(value) : value
 
 const unwrapTags = (
-  tags: { [key: string]: string | Redacted<string> | undefined } | undefined,
+  tags: { [key: string]: string | Redacted.Redacted<string> | undefined } | undefined,
 ): Record<string, string> => {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(tags ?? {})) {
@@ -388,7 +413,7 @@ export const PipeProvider = (): infer _ =>
       const describeOrUndefined = effect (pipeName: string) =>
         pipes
           .describePipe({ Name: pipeName }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -399,25 +424,27 @@ export const PipeProvider = (): infer _ =>
        * `PipeStateTimeout` — never a hang.
        */
       const awaitSettled = effect (pipeName: string) => {
-        const described = (try (effect {
-          return try effect {
-            const d = try describeOrUndefined(pipeName)
-            return (d?.CurrentState !== undefined && TRANSITIONAL_STATES.has(d.CurrentState)
-              ? throw new PipeStillTransitioning({
-                pipeName,
-                state: d.CurrentState,
-              })
-              : d)
+        const described = (effect {
+          return (try (effect {
+            return try effect {
+              const d = try describeOrUndefined(pipeName)
+              return (d?.CurrentState !== undefined && TRANSITIONAL_STATES.has(d.CurrentState)
+                ? throw new PipeStillTransitioning({
+                  pipeName,
+                  state: d.CurrentState,
+                })
+                : d)
+            }
           }
+            |> retryWhileTransitioning(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "PipeStillTransitioning" }: throw new PipeStateTimeout({
+            pipeName,
+            state: e.state,
+            message: `Pipe '${pipeName}' did not settle within the bounded wait (last state: ${e.state})`,
+          });
+          default: throw e;
         }
-          |> retryWhileTransitioning(%))) catch effect (e) => match (e) {
-            when { _tag: "PipeStillTransitioning" }: throw new PipeStateTimeout({
-              pipeName,
-              state: e.state,
-              message: `Pipe '${pipeName}' did not settle within the bounded wait (last state: ${e.state})`,
-            });
-            default: throw e;
-          }
         if (described?.CurrentState !== undefined && isFailedState(described.CurrentState)) {
           throw new PipeFailed({
             pipeName,
@@ -430,19 +457,27 @@ export const PipeProvider = (): infer _ =>
 
       /** Poll (bounded, ~60s) until `describePipe` returns NotFound. */
       const awaitGone = effect (pipeName: string) => {
-        ;(try (effect {
-          return (try Effect.fail(
-            new PipeStillPresent({ pipeName, state: (try pipes.describePipe({ Name: pipeName })).CurrentState }),
-          )) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
-        }
-          |> retryWhilePresent(%))) catch effect (e) => match (e) {
-            when { _tag: "PipeStillPresent" }: throw new PipeStateTimeout({
-              pipeName,
-              state: e.state,
-              message: `Pipe '${pipeName}' did not finish deleting within the bounded wait (last state: ${e.state})`,
-            });
-            default: throw e;
+        ;(effect {
+          return (try (effect {
+            return (effect {
+              throw new PipeStillPresent({
+                pipeName,
+                state: (try pipes.describePipe({ Name: pipeName })).CurrentState,
+              })
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
           }
+            |> retryWhilePresent(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "PipeStillPresent" }: throw new PipeStateTimeout({
+            pipeName,
+            state: e.state,
+            message: `Pipe '${pipeName}' did not finish deleting within the bounded wait (last state: ${e.state})`,
+          });
+          default: throw e;
+        }
       }
 
       return Pipe.Provider.of({
@@ -474,11 +509,14 @@ export const PipeProvider = (): infer _ =>
             currentState: described.CurrentState,
           }
           const tags = unwrapTags(described.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) {
@@ -518,11 +556,13 @@ export const PipeProvider = (): infer _ =>
                   e.stateReason ?? "no reason"
                 }); deleting and recreating`,
               )
-              ;(try (pipes.deletePipe({ Name: pipeName })
-                |> retryWhileConflicting(%))) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
-                  default: throw e;
-                }
+              ;(effect {
+                return (try (pipes.deletePipe({ Name: pipeName })
+                  |> retryWhileConflicting(%)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: (undefined as void);
+                default: throw e;
+              }
               try awaitGone(pipeName)
               return undefined
             };
@@ -532,26 +572,28 @@ export const PipeProvider = (): infer _ =>
           // 2. ENSURE — create if missing; tolerate the concurrent-create
           //    race and retry while a freshly-created IAM role propagates.
           if (observed?.Arn === undefined) {
-            ;(try (pipes
-              .createPipe({
-                Name: pipeName,
-                Description: news.description,
-                DesiredState: desiredState,
-                Source: news.source,
-                SourceParameters: news.sourceParameters,
-                Enrichment: news.enrichment,
-                EnrichmentParameters: news.enrichmentParameters,
-                Target: news.target,
-                TargetParameters: news.targetParameters,
-                RoleArn: news.roleArn,
-                Tags: desiredTags,
-                LogConfiguration: news.logConfiguration,
-                KmsKeyIdentifier: news.kmsKeyIdentifier,
-              })
-              |> retryUntilRoleAssumable(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (pipes
+                .createPipe({
+                  Name: pipeName,
+                  Description: news.description,
+                  DesiredState: desiredState,
+                  Source: news.source,
+                  SourceParameters: news.sourceParameters,
+                  Enrichment: news.enrichment,
+                  EnrichmentParameters: news.enrichmentParameters,
+                  Target: news.target,
+                  TargetParameters: news.targetParameters,
+                  RoleArn: news.roleArn,
+                  Tags: desiredTags,
+                  LogConfiguration: news.logConfiguration,
+                  KmsKeyIdentifier: news.kmsKeyIdentifier,
+                })
+                |> retryUntilRoleAssumable(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             observed = try awaitSettled(pipeName)
           }
 
@@ -643,11 +685,13 @@ export const PipeProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (pipes.deletePipe({ Name: output.pipeName })
-            |> retryWhileConflicting(%))) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (pipes.deletePipe({ Name: output.pipeName })
+              |> retryWhileConflicting(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: (undefined as void);
+            default: throw e;
+          }
           try awaitGone(output.pipeName)
         },
       })

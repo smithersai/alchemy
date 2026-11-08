@@ -234,20 +234,27 @@ export const BackupVaultProvider = (): infer _ =>
     stables: ["name", "backupVaultId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKey = olds?.encryptionConfig?.kmsKeyName ?? output?.encryptionConfig?.kmsKeyName
-      const nextKey = news.encryptionConfig?.kmsKeyName
-      return replaceOnIdentity({
-        previousId: olds?.backupVaultId ?? output?.backupVaultId,
-        nextId: news.backupVaultId ?? olds?.backupVaultId ?? output?.backupVaultId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousKey !== undefined && nextKey !== undefined && previousKey !== nextKey,
-      })
+      const nextKey = resolved.encryptionConfig?.kmsKeyName
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backupVaultId ?? output?.backupVaultId,
+            nextId: resolved.backupVaultId ?? olds?.backupVaultId ?? output?.backupVaultId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousKey !== undefined && nextKey !== undefined && previousKey !== nextKey,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -258,12 +265,19 @@ export const BackupVaultProvider = (): infer _ =>
         output?.backupVaultId,
         "backupvault",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, backupVaultId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -280,10 +294,12 @@ export const BackupVaultProvider = (): infer _ =>
         output?.backupVaultId,
         "backupvault",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, backupVaultId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const retention = news.backupMinimumEnforcedRetentionDuration ?? DEFAULT_RETENTION
@@ -380,17 +396,19 @@ export const BackupVaultProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (backupdr
-        .deleteProjectsLocationsBackupVaults({
-          name: output.name,
-          force: true,
-          ignoreBackupPlanReferences: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (backupdr
+          .deleteProjectsLocationsBackupVaults({
+            name: output.name,
+            force: true,
+            ignoreBackupPlanReferences: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

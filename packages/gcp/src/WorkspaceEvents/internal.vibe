@@ -122,9 +122,12 @@ export const toPhysicalId = effect (
 export const wesubLabels = effect (id: string) => {
   const internal = try createInternalLabels(id)
   const labels: Record<string, string> = {
-    [WESUB_LABEL_KEYS.stack]: internal[alchemyLabelKeys.stack] ?? sanitizeLabelValue("x"),
-    [WESUB_LABEL_KEYS.stage]: internal[alchemyLabelKeys.stage] ?? sanitizeLabelValue("x"),
-    [WESUB_LABEL_KEYS.id]: internal[alchemyLabelKeys.id] ?? sanitizeLabelValue("x"),
+    [WESUB_LABEL_KEYS.stack]: internal[alchemyLabelKeys.stack]
+      ?? (try Effect.orDie(Effect.try({ try: () => sanitizeLabelValue("x"), catch: (e) => e }))),
+    [WESUB_LABEL_KEYS.stage]: internal[alchemyLabelKeys.stage]
+      ?? (try Effect.orDie(Effect.try({ try: () => sanitizeLabelValue("x"), catch: (e) => e }))),
+    [WESUB_LABEL_KEYS.id]: internal[alchemyLabelKeys.id]
+      ?? (try Effect.orDie(Effect.try({ try: () => sanitizeLabelValue("x"), catch: (e) => e }))),
   }
   return labels
 }
@@ -142,7 +145,7 @@ export const ownedByWesubLabels = effect (
   labels: Record<string, string | undefined> | null | undefined,
 ) => {
   const expected = try wesubLabels(id)
-  const observed = tagRecord(labels)
+  const observed = try Effect.orDie(Effect.try({ try: () => tagRecord(labels), catch: (e) => e }))
   if (!hasWesubLabels(observed)) return false
   const exact = observed[WESUB_LABEL_KEYS.stack] === expected[WESUB_LABEL_KEYS.stack]
     && observed[WESUB_LABEL_KEYS.stage] === expected[WESUB_LABEL_KEYS.stage]
@@ -206,25 +209,24 @@ export const catchMissing = effect <A, E extends { readonly _tag: string }, R>(
   try (effect
     |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
       error._tag === "NotFound", effect () =>
-      try Effect.undefined))
+      undefined))
 
 export const ignoreMissing = effect <E extends { readonly _tag: string }, R>(
   effect: unknown!E!R,
 ) =>
   try (effect
     |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
-      error._tag === "NotFound", effect () =>
-      try Effect.void))
+      error._tag === "NotFound", effect () => (undefined as void)))
 
 export const getSubscription = effect (
   name: string,
 ) => (name.length === 0
-  ? try Effect.undefined
+  ? undefined
   : try catchMissing(we.getSubscriptions({ name: toSubscriptionName(name) })))
 
-export const getTopic = effect (name: string) => (name.length === 0 ? try Effect.undefined : pubsub
+export const getTopic = effect (name: string) => (name.length === 0 ? undefined : pubsub
   .getProjectsTopics({ topic: name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -239,7 +241,7 @@ export const ensureTopic = effect (name: string, labels: Record<string, string>)
     current = created ?? undefined
   }
   if (current === undefined) return undefined
-  const observed = tagRecord(current.labels)
+  const observed = try Effect.orDie(Effect.try({ try: () => tagRecord(current.labels), catch: (e) => e }))
   const desired = { ...observed, ...labels }
   const changed = Object.entries(desired).some(([key, value]) => observed[key] !== value)
   if (!changed) return current
@@ -268,7 +270,7 @@ export const operationResourceName = (operation: we.Operation): infer _ =>
  * Wait for a Workspace Events long-running operation (subscription create/update/delete).
  */
 export const waitForOperation = effect (operation: we.Operation) => {
-  waitForGcpOperation(operation, effect (name) => try we.getOperations({ name }), {
+  try waitForGcpOperation(operation, effect (name) => try we.getOperations({ name }), {
     budget: "10 minutes",
   })
   // Return the finished operation so callers can read its `response`.
@@ -277,9 +279,9 @@ export const waitForOperation = effect (operation: we.Operation) => {
 }
 
 export const waitUntilExists = effect <A, E, R>(
-  get: A | undefined!E!R,
+  get: (A | undefined)!E!R,
   name: string,
-): NonNullable<A>!E | ResourceNotResolved!R =>
+): NonNullable<A>!(E | ResourceNotResolved)!R =>
   try (get
     |> Effect.filterOrFail(%, (value): value is NonNullable<A> =>
       value != null, () =>
@@ -292,9 +294,9 @@ export const waitUntilExists = effect <A, E, R>(
     }))
 
 export const waitUntilGone = effect <A, E, R>(
-  get: A | undefined!E!R,
+  get: (A | undefined)!E!R,
   name: string,
-): void!E | ResourceStillExists!R =>
+): void!(E | ResourceStillExists)!R =>
   try (get
     |> Effect.filterOrFail(%, (value) => value === undefined, () => new ResourceStillExists({ resourceName: name }))
     |> Effect.retry(%, {

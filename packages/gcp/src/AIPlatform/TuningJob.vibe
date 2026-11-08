@@ -132,13 +132,18 @@ export class TuningJobNotResolved extends Data.TaggedError("GCP.AIPlatform.Tunin
 
 const toDisplayName = effect (id: string, existing?: string) => {
   if (existing !== undefined) return existing
-  return rfc1035(
-    try createPhysicalName({
-      id,
-      maxLength: 63,
-      lowercase: true,
-    }),
-  )
+  const name = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  return try Effect.orDie(Effect.try({
+    try: () =>
+      rfc1035(
+        name,
+      ),
+    catch: (e) => e,
+  }))
 }
 
 const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1TuningJob, project: string): infer _ => {
@@ -184,7 +189,9 @@ const listJobs = effect (project: string, region: string) => {
     )).flat()
   }
   // Vertex AI has no `locations/-` wildcard; scan known locations.
-  return (try fallback) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  return (effect {
+    return (try fallback)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 }
 
 const findOwned = effect (id: string, project: string, region: string, hinted?: string) => {
@@ -194,7 +201,12 @@ const findOwned = effect (id: string, project: string, region: string, hinted?: 
   }
   const jobs = try listJobs(project, region)
   for (const job of jobs) {
-    if (try hasAlchemyLabels(id, tagRecord(job.labels))) return job
+    if (
+      try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(job.labels), catch: (e) => e })),
+      )
+    ) return job
   }
   return undefined as aiplatform.GoogleCloudAiplatformV1TuningJob | undefined
 }
@@ -202,28 +214,31 @@ const findOwned = effect (id: string, project: string, region: string, hinted?: 
 const cancelJob = effect (name: string) => {
   const existing = try getByName(name)
   if (existing === undefined) return
-  if (!isJobTerminal(typeof existing.state === "string" ? existing.state : undefined)) {
+  const state2 = typeof existing.state === "string" ? existing.state : undefined
+  if (!(try Effect.orDie(Effect.try({ try: () => isJobTerminal(state2), catch: (e) => e })))) {
     aiplatform
       .cancelProjectsLocationsTuningJobs({ name }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: try Effect.void;
         default: throw e;
       }
-    ;(try (getByName(name)
-      |> Effect.filterOrFail(
-        %,
-        (job) =>
-          job === undefined
-          || isJobTerminal(typeof job.state === "string" ? job.state : undefined),
-        () => new TuningJobNotResolved({ resourceName: name }),
-      )
-      |> Effect.retry(%, {
-        while: (error) => error._tag === "GCP.AIPlatform.TuningJobNotResolved",
-        times: 8,
-        schedule: Schedule.spaced("4 seconds"),
-      }))) catch effect (e) => match (e) {
-        when { _tag: "GCP.AIPlatform.TuningJobNotResolved" }: try Effect.void;
-        default: throw e;
-      }
+    ;(effect {
+      return (try (getByName(name)
+        |> Effect.filterOrFail(
+          %,
+          (job) =>
+            job === undefined
+            || isJobTerminal(typeof job.state === "string" ? job.state : undefined),
+          () => new TuningJobNotResolved({ resourceName: name }),
+        )
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "GCP.AIPlatform.TuningJobNotResolved",
+          times: 8,
+          schedule: Schedule.spaced("4 seconds"),
+        })))
+    }) catch effect (e) => match (e) {
+      when { _tag: "GCP.AIPlatform.TuningJobNotResolved" }: try Effect.void;
+      default: throw e;
+    }
   }
 }
 
@@ -233,12 +248,21 @@ export const TuningJobProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       if (previousLocation !== nextLocation) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -250,7 +274,12 @@ export const TuningJobProvider = (): infer _ =>
       const existing = try findOwned(id, env.project, env.region, output?.name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -266,10 +295,12 @@ export const TuningJobProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const tunedModelDisplayName = news.tunedModelDisplayName ?? (try toDisplayName(id, output?.tuningJobId))
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 

@@ -183,6 +183,7 @@ export const orDieCredentialsUnavailable =
  *     ),
  *   );
  * ```
+ * @throws {never}
  */
 export const lazyCredentials = <Resolved, E = CredentialsUnavailable>() =>
   Effect.fn("lazyCredentials")(function* <A>(

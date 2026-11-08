@@ -156,7 +156,7 @@ export const organizationParent = (value: string) =>
 
 export const organizationIdOf = (value: string) => lastSegment(value);
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
 export const organizationLocationParent = (organization: string, location: string) =>
@@ -175,10 +175,12 @@ export const normalizeLocation = (location: string | undefined, fallback = DEFAU
 export const jsonEqual = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const updateMaskOf = (...fields: Array<string | undefined>) =>
+export const updateMaskOf = /** @throws {never} */ (...fields: Array<string | undefined>) =>
   fields.filter((field): field is string => field !== undefined).join(",");
 
 export const toResourceId = (

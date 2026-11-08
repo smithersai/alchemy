@@ -365,7 +365,7 @@ export const DBClusterProvider = (): infer _ =>
           .describeDBClusters({
             DBClusterIdentifier: clusterId,
           }) catch effect (e) => match (e) {
-            when { _tag: "DBClusterNotFoundFault" }: try Effect.undefined;
+            when { _tag: "DBClusterNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.DBClusters?.[0]
@@ -375,7 +375,7 @@ export const DBClusterProvider = (): infer _ =>
         if (!arn) return {} as Record<string, string>
         const response = neptune
           .listTagsForResource({ ResourceName: arn }) catch effect (e) => match (e) {
-            when { _tag: "DBClusterNotFoundFault" }: try Effect.undefined;
+            when { _tag: "DBClusterNotFoundFault" }: undefined;
             default: throw e;
           }
         return toTagRecord(response?.TagList)
@@ -418,23 +418,24 @@ export const DBClusterProvider = (): infer _ =>
               |> Stream.runCollect(%)),
           ).flatMap((page) => (page.DBClusters ?? []).map((cluster) => toAttrs({ cluster, tags: {} }))),
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (
             (try toIdentifier(id, olds ?? ({} as DBClusterProps)))
-              !== (try toIdentifier(id, news))
+              !== (try toIdentifier(id, resolved))
           ) {
             return { action: "replace" } as const
           }
           // Immutable props — any change forces a fresh cluster.
           if (
             olds !== undefined
-            && ((olds.engine ?? "neptune") !== (news.engine ?? "neptune")
-              || olds.dbSubnetGroupName !== news.dbSubnetGroupName
-              || olds.storageEncrypted !== news.storageEncrypted
-              || olds.kmsKeyId !== news.kmsKeyId
-              || olds.globalClusterIdentifier !== news.globalClusterIdentifier
+            && ((olds.engine ?? "neptune") !== (resolved.engine ?? "neptune")
+              || olds.dbSubnetGroupName !== resolved.dbSubnetGroupName
+              || olds.storageEncrypted !== resolved.storageEncrypted
+              || olds.kmsKeyId !== resolved.kmsKeyId
+              || olds.globalClusterIdentifier !== resolved.globalClusterIdentifier
               || JSON.stringify(olds.availabilityZones ?? [])
-                !== JSON.stringify(news.availabilityZones ?? []))
+                !== JSON.stringify(resolved.availabilityZones ?? []))
           ) {
             return { action: "replace" } as const
           }
@@ -454,7 +455,7 @@ export const DBClusterProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...internalTags, ...news.tags }
           // The wire field is whole days.
-          const backupRetentionDays = toWireDays(news.backupRetentionPeriod)
+          const backupRetentionDays = try Effect.orDie(Effect.try({ try: () => toWireDays(news.backupRetentionPeriod), catch: (e) => e }))
 
           // Observe — fetch live cluster state.
           let observed = try readCluster(identifier)
@@ -494,7 +495,7 @@ export const DBClusterProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "DBClusterAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "DBClusterAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
 
@@ -606,7 +607,7 @@ export const DBClusterProvider = (): infer _ =>
                     RoleArn: role.roleArn,
                     FeatureName: role.featureName,
                   }) catch effect (e) => match (e) {
-                    when { _tag: "DBClusterRoleAlreadyExistsFault" }: try Effect.void;
+                    when { _tag: "DBClusterRoleAlreadyExistsFault" }: (undefined as void);
                     default: throw e;
                   }
               }
@@ -622,7 +623,7 @@ export const DBClusterProvider = (): infer _ =>
                     RoleArn: role.RoleArn,
                     FeatureName: role.FeatureName,
                   }) catch effect (e) => match (e) {
-                    when { _tag: "DBClusterRoleNotFoundFault" }: try Effect.void;
+                    when { _tag: "DBClusterRoleNotFoundFault" }: (undefined as void);
                     default: throw e;
                   }
               }
@@ -636,7 +637,7 @@ export const DBClusterProvider = (): infer _ =>
 
           // Sync tags — diff observed cloud tags against desired.
           const observedTags = try readTags(dbClusterArn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0 && dbClusterArn) {
             try neptune.addTagsToResource({
               ResourceName: dbClusterArn,
@@ -659,7 +660,7 @@ export const DBClusterProvider = (): infer _ =>
               DBClusterIdentifier: output.dbClusterIdentifier,
               SkipFinalSnapshot: true,
             }) catch effect (e) => match (e) {
-              when { _tag: "DBClusterNotFoundFault" }: try Effect.void;
+              when { _tag: "DBClusterNotFoundFault" }: (undefined as void);
               default: throw e;
             }
           // Block until the cluster is fully gone. Neptune deletion is async;
@@ -667,11 +668,11 @@ export const DBClusterProvider = (): infer _ =>
           // (DBSubnetGroup or VPC) is torn down next and AWS rejects it.
           Effect.repeat(
             effect {
-              return (try (neptune
+              return (effect { return (try (neptune
                 .describeDBClusters({
                   DBClusterIdentifier: output.dbClusterIdentifier,
                 })
-                |> Effect.as(%, true))) catch effect (e) => match (e) {
+                |> Effect.as(%, true))) }) catch effect (e) => match (e) {
                   when { _tag: "DBClusterNotFoundFault" }: false;
                   default: throw e;
                 }
@@ -680,7 +681,7 @@ export const DBClusterProvider = (): infer _ =>
               schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
               until: (exists) => exists === false,
             },
-          ) catch effect (e) => try Effect.void
+          ) catch effect (e) => (undefined as void)
         },
       }
     },

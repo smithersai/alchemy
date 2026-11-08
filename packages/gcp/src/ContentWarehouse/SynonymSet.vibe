@@ -92,7 +92,10 @@ const resourceName = (project: string, location: string, context: string): infer
 
 const contextOf = effect (id: string, explicit: string | undefined, existing: string | undefined) => {
   if (explicit !== undefined) {
-    return rfc1035(explicit, "sales").slice(0, MAX_CONTEXT_LENGTH)
+    return (try Effect.orDie(Effect.try({ try: () => rfc1035(explicit, "sales"), catch: (e) => e }))).slice(
+      0,
+      MAX_CONTEXT_LENGTH,
+    )
   }
   if (existing !== undefined) return existing
   return try toPhysicalId(id, undefined, undefined, "syn")
@@ -121,18 +124,27 @@ export const SynonymSetProvider = (): infer _ =>
     stables: ["name", "context", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousId: olds?.context ?? output?.context,
-        nextId: news.context,
-        previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.context ?? output?.context,
+            nextId: resolved.context,
+            previousLocation: olds?.location ?? output?.location,
+            nextLocation: resolved.location ?? olds?.location ?? output?.location,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const context = try contextOf(id, olds?.context, output?.context)
       const existing = try getByName(
         output?.name ?? resourceName(env.project, location, context),
@@ -140,13 +152,19 @@ export const SynonymSetProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // State or the generated context proves ownership.
-      return output !== undefined || olds?.context === undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds?.context === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       try ensureProject(parent)
       const context = try contextOf(id, news.context, output?.context)
       const name = resourceName(env.project, location, context)
@@ -171,7 +189,10 @@ export const SynonymSetProvider = (): infer _ =>
       const contextChanged = !sameText(current.context, context)
       // `current.synonyms` may still hold an ownership group written by an
       // earlier version; comparing raw groups removes it on the next patch.
-      const synonymsChanged = !sameJson(current.synonyms ?? [], synonyms)
+      const synonymsChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.synonyms ?? [], synonyms),
+        catch: (e) => e,
+      })))
       if (contextChanged || synonymsChanged) {
         current = try cw.patchProjectsLocationsSynonymSets({
           name: currentName,

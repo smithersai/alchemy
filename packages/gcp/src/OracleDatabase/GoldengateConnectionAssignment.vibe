@@ -217,29 +217,36 @@ export const GoldengateConnectionAssignmentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousConn = olds?.goldengateConnection
         ?? olds?.properties?.goldengateConnection
         ?? output?.goldengateConnection
         ?? ""
-      const nextConn = news.goldengateConnection ?? news.properties?.goldengateConnection ?? previousConn
+      const nextConn = resolved.goldengateConnection ?? resolved.properties?.goldengateConnection ?? previousConn
       const previousDep = olds?.goldengateDeployment
         ?? olds?.properties?.goldengateDeployment
         ?? output?.goldengateDeployment
         ?? ""
-      const nextDep = news.goldengateDeployment ?? news.properties?.goldengateDeployment ?? previousDep
-      return replaceOnIdentity({
-        previousId: olds?.goldengateConnectionAssignmentId ?? output?.goldengateConnectionAssignmentId,
-        nextId: news.goldengateConnectionAssignmentId
-          ?? olds?.goldengateConnectionAssignmentId
-          ?? output?.goldengateConnectionAssignmentId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-        extra: nextConn !== previousConn || nextDep !== previousDep,
-      })
+      const nextDep = resolved.goldengateDeployment ?? resolved.properties?.goldengateDeployment ?? previousDep
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.goldengateConnectionAssignmentId ?? output?.goldengateConnectionAssignmentId,
+            nextId: resolved.goldengateConnectionAssignmentId
+              ?? olds?.goldengateConnectionAssignmentId
+              ?? output?.goldengateConnectionAssignmentId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            extra: nextConn !== previousConn || nextDep !== previousDep,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -250,13 +257,25 @@ export const GoldengateConnectionAssignmentProvider = (): infer _ =>
         output?.goldengateConnectionAssignmentId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = output?.name
-        ?? resourceNameOf(env.project, location, COLLECTION, goldengateConnectionAssignmentId)
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceNameOf(env.project, location, COLLECTION, goldengateConnectionAssignmentId),
+            catch: (e) => e,
+          }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -273,31 +292,39 @@ export const GoldengateConnectionAssignmentProvider = (): infer _ =>
         output?.goldengateConnectionAssignmentId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceNameOf(
-        env.project,
-        location,
-        COLLECTION,
-        goldengateConnectionAssignmentId,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
       )
+      const name = try Effect.orDie(Effect.try({
+        try: () =>
+          resourceNameOf(
+            env.project,
+            location,
+            COLLECTION,
+            goldengateConnectionAssignmentId,
+          ),
+        catch: (e) => e,
+      }))
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (oracle
-          .createProjectsLocationsGoldengateConnectionAssignments({
-            parent: parentOf(env.project, location),
-            goldengateConnectionAssignmentId,
-            body: toCreateBody(news, desiredLabels),
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (oracle
+            .createProjectsLocationsGoldengateConnectionAssignments({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              goldengateConnectionAssignmentId,
+              body: toCreateBody(news, desiredLabels),
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -318,14 +345,16 @@ export const GoldengateConnectionAssignmentProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (oracle
-        .deleteProjectsLocationsGoldengateConnectionAssignments({
-          name: output.name,
-        })
-        |> retryConflict(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsGoldengateConnectionAssignments({
+            name: output.name,
+          })
+          |> retryConflict(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

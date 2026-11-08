@@ -177,10 +177,23 @@ export const OrganizationsDeidentifyTemplateProvider = (): infer _ =>
     stables: ["name", "templateId", "organization", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.templateId ?? output?.templateId, news.templateId)
-          ?? replaceOn(olds?.organization ?? output?.organization, news.organization)
+        (try Effect.orDie(
+          Effect.try({
+            try: () => replaceOn(olds?.templateId ?? output?.templateId, resolved.templateId),
+            catch: (e) => e,
+          }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({
+              try: () => replaceOn(olds?.organization ?? output?.organization, resolved.organization),
+              catch: (e) => e,
+            }),
+          ))
       )
     },
 
@@ -195,21 +208,25 @@ export const OrganizationsDeidentifyTemplateProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      return (Array.from(
-        try (dlp.listOrganizationsDeidentifyTemplates
-          .pages({ parent: organization, pageSize: 100 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.deidentifyTemplates ?? []))
-          |> Stream.filter(%, (template) => hasOwnershipMarker(template.description))
-          |> Stream.map(%, (template) => toAttrs(template, organization, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (dlp.listOrganizationsDeidentifyTemplates
+            .pages({ parent: organization, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.deidentifyTemplates ?? []))
+            |> Stream.filter(%, (template) => hasOwnershipMarker(template.description))
+            |> Stream.map(%, (template) => toAttrs(template, organization, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -218,7 +235,9 @@ export const OrganizationsDeidentifyTemplateProvider = (): infer _ =>
       const templateId = try toPhysicalId(id, news.templateId, output?.templateId)
       const name = resourceName(organization, templateId)
       const ownership = try createInternalLabels(id)
-      const description = encodeDescription(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName
       const deidentifyConfig = news.deidentifyConfig
 
@@ -247,12 +266,21 @@ export const OrganizationsDeidentifyTemplateProvider = (): infer _ =>
       const currentName = current.name ?? name
       const displayChanged = !sameText(current.displayName, displayName)
       const descriptionChanged = !sameText(current.description, description)
-      const configChanged = fingerprint(current.deidentifyConfig) !== fingerprint(deidentifyConfig)
-      const updateMask = updateMaskOf(
-        displayChanged ? "displayName" : undefined,
-        descriptionChanged ? "description" : undefined,
-        configChanged ? "deidentifyConfig" : undefined,
-      )
+      const configChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.deidentifyConfig), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(deidentifyConfig),
+            catch: (e) => e,
+          })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "displayName" : undefined,
+            descriptionChanged ? "description" : undefined,
+            configChanged ? "deidentifyConfig" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try dlp.patchOrganizationsDeidentifyTemplates({

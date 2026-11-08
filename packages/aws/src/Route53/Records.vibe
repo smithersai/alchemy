@@ -177,7 +177,9 @@ export const RecordsProvider = (): infer _ =>
     effect {
       const waitForChange = effect (changeId: string) =>
         try (effect {
-          return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status catch effect (
+          return (effect {
+            return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status
+          }) catch effect (
             e,
           ) => match (e) { when { _tag: "NoSuchChange" }: "PENDING"; default: throw e; }
         }
@@ -197,7 +199,7 @@ export const RecordsProvider = (): infer _ =>
             StartRecordName: normalizeName(name),
             StartRecordType: type,
             MaxItems: 10,
-          }) catch effect (e) => match (e) { when { _tag: "NoSuchHostedZone" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NoSuchHostedZone" }: undefined; default: throw e; }
 
         return (response?.ResourceRecordSets ?? []).find(
           (recordSet) =>
@@ -257,18 +259,20 @@ export const RecordsProvider = (): infer _ =>
         if (changes.length === 0) {
           return
         }
-        ;(try waitForChange(
-          (try route53
-            .changeResourceRecordSets({
-              HostedZoneId: normalizeHostedZoneId(hostedZoneId),
-              ChangeBatch: {
-                Comment: "Alchemy Route53 record-set delete",
-                Changes: changes,
-              },
-            })).ChangeInfo.Id,
-        )) catch effect (e) => match (e) {
-          when { _tag: "NoSuchHostedZone" }: try Effect.void;
-          when { _tag: "InvalidChangeBatch" }: try Effect.void;
+        ;(effect {
+          return (try waitForChange(
+            (try route53
+              .changeResourceRecordSets({
+                HostedZoneId: normalizeHostedZoneId(hostedZoneId),
+                ChangeBatch: {
+                  Comment: "Alchemy Route53 record-set delete",
+                  Changes: changes,
+                },
+              })).ChangeInfo.Id,
+          ))
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchHostedZone" }: (undefined as void);
+          when { _tag: "InvalidChangeBatch" }: (undefined as void);
           default: throw e;
         }
       }
@@ -276,7 +280,10 @@ export const RecordsProvider = (): infer _ =>
       return {
         stables: ["hostedZoneId", "type"],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           // Identity change → replace (same rule as `Record`); the names
           // themselves are mutable — prop/binding deltas fall through to
           // the engine's default update logic.
@@ -284,11 +291,15 @@ export const RecordsProvider = (): infer _ =>
             // An undefined side means "inferred" — reconcile resolves it
             // against the live account, so only two explicit, differing
             // zones are a replacement.
-            (olds.hostedZoneId !== undefined
-              && news.hostedZoneId !== undefined
-              && normalizeHostedZoneId(olds.hostedZoneId)
-                !== normalizeHostedZoneId(news.hostedZoneId))
-            || olds.type !== news.type
+            try Effect.orDie(Effect.try({
+              try: () =>
+                (olds.hostedZoneId !== undefined
+                  && resolved.hostedZoneId !== undefined
+                  && normalizeHostedZoneId(olds.hostedZoneId)
+                    !== normalizeHostedZoneId(resolved.hostedZoneId))
+                || olds.type !== resolved.type,
+              catch: (e) => e,
+            }))
           ) {
             return { action: "replace" } as const
           }
@@ -318,7 +329,10 @@ export const RecordsProvider = (): infer _ =>
             names: found,
             ttl: recordSet?.TTL ?? output.ttl,
             records: recordSet?.ResourceRecords?.map((record) => record.Value) ?? output.records,
-            aliasTarget: toAliasTarget(recordSet?.AliasTarget) ?? output.aliasTarget,
+            aliasTarget: (try Effect.orDie(Effect.try({
+              try: () => toAliasTarget(recordSet?.AliasTarget),
+              catch: (e) => e,
+            }))) ?? output.aliasTarget,
           }
         },
         reconcile: effect ({ news, output, session, bindings }) => {
@@ -360,7 +374,9 @@ export const RecordsProvider = (): infer _ =>
           }
           if (changes.length > 0) {
             const response = try route53.changeResourceRecordSets({
-              HostedZoneId: normalizeHostedZoneId(hostedZoneId),
+              HostedZoneId: try Effect.orDie(
+                Effect.try({ try: () => normalizeHostedZoneId(hostedZoneId), catch: (e) => e }),
+              ),
               ChangeBatch: {
                 Comment: "Alchemy Route53 record-set upsert",
                 Changes: changes,
@@ -381,12 +397,16 @@ export const RecordsProvider = (): infer _ =>
             ? try findRecord(hostedZoneId, desired[0]!, news.type)
             : undefined
           return {
-            hostedZoneId: normalizeHostedZoneId(hostedZoneId),
+            hostedZoneId: try Effect.orDie(
+              Effect.try({ try: () => normalizeHostedZoneId(hostedZoneId), catch: (e) => e }),
+            ),
             type: news.type,
             names: desired.map((name) => normalizeName(name)),
             ttl: sample?.TTL,
             records: sample?.ResourceRecords?.map((record) => record.Value),
-            aliasTarget: toAliasTarget(sample?.AliasTarget),
+            aliasTarget: try Effect.orDie(
+              Effect.try({ try: () => toAliasTarget(sample?.AliasTarget), catch: (e) => e }),
+            ),
           }
         },
         delete: effect ({ output }) => {

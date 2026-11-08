@@ -357,26 +357,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (dm.listProjectsLocationsMigrationJobs
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.migrationJobs ?? []))
-      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (dm.listProjectsLocationsMigrationJobs
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.migrationJobs ?? []))
         |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.MigrationJob[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (dm.listProjectsLocationsMigrationJobs
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.migrationJobs ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.MigrationJob[]; default: throw e; };
     default: throw e;
   }
 
@@ -398,31 +402,44 @@ export const MigrationJobProvider = (): infer _ =>
     stables: ["name", "migrationJobId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.type ?? output?.type
-      const nextType = news.type ?? previousType
+      const nextType = resolved.type ?? previousType
       const previousCmek = olds?.cmekKeyName ?? output?.cmekKeyName
-      const nextCmek = news.cmekKeyName ?? previousCmek
-      const previousSource = lastSegment(olds?.source ?? output?.source ?? "")
-      const nextSource = lastSegment(news.source)
-      const previousDestination = lastSegment(olds?.destination ?? output?.destination ?? "")
-      const nextDestination = lastSegment(news.destination)
-      return replaceOnIdentity({
-        previousId: olds?.migrationJobId ?? output?.migrationJobId,
-        nextId: news.migrationJobId ?? olds?.migrationJobId ?? output?.migrationJobId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousType !== nextType
-          || previousCmek !== nextCmek
-          || (previousSource.length > 0 && nextSource.length > 0 && previousSource !== nextSource)
-          || (previousDestination.length > 0
-            && nextDestination.length > 0
-            && previousDestination !== nextDestination),
-      })
+      const nextCmek = resolved.cmekKeyName ?? previousCmek
+      const previousSource = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.source ?? output?.source ?? ""), catch: (e) => e }),
+      )
+      const nextSource = try Effect.orDie(Effect.try({ try: () => lastSegment(resolved.source), catch: (e) => e }))
+      const previousDestination = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.destination ?? output?.destination ?? ""), catch: (e) => e }),
+      )
+      const nextDestination = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(resolved.destination), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.migrationJobId ?? output?.migrationJobId,
+            nextId: resolved.migrationJobId ?? olds?.migrationJobId ?? output?.migrationJobId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousType !== nextType
+              || previousCmek !== nextCmek
+              || (previousSource.length > 0 && nextSource.length > 0 && previousSource !== nextSource)
+              || (previousDestination.length > 0
+                && nextDestination.length > 0
+                && previousDestination !== nextDestination),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -433,12 +450,19 @@ export const MigrationJobProvider = (): infer _ =>
         output?.migrationJobId,
         "job",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, migrationJobId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -455,15 +479,21 @@ export const MigrationJobProvider = (): infer _ =>
         output?.migrationJobId,
         "job",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, migrationJobId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? migrationJobId
-      const source = connectionProfileOf(news.source, env.project, location)
-      const destination = connectionProfileOf(news.destination, env.project, location)
+      const source = try Effect.orDie(
+        Effect.try({ try: () => connectionProfileOf(news.source, env.project, location), catch: (e) => e }),
+      )
+      const destination = try Effect.orDie(
+        Effect.try({ try: () => connectionProfileOf(news.destination, env.project, location), catch: (e) => e }),
+      )
       const staticIpConnectivity = news.staticIpConnectivity !== undefined
           || (news.vpcPeeringConnectivity === undefined && news.reverseSshConnectivity === undefined)
         ? {}
@@ -519,16 +549,46 @@ export const MigrationJobProvider = (): infer _ =>
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = (current.displayName ?? "") !== displayName
-      const dumpFlagsChanged = fingerprint(current.dumpFlags) !== fingerprint(news.dumpFlags)
+      const dumpFlagsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.dumpFlags), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.dumpFlags), catch: (e) => e })))
       const dumpPathChanged = (current.dumpPath ?? "") !== (news.dumpPath ?? "")
       const dumpTypeChanged = news.dumpType !== undefined && (current.dumpType ?? "") !== news.dumpType
-      const performanceChanged = fingerprint(current.performanceConfig) !== fingerprint(news.performanceConfig)
+      const performanceChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, current.performanceConfig),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, news.performanceConfig),
+        catch: (e) => e,
+      })))
       const filterChanged = (current.filter ?? "") !== (news.filter ?? "")
-      const objectsChanged = fingerprint(current.objectsConfig) !== fingerprint(news.objectsConfig)
-      const conversionChanged = fingerprint(current.conversionWorkspace) !== fingerprint(news.conversionWorkspace)
-      const vpcChanged = fingerprint(current.vpcPeeringConnectivity) !== fingerprint(news.vpcPeeringConnectivity)
-      const sshChanged = fingerprint(publicReverseSsh(current.reverseSshConnectivity))
-        !== fingerprint(publicReverseSsh(news.reverseSshConnectivity))
+      const objectsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.objectsConfig), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.objectsConfig), catch: (e) => e })))
+      const conversionChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, current.conversionWorkspace), catch: (e) => e }),
+      )) !== (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, news.conversionWorkspace),
+        catch: (e) => e,
+      })))
+      const vpcChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, current.vpcPeeringConnectivity), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({ try: fingerprint.bind(undefined, news.vpcPeeringConnectivity), catch: (e) => e }),
+        ))
+      const sshChanged = (try Effect.orDie(
+        Effect.try({
+          try: fingerprint.bind(undefined, publicReverseSsh(current.reverseSshConnectivity)),
+          catch: (e) => e,
+        }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({
+            try: fingerprint.bind(undefined, publicReverseSsh(news.reverseSshConnectivity)),
+            catch: (e) => e,
+          }),
+        ))
       const nextKind = connectivityKind({
         staticIpConnectivity,
         vpcPeeringConnectivity: news.vpcPeeringConnectivity,
@@ -536,17 +596,51 @@ export const MigrationJobProvider = (): infer _ =>
       })
       const previousKind = connectivityKind(current)
       const staticChanged = nextKind === "static" && previousKind !== "static"
-      const homogeneousChanged =
-        fingerprint(current.mysqlHomogeneousConfig) !== fingerprint(news.mysqlHomogeneousConfig)
-        || fingerprint(current.postgresHomogeneousConfig)
-          !== fingerprint(news.postgresHomogeneousConfig)
-        || fingerprint(current.sqlserverHomogeneousMigrationJobConfig)
-          !== fingerprint(news.sqlserverHomogeneousMigrationJobConfig)
-        || fingerprint(current.sqlserverToPostgresConfig)
-          !== fingerprint(news.sqlserverToPostgresConfig)
-        || fingerprint(current.oracleToPostgresConfig) !== fingerprint(news.oracleToPostgresConfig)
-        || fingerprint(current.postgresToSqlserverConfig)
-          !== fingerprint(news.postgresToSqlserverConfig)
+      const homogeneousChanged = (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.mysqlHomogeneousConfig), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.mysqlHomogeneousConfig), catch: (e) => e }),
+          ))
+        || (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.postgresHomogeneousConfig), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.postgresHomogeneousConfig), catch: (e) => e }),
+          ))
+        || (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, current.sqlserverHomogeneousMigrationJobConfig),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, news.sqlserverHomogeneousMigrationJobConfig),
+              catch: (e) => e,
+            }),
+          ))
+        || (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.sqlserverToPostgresConfig), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.sqlserverToPostgresConfig), catch: (e) => e }),
+          ))
+        || (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.oracleToPostgresConfig), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, news.oracleToPostgresConfig),
+              catch: (e) => e,
+            }),
+          ))
+        || (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.postgresToSqlserverConfig), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.postgresToSqlserverConfig), catch: (e) => e }),
+          ))
       const mask = fieldMask([
         labelsChanged && "labels",
         displayNameChanged && "displayName",
@@ -585,16 +679,18 @@ export const MigrationJobProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (dm
-        .deleteProjectsLocationsMigrationJobs({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (dm
+          .deleteProjectsLocationsMigrationJobs({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

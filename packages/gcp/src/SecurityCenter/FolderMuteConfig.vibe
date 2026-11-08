@@ -173,14 +173,21 @@ export const FolderMuteConfigProvider = (): infer _ =>
     stables: ["name", "muteConfigId", "folder", "folderId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.muteConfigId ?? output?.muteConfigId, news.muteConfigId)
-          ?? replaceOn(
-            olds?.folder ?? output?.folder,
-            news.folder !== undefined ? folderParent(news.folder) : undefined,
-          )
-          ?? replaceOn(olds?.type ?? output?.type, news.type)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.muteConfigId ?? output?.muteConfigId, resolved.muteConfigId)
+              ?? replaceOn(
+                olds?.folder ?? output?.folder,
+                resolved.folder !== undefined ? folderParent(resolved.folder) : undefined,
+              )
+              ?? replaceOn(olds?.type ?? output?.type, resolved.type),
+          catch: (e) => e,
+        }))
       )
     },
 
@@ -192,20 +199,24 @@ export const FolderMuteConfigProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, folder, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const folder = try tryResolveFolder()
       if (folder === undefined) return []
-      return (Array.from(
-        try (scc.listFoldersMuteConfigs.pages({ parent: folder, pageSize: 100 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.muteConfigs ?? []))
-          |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
-          |> Stream.map(%, (config) => toAttrs(config, folder, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (scc.listFoldersMuteConfigs.pages({ parent: folder, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.muteConfigs ?? []))
+            |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
+            |> Stream.map(%, (config) => toAttrs(config, folder, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -214,7 +225,9 @@ export const FolderMuteConfigProvider = (): infer _ =>
       const muteConfigId = try toPhysicalId(id, news.muteConfigId, output?.muteConfigId)
       const name = resourceName(folder, muteConfigId)
       const ownership = try createInternalLabels(id)
-      const description = encodeDescription(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const filter = news.filter
       const type = news.type ?? DEFAULT_MUTE_TYPE
       const expiryTime = news.expiryTime

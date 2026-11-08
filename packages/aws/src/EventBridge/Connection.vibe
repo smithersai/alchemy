@@ -257,13 +257,14 @@ export const ConnectionProvider = (): infer _ =>
       return {
         stables: ["connectionName", "connectionArn"],
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createConnectionName(id, olds)
-          const newName = try createConnectionName(id, news)
+          const newName = try createConnectionName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
-          if (olds.invocationConnectivityParameters && !news.invocationConnectivityParameters) {
+          if (olds.invocationConnectivityParameters && !resolved.invocationConnectivityParameters) {
             return { action: "replace" } as const
           }
         },
@@ -273,7 +274,7 @@ export const ConnectionProvider = (): infer _ =>
           const connectionName = output?.connectionName ?? (try createConnectionName(id, olds ?? {}))
           const described = eventbridge
             .describeConnection({ Name: connectionName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (!described?.Name || !described.ConnectionArn) {
@@ -319,7 +320,7 @@ export const ConnectionProvider = (): infer _ =>
           // connection falls through to create.
           const observed = eventbridge
             .describeConnection({ Name: connectionName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -335,7 +336,7 @@ export const ConnectionProvider = (): infer _ =>
                 KmsKeyIdentifier: news.kmsKeyIdentifier,
                 InvocationConnectivityParameters: toConnectivityParameters(news),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
           } else {
@@ -368,13 +369,13 @@ export const ConnectionProvider = (): infer _ =>
           // Deleting a connection that ApiDestinations still reference fails
           // until the destinations are gone; the engine deletes dependents
           // first, so a bounded retry absorbs eventual consistency.
-          ;(try (eventbridge.deleteConnection({ Name: output.connectionName })
+          ;(effect { return (try (eventbridge.deleteConnection({ Name: output.connectionName })
             |> Effect.retry(%, {
               while: (e): boolean => e._tag === "ConcurrentModificationException",
               schedule: Schedule.spaced("2 seconds"),
               times: 8,
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            }))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

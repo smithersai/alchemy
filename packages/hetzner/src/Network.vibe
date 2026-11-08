@@ -5,8 +5,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import { waitForAction } from "./actions.vibe"
 import {
   alchemyStackSelector,
@@ -305,10 +303,10 @@ const cidrContains = (outer: string, inner: string): boolean => {
 }
 
 const getById = effect (id: number) =>
-  (try effect {
+  (effect { return (try effect {
     const { network } = try Hetzner.networks.getNetwork({ id })
     return network
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const findByName = effect (name: string) =>
   try effect {
@@ -363,8 +361,8 @@ const syncMetadata = effect (args: {
   exposeRoutesToVswitch: boolean
   labels: Record<string, string>
 }) => {
-  const observedLabels = tagRecord(args.observed.labels)
-  const { removed, upsert } = diffLabels(observedLabels, args.labels)
+  const observedLabels = try Effect.orDie(Effect.try({ try: () => tagRecord(args.observed.labels), catch: (e) => e }))
+  const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, args.labels), catch: (e) => e }))
   const labelsChanged = removed.length > 0 || upsert.length > 0
   const nameChanged = args.observed.name !== args.name
   const exposeChanged = args.observed.expose_routes_to_vswitch !== args.exposeRoutesToVswitch
@@ -402,7 +400,7 @@ const syncSubnets = effect (
         ip_range: subnet.ipRange,
       }),
     )
-      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
   }
 
   for (const subnet of desired) {
@@ -416,7 +414,7 @@ const syncSubnets = effect (
         vswitch_id: subnet.vswitchId,
       }),
     )
-      |> Effect.catchIf(%, alreadyThere, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyThere, effect () => (undefined as void)))
   }
 }
 
@@ -437,7 +435,7 @@ const syncRoutes = effect (
         gateway: route.gateway,
       }),
     )
-      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
   }
 
   for (const route of desired) {
@@ -449,7 +447,7 @@ const syncRoutes = effect (
         gateway: route.gateway,
       }),
     )
-      |> Effect.catchIf(%, alreadyThere, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyThere, effect () => (undefined as void)))
   }
 }
 
@@ -476,11 +474,12 @@ export const NetworkProvider = (): infer _ =>
       ),
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       if (
         output !== undefined
-        && news.ipRange !== output.ipRange
-        && !cidrContains(news.ipRange, output.ipRange)
+        && resolved.ipRange !== output.ipRange
+        && !cidrContains(resolved.ipRange, output.ipRange)
       ) {
         return { action: "replace" } as const
       }
@@ -492,7 +491,7 @@ export const NetworkProvider = (): infer _ =>
       const observed = try observe(output?.networkId, name, id)
       if (observed === undefined) return undefined
       const attrs = toAttrs(observed)
-      return (try hasAlchemyLabels(id, tagRecord(observed.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(observed.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -582,11 +581,11 @@ export const NetworkProvider = (): infer _ =>
             delete: false,
           }),
         )
-          |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+          |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
       }
-      ;(try (Hetzner.networks.deleteNetwork({ id: output.networkId })
-        |> Effect.retry(%, busyRetry))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+      ;(effect { return (try (Hetzner.networks.deleteNetwork({ id: output.networkId })
+        |> Effect.retry(%, busyRetry))) }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

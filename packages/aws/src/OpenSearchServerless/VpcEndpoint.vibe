@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -141,8 +142,9 @@ export const VpcEndpointProvider = (): infer _ =>
           }
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) {
@@ -162,21 +164,27 @@ export const VpcEndpointProvider = (): infer _ =>
 
           // 2. ENSURE — create if missing; wait for ACTIVE (async provisioning)
           if (detail === undefined) {
-            const created = (try aoss
-              .createVpcEndpoint({
-                name,
-                vpcId: news.vpcId,
-                subnetIds: news.subnetIds,
-                securityGroupIds: news.securityGroupIds,
-              })).createVpcEndpointDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try aoss
+                .createVpcEndpoint({
+                  name,
+                  vpcId: news.vpcId,
+                  subnetIds: news.subnetIds,
+                  securityGroupIds: news.securityGroupIds,
+                })).createVpcEndpointDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             const endpointId = created?.id ?? (try findByName(name))?.id
             if (endpointId === undefined) {
-              throw aoss.ResourceNotFoundException.make({
-                message: `VPC endpoint ${name} not visible after create`,
-              })
+              throw try Effect.orDie(Effect.try({
+                try: () =>
+                  aoss.ResourceNotFoundException.make({
+                    message: `VPC endpoint ${name} not visible after create`,
+                  }),
+                catch: (e) => e,
+              }))
             }
             try session.note(`creating VPC endpoint ${name} (async)...`)
             detail = try awaitVpcEndpointActive(endpointId)
@@ -222,7 +230,7 @@ export const VpcEndpointProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           retryWhileConflict(aoss.deleteVpcEndpoint({ id: output.vpcEndpointId })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

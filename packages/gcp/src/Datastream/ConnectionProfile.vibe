@@ -644,7 +644,10 @@ export const ConnectionProfileProvider = (): infer _ =>
     stables: ["name", "connectionProfileId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKind = kindOf({
         mysqlProfile: olds?.mysqlProfile ?? output?.mysqlProfile,
@@ -661,23 +664,27 @@ export const ConnectionProfileProvider = (): infer _ =>
         serviceNowProfile: olds?.serviceNowProfile ?? output?.serviceNowProfile,
         dataverseProfile: olds?.dataverseProfile ?? output?.dataverseProfile,
       })
-      const nextKind = kindOf(news) || previousKind
+      const nextKind = kindOf(resolved) || previousKind
       const previousSpanner = olds?.spannerProfile?.database ?? output?.spannerProfile?.database
-      const nextSpanner = news.spannerProfile?.database ?? previousSpanner
-      return replaceOnIdentity({
-        previousId: olds?.connectionProfileId ?? output?.connectionProfileId,
-        nextId: news.connectionProfileId ?? olds?.connectionProfileId ?? output?.connectionProfileId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousKind !== nextKind
-          || (nextKind === "spanner"
-            && previousSpanner !== undefined
-            && nextSpanner !== undefined
-            && previousSpanner !== nextSpanner),
-      })
+      const nextSpanner = resolved.spannerProfile?.database ?? previousSpanner
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.connectionProfileId ?? output?.connectionProfileId,
+            nextId: resolved.connectionProfileId ?? olds?.connectionProfileId ?? output?.connectionProfileId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousKind !== nextKind
+              || (nextKind === "spanner"
+                && previousSpanner !== undefined
+                && nextSpanner !== undefined
+                && previousSpanner !== nextSpanner),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -688,12 +695,19 @@ export const ConnectionProfileProvider = (): infer _ =>
         output?.connectionProfileId,
         "profile",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, connectionProfileId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, location)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -710,10 +724,12 @@ export const ConnectionProfileProvider = (): infer _ =>
         output?.connectionProfileId,
         "profile",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, connectionProfileId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? connectionProfileId
@@ -728,7 +744,9 @@ export const ConnectionProfileProvider = (): infer _ =>
         mongodbProfile: news.mongodbProfile,
         spannerProfile: news.spannerProfile,
         gcsProfile: news.gcsProfile,
-        bigqueryProfile: emptyMessage(news.bigqueryProfile),
+        bigqueryProfile: try Effect.orDie(
+          Effect.try({ try: () => emptyMessage(news.bigqueryProfile), catch: (e) => e }),
+        ),
         salesforceProfile: news.salesforceProfile,
         salesforceMarketingCloudProfile: news.salesforceMarketingCloudProfile,
         serviceNowProfile: news.serviceNowProfile,
@@ -764,7 +782,9 @@ export const ConnectionProfileProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = (current.displayName ?? "") !== displayName
       const mysqlChanged = news.mysqlProfile !== undefined
@@ -798,7 +818,8 @@ export const ConnectionProfileProvider = (): infer _ =>
           publicMongodb(news.mongodbProfile),
         )
       const gcsChanged = news.gcsProfile !== undefined
-        && fingerprint(current.gcsProfile) !== fingerprint(news.gcsProfile)
+        && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.gcsProfile), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.gcsProfile), catch: (e) => e })))
       const salesforceChanged = news.salesforceProfile !== undefined
         && secretChanged(
           salesforceHasSecret(news.salesforceProfile),
@@ -829,8 +850,18 @@ export const ConnectionProfileProvider = (): infer _ =>
         location,
       )
       const staticChanged = news.staticServiceIpConnectivity !== undefined
-        && fingerprint(emptyMessage(current.staticServiceIpConnectivity))
-          !== fingerprint(emptyMessage(news.staticServiceIpConnectivity))
+        && (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, emptyMessage(current.staticServiceIpConnectivity)),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, emptyMessage(news.staticServiceIpConnectivity)),
+              catch: (e) => e,
+            }),
+          ))
       const sshChanged = news.forwardSshConnectivity !== undefined
         && secretChanged(
           sshHasSecret(news.forwardSshConnectivity),
@@ -838,24 +869,31 @@ export const ConnectionProfileProvider = (): infer _ =>
           publicForwardSsh(news.forwardSshConnectivity),
         )
       const privateChanged = news.privateConnectivity !== undefined
-        && fingerprint(current.privateConnectivity) !== fingerprint(desiredPrivate)
-      const mask = fieldMask([
-        labelsChanged && "labels",
-        displayNameChanged && "displayName",
-        mysqlChanged && "mysqlProfile",
-        postgresqlChanged && "postgresqlProfile",
-        oracleChanged && "oracleProfile",
-        sqlServerChanged && "sqlServerProfile",
-        mongodbChanged && "mongodbProfile",
-        gcsChanged && "gcsProfile",
-        salesforceChanged && "salesforceProfile",
-        sfmcChanged && "salesforceMarketingCloudProfile",
-        serviceNowChanged && "serviceNowProfile",
-        dataverseChanged && "dataverseProfile",
-        staticChanged && "staticServiceIpConnectivity",
-        sshChanged && "forwardSshConnectivity",
-        privateChanged && "privateConnectivity",
-      ])
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.privateConnectivity), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredPrivate), catch: (e) => e })))
+      const mask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            labelsChanged && "labels",
+            displayNameChanged && "displayName",
+            mysqlChanged && "mysqlProfile",
+            postgresqlChanged && "postgresqlProfile",
+            oracleChanged && "oracleProfile",
+            sqlServerChanged && "sqlServerProfile",
+            mongodbChanged && "mongodbProfile",
+            gcsChanged && "gcsProfile",
+            salesforceChanged && "salesforceProfile",
+            sfmcChanged && "salesforceMarketingCloudProfile",
+            serviceNowChanged && "serviceNowProfile",
+            dataverseChanged && "dataverseProfile",
+            staticChanged && "staticServiceIpConnectivity",
+            sshChanged && "forwardSshConnectivity",
+            privateChanged && "privateConnectivity",
+          ]),
+        catch: (e) => e,
+      }))
 
       if (mask.length > 0) {
         const patch: ds.ConnectionProfile = { name: current.name ?? name }
@@ -897,18 +935,20 @@ export const ConnectionProfileProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (ds
-        .deleteProjectsLocationsConnectionProfiles({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "Conflict" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (ds
+          .deleteProjectsLocationsConnectionProfiles({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "Conflict" }: try Effect.undefined;
+        default: throw e;
+      }
       try settleOperation(operation, { notFoundOk: true })
       waitUntilGone(getByName(output.name), output.name, {
         times: 15,

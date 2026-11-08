@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as backup from "@distilled.cloud/aws/backup"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -224,7 +225,7 @@ export const BackupPlanProvider = (): infer _ =>
           if (!output?.backupPlanId) return undefined
           const found = backup
             .getBackupPlan({ BackupPlanId: output.backupPlanId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (!found?.BackupPlanArn) return undefined
@@ -234,11 +235,13 @@ export const BackupPlanProvider = (): infer _ =>
             backupPlanName: found.BackupPlan?.BackupPlanName ?? output.backupPlanName,
             versionId: found.VersionId ?? output.versionId,
           }
-          const tags = ((try backup.listTags({ ResourceArn: found.BackupPlanArn })).Tags ?? {}) catch () =>
-            ({}) as Record<string, string | undefined>
+          const backupPlanArn = found.BackupPlanArn
+          const tags = (effect {
+            return ((try backup.listTags({ ResourceArn: backupPlanArn })).Tags ?? {})
+          }) catch () => ({}) as Record<string, string | undefined>
           return (try hasAlchemyTags(id, tags as Record<string, string>))
             ? attrs
-            : Unowned(attrs)
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
         reconcile: effect ({ id, news = {}, output, session }) => {
           const name = output?.backupPlanName ?? (try createName(id, news))
@@ -252,7 +255,7 @@ export const BackupPlanProvider = (): infer _ =>
           const live = output?.backupPlanId
             ? backup
               .getBackupPlan({ BackupPlanId: output.backupPlanId }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             : undefined
@@ -283,8 +286,9 @@ export const BackupPlanProvider = (): infer _ =>
           }
 
           // SYNC tags — diff against observed cloud tags.
-          const currentTags = ((try backup.listTags({ ResourceArn: backupPlanArn })).Tags ?? {}) catch () =>
-            ({}) as Record<string, string | undefined>
+          const currentTags = (effect {
+            return ((try backup.listTags({ ResourceArn: backupPlanArn })).Tags ?? {})
+          }) catch () => ({}) as Record<string, string | undefined>
           const { upsert, removed } = diffTags(currentTags as Record<string, string>, {
             ...news.tags,
             ...internalTags,
@@ -314,11 +318,13 @@ export const BackupPlanProvider = (): infer _ =>
           // A plan cannot be deleted while it still has resource selections
           // attached — delete those first (idempotent: a vanished selection
           // is already gone).
-          const selections = (Array.from(
-            try (backup.listBackupSelections
-              .pages({ BackupPlanId: output.backupPlanId })
-              |> Stream.runCollect(%)),
-          ).flatMap((page) => page.BackupSelectionsList ?? [])) catch effect (e) => match (e) {
+          const selections = (effect {
+            return (Array.from(
+              try (backup.listBackupSelections
+                .pages({ BackupPlanId: output.backupPlanId })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.BackupSelectionsList ?? []))
+          }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: [];
             default: throw e;
           }
@@ -330,15 +336,15 @@ export const BackupPlanProvider = (): infer _ =>
                   BackupPlanId: output.backupPlanId,
                   SelectionId: s.SelectionId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
-              : try Effect.void),
+              : (undefined as void)),
             { discard: true },
           )
           try (effect {
             return backup.deleteBackupPlan({ BackupPlanId: output.backupPlanId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }

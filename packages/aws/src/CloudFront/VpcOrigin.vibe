@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as cloudfront from "@distilled.cloud/aws/cloudfront"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -11,12 +13,24 @@ export error VpcOriginUnexpectedResponse {
   cause?: unknown
 }
 
-error VpcOriginPendingDeployment {
-  mutable message: string
+class VpcOriginPendingDeployment extends $MutableErrorBase("VpcOriginPendingDeployment")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "VpcOriginPendingDeployment", true);
 }
 
-error VpcOriginStillInUse {
-  mutable message: string
+
+}
+
+class VpcOriginStillInUse extends $MutableErrorBase("VpcOriginStillInUse")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "VpcOriginStillInUse", true);
+}
+
+
 }
 
 export interface VpcOriginProps {
@@ -150,7 +164,7 @@ export const VpcOriginProvider = (): infer _ =>
       const getById = effect (id: string) => {
         const result = cloudfront
           .getVpcOrigin({ Id: id }) catch effect (e) => match (e) {
-            when { _tag: "EntityNotFound" }: try Effect.undefined;
+            when { _tag: "EntityNotFound" }: undefined;
             default: throw e;
           }
         if (!result?.VpcOrigin?.Id) {
@@ -237,7 +251,7 @@ export const VpcOriginProvider = (): infer _ =>
         observedTags: Record<string, string>,
         desiredTags: Record<string, string>,
       ) => {
-        const { removed, upsert } = diffTags(observedTags, desiredTags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try cloudfront.tagResource({
             Resource: arn,
@@ -275,8 +289,9 @@ export const VpcOriginProvider = (): infer _ =>
           return items
         },
         diff: effect ({ id, olds, news: _news }) => {
-          if (!isResolved(_news)) return undefined
-          const news = _news as VpcOriginProps
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(_news) ? _news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          const news = resolved as VpcOriginProps
           // `arn` is create-only — a changed target endpoint forces replace.
           if (olds?.arn !== undefined && olds.arn !== news.arn) {
             return { action: "replace" } as const
@@ -315,16 +330,16 @@ export const VpcOriginProvider = (): infer _ =>
           // Ensure — create the VPC origin if it's missing. Tolerate an
           // `EntityAlreadyExists` race by recovering via the fronted ARN.
           if (!observed) {
-            const created = (try effect {
+            const created = (effect { return (try effect {
               const result = try cloudfront
                 .createVpcOrigin({
                   VpcOriginEndpointConfig: desiredEndpointConfig(name, news),
-                  Tags: { Items: createTagsList(desiredTags) },
+                  Tags: { Items: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })) },
                 })
               return result.VpcOrigin?.Id
                 ? { vpcOrigin: result.VpcOrigin, etag: result.ETag }
                 : undefined
-            }) catch effect (e) => match (e) {
+            }) }) catch effect (e) => match (e) {
               when { _tag: "EntityAlreadyExists" }: try getByArn(news.arn);
               default: throw e;
             }
@@ -386,7 +401,7 @@ export const VpcOriginProvider = (): infer _ =>
                 Id: output.vpcOriginId,
                 IfMatch: current.etag ?? observed.etag ?? "",
               }) catch effect (e) => match (e) {
-                when { _tag: "EntityNotFound" }: try Effect.void;
+                when { _tag: "EntityNotFound" }: (undefined as void);
                 when { _tag: "CannotDeleteEntityWhileInUse" }: throw new VpcOriginStillInUse({
                   message: e.message ?? "VPC origin still in use",
                 });
@@ -407,7 +422,7 @@ export const VpcOriginProvider = (): infer _ =>
               schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(30)]),
               until: (exists) => exists === false,
             },
-          ) catch effect (e) => try Effect.void
+          ) catch effect (e) => (undefined as void)
         },
       }
     },

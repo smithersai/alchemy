@@ -160,20 +160,24 @@ export const ObservationJobProvider = (): infer _ =>
     stables: ["name", "observationJobId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousSources = olds?.sources ?? output?.sources
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.observationJobId ?? output?.observationJobId,
-        nextId: news.observationJobId ?? olds?.observationJobId ?? output?.observationJobId,
+        nextId: resolved.observationJobId ?? olds?.observationJobId ?? output?.observationJobId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
         ),
         extra: previousSources !== undefined
-          && news.sources !== undefined
-          && !sameStringList(previousSources, news.sources),
-      })
+          && resolved.sources !== undefined
+          && !sameStringList(previousSources, resolved.sources),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -184,15 +188,23 @@ export const ObservationJobProvider = (): infer _ =>
         output?.observationJobId,
         "job",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, observationJobId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, observationJobId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(location, existing, env.project)
-      if (output !== undefined || hasAlchemyId(attrs.observationJobId)) {
+      if (
+        output !== undefined
+        || (try Effect.orDie(Effect.try({ try: () => hasAlchemyId(attrs.observationJobId), catch: (e) => e })))
+      ) {
         return attrs
       }
-      return Unowned(attrs)
+      return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -209,8 +221,12 @@ export const ObservationJobProvider = (): infer _ =>
         output?.observationJobId,
         "job",
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceName(env.project, location, COLLECTION, observationJobId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, observationJobId), catch: (e) => e }),
+      )
       const sources = (news.sources ?? []).map((source) => expandObservationSource(source, env.project, location))
       const wantEnabled = news.enabled === true
 
@@ -297,13 +313,15 @@ export const ObservationJobProvider = (): infer _ =>
             || error instanceof ResourceFailed, effect () => try Effect.void))
       }
 
-      const operation = (try (apim
-        .deleteProjectsLocationsObservationJobs({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apim
+          .deleteProjectsLocationsObservationJobs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

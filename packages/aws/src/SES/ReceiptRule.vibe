@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as ses from "@distilled.cloud/aws/ses"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -164,7 +165,7 @@ const observedPredecessor = (
  * update retry that specific rejection while the role propagates.
  */
 const retryRolePropagation = effect <A, R>(
-  effect: A!ses.CreateReceiptRuleError | ses.UpdateReceiptRuleError!R,
+  effect: A!(ses.CreateReceiptRuleError | ses.UpdateReceiptRuleError)!R,
 ) =>
   try (effect
     |> Effect.retry(%, {
@@ -185,8 +186,8 @@ export const ReceiptRuleProvider = (): infer _ =>
       const describeRule = effect (ruleSetName: string, ruleName: string) =>
         ses
           .describeReceiptRule({ RuleSetName: ruleSetName, RuleName: ruleName }) catch effect (e) => match (e) {
-            when { _tag: "RuleDoesNotExistException" }: try Effect.undefined;
-            when { _tag: "RuleSetDoesNotExistException" }: try Effect.undefined;
+            when { _tag: "RuleDoesNotExistException" }: undefined;
+            when { _tag: "RuleSetDoesNotExistException" }: undefined;
             default: throw e;
           }
 
@@ -218,8 +219,9 @@ export const ReceiptRuleProvider = (): infer _ =>
           return found?.Rule ? { ruleSetName, ruleName } : undefined
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.ruleSetName !== olds.ruleSetName) {
             return { action: "replace" } as const
           }
@@ -241,21 +243,23 @@ export const ReceiptRuleProvider = (): infer _ =>
           // ENSURE / SYNC — a single full-replace call converges the rule's
           // matcher and actions whether it is missing or already present.
           if (observed?.Rule === undefined) {
-            ;(try (ses
-              .createReceiptRule({
-                RuleSetName: ruleSetName,
-                After: news.after,
-                Rule: rule,
-              })
-              |> retryRolePropagation(%))) catch effect (e) => match (e) {
-                when { _tag: "AlreadyExistsException" }: try (ses
-                  .updateReceiptRule({
-                    RuleSetName: ruleSetName,
-                    Rule: rule,
-                  })
-                  |> retryRolePropagation(%));
-                default: throw e;
-              }
+            ;(effect {
+              return (try (ses
+                .createReceiptRule({
+                  RuleSetName: ruleSetName,
+                  After: news.after,
+                  Rule: rule,
+                })
+                |> retryRolePropagation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "AlreadyExistsException" }: try (ses
+                .updateReceiptRule({
+                  RuleSetName: ruleSetName,
+                  Rule: rule,
+                })
+                |> retryRolePropagation(%));
+              default: throw e;
+            }
           } else {
             try (ses
               .updateReceiptRule({
@@ -291,7 +295,7 @@ export const ReceiptRuleProvider = (): infer _ =>
               RuleSetName: output.ruleSetName,
               RuleName: output.ruleName,
             }) catch effect (e) => match (e) {
-              when { _tag: "RuleSetDoesNotExistException" }: try Effect.void;
+              when { _tag: "RuleSetDoesNotExistException" }: (undefined as void);
               default: throw e;
             }
         },

@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as appintegrations from "@distilled.cloud/aws/appintegrations"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -5,8 +8,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { definedTags } from "./internal.ts"
 
@@ -140,8 +141,12 @@ export const DataIntegration = Resource<DataIntegration>("AWS.AppIntegrations.Da
  * Raised when the AppIntegrations API returns a data integration without
  * the fields required to build the resource attributes.
  */
-export error DataIntegrationIncomplete {
-  mutable message: string
+export class DataIntegrationIncomplete extends $MutableErrorBase("DataIntegrationIncomplete")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DataIntegrationIncomplete", true)
+  }
 }
 
 export const DataIntegrationProvider = (): infer _ =>
@@ -155,7 +160,7 @@ export const DataIntegrationProvider = (): infer _ =>
       const observe = effect (arnOrId: string) =>
         appintegrations
           .getDataIntegration({ Identifier: arnOrId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -215,7 +220,7 @@ export const DataIntegrationProvider = (): infer _ =>
             effect (arn) =>
               try effect {
                 const live = try observe(arn)
-                return (live === undefined ? try Effect.undefined : try toAttrs(live))
+                return (live === undefined ? undefined : try toAttrs(live))
               },
             { concurrency: 10 },
           )
@@ -234,12 +239,15 @@ export const DataIntegrationProvider = (): infer _ =>
           const live = try observe(identifier)
           if (live === undefined) return undefined
           const attrs = try toAttrs(live)
-          const tags = definedTags(live.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          const tags = try Effect.orDie(Effect.try({ try: () => definedTags(live.Tags), catch: (e) => e }))
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds === undefined) return undefined
           if (
             olds.kmsKey !== news.kmsKey
@@ -318,7 +326,7 @@ export const DataIntegrationProvider = (): infer _ =>
 
           // 4. Sync tags — diff against OBSERVED cloud tags so adoption
           //    converges.
-          const observedTags = definedTags(live.Tags)
+          const observedTags = try Effect.orDie(Effect.try({ try: () => definedTags(live.Tags), catch: (e) => e }))
           const { upsert, removed } = diffTags(observedTags, desiredTags)
           if (upsert.length > 0) {
             try appintegrations.tagResource({
@@ -342,7 +350,7 @@ export const DataIntegrationProvider = (): infer _ =>
             .deleteDataIntegration({
               DataIntegrationIdentifier: output.dataIntegrationId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

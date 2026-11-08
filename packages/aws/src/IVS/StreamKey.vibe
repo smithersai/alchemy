@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ivs from "@distilled.cloud/aws/ivs"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -73,8 +75,14 @@ export const StreamKey = Resource<StreamKey>("AWS.IVS.StreamKey")
  * Raised when the IVS API returns a stream key missing its ARN or channel
  * ARN.
  */
-export error IvsStreamKeyIncomplete {
-  mutable message: string
+export class IvsStreamKeyIncomplete extends $MutableErrorBase("IvsStreamKeyIncomplete")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "IvsStreamKeyIncomplete", true);
+}
+
+
 }
 
 export const StreamKeyProvider = (): infer _ =>
@@ -95,9 +103,9 @@ export const StreamKeyProvider = (): infer _ =>
       }
 
       const getByArn = effect (arn: string) => {
-        const response = (try (ivs.getStreamKey({ arn })
-          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        const response = (effect { return (try (ivs.getStreamKey({ arn })
+          |> retryWhileThrottled(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.streamKey
@@ -109,9 +117,9 @@ export const StreamKeyProvider = (): infer _ =>
        * key is gone with it).
        */
       const findByChannel = effect (channelArn: string) => {
-        const page = (try (ivs.listStreamKeys({ channelArn })
-          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        const page = (effect { return (try (ivs.listStreamKeys({ channelArn })
+          |> retryWhileThrottled(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         const arn = page?.streamKeys.find((s) => s.arn !== undefined)?.arn
@@ -140,9 +148,9 @@ export const StreamKeyProvider = (): infer _ =>
             && olds?.channelArn !== undefined
             && Object.keys(tags).length === 0
           ) {
-            const response = (try (ivs.getChannel({ arn: olds.channelArn })
-              |> retryWhileThrottled(%))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            const response = (effect { return (try (ivs.getChannel({ arn: olds.channelArn })
+              |> retryWhileThrottled(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             const channelTags = toTagRecord(response?.channel?.tags)
@@ -151,14 +159,15 @@ export const StreamKeyProvider = (): infer _ =>
               return attrs
             }
           }
-          return Unowned(attrs)
+          return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // A stream key is bound to its channel at create time — moving
           // it to another channel requires a replacement.
-          if (olds.channelArn !== news.channelArn) {
+          if (olds.channelArn !== resolved.channelArn) {
             return { action: "replace" } as const
           }
         },
@@ -183,9 +192,9 @@ export const StreamKeyProvider = (): infer _ =>
           // the channel already has its key: adopt it (tags are converged
           // below).
           if (observed === undefined) {
-            observed = (try (ivs
+            observed = (effect { return (try (ivs
               .createStreamKey({ channelArn: news.channelArn, tags: desiredTags })
-              |> retryWhileThrottled(%))).streamKey catch effect (e) => match (e) {
+              |> retryWhileThrottled(%))).streamKey }) catch effect (e) => match (e) {
                 when { _tag: "ServiceQuotaExceededException" }: try findByChannel(news.channelArn);
                 default: throw e;
               }
@@ -214,9 +223,9 @@ export const StreamKeyProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (ivs.deleteStreamKey({ arn: output.streamKeyArn })
-            |> retryWhileThrottled(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+          ;(effect { return (try (ivs.deleteStreamKey({ arn: output.streamKeyArn })
+            |> retryWhileThrottled(%))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

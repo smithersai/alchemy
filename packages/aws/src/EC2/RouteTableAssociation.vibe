@@ -195,12 +195,13 @@ export const RouteTableAssociationProvider = (): infer _ =>
           ),
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           // Subnet/Gateway change requires replacement (use ReplaceRouteTableAssociation internally)
-          if (olds.subnetId !== news.subnetId) {
+          if (olds.subnetId !== resolved.subnetId) {
             return { action: "replace" }
           }
-          if (olds.gatewayId !== news.gatewayId) {
+          if (olds.gatewayId !== resolved.gatewayId) {
             return { action: "replace" }
           }
           // Route table change can be done via ReplaceRouteTableAssociation
@@ -358,13 +359,13 @@ export const RouteTableAssociationProvider = (): infer _ =>
 
         delete: effect ({ output, session }) => {
           try session.note(`Deleting route table association: ${output.associationId}`) // Disassociate the route table
-          ;(try (ec2
+          ;(effect { return (try (ec2
             .disassociateRouteTable({
               AssociationId: output.associationId,
               DryRun: false,
             })
-            |> Effect.tapError(%, Effect.log))) catch effect (e) => match (e) {
-              when { _tag: "InvalidAssociationID.NotFound" }: try Effect.void;
+            |> Effect.tapError(%, Effect.log))) }) catch effect (e) => match (e) {
+              when { _tag: "InvalidAssociationID.NotFound" }: (undefined as void);
               default: throw e;
             }
 
@@ -431,7 +432,7 @@ const waitForAssociationState = effect (
       schedule: Schedule.max([Schedule.fixed(1000), Schedule.recurs(30)]).pipe(
         Schedule.tap(effect ({ attempt }) => (session
           ? try session.note(`Waiting for association to be ${targetState}... (${attempt}s)`)
-          : try Effect.void)
+          : (undefined as void))
         ),
       ),
     },

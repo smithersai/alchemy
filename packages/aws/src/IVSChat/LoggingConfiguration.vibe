@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ivschat from "@distilled.cloud/aws/ivschat"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -118,7 +120,13 @@ export const LoggingConfiguration = Resource<LoggingConfiguration>(
  * `s3`, `cloudWatchLogs`, or `firehose`, or when the API returns a
  * configuration missing its identifiers.
  */
-export error IvsChatLoggingConfigurationInvalid { mutable message: string }
+export class IvsChatLoggingConfigurationInvalid extends $MutableErrorBase("IvsChatLoggingConfigurationInvalid")<{
+  message: string;
+}> {static {
+    $MutableErrorMatcher(this, "IvsChatLoggingConfigurationInvalid", true);
+} 
+
+}
 
 /** Narrow the plain destination prop to the exactly-one wire union. */
 const toWireDestination = effect (
@@ -187,9 +195,9 @@ export const LoggingConfigurationProvider = (): infer _ =>
       }
 
       const getByIdentifier = effect (identifier: string) =>
-        (try (ivschat.getLoggingConfiguration({ identifier })
-          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect { return (try (ivschat.getLoggingConfiguration({ identifier })
+          |> retryWhileThrottled(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -215,13 +223,14 @@ export const LoggingConfigurationProvider = (): infer _ =>
             : try findByName(try toName(id, olds ?? {}))
           if (config === undefined) return undefined
           const attrs = try toAttrs(config)
-          return (try hasAlchemyTags(id, toTagRecord(config.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, toTagRecord(config.tags))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         diff: effect ({ news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // Validate the exactly-one destination shape before any AWS call.
-          try toWireDestination(news.destinationConfiguration)
+          try toWireDestination(resolved.destinationConfiguration)
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -291,13 +300,13 @@ export const LoggingConfigurationProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Deleting mid-transition raises ConflictException — retry
           // through a bounded window, then tolerate already-gone.
-          ;(try (ivschat
+          ;(effect { return (try (ivschat
             .deleteLoggingConfiguration({
               identifier: output.loggingConfigurationArn,
             })
             |> retryWhileThrottled(%)
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            |> retryWhileConflict(%))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },
@@ -314,7 +323,7 @@ export const LoggingConfigurationProvider = (): infer _ =>
               Effect.forEach(
                 effect (summary) =>
                   toAttrs(summary) catch effect (e) => match (e) {
-                    when { _tag: "IvsChatLoggingConfigurationInvalid" }: try Effect.undefined;
+                    when { _tag: "IvsChatLoggingConfigurationInvalid" }: undefined;
                     default: throw e;
                   },
                 { concurrency: 5 },

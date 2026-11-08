@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as Hetzner from "@distilled.cloud/hetzner"
 import type {
   GetImageResponseImage,
@@ -202,14 +204,24 @@ type CloudImage =
   | CreateServerImageResponseImage
   | UpdateImageResponseImage
 
-error ImagePending {
-  mutable imageId: number
-  mutable status: string
+class ImagePending extends $MutableErrorBase("ImagePending")<{
+  imageId: number
+
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "ImagePending", true)
+  }
 }
 
-error ImageTimeout {
-  mutable imageId: number
-  mutable status: string
+class ImageTimeout extends $MutableErrorBase("ImageTimeout")<{
+  imageId: number
+
+  status: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "ImageTimeout", true)
+  }
 }
 
 // @vibelang-diagnostics-next-line EK4830:off
@@ -294,10 +306,12 @@ const toDescription = effect (id: string, description: string | undefined, exist
 )
 
 const getById = effect (id: number) =>
-  (try effect {
-    const { image } = try Hetzner.images.getImage({ id })
-    return image
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const { image } = try Hetzner.images.getImage({ id })
+      return image
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const getByLabels = effect (labels: Record<string, string>) =>
   try effect {
@@ -320,32 +334,36 @@ const observe = effect ({ id, outputId }: { id: string; outputId?: number }) => 
 }
 
 const waitUntilAvailable = effect (imageId: number) =>
-  (try (effect {
-    return try effect {
-      const image = try getById(imageId)
-      return (image !== undefined && image.status === "available" ? image : throw new ImagePending({
-        imageId,
-        status: image?.status ?? "missing",
-      }))
+  (effect {
+    return (try (effect {
+      return try effect {
+        const image = try getById(imageId)
+        return (image !== undefined && image.status === "available" ? image : throw new ImagePending({
+          imageId,
+          status: image?.status ?? "missing",
+        }))
+      }
     }
+      |> Effect.retry(%, {
+        while: retryable,
+        times: 10,
+        schedule: Schedule.spaced(Duration.seconds(5)),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "ImagePending" }: throw new ImageTimeout({
+      imageId: e.imageId,
+      status: e.status,
+    });
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: retryable,
-      times: 10,
-      schedule: Schedule.spaced(Duration.seconds(5)),
-    }))) catch effect (e) => match (e) {
-      when { _tag: "ImagePending" }: throw new ImageTimeout({
-        imageId: e.imageId,
-        status: e.status,
-      });
-      default: throw e;
-    }
 
 const waitUntilGone = effect (imageId: number) =>
   try (effect {
-    return (try effect {
-      try Hetzner.images.getImage({ id: imageId })
-      return false
+    return (effect {
+      return (try effect {
+        try Hetzner.images.getImage({ id: imageId })
+        return false
+      })
     }) catch effect (e) => match (e) { when { _tag: "NotFound" }: true; default: throw e; }
   }
     |> Effect.repeat(%, {
@@ -383,9 +401,12 @@ export const ImageProvider = (): infer _ =>
       return items.map(toAttrs)
     },
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       if (output !== undefined) {
-        const nextServerId = serverIdOf(news.server)
+        const nextServerId = serverIdOf(resolved.server)
         if (
           nextServerId !== undefined
           && output.createdFromId !== null
@@ -393,7 +414,7 @@ export const ImageProvider = (): infer _ =>
         ) {
           return { action: "replace" } as const
         }
-        const nextType = news.type ?? DEFAULT_TYPE
+        const nextType = resolved.type ?? DEFAULT_TYPE
         if (nextType === "backup" && output.type === "snapshot") {
           return { action: "replace" } as const
         }
@@ -407,8 +428,11 @@ export const ImageProvider = (): infer _ =>
       })
       if (found === undefined) return undefined
       const attrs = toAttrs(found)
-      const owned = try hasAlchemyLabels(id, tagRecord(found.labels))
-      return owned ? attrs : Unowned(attrs)
+      const owned = try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(found.labels), catch: (e) => e })),
+      )
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ id, news, output }) => {
       const description = try toDescription(id, news.description, output?.description)
@@ -446,15 +470,20 @@ export const ImageProvider = (): infer _ =>
         }
         if (created.action) {
           waitForAction(created.action) catch effect (e) => match (e) {
-            when { _tag: "ActionTimeout" }: try Effect.void;
+            when { _tag: "ActionTimeout" }: (undefined as void);
             default: throw e;
           }
         }
         current = try waitUntilAvailable(imageId)
       }
 
-      const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabelsInput = current.labels
+      const observedLabels = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(observedLabelsInput), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const convertToSnapshot = current.type === "backup" && desiredType === "snapshot"
       const descriptionChanged = current.description !== description
@@ -489,7 +518,7 @@ export const ImageProvider = (): infer _ =>
 
       try (effect {
         return Hetzner.images.deleteImage({ id: current.id }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

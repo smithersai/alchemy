@@ -170,18 +170,18 @@ export const PublicRepositoryProvider = (): infer _ =>
         : try createPhysicalName({ id, maxLength: 205, lowercase: true }))
 
       const observe = effect (repositoryName: string) =>
-        ((try pin(
+        (effect { return ((try pin(
           ecrpublic.describeRepositories({
             repositoryNames: [repositoryName],
           }),
-        )).repositories?.[0]) catch effect (e) => match (e) {
-          when { _tag: "RepositoryNotFoundException" }: try Effect.undefined;
+        )).repositories?.[0]) }) catch effect (e) => match (e) {
+          when { _tag: "RepositoryNotFoundException" }: undefined;
           default: throw e;
         }
 
       const readPolicy = effect (repositoryName: string) =>
-        (try pin(ecrpublic.getRepositoryPolicy({ repositoryName }))).policyText catch effect (e) => match (e) {
-          when { _tag: "RepositoryPolicyNotFoundException" }: try Effect.undefined;
+        (effect { return (try pin(ecrpublic.getRepositoryPolicy({ repositoryName }))).policyText }) catch effect (e) => match (e) {
+          when { _tag: "RepositoryPolicyNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -198,7 +198,7 @@ export const PublicRepositoryProvider = (): infer _ =>
           }
         } else if (observed !== undefined) {
           pin(ecrpublic.deleteRepositoryPolicy({ repositoryName })) catch effect (e) => match (e) {
-            when { _tag: "RepositoryPolicyNotFoundException" }: try Effect.void;
+            when { _tag: "RepositoryPolicyNotFoundException" }: (undefined as void);
             default: throw e;
           }
         }
@@ -210,7 +210,7 @@ export const PublicRepositoryProvider = (): infer _ =>
       ) => {
         const listed = try pin(ecrpublic.listTagsForResource({ resourceArn: repositoryArn }))
         const observedTags = toTagRecord(listed.tags)
-        const { removed, upsert } = diffTags(observedTags, desiredTags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try pin(ecrpublic.tagResource({ resourceArn: repositoryArn, tags: upsert }))
         }
@@ -227,9 +227,10 @@ export const PublicRepositoryProvider = (): infer _ =>
       return {
         stables: ["repositoryArn", "repositoryName", "repositoryUri", "registryId"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (
-            (try toRepositoryName(id, olds ?? {})) !== (try toRepositoryName(id, news ?? {}))
+            (try toRepositoryName(id, olds ?? {})) !== (try toRepositoryName(id, resolved ?? {}))
           ) {
             return { action: "replace" } as const
           }
@@ -253,7 +254,7 @@ export const PublicRepositoryProvider = (): infer _ =>
             policyText: try readPolicy(repositoryName),
             tags: toTagRecord(listed.tags),
           }
-          return (try hasAlchemyTags(id, toTagRecord(listed.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, toTagRecord(listed.tags))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, session }) => {
           const repositoryName = try toRepositoryName(id, news)
@@ -265,7 +266,7 @@ export const PublicRepositoryProvider = (): infer _ =>
 
           // Ensure — create if missing. Tolerate the AlreadyExists race.
           if (!repository?.repositoryArn || !repository.repositoryUri) {
-            const created = (try pin(
+            const created = (effect { return (try pin(
               ecrpublic.createRepository({
                 repositoryName,
                 catalogData: toCatalogInput(news.catalogData),
@@ -274,7 +275,7 @@ export const PublicRepositoryProvider = (): infer _ =>
                   Value,
                 })),
               }),
-            )).repository catch effect (e) => match (e) {
+            )).repository }) catch effect (e) => match (e) {
               when { _tag: "RepositoryAlreadyExistsException" }: try observe(repositoryName);
               default: throw e;
             }
@@ -352,7 +353,7 @@ export const PublicRepositoryProvider = (): infer _ =>
               force: true,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "RepositoryNotFoundException" }: try Effect.void;
+            when { _tag: "RepositoryNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

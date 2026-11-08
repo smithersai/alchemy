@@ -19,7 +19,7 @@ export class ParentRequired extends Data.TaggedError("GCP.ResourceManager.Parent
   project: string;
 }> {}
 
-export const lastSegment = (value: string) => {
+export const lastSegment = /** @throws {never} */ (value: string) => {
   const trimmed = value.replace(/\/+$/, "");
   const parts = trimmed.split("/");
   return parts[parts.length - 1] || trimmed;
@@ -48,7 +48,10 @@ export const normalizeHierarchyParent = (value: string) => {
   return folderParent(value);
 };
 
-export const sameHierarchyParent = (left: string | undefined, right: string | undefined) => {
+export const sameHierarchyParent = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => {
   if (left === undefined || right === undefined) return left === right;
   if (left === right) return true;
   const leftKind = left.split("/")[0];
@@ -128,7 +131,7 @@ export const projectNumberOf = (project: string) =>
 export const sortedStrings = (values: readonly string[] | undefined) =>
   [...(values ?? [])].slice().sort();
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify(sortedStrings(left)) === JSON.stringify(sortedStrings(right));

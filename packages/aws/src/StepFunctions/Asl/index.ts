@@ -42,7 +42,7 @@ export {
   type Error,
   type SfnEffect,
   type Success,
-} from "./Program.vibe";
+} from "./Program.ts";
 export {
   all,
   catchAll,

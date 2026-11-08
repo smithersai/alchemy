@@ -173,7 +173,9 @@ export const Route = effect (id: string, props: RouteInputProps) => {
   }
   const target = rest.target
     ?? (integration
-      ? Output.map(integration.integrationId, (id) => `integrations/${id}`)
+      ? try Effect.orDie(
+        Effect.try({ try: () => Output.map(integration.integrationId, (id) => `integrations/${id}`), catch: (e) => e }),
+      )
       : undefined)
   return try RouteResource(id, { ...rest, apiId, target } as any)
 }
@@ -215,12 +217,12 @@ export const RouteProvider = (): infer _ =>
       const getRouteSafe = effect (apiId: string, routeId: string) =>
         agw2
           .getRoute({ ApiId: apiId, RouteId: routeId }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
       const findRouteByKey = effect (apiId: string, routeKey: string) =>
-        (try collectAllPages((NextToken) => agw2.getRoutes({ ApiId: apiId, NextToken }))).find((route) =>
+        (try collectAllPages(effect (NextToken) => try agw2.getRoutes({ ApiId: apiId, NextToken }))).find((route) =>
           route.RouteKey === routeKey
         )
 
@@ -228,16 +230,20 @@ export const RouteProvider = (): infer _ =>
         stables: ["apiId", "routeId"],
 
         list: effect () => {
-          const apis = try collectAllPages((NextToken) => agw2.getApis({ NextToken }))
+          const apis = try collectAllPages(effect (NextToken) => try agw2.getApis({ NextToken }))
           const perApi = try Effect.forEach(
             apis.filter((api) => api.ApiId != null),
             effect (api) =>
-              ((try collectAllPages((NextToken) => agw2.getRoutes({ ApiId: api.ApiId!, NextToken })))
-                .filter((route) => route.RouteId != null)
-                .map((route) => snapshotFromRoute(api.ApiId!, route))) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: [] as RouteType["Attributes"][];
-                  default: throw e;
-                },
+              (effect {
+                return ((try collectAllPages(effect (NextToken) =>
+                  try agw2.getRoutes({ ApiId: api.ApiId!, NextToken })
+                ))
+                  .filter((route) => route.RouteId != null)
+                  .map((route) => snapshotFromRoute(api.ApiId!, route)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: [] as RouteType["Attributes"][];
+                default: throw e;
+              },
             { concurrency: 5 },
           )
           return perApi.flat()
@@ -250,8 +256,9 @@ export const RouteProvider = (): infer _ =>
           return snapshotFromRoute(output.apiId, route)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.apiId !== olds.apiId) {
             return { action: "replace" } as const
           }
@@ -290,15 +297,30 @@ export const RouteProvider = (): infer _ =>
             || (snapshot.authorizationType ?? "NONE") !== (desired.AuthorizationType ?? "NONE")
             || snapshot.authorizerId !== desired.AuthorizerId
             || (desired.AuthorizationScopes !== undefined
-              && !deepEqual(snapshot.authorizationScopes, desired.AuthorizationScopes))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.authorizationScopes, desired.AuthorizationScopes),
+                  catch: (error) => error,
+                }),
+              )))
             || (desired.ApiKeyRequired !== undefined
               && snapshot.apiKeyRequired !== desired.ApiKeyRequired)
             || snapshot.operationName !== desired.OperationName
             || snapshot.modelSelectionExpression !== desired.ModelSelectionExpression
             || (desired.RequestModels !== undefined
-              && !deepEqual(snapshot.requestModels, desired.RequestModels))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.requestModels, desired.RequestModels),
+                  catch: (error) => error,
+                }),
+              )))
             || (desired.RequestParameters !== undefined
-              && !deepEqual(snapshot.requestParameters, desired.RequestParameters))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.requestParameters, desired.RequestParameters),
+                  catch: (error) => error,
+                }),
+              )))
             || snapshot.routeResponseSelectionExpression !== desired.RouteResponseSelectionExpression
           if (drift) {
             const updated = try retryOnTooManyRequests(
@@ -316,7 +338,7 @@ export const RouteProvider = (): infer _ =>
             effect {
               return agw2
                 .deleteRoute({ ApiId: output.apiId, RouteId: output.routeId }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

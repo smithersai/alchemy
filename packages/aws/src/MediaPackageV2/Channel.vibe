@@ -174,7 +174,7 @@ export const ChannelProvider = (): infer _ =>
             ChannelGroupName: channelGroupName,
             ChannelName: channelName,
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -182,15 +182,16 @@ export const ChannelProvider = (): infer _ =>
         stables: ["channelGroupName", "channelName", "channelArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // Group, name, and input type are the channel's identity.
-          if (olds.channelGroupName !== news.channelGroupName) {
+          if (olds.channelGroupName !== resolved.channelGroupName) {
             return { action: "replace" } as const
           }
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (oldName !== newName) return { action: "replace" } as const
-          if ((olds.inputType ?? "HLS") !== (news.inputType ?? "HLS")) {
+          if ((olds.inputType ?? "HLS") !== (resolved.inputType ?? "HLS")) {
             return { action: "replace" } as const
           }
         },
@@ -202,7 +203,7 @@ export const ChannelProvider = (): infer _ =>
           const channel = try getChannel(channelGroupName, channelName)
           if (channel === undefined) return undefined
           const attrs = toAttrs(channel)
-          return (try hasAlchemyTags(id, toMpTagRecord(channel.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, try Effect.orDie(Effect.try({ try: () => toMpTagRecord(channel.Tags), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -246,7 +247,7 @@ export const ChannelProvider = (): infer _ =>
               InputSwitchConfiguration: channel.InputSwitchConfiguration,
               OutputHeaderConfiguration: channel.OutputHeaderConfiguration,
             }
-            if (!matchesDesired(desired, observed)) {
+            if (!(try Effect.orDie(Effect.try({ try: () => matchesDesired(desired, observed), catch: (e) => e })))) {
               channel = try mediapackagev2.updateChannel({
                 ChannelGroupName: channelGroupName,
                 ChannelName: channelName,
@@ -258,20 +259,21 @@ export const ChannelProvider = (): infer _ =>
           }
 
           // 3b. Sync tags — diff against OBSERVED cloud tags.
-          try syncMpTags(channel.Arn, toMpTagRecord(channel.Tags), desiredTags)
+          try syncMpTags(channel.Arn, try Effect.orDie(Effect.try({ try: () => toMpTagRecord(channel.Tags), catch: (e) => e })), desiredTags)
 
           // 3c. Sync the resource policy — observe the live policy (absent
           //     policy is the typed not-found) and apply only the delta.
-          const observedPolicy = ((try mediapackagev2
+          const observedPolicy = (effect { return ((try mediapackagev2
             .getChannelPolicy({
               ChannelGroupName: channelGroupName,
               ChannelName: channelName,
-            })).Policy as string | undefined) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            })).Policy as string | undefined) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (news.policy !== undefined) {
-            if (!policiesEqual(observedPolicy, news.policy)) {
+            const b = news.policy
+            if (!(try Effect.orDie(Effect.try({ try: () => policiesEqual(observedPolicy, b), catch: (e) => e })))) {
               try mediapackagev2.putChannelPolicy({
                 ChannelGroupName: channelGroupName,
                 ChannelName: channelName,
@@ -303,7 +305,7 @@ export const ChannelProvider = (): infer _ =>
           const groups = try listAllChannelGroups()
           const items = (try Effect.forEach(
             groups,
-            (group) => listGroupChannels(group.ChannelGroupName),
+            effect (group) => try listGroupChannels(group.ChannelGroupName),
             { concurrency: 5 },
           )).flat()
           // The list shape omits ingest endpoints, so hydrate each item

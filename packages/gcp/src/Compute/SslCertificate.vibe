@@ -299,7 +299,7 @@ const toAttrs = (cert: compute.SslCertificate, project: string): infer _ => {
 const getByName = effect (project: string, sslCertificate: string) =>
   compute
     .getSslCertificates({ project, sslCertificate }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -372,16 +372,19 @@ export const SslCertificateProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.sslCertificateName ?? output?.sslCertificateName
-      const nextName = news.sslCertificateName ?? previousName
+      const nextName = resolved.sslCertificateName ?? previousName
       if (previousName === undefined && output === undefined) {
         return undefined
       }
-      const nameChanged = news.sslCertificateName !== undefined
+      const nameChanged = resolved.sslCertificateName !== undefined
         && previousName !== undefined
-        && news.sslCertificateName !== previousName
-      if (nameChanged || immutableChanged(news, olds, output)) {
+        && resolved.sslCertificateName !== previousName
+      if (nameChanged || immutableChanged(resolved, olds, output)) {
         return {
           action: "replace" as const,
           deleteFirst: nextName !== undefined && nextName === previousName,
@@ -401,7 +404,9 @@ export const SslCertificateProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -428,14 +433,16 @@ export const SslCertificateProvider = (): infer _ =>
       let current = try getByName(env.project, sslCertificateName)
 
       if (current === undefined) {
-        const created = (try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertSslCertificates({
-              project: env.project,
-              body: desired,
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertSslCertificates({
+                project: env.project,
+                body: desired,
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = created !== undefined
           ? try awaitResource(env.project, sslCertificateName)
           : try getByName(env.project, sslCertificateName)
@@ -450,19 +457,21 @@ export const SslCertificateProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      const operation = (try (compute
-        .deleteSslCertificates({
-          project: env.project,
-          sslCertificate: output.sslCertificateName,
-        })
-        |> Effect.retry(%, {
-          while: (e) => e._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteSslCertificates({
+            project: env.project,
+            sslCertificate: output.sslCertificateName,
+          })
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitGlobalOperation(env.project, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

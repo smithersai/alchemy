@@ -237,7 +237,7 @@ const asLongRunning = (value: { id?: string; status?: string }): LongRunningOper
 const DNS_BUDGET = "5 minutes"
 
 const waitForOperation = effect (project: string, zoneName: string, operation: dns.Operation) =>
-  waitForLongRunning(
+  try waitForLongRunning(
     asLongRunning(operation),
     effect (operationId) =>
       asLongRunning(
@@ -252,14 +252,14 @@ const waitForOperation = effect (project: string, zoneName: string, operation: d
   )
 
 const waitForChange = effect (project: string, zoneName: string, change: dns.Change) =>
-  waitForLongRunning(
+  try waitForLongRunning(
     asLongRunning(change),
     effect (changeId) => asLongRunning(try dns.getChanges({ project, managedZone: zoneName, changeId })),
     { budget: DNS_BUDGET, interval: "1 second" },
   )
 
 const listRrsets = effect (project: string, zoneName: string) =>
-  (try effect {
+  (effect { return (try effect {
     const found: dns.ResourceRecordSet[] = []
     let pageToken: string | undefined
     for (let page = 0; page < 10; page++) {
@@ -274,7 +274,7 @@ const listRrsets = effect (project: string, zoneName: string) =>
       if (pageToken === undefined || pageToken === "") break
     }
     return found
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dns.ResourceRecordSet[]; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dns.ResourceRecordSet[]; default: throw e; }
 
 const emptyZone = effect (project: string, zoneName: string, dnsName: string | undefined) => {
   const apex = dnsName ? normalizeDnsName(dnsName) : undefined
@@ -307,15 +307,16 @@ export const ManagedZoneProvider = (): infer _ =>
     stables: ["zoneName", "dnsName", "project", "id", "visibility", "nameServers", "creationTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
 
       const previousName = olds?.zoneName ?? output?.zoneName
-      const nextName = news.zoneName ?? previousName
+      const nextName = resolved.zoneName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && nextName !== previousName
 
       const previousDns = olds?.dnsName ?? output?.dnsName
-      const nextDns = news.dnsName !== undefined
-        ? normalizeDnsName(news.dnsName)
+      const nextDns = resolved.dnsName !== undefined
+        ? normalizeDnsName(resolved.dnsName)
         : previousDns !== undefined
         ? normalizeDnsName(previousDns)
         : undefined
@@ -324,7 +325,7 @@ export const ManagedZoneProvider = (): infer _ =>
         && normalizeDnsName(previousDns) !== nextDns
 
       const previousVisibility = normalizeVisibility(olds?.visibility ?? output?.visibility)
-      const nextVisibility = normalizeVisibility(news.visibility ?? previousVisibility)
+      const nextVisibility = normalizeVisibility(resolved.visibility ?? previousVisibility)
       const visibilityChanged = previousVisibility !== nextVisibility
 
       if (!nameChanged && !dnsChanged && !visibilityChanged) {
@@ -342,7 +343,7 @@ export const ManagedZoneProvider = (): infer _ =>
       const existing = try getByName(env.project, zoneName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -375,7 +376,7 @@ export const ManagedZoneProvider = (): infer _ =>
       const enableLogging = news.enableLogging === true
       const networks = visibility === "private" ? desiredNetworks(env.project, news.networks) : []
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -406,7 +407,7 @@ export const ManagedZoneProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== description
       const loggingChanged = (current.cloudLoggingConfig?.enableLogging === true) !== enableLogging

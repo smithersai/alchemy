@@ -289,7 +289,10 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
 const getLive = effect (name: string) =>
   try effect {
     const item = try getByName(name)
-    return (item === undefined || isTerminated(item.state) ? undefined : item)
+    return (item === undefined
+        || (try Effect.orDie(Effect.try({ try: () => isTerminated(item.state), catch: (e) => e })))
+      ? undefined
+      : item)
   }
 
 export const ContactCenterProvider = (): infer _ =>
@@ -304,36 +307,53 @@ export const ContactCenterProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousSize = olds?.instanceConfig?.instanceSize ?? olds?.instanceSize ?? output?.instanceSize
-      const nextSize = news.instanceConfig?.instanceSize ?? news.instanceSize
+      const nextSize = resolved.instanceConfig?.instanceSize ?? resolved.instanceSize
       const previousPrefix = olds?.customerDomainPrefix ?? output?.customerDomainPrefix
       const previousKms = olds?.kmsKey ?? output?.kmsKey
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.contactCenterId ?? output?.contactCenterId,
-        nextId: news.contactCenterId,
+        nextId: resolved.contactCenterId,
         previousLocation,
         nextLocation,
         extra: (previousPrefix !== undefined
-          && news.customerDomainPrefix !== undefined
-          && previousPrefix !== news.customerDomainPrefix)
+          && resolved.customerDomainPrefix !== undefined
+          && previousPrefix !== resolved.customerDomainPrefix)
           || (previousSize !== undefined && nextSize !== undefined && previousSize !== nextSize)
-          || (previousKms !== undefined && news.kmsKey !== undefined && previousKms !== news.kmsKey)
+          || (previousKms !== undefined && resolved.kmsKey !== undefined && previousKms !== resolved.kmsKey)
           || (olds?.instanceConfig !== undefined
-            && news.instanceConfig !== undefined
-            && fingerprint(olds.instanceConfig) !== fingerprint(news.instanceConfig)),
-      })
+            && resolved.instanceConfig !== undefined
+            && (try Effect.orDie(
+                Effect.try({ try: fingerprint.bind(undefined, olds.instanceConfig), catch: (e) => e }),
+              ))
+              !== (try Effect.orDie(
+                Effect.try({ try: fingerprint.bind(undefined, resolved.instanceConfig), catch: (e) => e }),
+              ))),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const contactCenterId = try toPhysicalId(
         id,
         olds?.contactCenterId,
@@ -345,7 +365,12 @@ export const ContactCenterProvider = (): infer _ =>
         return undefined
       }
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -361,14 +386,18 @@ export const ContactCenterProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const contactCenterId = try toPhysicalId(
         id,
         news.contactCenterId,
         output?.contactCenterId,
       )
       const name = output?.name ?? resourceName(env.project, location, contactCenterId)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const customerDomainPrefix = try toDomainPrefix(
         news.customerDomainPrefix,
         output?.customerDomainPrefix,
@@ -377,7 +406,7 @@ export const ContactCenterProvider = (): infer _ =>
       const displayName = news.displayName ?? contactCenterId
       const instanceConfig = instanceConfigOf(news)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const channel = channelBody(news)
@@ -431,40 +460,82 @@ export const ContactCenterProvider = (): infer _ =>
         default: throw e;
       }
 
-      const observedLabels = tagRecord(live.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabels = try Effect.orDie(Effect.try({ try: () => tagRecord(live.labels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
-      const displayChanged = !sameText(live.displayName, displayName)
-      const emailChanged = !sameText(live.userEmail, news.userEmail)
-      const adminChanged = !sameJson(live.adminUser, news.adminUser)
-      const managedChanged = !sameBool(live.ccaipManagedUsers, news.ccaipManagedUsers)
-      const samlChanged = news.samlParams !== undefined && !sameJson(live.samlParams, news.samlParams)
-      const featureChanged = news.featureConfig !== undefined && !sameJson(live.featureConfig, news.featureConfig)
-      const privateChanged = news.privateAccess !== undefined && !sameJson(live.privateAccess, news.privateAccess)
-      const reportingChanged = !sameBool(
-        live.advancedReportingEnabled,
-        news.advancedReportingEnabled,
+      const displayChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(live.displayName, displayName),
+        catch: (e) => e,
+      })))
+      const emailChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(live.userEmail, news.userEmail),
+        catch: (e) => e,
+      })))
+      const adminChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(live.adminUser, news.adminUser),
+        catch: (e) => e,
+      })))
+      const managedChanged = !(try Effect.orDie(
+        Effect.try({ try: () => sameBool(live.ccaipManagedUsers, news.ccaipManagedUsers), catch: (e) => e }),
+      ))
+      const samlChanged = try Effect.orDie(
+        Effect.try({
+          try: () => news.samlParams !== undefined && !sameJson(live.samlParams, news.samlParams),
+          catch: (e) => e,
+        }),
       )
+      const featureChanged = try Effect.orDie(
+        Effect.try({
+          try: () => news.featureConfig !== undefined && !sameJson(live.featureConfig, news.featureConfig),
+          catch: (e) => e,
+        }),
+      )
+      const privateChanged = try Effect.orDie(
+        Effect.try({
+          try: () => news.privateAccess !== undefined && !sameJson(live.privateAccess, news.privateAccess),
+          catch: (e) => e,
+        }),
+      )
+      const reportingChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameBool(
+            live.advancedReportingEnabled,
+            news.advancedReportingEnabled,
+          ),
+        catch: (e) => e,
+      })))
       const desiredChannel = news.releaseChannel ?? (news.critical !== undefined ? "critical" : undefined)
-      const channelChanged = desiredChannel !== undefined && releaseChannelOf(live) !== desiredChannel
-      const criticalChanged = news.critical !== undefined && !sameJson(live.critical, news.critical)
-
-      const mask = updateMaskOf(
-        labelsChanged && "labels",
-        displayChanged && "displayName",
-        emailChanged && "userEmail",
-        adminChanged && "adminUser",
-        managedChanged && "ccaipManagedUsers",
-        samlChanged && "samlParams",
-        featureChanged && "featureConfig",
-        privateChanged && "privateAccess",
-        reportingChanged && "advancedReportingEnabled",
-        channelChanged && desiredChannel === "early" && "early",
-        channelChanged && desiredChannel === "normal" && "normal",
-        (channelChanged && desiredChannel === "critical") || criticalChanged
-          ? "critical"
-          : undefined,
+      const channelChanged = desiredChannel !== undefined
+        && (try Effect.orDie(Effect.try({ try: () => releaseChannelOf(live), catch: (e) => e }))) !== desiredChannel
+      const criticalChanged = try Effect.orDie(
+        Effect.try({
+          try: () => news.critical !== undefined && !sameJson(live.critical, news.critical),
+          catch: (e) => e,
+        }),
       )
+
+      const mask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            labelsChanged && "labels",
+            displayChanged && "displayName",
+            emailChanged && "userEmail",
+            adminChanged && "adminUser",
+            managedChanged && "ccaipManagedUsers",
+            samlChanged && "samlParams",
+            featureChanged && "featureConfig",
+            privateChanged && "privateAccess",
+            reportingChanged && "advancedReportingEnabled",
+            channelChanged && desiredChannel === "early" && "early",
+            channelChanged && desiredChannel === "normal" && "normal",
+            (channelChanged && desiredChannel === "critical") || criticalChanged
+              ? "critical"
+              : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (mask.length > 0) {
         const patched = try (retryTransient(

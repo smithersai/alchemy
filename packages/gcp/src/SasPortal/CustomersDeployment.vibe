@@ -147,18 +147,27 @@ export const CustomersDeploymentProvider = (): infer _ =>
     stables: ["name", "deploymentId", "parent", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousParent: olds?.parent ?? output?.parent,
-        nextParent: expandCustomer(news.parent),
-        previousId: olds?.name ?? output?.name,
-        nextId: news.name,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousParent: olds?.parent ?? output?.parent,
+            nextParent: expandCustomer(resolved.parent),
+            previousId: olds?.name ?? output?.name,
+            nextId: resolved.name,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandCustomer(olds?.parent ?? output?.parent ?? "")
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => expandCustomer(olds?.parent ?? output?.parent ?? ""), catch: (e) => e }),
+      )
       const name = olds?.name ?? output?.name ?? ""
       let existing = try getCustomerDeployment(name)
       let locatedParent = existing ? parentOf(existing.name ?? "") || parent : parent
@@ -170,7 +179,9 @@ export const CustomersDeploymentProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, locatedParent, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -190,13 +201,18 @@ export const CustomersDeploymentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandCustomer(news.parent)
+      const parent = try Effect.orDie(Effect.try({ try: () => expandCustomer(news.parent), catch: (e) => e }))
       const ownership = try ownershipLabels(id)
-      const displayName = encodeOwnershipLine(
-        ownership,
-        try toDisplayName(id, news.displayName, output?.displayName),
-        MAX_DISPLAY_NAME_LENGTH,
-      )
+      const text = try toDisplayName(id, news.displayName, output?.displayName)
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            text,
+            MAX_DISPLAY_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
       const desired: sasportal.SasPortalDeployment = {
         displayName,
         sasUserIds: news.sasUserIds,
@@ -234,10 +250,14 @@ export const CustomersDeploymentProvider = (): infer _ =>
       if (nameChanged || usersChanged) {
         current = try sasportal.patchCustomersDeployments({
           name,
-          updateMask: updateMaskOf(
-            "displayName",
-            news.sasUserIds !== undefined ? "sasUserIds" : undefined,
-          ),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              updateMaskOf(
+                "displayName",
+                news.sasUserIds !== undefined ? "sasUserIds" : undefined,
+              ),
+            catch: (e) => e,
+          })),
           body: desired,
         })
       }

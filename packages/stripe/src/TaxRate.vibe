@@ -12,8 +12,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -230,7 +228,7 @@ const isMissingTaxRate = isMissingStripeResource
 
 const getById = effect (taxRate: string) =>
   try (GetTaxRate({ tax_rate: taxRate })
-    |> Effect.catchIf(%, isMissingTaxRate, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingTaxRate, effect () => undefined))
 
 const listByActive = effect (active: boolean) => {
   const rates: StripeTaxRate[] = []
@@ -271,7 +269,7 @@ const findByAlchemyId = effect (id: string) => {
   const rates = try listAllTaxRates()
   const matches: StripeTaxRate[] = []
   for (const rate of rates) {
-    if (try hasAlchemyMetadata(id, tagRecord(rate.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(rate.metadata), catch: (e) => e })))) {
       matches.push(rate)
     }
   }
@@ -307,8 +305,9 @@ export const TaxRateProvider = (): infer _ =>
     stables: ["id", "percentage", "inclusive", "created", "livemode"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -321,7 +320,7 @@ export const TaxRateProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -363,17 +362,17 @@ export const TaxRateProvider = (): infer _ =>
           ...(news.state !== undefined ? { state: news.state } : {}),
           ...(news.taxType !== undefined ? { tax_type: news.taxType } : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-tax-rate-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
       if (current === undefined) {
         throw new TaxRateNotResolved({ displayName })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = current.display_name !== displayName
       const activeChanged = current.active !== desiredActive
@@ -426,6 +425,6 @@ export const TaxRateProvider = (): infer _ =>
         tax_rate: existing.id,
         active: false,
       })
-        |> Effect.catchIf(%, isMissingTaxRate, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingTaxRate, effect () => (undefined as void)))
     },
   })

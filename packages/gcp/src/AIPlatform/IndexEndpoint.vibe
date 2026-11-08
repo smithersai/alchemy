@@ -163,15 +163,17 @@ const toAttrs = (endpoint: aiplatform.GoogleCloudAiplatformV1IndexEndpoint, proj
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsIndexEndpoints({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listPage = effect (parent: string, filter?: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsIndexEndpoints.pages({ parent, pageSize: 100, filter })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.indexEndpoints ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsIndexEndpoints.pages({ parent, pageSize: 100, filter })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.indexEndpoints ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1IndexEndpoint[];
     default: throw e;
   }
@@ -229,16 +231,19 @@ export const IndexEndpointProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
       const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
+        resolved.location ?? olds?.location ?? output?.location,
         env.region,
       )
       const previousNetwork = olds?.network ?? output?.network ?? ""
-      const nextNetwork = news.network ?? previousNetwork
+      const nextNetwork = resolved.network ?? previousNetwork
       const previousKms = olds?.encryptionSpec?.kmsKeyName ?? ""
-      const nextKms = news.encryptionSpec?.kmsKeyName ?? previousKms
+      const nextKms = resolved.encryptionSpec?.kmsKeyName ?? previousKms
       if (
         previousLocation !== nextLocation
         || previousNetwork !== nextNetwork
@@ -257,7 +262,12 @@ export const IndexEndpointProvider = (): infer _ =>
         ?? (try findOwned(env.project, location, ownership))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -278,7 +288,7 @@ export const IndexEndpointProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const publicEndpointEnabled = news.publicEndpointEnabled ?? true
@@ -299,10 +309,10 @@ export const IndexEndpointProvider = (): infer _ =>
               encryptionSpec: news.encryptionSpec,
               privateServiceConnectConfig: news.privateServiceConnectConfig,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           const done = try waitForOperation(created)
-          const name = resourceNameFromOperation(done)
+          const name = try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }))
           current = name !== undefined
             ? try waitUntilExists(name)
             : try findOwned(env.project, location, desiredLabels)
@@ -346,13 +356,15 @@ export const IndexEndpointProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (aiplatform
-        .deleteProjectsLocationsIndexEndpoints({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (aiplatform
+          .deleteProjectsLocationsIndexEndpoints({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

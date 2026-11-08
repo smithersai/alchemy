@@ -207,34 +207,48 @@ export const ApisConfigProvider = (): infer _ =>
     stables: ["name", "apiConfigId", "api", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const accountChanged = (olds?.gatewayServiceAccount ?? output?.gatewayServiceAccount) !== undefined
-        && (news.gatewayServiceAccount ?? "")
+        && (resolved.gatewayServiceAccount ?? "")
           !== (olds?.gatewayServiceAccount ?? output?.gatewayServiceAccount ?? "")
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.apiConfigId ?? output?.apiConfigId,
-        nextId: news.apiConfigId ?? olds?.apiConfigId ?? output?.apiConfigId,
+        nextId: resolved.apiConfigId ?? olds?.apiConfigId ?? output?.apiConfigId,
         previousParent: olds?.api !== undefined ? expandApi(olds.api, env.project) : output?.api,
-        nextParent: expandApi(news.api, env.project),
-        extra: documentsChanged(news, olds) || accountChanged,
-      })
+        nextParent: expandApi(resolved.api, env.project),
+        extra: documentsChanged(resolved, olds) || accountChanged,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const apiConfigId = try toPhysicalId(id, olds?.apiConfigId, output?.apiConfigId)
-      const api = olds?.api !== undefined ? expandApi(olds.api, env.project) : (output?.api ?? "")
-      const name = output?.name ?? (api ? resourceName(api, apiConfigId) : "")
+      const api = olds?.api !== undefined
+        ? try Effect.orDie(Effect.try({ try: () => expandApi(olds.api, env.project), catch: (e) => e }))
+        : (output?.api ?? "")
+      const name = output?.name
+        ?? (api ? try Effect.orDie(Effect.try({ try: () => resourceName(api, apiConfigId), catch: (e) => e })) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, api)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const apis = try listApis(locationParent(env.project))
+      const apis = try listApis(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project), catch: (e) => e })),
+      )
       const configs = try listChildResources(apis, listConfigs)
       return configs
         .filter((item) => hasAlchemyLabelMap(item.labels))
@@ -243,11 +257,12 @@ export const ApisConfigProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const api = expandApi(news.api, env.project)
+      const api = try Effect.orDie(Effect.try({ try: () => expandApi(news.api, env.project), catch: (e) => e }))
       const apiConfigId = try toPhysicalId(id, news.apiConfigId, output?.apiConfigId)
-      const name = output?.name ?? resourceName(api, apiConfigId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => resourceName(api, apiConfigId), catch: (e) => e })))
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? apiConfigId
@@ -285,10 +300,17 @@ export const ApisConfigProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayChanged = !sameText(current.displayName, displayName)
-      const mask = fieldMask([labelsChanged && "labels", displayChanged && "displayName"])
+      const mask = try Effect.orDie(
+        Effect.try({
+          try: () => fieldMask([labelsChanged && "labels", displayChanged && "displayName"]),
+          catch: (e) => e,
+        }),
+      )
 
       if (mask.length > 0) {
         const operation = try apigateway.patchProjectsLocationsApisConfigs({
@@ -314,13 +336,15 @@ export const ApisConfigProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apigateway
-        .deleteProjectsLocationsApisConfigs({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apigateway
+          .deleteProjectsLocationsApisConfigs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

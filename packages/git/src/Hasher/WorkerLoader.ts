@@ -38,7 +38,7 @@ import {
   encodeDeltaBatch,
   HASH_ROUTE,
   HashError,
-} from "./Protocol.vibe";
+} from "./Protocol.ts";
 import hasherSource from "./WorkerLoaderModule.ts?worker";
 
 /** The runtime allows four concurrent dynamic-worker invocations per request. */

@@ -1,7 +1,7 @@
+import * as Effect from "effect/Effect"
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs"
 import * as Output from "alchemy/Output"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import { LogEventSink, type LogEventSinkProps } from "./LogEventSink.vibe"
@@ -65,21 +65,30 @@ export const LogEventSinkHttp = Layer.effect(
         })
       }
       const put = try putLogEvents(logGroup)
-      return makeBatchedSink<Logs.InputLogEvent, Logs.PutLogEventsResponse, Logs.PutLogEventsError>(
-        {
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<Logs.InputLogEvent, Logs.PutLogEventsResponse, Logs.PutLogEventsError>
+        >[0] = {
           maxRecords: 10_000,
           maxBytes: 1_048_576,
           sizeOf: (event): infer _ => encoder.encode(event.message).length + PER_EVENT_OVERHEAD,
-          send: (batch) =>
-            put({
+          send: effect (batch) =>
+            try put({
               logStreamName: props.logStreamName,
               logEvents: [...batch],
             }),
           // No `unprocessed` extractor: PutLogEvents has no transient per-event
           // failure mode — timestamp rejections are permanent, so drop + surface.
           rejected: selectRejected,
-        },
-      )
+        }
+        return try Effect.orDie(
+          Effect.try({
+            try: () =>
+              makeBatchedSink<Logs.InputLogEvent, Logs.PutLogEventsResponse, Logs.PutLogEventsError>(sinkOptions),
+            catch: (error) => error,
+          }),
+        )
+      })
     }
   },
 )

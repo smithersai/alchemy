@@ -122,9 +122,9 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : discoveryengine
+const getByName = effect (name: string) => (name.length === 0 ? undefined : discoveryengine
   .getProjectsLocationsIdentityMappingStores({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -134,16 +134,18 @@ const listStores = effect (project: string) =>
   (try Effect.forEach(
     LIST_LOCATIONS,
     effect (location) =>
-      (Array.from(
-        try (discoveryengine.listProjectsLocationsIdentityMappingStores
-          .pages({
-            parent: locationParent(project, location),
-            pageSize: 100,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.identityMappingStores ?? []))
-          |> Stream.filter(%, (store) => isAlchemyId(lastId(store.name)))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+      (effect {
+        return (Array.from(
+          try (discoveryengine.listProjectsLocationsIdentityMappingStores
+            .pages({
+              parent: locationParent(project, location),
+              pageSize: 100,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.identityMappingStores ?? []))
+            |> Stream.filter(%, (store) => isAlchemyId(lastId(store.name)))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
     { concurrency: 2 },
   )).flat()
 
@@ -160,13 +162,16 @@ export const IdentityMappingStoreProvider = (): infer _ =>
     stables: ["name", "identityMappingStoreId", "project", "location", "kmsKey", "cmekConfigName"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.identityMappingStoreId ?? output?.identityMappingStoreId
-      const nextId = news.identityMappingStoreId ?? previousId
+      const nextId = resolved.identityMappingStoreId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(resolved.location ?? olds?.location ?? output?.location)
       const previousKey = olds?.kmsKeyName ?? output?.kmsKey ?? ""
-      const nextKey = news.kmsKeyName ?? previousKey
+      const nextKey = resolved.kmsKeyName ?? previousKey
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
         || previousKey !== nextKey
@@ -190,7 +195,9 @@ export const IdentityMappingStoreProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return isAlchemyId(attrs.identityMappingStoreId) ? attrs : Unowned(attrs)
+      return isAlchemyId(attrs.identityMappingStoreId)
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -239,7 +246,7 @@ export const IdentityMappingStoreProvider = (): infer _ =>
       if (existing === undefined) return
       const operation = discoveryengine
         .deleteProjectsLocationsIdentityMappingStores({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

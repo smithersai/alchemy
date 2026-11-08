@@ -281,10 +281,20 @@ export const SecurityHealthAnalyticsSettingsCustomModuleProvider = (): infer _ =
     stables: ["name", "moduleId", "project", "displayName", "ancestorModule"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.moduleId ?? output?.moduleId, news.moduleId)
-          ?? replaceOn(olds?.displayName ?? output?.displayName, news.displayName)
+        (try Effect.orDie(
+          Effect.try({ try: () => replaceOn(olds?.moduleId ?? output?.moduleId, resolved.moduleId), catch: (e) => e }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({
+              try: () => replaceOn(olds?.displayName ?? output?.displayName, resolved.displayName),
+              catch: (e) => e,
+            }),
+          ))
       )
     },
 
@@ -297,7 +307,7 @@ export const SecurityHealthAnalyticsSettingsCustomModuleProvider = (): infer _ =
       const attrs = toAttrs(existing, env.project)
       return (try ownedByAlchemy(id, existing.customConfig?.description))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -310,7 +320,9 @@ export const SecurityHealthAnalyticsSettingsCustomModuleProvider = (): infer _ =
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = shaSettingsParent(`projects/${env.project}`)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => shaSettingsParent(`projects/${env.project}`), catch: (e) => e }),
+      )
       const moduleId = news.moduleId ?? output?.moduleId
       const name = output?.name ?? (moduleId ? resourceName(env.project, moduleId) : "")
       const ownership = try createInternalLabels(id)
@@ -348,17 +360,21 @@ export const SecurityHealthAnalyticsSettingsCustomModuleProvider = (): infer _ =
 
       const currentName = current.name ?? name
       const enablementChanged = !sameText(current.enablementState, enablementState)
-      const configChanged = !jsonEqual(
-        {
+      const configChanged = !(try Effect.orDie(Effect.try({
+        try: jsonEqual.bind(undefined, {
           ...current.customConfig,
           description: current.customConfig?.description,
-        },
-        customConfig,
-      )
-      const updateMask = updateMaskOf(
-        enablementChanged ? "enablement_state" : undefined,
-        configChanged ? "custom_config" : undefined,
-      )
+        }, customConfig),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            enablementChanged ? "enablement_state" : undefined,
+            configChanged ? "custom_config" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try scc.patchProjectsSecurityHealthAnalyticsSettingsCustomModules({

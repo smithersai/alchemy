@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as xray from "@distilled.cloud/aws/xray"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -88,8 +91,12 @@ export const Group = Resource<Group>("AWS.XRay.Group")
  * Raised when a `Group` is configured with the reserved group name
  * `Default`, which X-Ray uses for the built-in group matching all traces.
  */
-export error XRayReservedGroupName {
-  mutable message: string
+export class XRayReservedGroupName extends $MutableErrorBase("XRayReservedGroupName")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "XRayReservedGroupName", true)
+  }
 }
 
 const validateGroupName = effect (
@@ -98,7 +105,7 @@ const validateGroupName = effect (
   ? throw new XRayReservedGroupName({
     message: "\"Default\" is reserved for the built-in X-Ray group — choose another groupName.",
   })
-  : try Effect.void)
+  : (undefined as void))
 
 export const GroupProvider = (): infer _ =>
   Provider.effect(
@@ -115,18 +122,22 @@ export const GroupProvider = (): infer _ =>
       })
 
       const observeGroup = effect (groupName: string) =>
-        (try xray.getGroup({ GroupName: groupName })).Group catch effect (e) => match (e) {
-          when { _tag: "GroupNotFound" }: try Effect.undefined;
+        (effect {
+          return (try xray.getGroup({ GroupName: groupName })).Group
+        }) catch effect (e) => match (e) {
+          when { _tag: "GroupNotFound" }: undefined;
           default: throw e;
         }
 
       const observedTags = effect (groupArn: string) =>
-        (Object.fromEntries(
-          Array.from(
-            try (xray.listTagsForResource.items({ ResourceARN: groupArn })
-              |> Stream.runCollect(%)),
-          ).map((t) => [t.Key, t.Value]),
-        )) catch effect (e) => match (e) {
+        (effect {
+          return (Object.fromEntries(
+            Array.from(
+              try (xray.listTagsForResource.items({ ResourceARN: groupArn })
+                |> Stream.runCollect(%)),
+            ).map((t) => [t.Key, t.Value]),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -147,10 +158,13 @@ export const GroupProvider = (): infer _ =>
           if (!found?.GroupARN) return undefined
           const attrs = { groupName, groupArn: found.GroupARN }
           const tags = try observedTags(found.GroupARN)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           try validateGroupName(news ?? {})
           const oldName = try createGroupName(id, olds ?? {})
           const newName = try createGroupName(id, news ?? {})
@@ -173,16 +187,18 @@ export const GroupProvider = (): infer _ =>
           //    the typed GroupAlreadyExists tag, which we treat as a race
           //    and re-observe.
           if (live === undefined) {
-            live = (try xray
-              .createGroup({
-                GroupName: groupName,
-                FilterExpression: news.filterExpression,
-                InsightsConfiguration: insights,
-                Tags: createTagsList(desiredTags),
-              })).Group catch effect (e) => match (e) {
-                when { _tag: "GroupAlreadyExists" }: try observeGroup(groupName);
-                default: throw e;
-              }
+            live = (effect {
+              return (try xray
+                .createGroup({
+                  GroupName: groupName,
+                  FilterExpression: news.filterExpression,
+                  InsightsConfiguration: insights,
+                  Tags: createTagsList(desiredTags),
+                })).Group
+            }) catch effect (e) => match (e) {
+              when { _tag: "GroupAlreadyExists" }: try observeGroup(groupName);
+              default: throw e;
+            }
           }
 
           // 3. SYNC — diff the OBSERVED filter expression and insights
@@ -224,7 +240,7 @@ export const GroupProvider = (): infer _ =>
         },
         delete: effect ({ output }) => {
           xray.deleteGroup({ GroupName: output.groupName }) catch effect (e) => match (e) {
-            when { _tag: "GroupNotFound" }: try Effect.void;
+            when { _tag: "GroupNotFound" }: (undefined as void);
             default: throw e;
           }
         },

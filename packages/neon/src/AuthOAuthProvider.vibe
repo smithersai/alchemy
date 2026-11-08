@@ -4,7 +4,6 @@ import { isResolved } from "alchemy/Diff"
 import type { Input } from "alchemy/Input"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
 import { authPlanScope, authRequest, InvalidManagedAuth, removedAuthSettings } from "./Auth.vibe"
 import type { Providers } from "./Providers.vibe"
@@ -74,8 +73,8 @@ const observe = effect (
   scope: { projectId: string; branchId: string },
   provider: Neon.NeonAuthOauthProviderId,
 ) =>
-  ((try Neon.listBranchNeonAuthOauthProviders(authRequest(scope))).providers.find((item) => item.id === provider))
-    catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect { return ((try Neon.listBranchNeonAuthOauthProviders(authRequest(scope))).providers.find((item) => item.id === provider)) })
+    catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const attributes = (
   scope: { projectId: string; branchId: string },
@@ -97,7 +96,7 @@ const validateOAuthRemoval = effect (
     "clientSecret",
     "microsoftTenantId",
   ])
-  return (removed.length === 0 ? try Effect.void : throw new InvalidManagedAuth({
+  return (removed.length === 0 ? (undefined as void) : throw new InvalidManagedAuth({
     message: `Cannot remove managed OAuth settings: ${removed.join(", ")}; replace the OAuth child explicitly`,
   }))
 }
@@ -118,17 +117,18 @@ export const AuthOAuthProviderProvider = (): infer _ =>
       ) {
         return { action: "replace" } as const
       }
-      if (!isResolved(news)) return
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return
       if (
-        news.auth.projectId !== olds.auth.projectId
-        || news.auth.branchId !== olds.auth.branchId
-        || news.provider !== olds.provider
+        resolved.auth.projectId !== olds.auth.projectId
+        || resolved.auth.branchId !== olds.auth.branchId
+        || resolved.provider !== olds.provider
       ) {
         return { action: "replace" } as const
       }
       if (output) {
-        const current = try observe(news.auth, news.provider)
-        if (!current || (news.clientId !== undefined && current.client_id !== news.clientId)) {
+        const current = try observe(resolved.auth, resolved.provider)
+        if (!current || (resolved.clientId !== undefined && current.client_id !== resolved.clientId)) {
           return { action: "update" } as const
         }
       }
@@ -138,7 +138,7 @@ export const AuthOAuthProviderProvider = (): infer _ =>
       const current = try observe(scope, output?.provider ?? olds.provider)
       if (!current) return undefined
       const attrs = attributes(scope, current)
-      return output ? attrs : Unowned(attrs)
+      return output ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ news, output, olds }) => {
       try validateOAuthRemoval(olds, news)
@@ -209,7 +209,7 @@ export const AuthOAuthProviderProvider = (): infer _ =>
         Neon.deleteBranchNeonAuthOauthProvider({
           ...authRequest(output),
           oauth_provider_id: output.provider,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
     },
   })

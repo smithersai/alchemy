@@ -21,6 +21,7 @@ export interface FunctionRuntimeContext extends BaseRuntimeContext {
   }>;
 }
 
+/** @throws {never} */
 export const makeFunctionRuntimeContext = (id: string): FunctionRuntimeContext => {
   const env: Record<string, Output.Output> = {};
   const routes = new Map<string, HttpEffect<FunctionRequest>>();

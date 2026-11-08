@@ -1,7 +1,6 @@
 import * as ivs from "@distilled.cloud/aws/ivs"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * IVS wire tags allow `undefined` values in the record type — flatten to a
@@ -32,7 +31,9 @@ export const readIvsTags = effect (arn: string) => {
  */
 export const syncIvsTags = effect (arn: string, desiredTags: Record<string, string>) => {
   const observedTags = try readIvsTags(arn)
-  const { removed, upsert } = diffTags(observedTags, desiredTags)
+  const { removed, upsert } = try Effect.orDie(
+    Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+  )
   if (upsert.length > 0) {
     try (ivs
       .tagResource({
@@ -54,10 +55,10 @@ export const syncIvsTags = effect (arn: string, desiredTags: Record<string, stri
  * Retries `ConflictException` (e.g. deleting a channel while a stream is
  * live, or a resource is mid-transition) on a bounded schedule.
  */
-export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileConflict = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ConflictException",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(8)]),
   })
@@ -67,10 +68,10 @@ export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
  * APIs have very low TPS limits (e.g. ListPlaybackKeyPairs is 1 TPS), so
  * back-to-back reconciles routinely trip 429s.
  */
-export const retryWhileThrottled = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileThrottled = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ThrottlingException",
     schedule: Schedule.max([Schedule.exponential("1 second"), Schedule.recurs(6)]),
   })

@@ -141,7 +141,7 @@ const createConfigName = effect (
 const fetchConfigTags = effect (arn: string) => {
   const response = sagemaker
     .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      when { _tag: "AccessDeniedException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -152,7 +152,7 @@ const fetchConfigTags = effect (arn: string) => {
 const readEndpointConfig = effect (name: string) => {
   const described = sagemaker
     .describeEndpointConfig({ EndpointConfigName: name }) catch effect (e) => match (e) {
-      when { _tag: "EndpointConfigNotFound" }: try Effect.undefined;
+      when { _tag: "EndpointConfigNotFound" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -189,10 +189,11 @@ export const EndpointConfigProvider = (): infer _ =>
           const attrs = try readEndpointConfig(name)
           if (!attrs) return undefined
           const tags = try fetchConfigTags(attrs.endpointConfigArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // Endpoint configs are immutable — everything except tags replaces.
           const identity = (props: EndpointConfigProps): infer _ => [
@@ -207,10 +208,10 @@ export const EndpointConfigProvider = (): infer _ =>
             props.enableNetworkIsolation ?? false,
           ]
           const oldName = try createConfigName(id, olds)
-          const newName = try createConfigName(id, news)
+          const newName = try createConfigName(id, resolved)
           if (
             oldName !== newName
-            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(news))
+            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(resolved))
           ) {
             return { action: "replace" } as const
           }
@@ -247,7 +248,7 @@ export const EndpointConfigProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "EndpointConfigAlreadyExists" }: try Effect.void;
+                when { _tag: "EndpointConfigAlreadyExists" }: (undefined as void);
                 default: throw e;
               }
             attrs = try readEndpointConfig(name)
@@ -260,7 +261,7 @@ export const EndpointConfigProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchConfigTags(attrs.endpointConfigArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: attrs.endpointConfigArn,
@@ -282,7 +283,7 @@ export const EndpointConfigProvider = (): infer _ =>
             .deleteEndpointConfig({
               EndpointConfigName: output.endpointConfigName,
             }) catch effect (e) => match (e) {
-              when { _tag: "EndpointConfigNotFound" }: try Effect.void;
+              when { _tag: "EndpointConfigNotFound" }: (undefined as void);
               default: throw e;
             }
         },

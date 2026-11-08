@@ -116,9 +116,9 @@ const toAttrs = (issue: cci.GoogleCloudContactcenterinsightsV1Issue, project: st
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsIssueModelsIssues({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -136,33 +136,43 @@ const waitUntilExists = effect (name: string) =>
     }))
 
 const listModels = effect (parent: string) =>
-  (((try cci.listProjectsLocationsIssueModels({ parent })).issueModels ?? []).map((model) => model.name ?? "").filter((
-    name,
-  ) => name.length > 0)) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  (effect {
+    return (((try cci.listProjectsLocationsIssueModels({ parent })).issueModels ?? []).map((model) => model.name ?? "")
+      .filter((
+        name,
+      ) => name.length > 0))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string) =>
-  (((try cci.listProjectsLocationsIssueModelsIssues({ parent })).issues ?? [])
-    .filter((issue) => hasOwnershipMarker(issue.displayDescription))
-    .map((issue) => toAttrs(issue, project))) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: [];
-      default: throw e;
-    }
+  (effect {
+    return (((try cci.listProjectsLocationsIssueModelsIssues({ parent })).issues ?? [])
+      .filter((issue) => hasOwnershipMarker(issue.displayDescription))
+      .map((issue) => toAttrs(issue, project)))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
 
 const findOwned = effect (parent: string, displayDescription: string, displayName: string | undefined) =>
-  (((try cci.listProjectsLocationsIssueModelsIssues({ parent })).issues ?? []).find(
-    (issue) =>
-      issue.displayDescription === displayDescription
-      || (displayName !== undefined && issue.displayName === displayName),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (((try cci.listProjectsLocationsIssueModelsIssues({ parent })).issues ?? []).find(
+      (issue) =>
+        issue.displayDescription === displayDescription
+        || (displayName !== undefined && issue.displayName === displayName),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 export const IssueModelsIssueProvider = (): infer _ =>
   Provider.succeed(IssueModelsIssue, {
     stables: ["name", "issueId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       return undefined
@@ -173,7 +183,9 @@ export const IssueModelsIssueProvider = (): infer _ =>
       const existing = try getByName(output?.name ?? "")
       if (existing !== undefined) {
         const attrs = toAttrs(existing, env.project)
-        return (try ownedByAlchemy(id, existing.displayDescription)) ? attrs : Unowned(attrs)
+        return (try ownedByAlchemy(id, existing.displayDescription))
+          ? attrs
+          : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
       }
       if (olds?.parent === undefined) return undefined
       const ownership = try createInternalLabels(id)
@@ -181,7 +193,9 @@ export const IssueModelsIssueProvider = (): infer _ =>
       const found = try findOwned(olds.parent, displayDescription, olds.displayName)
       if (found === undefined) return undefined
       const attrs = toAttrs(found, env.project)
-      return (try ownedByAlchemy(id, found.displayDescription)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, found.displayDescription))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -212,7 +226,7 @@ export const IssueModelsIssueProvider = (): infer _ =>
               displayName,
               displayDescription,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           const done = try waitForOperation(created)
           const createdName = resourceNameFromOperation(done) ?? ""
@@ -258,7 +272,7 @@ export const IssueModelsIssueProvider = (): infer _ =>
     delete: effect ({ output }) => {
       cci
         .deleteProjectsLocationsIssueModelsIssues({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

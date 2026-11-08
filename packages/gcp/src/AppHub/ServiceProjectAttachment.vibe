@@ -135,63 +135,90 @@ export const ServiceProjectAttachmentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousProject = projectIdOf(olds?.serviceProject ?? output?.serviceProject, "")
-      const nextProject = projectIdOf(
-        news.serviceProject ?? olds?.serviceProject ?? output?.serviceProject,
-        previousProject,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId: olds?.serviceProjectAttachmentId ?? output?.serviceProjectAttachmentId,
-        nextId: news.serviceProjectAttachmentId
-          ?? olds?.serviceProjectAttachmentId
-          ?? output?.serviceProjectAttachmentId,
-        previousLocation: GLOBAL_LOCATION,
-        nextLocation: GLOBAL_LOCATION,
-        extra: previousProject.length > 0 && nextProject.length > 0 && previousProject !== nextProject,
-      })
+      if (resolved === undefined) return undefined
+      const previousProject = try Effect.orDie(
+        Effect.try({ try: () => projectIdOf(olds?.serviceProject ?? output?.serviceProject, ""), catch: (e) => e }),
+      )
+      const nextProject = try Effect.orDie(Effect.try({
+        try: () =>
+          projectIdOf(
+            resolved.serviceProject ?? olds?.serviceProject ?? output?.serviceProject,
+            previousProject,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.serviceProjectAttachmentId ?? output?.serviceProjectAttachmentId,
+            nextId: resolved.serviceProjectAttachmentId
+              ?? olds?.serviceProjectAttachmentId
+              ?? output?.serviceProjectAttachmentId,
+            previousLocation: GLOBAL_LOCATION,
+            nextLocation: GLOBAL_LOCATION,
+            extra: previousProject.length > 0 && nextProject.length > 0 && previousProject !== nextProject,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
-      const serviceProjectId = projectIdOf(
-        olds?.serviceProject ?? output?.serviceProject,
-        env.project,
-      )
+      const serviceProjectId = try Effect.orDie(Effect.try({
+        try: () =>
+          projectIdOf(
+            olds?.serviceProject ?? output?.serviceProject,
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
       const attachmentId = olds?.serviceProjectAttachmentId ?? output?.serviceProjectAttachmentId ?? serviceProjectId
       const name = output?.name ?? resourceName(env.project, GLOBAL_LOCATION, attachmentId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return attrs.serviceProjectAttachmentId === attachmentId ? attrs : Unowned(attrs)
+      return attrs.serviceProjectAttachmentId === attachmentId
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (apphub.listProjectsLocationsServiceProjectAttachments
-          .pages({
-            parent: locationParent(env.project, GLOBAL_LOCATION),
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.serviceProjectAttachments ?? []))
-          |> Stream.filter(%, (item) =>
-            projectIdOf(item.serviceProject, "") === env.project
-            || parseName(item.name ?? "", "serviceProjectAttachments", GLOBAL_LOCATION).id
-              === env.project)
-          |> Stream.map(%, (item) => toAttrs(item, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (apphub.listProjectsLocationsServiceProjectAttachments
+            .pages({
+              parent: try Effect.orDie(
+                Effect.try({ try: () => locationParent(env.project, GLOBAL_LOCATION), catch: (e) => e }),
+              ),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.serviceProjectAttachments ?? []))
+            |> Stream.filter(%, (item) =>
+              projectIdOf(item.serviceProject, "") === env.project
+              || parseName(item.name ?? "", "serviceProjectAttachments", GLOBAL_LOCATION).id
+                === env.project)
+            |> Stream.map(%, (item) => toAttrs(item, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ news, output }) => {
       const env = try GcpEnvironment.current
-      const serviceProject = projectNameOf(news.serviceProject, env.project)
+      const serviceProject = try Effect.orDie(
+        Effect.try({ try: () => projectNameOf(news.serviceProject, env.project), catch: (e) => e }),
+      )
       const attachmentId = news.serviceProjectAttachmentId
         ?? output?.serviceProjectAttachmentId
-        ?? projectIdOf(serviceProject, env.project)
+        ?? (try Effect.orDie(Effect.try({ try: () => projectIdOf(serviceProject, env.project), catch: (e) => e })))
       const name = resourceName(env.project, GLOBAL_LOCATION, attachmentId)
-      const parent = locationParent(env.project, GLOBAL_LOCATION)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, GLOBAL_LOCATION), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -224,15 +251,17 @@ export const ServiceProjectAttachmentProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apphub
-        .deleteProjectsLocationsServiceProjectAttachments({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apphub
+          .deleteProjectsLocationsServiceProjectAttachments({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

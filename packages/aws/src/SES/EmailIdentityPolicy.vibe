@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as sesv2 from "@distilled.cloud/aws/sesv2"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -153,8 +154,10 @@ export const EmailIdentityPolicyProvider = (): infer _ =>
       // Returns the policy-name -> document map for the identity, or undefined
       // when the identity itself no longer exists.
       const getPolicies = effect (emailIdentity: string) =>
-        ((try sesv2.getEmailIdentityPolicies({ EmailIdentity: emailIdentity })).Policies ?? {}) catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+        (effect {
+          return ((try sesv2.getEmailIdentityPolicies({ EmailIdentity: emailIdentity })).Policies ?? {})
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -197,8 +200,9 @@ export const EmailIdentityPolicyProvider = (): infer _ =>
           return { emailIdentity, policyName }
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName || olds.emailIdentity !== news.emailIdentity) {
@@ -232,9 +236,7 @@ export const EmailIdentityPolicyProvider = (): infer _ =>
               }
           } else {
             // 3. SYNC — update only when the stored document differs.
-            const changed = try Effect.sync(
-              () => normalizePolicyDocument(existing) !== normalizePolicyDocument(news.policy),
-            )
+            const changed = normalizePolicyDocument(existing) !== normalizePolicyDocument(news.policy)
             if (changed) {
               try sesv2.updateEmailIdentityPolicy({
                 EmailIdentity: emailIdentity,
@@ -254,7 +256,7 @@ export const EmailIdentityPolicyProvider = (): infer _ =>
             .deleteEmailIdentityPolicy({
               EmailIdentity: output.emailIdentity,
               PolicyName: output.policyName,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
         },
       })
     },

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -116,7 +117,7 @@ export const BrowserCustomProvider = (): infer _ =>
       const getLiveOrUndefined = effect (browserId: string) => {
         const found = control
           .getBrowser({ browserId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return found === undefined || found.status === "DELETED" || found.status === "DELETING"
@@ -149,7 +150,7 @@ export const BrowserCustomProvider = (): infer _ =>
             .filter((s) => s.status !== "DELETED" && s.status !== "DELETING")
           const hydrated = try Effect.forEach(
             summaries,
-            (s) => getLiveOrUndefined(s.browserId),
+            effect (s) => try getLiveOrUndefined(s.browserId),
             { concurrency: 5 },
           )
           return hydrated.filter((b) => b !== undefined).map(toAttributes)
@@ -162,12 +163,15 @@ export const BrowserCustomProvider = (): infer _ =>
           if (browser === undefined) return undefined
           const attrs = toAttributes(browser)
           const tags = try readAgentCoreTags(browser.browserArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Everything except tags is create-only — any change replaces.
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldProps = olds ?? ({} as BrowserCustomProps)
           const newProps = news ?? ({} as BrowserCustomProps)
           const oldName = try createName(id, oldProps)
@@ -200,21 +204,23 @@ export const BrowserCustomProvider = (): infer _ =>
           // 2. ENSURE — creation is synchronous (READY on return); tolerate
           // the name-exists race and transient IAM propagation.
           if (browser === undefined) {
-            const created = (try (control
-              .createBrowser({
-                name,
-                description: props.description,
-                executionRoleArn: props.executionRoleArn,
-                networkConfiguration: props.networkConfiguration ?? {
-                  networkMode: "PUBLIC",
-                },
-                recording: props.recording,
-                tags: desiredTags,
-              })
-              |> retryWhileValidation(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try (control
+                .createBrowser({
+                  name,
+                  description: props.description,
+                  executionRoleArn: props.executionRoleArn,
+                  networkConfiguration: props.networkConfiguration ?? {
+                    networkMode: "PUBLIC",
+                  },
+                  recording: props.recording,
+                  tags: desiredTags,
+                })
+                |> retryWhileValidation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             browser = created === undefined
               ? try findByName(name)
               : try getLiveOrUndefined(created.browserId)
@@ -239,13 +245,17 @@ export const BrowserCustomProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (control.deleteBrowser({ browserId: output.browserId })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (control.deleteBrowser({ browserId: output.browserId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           try (effect {
-            return ((try control.getBrowser({ browserId: output.browserId })).status as string) catch effect (e) => match (e) {
+            return (effect {
+              return ((try control.getBrowser({ browserId: output.browserId })).status as string)
+            }) catch effect (e) => match (e) {
               when { _tag: "ResourceNotFoundException" }: "DELETED" as string;
               default: throw e;
             }

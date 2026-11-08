@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as agw2 from "@distilled.cloud/aws/apigatewayv2"
 import { deepEqual, isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -106,7 +107,7 @@ export const DomainNameProvider = (): infer _ =>
       const getDomainSafe = effect (domainName: string) =>
         agw2
           .getDomainName({ DomainName: domainName }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -114,7 +115,7 @@ export const DomainNameProvider = (): infer _ =>
         stables: ["domainName", "domainNameArn"],
 
         list: effect () => {
-          const items = try collectAllPages((NextToken) => agw2.getDomainNames({ NextToken }))
+          const items = try collectAllPages(effect (NextToken) => try agw2.getDomainNames({ NextToken }))
           return items
             .filter((domain) => domain.DomainName != null)
             .map((domain) => snapshotFromDomain(domain))
@@ -128,8 +129,9 @@ export const DomainNameProvider = (): infer _ =>
           return snapshotFromDomain(domain)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.domainName !== olds.domainName) {
             return { action: "replace" } as const
           }
@@ -171,7 +173,9 @@ export const DomainNameProvider = (): infer _ =>
             SecurityPolicy: config.SecurityPolicy,
           }))
           const drift = (news.domainNameConfigurations !== undefined
-            && !deepEqual(observedCerts, desiredCerts))
+            && !(try Effect.orDie(
+              Effect.try({ try: () => deepEqual(observedCerts, desiredCerts), catch: (error) => error }),
+            )))
             || (news.routingMode !== undefined && snapshot.routingMode !== news.routingMode)
           if (drift) {
             try retryOnTooManyRequests(
@@ -186,9 +190,15 @@ export const DomainNameProvider = (): infer _ =>
           }
 
           // 3b. SYNC TAGS — diff against OBSERVED cloud tags.
-          if (!deepEqual(snapshot.tags, desiredTags)) {
+          if (
+            !(try Effect.orDie(Effect.try({
+              try: () => deepEqual(snapshot.tags, desiredTags),
+              catch: (error) => error,
+            })))
+          ) {
             try syncTags({
-              resourceArn: snapshot.domainNameArn ?? domainNameArn(region, name),
+              resourceArn: snapshot.domainNameArn
+                ?? (try Effect.orDie(Effect.try({ try: () => domainNameArn(region, name), catch: (e) => e }))),
               oldTags: snapshot.tags,
               newTags: desiredTags,
             })
@@ -205,7 +215,7 @@ export const DomainNameProvider = (): infer _ =>
             effect {
               return agw2
                 .deleteDomainName({ DomainName: output.domainName }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

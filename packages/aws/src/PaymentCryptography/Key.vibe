@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as paymentcryptography from "@distilled.cloud/aws/payment-cryptography"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -250,10 +251,12 @@ const tagsToRecord = (tags: readonly paymentcryptography.Tag[]): Record<string, 
   Object.fromEntries(tags.map((t) => [t.Key, t.Value ?? ""]))
 
 const fetchKeyTags = effect (keyArn: string) =>
-  (tagsToRecord(Array.from(
-    try (paymentcryptography.listTagsForResource.items({ ResourceArn: keyArn })
-      |> Stream.runCollect(%)),
-  ))) catch () => ({}) as Record<string, string>
+  (effect {
+    return (tagsToRecord(Array.from(
+      try (paymentcryptography.listTagsForResource.items({ ResourceArn: keyArn })
+        |> Stream.runCollect(%)),
+    )))
+  }) catch () => ({}) as Record<string, string>
 
 export const KeyProvider = (): infer _ =>
   Provider.effect(
@@ -263,8 +266,10 @@ export const KeyProvider = (): infer _ =>
       // `undefined`. A key inside its deletion window (DELETE_PENDING) is
       // still returned so reconcile can restore it.
       const observeKey = effect (keyArn: string) => {
-        const found = (try paymentcryptography.getKey({ KeyIdentifier: keyArn })).Key catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        const found = (effect {
+          return (try paymentcryptography.getKey({ KeyIdentifier: keyArn })).Key
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
         if (found === undefined || found.KeyState === "DELETE_COMPLETE") {
@@ -315,10 +320,13 @@ export const KeyProvider = (): infer _ =>
           if (key === undefined) return undefined
           const attrs = toAttrs(key)
           const tags = try fetchKeyTags(key.KeyArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const wireOld = toWireKeyAttributes(olds.keyAttributes)
           const wireNew = toWireKeyAttributes(news.keyAttributes)
           if (
@@ -403,14 +411,16 @@ export const KeyProvider = (): infer _ =>
               KeyIdentifier: output.keyArn,
               DeleteKeyInDays: toWireDays(olds.deleteWindow) ?? 3,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              when { _tag: "ConflictException" }: (try effect {
-                const r = try paymentcryptography.getKey({ KeyIdentifier: output.keyArn })
-                return (r.Key.KeyState === "DELETE_PENDING" || r.Key.KeyState === "DELETE_COMPLETE"
-                  ? try Effect.void
-                  : throw e)
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
+              when { _tag: "ConflictException" }: (effect {
+                return (try effect {
+                  const r = try paymentcryptography.getKey({ KeyIdentifier: output.keyArn })
+                  return (r.Key.KeyState === "DELETE_PENDING" || r.Key.KeyState === "DELETE_COMPLETE"
+                    ? (undefined as void)
+                    : throw e)
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               };
               default: throw e;

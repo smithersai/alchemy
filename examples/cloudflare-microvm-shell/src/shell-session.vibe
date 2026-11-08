@@ -1,10 +1,5 @@
 import * as Cloudflare from "@alchemy.run/cloudflare"
 import * as Effect from "effect/Effect"
-import * as FetchHttpClient from "effect/http/FetchHttpClient"
-import * as HttpClient from "effect/http/HttpClient"
-import * as HttpClientRequest from "effect/http/HttpClientRequest"
-import * as HttpClientResponse from "effect/http/HttpClientResponse"
-import * as Stream from "effect/Stream"
 
 const EXIT_MARKER = "__EXIT__:"
 
@@ -41,13 +36,14 @@ export default class ShellSession extends Cloudflare.DurableObject<ShellSession>
     let coords: MicrovmCoords | undefined
 
     return effect {
+      const state = try Effect.service(Cloudflare.DurableObjectState)
+
       const send = effect (socket: Cloudflare.WebSocket, text: string) =>
         try (socket.send(text)
           |> Effect.ignore(%))
 
       const loadCoords = effect {
         if (coords) return coords
-        const state = try Effect.service(Cloudflare.DurableObjectState)
         coords = try state.storage.get<MicrovmCoords>("coords")
         return coords
       }
@@ -55,49 +51,51 @@ export default class ShellSession extends Cloudflare.DurableObject<ShellSession>
       const runCommand = effect (socket: Cloudflare.WebSocket, command: string) =>
         try effect {
           provide FetchHttpClient.layer {
-            return (try effect {
-              const current = try loadCoords
-              if (!current) {
-                try send(socket, "[session has no microvm]\n")
-                return
-              }
-              const { endpoint, headers } = current
-              const client = try Effect.service(HttpClient.HttpClient)
-              const request = HttpClientRequest.post(`https://${endpoint}/exec`).pipe(
-                HttpClientRequest.setHeaders(headers),
-                HttpClientRequest.bodyJsonUnsafe({ command }),
-              )
+            return (effect {
+              return (try effect {
+                const current = try loadCoords
+                if (!current) {
+                  try send(socket, "[session has no microvm]\n")
+                  return
+                }
+                const { endpoint, headers } = current
+                const client = try Effect.service(HttpClient.HttpClient)
+                const request = HttpClientRequest.post(`https://${endpoint}/exec`).pipe(
+                  HttpClientRequest.setHeaders(headers),
+                  HttpClientRequest.bodyJsonUnsafe({ command }),
+                )
 
-              // Render like a real shell: forward output verbatim, swallow the
-              // VM's `\n__EXIT__:<code>` trailer (including the separator newline
-              // the server adds before it), and only make sure the next prompt
-              // starts on a fresh line when the command's output didn't end with
-              // one — no exit-status chatter.
-              let endedWithNewline = true
-              try HttpClientResponse.stream(client.execute(request)).pipe(
-                Stream.decodeText(),
-                Stream.runForEach(effect (chunk) => {
-                  const marker = chunk.indexOf(EXIT_MARKER)
-                  if (marker === -1) {
-                    if (chunk) {
-                      endedWithNewline = chunk.endsWith("\n")
-                      try send(socket, chunk)
+                // Render like a real shell: forward output verbatim, swallow the
+                // VM's `\n__EXIT__:<code>` trailer (including the separator newline
+                // the server adds before it), and only make sure the next prompt
+                // starts on a fresh line when the command's output didn't end with
+                // one — no exit-status chatter.
+                let endedWithNewline = true
+                try HttpClientResponse.stream(client.execute(request)).pipe(
+                  Stream.decodeText(),
+                  Stream.runForEach(effect (chunk) => {
+                    const marker = chunk.indexOf(EXIT_MARKER)
+                    if (marker === -1) {
+                      if (chunk) {
+                        endedWithNewline = chunk.endsWith("\n")
+                        try send(socket, chunk)
+                      }
+                      return
                     }
-                    return
-                  }
-                  let before = chunk.slice(0, marker)
-                  if (before.endsWith("\n")) {
-                    before = before.slice(0, -1)
-                  }
-                  if (before) {
-                    endedWithNewline = before.endsWith("\n")
-                    try send(socket, before)
-                  }
-                }),
-              )
-              if (!endedWithNewline) {
-                try send(socket, "\n")
-              }
+                    let before = chunk.slice(0, marker)
+                    if (before.endsWith("\n")) {
+                      before = before.slice(0, -1)
+                    }
+                    if (before) {
+                      endedWithNewline = before.endsWith("\n")
+                      try send(socket, before)
+                    }
+                  }),
+                )
+                if (!endedWithNewline) {
+                  try send(socket, "\n")
+                }
+              })
             }) catch effect (error) => try send(socket, `[error] ${String(error)}\n`)
           }
         }
@@ -108,7 +106,6 @@ export default class ShellSession extends Cloudflare.DurableObject<ShellSession>
           coords = next
           // Persist so a hibernation wake (same socket, fresh instance)
           // finds its VM again.
-          const state = try Effect.service(Cloudflare.DurableObjectState)
           try state.storage.put("coords", next)
         },
         fetch: effect {
@@ -120,7 +117,13 @@ export default class ShellSession extends Cloudflare.DurableObject<ShellSession>
           socket: Cloudflare.WebSocket,
           message: string | ArrayBuffer,
         ) => {
-          const command = typeof message === "string" ? message : new TextDecoder().decode(message)
+          const command = typeof message === "string"
+            ? message
+            : try ((foreignTypeErrorClass: typeof TypeError) =>
+              Effect.catch(
+                Effect.try({ try: () => new TextDecoder().decode(message), catch: (error) => error }),
+                (error) => error instanceof foreignTypeErrorClass ? Effect.fail(error) : Effect.die(error),
+              ))(TypeError)
           if (!command.trim()) return
           try runCommand(socket, command.trim())
         },

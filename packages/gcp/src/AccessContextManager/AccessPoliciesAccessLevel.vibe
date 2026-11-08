@@ -23,7 +23,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.vibe"
+} from "./internal.ts"
 
 export type AccessLevelOsConstraint = acm.OsConstraint
 export type AccessLevelDevicePolicy = acm.DevicePolicy
@@ -179,7 +179,7 @@ const toAttrs = (level: acm.AccessLevel): AccessPoliciesAccessLevel["Attributes"
 const getByName = effect (name: string) =>
   acm
     .getAccessPoliciesAccessLevels({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -197,13 +197,17 @@ export const AccessPoliciesAccessLevelProvider = (): infer _ =>
     stables: ["name", "accessLevelId", "policy"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.accessLevelId ?? output?.accessLevelId
       const idChanged = previousId !== undefined
-        && news.accessLevelId !== undefined
-        && news.accessLevelId !== previousId
+        && resolved.accessLevelId !== undefined
+        && resolved.accessLevelId !== previousId
       const previousPolicy = olds?.policy ?? output?.policy
-      const policyChanged = previousPolicy !== undefined && policyNameOf(news.policy) !== policyNameOf(previousPolicy)
+      const policyChanged = previousPolicy !== undefined
+        && policyNameOf(resolved.policy) !== policyNameOf(previousPolicy)
       return replaceOnIdentity(idChanged || policyChanged)
     },
 
@@ -217,7 +221,7 @@ export const AccessPoliciesAccessLevelProvider = (): infer _ =>
       const attrs = toAttrs(existing)
       return (try ownedByAlchemy(id, existing.description ?? existing.title))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -262,7 +266,7 @@ export const AccessPoliciesAccessLevelProvider = (): infer _ =>
               basic: news.basic,
               custom: news.custom,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           // ALREADY_EXISTS (6): a concurrent create won the race.
           waitForOperation(created) catch effect (error) => match (error) {
@@ -279,8 +283,12 @@ export const AccessPoliciesAccessLevelProvider = (): infer _ =>
 
       const titleChanged = (current.title ?? "") !== desiredTitle
       const descriptionChanged = (current.description ?? "") !== desiredDescription
-      const basicChanged = !jsonEqual(current.basic, news.basic)
-      const customChanged = !jsonEqual(current.custom, news.custom)
+      const basicChanged =
+        !(try Effect.orDie(Effect.try({ try: jsonEqual.bind(undefined, current.basic, news.basic), catch: (e) => e })))
+      const customChanged = !(try Effect.orDie(Effect.try({
+        try: jsonEqual.bind(undefined, current.custom, news.custom),
+        catch: (e) => e,
+      })))
 
       const updateMask = [
         titleChanged ? "title" : undefined,
@@ -315,7 +323,7 @@ export const AccessPoliciesAccessLevelProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const operation = acm
         .deleteAccessPoliciesAccessLevels({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

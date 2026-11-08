@@ -431,8 +431,11 @@ export const ProjectProvider = (): infer _ =>
         stables: ["projectName", "projectArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -448,7 +451,9 @@ export const ProjectProvider = (): infer _ =>
             projectArn: project.arn,
           }
           const tags = toTagRecord(project.tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -466,8 +471,12 @@ export const ProjectProvider = (): infer _ =>
             environment: toWireEnvironment(news.environment),
             serviceRole: news.serviceRole,
             // The CodeBuild wire unit for build/queue timeouts is whole minutes.
-            timeoutInMinutes: toWireMinutes(news.timeout),
-            queuedTimeoutInMinutes: toWireMinutes(news.queuedTimeout),
+            timeoutInMinutes: try Effect.orDie(
+              Effect.try({ try: () => toWireMinutes(news.timeout), catch: (e) => e }),
+            ),
+            queuedTimeoutInMinutes: try Effect.orDie(
+              Effect.try({ try: () => toWireMinutes(news.queuedTimeout), catch: (e) => e }),
+            ),
             concurrentBuildLimit: news.concurrentBuildLimit,
             encryptionKey: news.encryptionKey,
             badgeEnabled: news.badgeEnabled,
@@ -481,9 +490,11 @@ export const ProjectProvider = (): infer _ =>
           // just-deleted project; updateProject then reports the truth with
           // a typed ResourceNotFoundException — treat it as missing.
           if (observed !== undefined) {
-            observed = (try retryIamPropagation(codebuild.updateProject({ name, ...spec }))).project catch effect (
+            observed = (effect {
+              return (try retryIamPropagation(codebuild.updateProject({ name, ...spec }))).project
+            }) catch effect (
               e,
-            ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+            ) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
           }
 
           // 2. Ensure — create if missing; tolerate the create/create race.
@@ -512,11 +523,14 @@ export const ProjectProvider = (): infer _ =>
             : typeof news.resourcePolicy === "string"
             ? news.resourcePolicy
             : stringifyPolicyDocument(news.resourcePolicy)
-          const observedPolicy = (try codebuild
-            .getResourcePolicy({ resourceArn: observed.arn })).policy catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          const observedArn = observed.arn
+          const observedPolicy = effect {
+            return ((try codebuild
+              .getResourcePolicy({ resourceArn: observedArn })).policy)
+          } catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           if (desiredPolicy === undefined) {
             if (observedPolicy !== undefined && observedPolicy !== "") {
               try codebuild.deleteResourcePolicy({

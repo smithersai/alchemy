@@ -182,20 +182,23 @@ export const InboundSsoAssignmentProvider = (): infer _ =>
     stables: ["name", "assignmentId", "customer", "targetGroup", "targetOrgUnit"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousCustomer = olds?.customer ?? output?.customer
-      const nextCustomer = news.customer !== undefined ? normalizeCustomer(news.customer) : previousCustomer
+      const nextCustomer = resolved.customer !== undefined ? normalizeCustomer(resolved.customer) : previousCustomer
       const previousGroup = olds?.targetGroup ?? output?.targetGroup
-      const nextGroup = expandTargetGroup(news.targetGroup)
+      const nextGroup = expandTargetGroup(resolved.targetGroup)
       const previousOu = olds?.targetOrgUnit ?? output?.targetOrgUnit
       return replaceOnIdentity({
         previousId: previousGroup,
         nextId: nextGroup,
         previousParent: previousCustomer,
         nextParent: nextCustomer,
-        extra: news.targetOrgUnit !== undefined
+        extra: resolved.targetOrgUnit !== undefined
           && previousOu !== undefined
-          && news.targetOrgUnit !== previousOu,
+          && resolved.targetOrgUnit !== previousOu,
       })
     },
 
@@ -208,7 +211,9 @@ export const InboundSsoAssignmentProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -248,12 +253,12 @@ export const InboundSsoAssignmentProvider = (): infer _ =>
       if (current === undefined) {
         const created = cloudidentity
           .createInboundSsoAssignments({ body: desired }) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
+            when { _tag: "Conflict" }: undefined;
             default: throw e;
           }
         if (created !== undefined) {
           waitForOperation(created) catch effect (e) => match (e) {
-            when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: (undefined as void);
             default: throw e;
           }
           const createdName = resourceNameFromOperation(created)
@@ -314,7 +319,7 @@ export const InboundSsoAssignmentProvider = (): infer _ =>
           },
         })
         waitForOperation(patched) catch effect (e) => match (e) {
-          when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+          when { _tag: "GCP.CloudIdentity.OperationPending" }: (undefined as void);
           default: throw e;
         }
         current = (try getSsoAssignment(name)) ?? current
@@ -327,7 +332,7 @@ export const InboundSsoAssignmentProvider = (): infer _ =>
       if (output.name.length === 0) return
       const deleted = cloudidentity
         .deleteInboundSsoAssignments({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (deleted !== undefined) {

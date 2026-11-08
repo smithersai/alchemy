@@ -1,7 +1,6 @@
 import * as smsvoice from "@distilled.cloud/aws/pinpoint-sms-voice-v2"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * Flatten the wire `Tag[]` list into a plain string record.
@@ -34,7 +33,9 @@ export const syncSmsVoiceTags = effect (
   desiredTags: Record<string, string>,
 ) => {
   const observedTags = try readSmsVoiceTags(arn)
-  const { removed, upsert } = diffTags(observedTags, desiredTags)
+  const { removed, upsert } = try Effect.orDie(
+    Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+  )
   if (upsert.length > 0) {
     try (smsvoice.tagResource({ ResourceArn: arn, Tags: upsert }) |> retrySmsVoiceThrottled(%))
   }
@@ -50,10 +51,10 @@ export const syncSmsVoiceTags = effect (
  * `ThrottlingException` on a bounded exponential schedule — the End User
  * Messaging SMS control plane has low per-account TPS limits.
  */
-export const retrySmsVoiceThrottled = <A, E extends { readonly _tag: string }, R>(
+export const retrySmsVoiceThrottled = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ThrottlingException",
     schedule: Schedule.max([Schedule.exponential("1 second"), Schedule.recurs(6)]),
   })

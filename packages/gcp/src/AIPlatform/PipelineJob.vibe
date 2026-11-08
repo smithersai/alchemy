@@ -180,7 +180,7 @@ const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1PipelineJob, project: st
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsPipelineJobs({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -204,15 +204,15 @@ const cancelUntilTerminal = effect (name: string) => {
   const job = try getByName(name)
   if (job === undefined || TERMINAL_STATES.has(job.state ?? "")) return
   aiplatform.cancelProjectsLocationsPipelineJobs({ name, body: {} }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.void;
-    when { _tag: "BadRequest" }: try Effect.void;
+    when { _tag: "NotFound" }: (undefined as void);
+    when { _tag: "BadRequest" }: (undefined as void);
     default: throw e;
   }
   try (effect {
     return try effect {
       const current = try getByName(name)
       return (current === undefined || TERMINAL_STATES.has(current.state ?? "")
-        ? try Effect.void
+        ? (undefined as void)
         : throw new PipelineJobNotTerminal({ resourceName: name, state: current.state }))
     }
   }
@@ -239,14 +239,17 @@ export const PipelineJobProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.pipelineJobId ?? output?.pipelineJobId
-      const nextId = news.pipelineJobId ?? previousId
+      const nextId = resolved.pipelineJobId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       const specChanged = olds !== undefined
-        && (!jsonEqual(news.pipelineSpec, olds.pipelineSpec)
-          || (news.templateUri ?? "") !== (olds.templateUri ?? ""))
+        && (!jsonEqual(resolved.pipelineSpec, olds.pipelineSpec)
+          || (resolved.templateUri ?? "") !== (olds.templateUri ?? ""))
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
         || specChanged
@@ -270,7 +273,12 @@ export const PipelineJobProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -300,7 +308,7 @@ export const PipelineJobProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const name = resourceName(env.project, location, jobId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -337,7 +345,7 @@ export const PipelineJobProvider = (): infer _ =>
       try cancelUntilTerminal(output.name)
       const operation = aiplatform
         .deleteProjectsLocationsPipelineJobs({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

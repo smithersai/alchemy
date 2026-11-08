@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -439,13 +441,26 @@ export interface SecurityGroup extends
  */
 export const SecurityGroup = Resource<SecurityGroup>("AWS.EC2.SecurityGroup")
 
-error InvalidSecurityGroupRules {
-  mutable groupId: string
-  mutable message: string
+class InvalidSecurityGroupRules extends $MutableErrorBase("InvalidSecurityGroupRules")<{
+
+   groupId: string;
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "InvalidSecurityGroupRules", true);
 }
 
-error SecurityGroupRulesNotSettled {
-  mutable groupId: string
+
+}
+
+class SecurityGroupRulesNotSettled extends $MutableErrorBase("SecurityGroupRulesNotSettled")<{
+
+   groupId: string;
+}> {static {
+    $MutableErrorMatcher(this, "SecurityGroupRulesNotSettled", true);
+}
+
+
 }
 
 export const SecurityGroupProvider = (): infer _ =>
@@ -503,7 +518,7 @@ export const SecurityGroupProvider = (): infer _ =>
           description: sg.Description!,
           vpcId: sg.VpcId as VpcId,
           ownerId: sg.OwnerId!,
-          tags: tagListRecord(sg.Tags),
+          tags: try Effect.orDie(Effect.try({ try: () => tagListRecord(sg.Tags), catch: (e) => e })),
           ingressRules: rules
             .filter((r) => !r.IsEgress)
             .map((r) => ({
@@ -583,8 +598,8 @@ export const SecurityGroupProvider = (): infer _ =>
           })
         }
         const desiredByKey = new Map<string, SecurityGroupRuleData>()
-        for (const rule of expandSecurityGroupRules(desired)) {
-          const key = securityGroupRuleKey({ ...rule, description: undefined })
+        for (const rule of try Effect.orDie(Effect.try({ try: () => expandSecurityGroupRules(desired), catch: (e) => e }))) {
+          const key = try Effect.orDie(Effect.try({ try: () => securityGroupRuleKey({ ...rule, description: undefined }), catch: (e) => e }))
           if (!rule.ipProtocol || desiredByKey.has(key)) {
             throw new InvalidSecurityGroupRules({
               groupId,
@@ -600,10 +615,10 @@ export const SecurityGroupProvider = (): infer _ =>
           rule: ec2.SecurityGroupRule
         }> = []
         for (const rule of observed) {
-          const key = observedSecurityGroupRuleKey({
+          const key = try Effect.orDie(Effect.try({ try: () => observedSecurityGroupRuleKey({
             ...rule,
             Description: undefined,
-          })
+          }), catch: (e) => e }))
           if (rule.IpProtocol === undefined || rule.SecurityGroupRuleId === undefined) {
             throw new InvalidSecurityGroupRules({
               groupId,
@@ -623,13 +638,13 @@ export const SecurityGroupProvider = (): infer _ =>
             ? ec2
               .revokeSecurityGroupEgress(request) catch effect (e) => match (e) {
                 when { _tag: "InvalidPermission.NotFound" } or { _tag: "InvalidSecurityGroupRuleId.NotFound" }:
-                  try Effect.void;
+                  (undefined as void);
                 default: throw e;
               }
             : ec2
               .revokeSecurityGroupIngress(request) catch effect (e) => match (e) {
                 when { _tag: "InvalidPermission.NotFound" } or { _tag: "InvalidSecurityGroupRuleId.NotFound" }:
-                  try Effect.void;
+                  (undefined as void);
                 default: throw e;
               }
         }
@@ -681,7 +696,7 @@ export const SecurityGroupProvider = (): infer _ =>
         read: effect ({ id, olds, output }) => {
           const sg = output
             ? describeSecurityGroup(output.groupId) catch effect (e) => match (e) {
-              when { _tag: "InvalidGroup.NotFound" }: try Effect.undefined;
+              when { _tag: "InvalidGroup.NotFound" }: undefined;
               default: throw e;
             }
             : try findOwnedGroup(id, try createGroupName(id, olds?.groupName), olds?.vpcId)
@@ -724,9 +739,10 @@ export const SecurityGroupProvider = (): infer _ =>
         },
 
         diff: effect ({ id, news, olds, output }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           // VPC change requires replacement
-          if (news.vpcId !== olds.vpcId) {
+          if (resolved.vpcId !== olds.vpcId) {
             return { action: "replace" }
           }
 
@@ -735,14 +751,14 @@ export const SecurityGroupProvider = (): infer _ =>
           // Auto-generated names are engine-owned: the deployed name stays
           // authoritative even if the generator would name this id differently
           // today. Only an explicit user-provided name can force a replace.
-          const newGroupName = news.groupName ?? oldGroupName
+          const newGroupName = resolved.groupName ?? oldGroupName
           if (newGroupName !== oldGroupName) {
             return { action: "replace" }
           }
 
           if (output) {
             const group = describeSecurityGroup(output.groupId) catch effect (e) => match (e) {
-              when { _tag: "InvalidGroup.NotFound" }: try Effect.undefined;
+              when { _tag: "InvalidGroup.NotFound" }: undefined;
               default: throw e;
             }
             if (group === undefined) return { action: "update", stables: [] }
@@ -753,11 +769,11 @@ export const SecurityGroupProvider = (): infer _ =>
             if (
               !rulesMatch(
                 observed.filter((rule) => !rule.IsEgress),
-                resolveSecurityGroupRules(news.ingress, false),
+                try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(resolved.ingress, false), catch: (e) => e })),
               )
               || !rulesMatch(
                 observed.filter((rule) => rule.IsEgress),
-                resolveSecurityGroupRules(news.egress, true),
+                try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(resolved.egress, true), catch: (e) => e })),
               )
             ) {
               return { action: "update" }
@@ -799,7 +815,7 @@ export const SecurityGroupProvider = (): infer _ =>
                 TagSpecifications: [
                   {
                     ResourceType: "security-group",
-                    Tags: createTagsList(desiredTags),
+                    Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                   },
                 ],
                 DryRun: false,
@@ -820,7 +836,7 @@ export const SecurityGroupProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (sg.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed: removedTags, upsert: upsertTags } = diffTags(currentTags, desiredTags)
+          const { removed: removedTags, upsert: upsertTags } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removedTags.length > 0) {
             try ec2.deleteTags({
               Resources: [groupId],
@@ -848,14 +864,14 @@ export const SecurityGroupProvider = (): infer _ =>
           try syncRules(
             groupId,
             false,
-            resolveSecurityGroupRules(news.ingress, false),
+            try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(news.ingress, false), catch: (e) => e })),
             currentIngress,
             session,
           )
           try syncRules(
             groupId,
             true,
-            resolveSecurityGroupRules(news.egress, true),
+            try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(news.egress, true), catch: (e) => e })),
             currentEgress,
             session,
           )
@@ -907,7 +923,7 @@ export const SecurityGroupProvider = (): infer _ =>
                   GroupId: groupId,
                   DryRun: false,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "InvalidGroup.NotFound" }: try Effect.void;
+                  when { _tag: "InvalidGroup.NotFound" }: (undefined as void);
                   default: throw e;
                 }
             },

@@ -28,14 +28,20 @@ export const lastSegment = (value: string) => {
 export const locationParent = (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
-export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
-  lastSegment(location ?? defaultLocation);
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  defaultLocation: string,
+) => lastSegment(location ?? defaultLocation);
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameBool = (left: boolean | undefined, right: boolean | undefined) =>
-  (left === true) === (right === true);
+export const sameBool = /** @throws {never} */ (
+  left: boolean | undefined,
+  right: boolean | undefined,
+) => (left === true) === (right === true);
 
 const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -153,8 +159,9 @@ export const ownedById = (id: string, description: string | undefined) =>
     return yield* hasAlchemyLabels(id, labels);
   });
 
-export const sharingKind = (config: analyticshub.SharingEnvironmentConfig | undefined) =>
-  config?.dcrExchangeConfig !== undefined ? "dcr" : "default";
+export const sharingKind = /** @throws {never} */ (
+  config: analyticshub.SharingEnvironmentConfig | undefined,
+) => (config?.dcrExchangeConfig !== undefined ? "dcr" : "default");
 
 export const replaceOnIdentity = (input: {
   previousId?: string;

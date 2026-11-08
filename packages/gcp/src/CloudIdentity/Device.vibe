@@ -176,14 +176,17 @@ export const DeviceProvider = (): infer _ =>
     stables: ["name", "deviceResourceId", "customer", "serialNumber", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousCustomer = olds?.customer ?? output?.customer
-      const nextCustomer = news.customer !== undefined ? normalizeCustomer(news.customer) : previousCustomer
+      const nextCustomer = resolved.customer !== undefined ? normalizeCustomer(resolved.customer) : previousCustomer
       const previousType = olds?.deviceType ?? output?.deviceType
-      const nextType = news.deviceType ?? DEFAULT_DEVICE_TYPE
+      const nextType = resolved.deviceType ?? DEFAULT_DEVICE_TYPE
       return replaceOnIdentity({
         previousId: olds?.serialNumber ?? output?.serialNumber,
-        nextId: news.serialNumber,
+        nextId: resolved.serialNumber,
         previousParent: previousCustomer,
         nextParent: nextCustomer,
         extra: previousType !== undefined && previousType !== nextType,
@@ -200,7 +203,9 @@ export const DeviceProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, customer)
-      return (try ownedByAlchemy(id, existing.assetTag)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.assetTag))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -237,10 +242,10 @@ export const DeviceProvider = (): infer _ =>
           .createDevices({
             customer,
             body: desired,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           waitForOperation(created) catch effect (e) => match (e) {
-            when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: (undefined as void);
             default: throw e;
           }
           const createdName = resourceNameFromOperation(created)
@@ -279,7 +284,7 @@ export const DeviceProvider = (): infer _ =>
         .deleteDevices({
           name: output.name,
           customer: normalizeCustomer(output.customer),
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (deleted !== undefined) {
         try waitForOperation(deleted, { notFoundOk: true })
       }

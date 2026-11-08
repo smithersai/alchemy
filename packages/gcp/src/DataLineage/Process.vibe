@@ -175,29 +175,46 @@ export const ProcessProvider = (): infer _ =>
     stables: ["name", "processId", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId: olds?.processId ?? output?.processId,
-        nextId: news.processId,
-        extra: output !== undefined && previousLocation !== nextLocation,
-      })
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.processId ?? output?.processId,
+            nextId: resolved.processId,
+            extra: output !== undefined && previousLocation !== nextLocation,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const processId = try toPhysicalId(id, olds?.processId, output?.processId)
       const name = output?.name ?? resourceName(env.project, location, processId)
       const existing = (try getByName(name)) ?? (try findOwnedProcess(id, env.project, location))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.attributes)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.attributes))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -208,11 +225,15 @@ export const ProcessProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const processId = try toPhysicalId(id, news.processId, output?.processId)
       const name = output?.name ?? resourceName(env.project, location, processId)
       const ownership = try createOwnership(id)
-      const attributes = desiredAttributes(news.attributes, ownership)
+      const attributes = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.attributes, ownership), catch: (e) => e }),
+      )
 
       let current = (try getByName(name)) ?? (try findOwnedProcess(id, env.project, location))
 
@@ -243,9 +264,15 @@ export const ProcessProvider = (): infer _ =>
       const resolvedName = current.name ?? name
       const desiredOrigin = defaultOrigin(news.origin ?? current.origin)
       const displayName = news.displayName ?? current.displayName
-      const originChanged = !sameJson(current.origin, desiredOrigin)
+      const originChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.origin, desiredOrigin),
+        catch: (e) => e,
+      })))
       const displayNameChanged = !sameText(current.displayName, displayName)
-      const attributesChanged = !sameJson(current.attributes, attributes)
+      const attributesChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.attributes, attributes),
+        catch: (e) => e,
+      })))
 
       if (originChanged || displayNameChanged || attributesChanged) {
         current = try datalineage.patchProjectsLocationsProcesses({

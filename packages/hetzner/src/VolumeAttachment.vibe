@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as Hetzner from "@distilled.cloud/hetzner"
 import type { GetVolumeResponseVolume } from "@distilled.cloud/hetzner/volumes"
 import { isResolved } from "alchemy/Diff"
@@ -124,14 +126,28 @@ class VolumeNotFound extends Data.TaggedError("Hetzner.VolumeNotFound")<{
   volumeId: number
 }> {}
 
-error AttachmentPending {
-  mutable volumeId: number
-  mutable serverId: number | null
+class AttachmentPending extends $MutableErrorBase("AttachmentPending")<{
+
+   volumeId: number;
+
+   serverId: number | null;
+}> {static {
+    $MutableErrorMatcher(this, "AttachmentPending", true);
 }
 
-error AttachmentTimeout {
-  mutable volumeId: number
-  mutable serverId: number | null
+
+}
+
+class AttachmentTimeout extends $MutableErrorBase("AttachmentTimeout")<{
+
+   volumeId: number;
+
+   serverId: number | null;
+}> {static {
+    $MutableErrorMatcher(this, "AttachmentTimeout", true);
+}
+
+
 }
 
 const retryable = (e: { readonly _tag: string }): boolean =>
@@ -165,10 +181,10 @@ const serverIdOf = (value: unknown): number | undefined => {
 }
 
 const getById = effect (id: number) =>
-  (try effect {
+  (effect { return (try effect {
     const { volume } = try Hetzner.volumes.getVolume({ id })
     return volume
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const toAttrs = (
   volume: GetVolumeResponseVolume,
@@ -184,12 +200,12 @@ const toAttrs = (
 }
 
 const waitUntilServer = effect (volumeId: number, serverId: number | null) =>
-  (try (effect {
+  (effect { return (try (effect {
     return try effect {
       const volume = try getById(volumeId)
 
       if (volume === undefined) {
-        return (serverId === null ? try Effect.undefined : throw new AttachmentPending({
+        return (serverId === null ? undefined : throw new AttachmentPending({
           volumeId,
           serverId: null,
         }))
@@ -206,7 +222,7 @@ const waitUntilServer = effect (volumeId: number, serverId: number | null) =>
       while: retryable,
       times: 10,
       schedule: backoff,
-    }))) catch effect (e) => match (e) {
+    }))) }) catch effect (e) => match (e) {
       when { _tag: "AttachmentPending" }: throw new AttachmentTimeout({
         volumeId: e.volumeId,
         serverId: e.serverId,
@@ -215,19 +231,19 @@ const waitUntilServer = effect (volumeId: number, serverId: number | null) =>
     }
 
 const detach = effect (volumeId: number) =>
-  (try (Hetzner.volumeActions.detachVolume({ id: volumeId })
+  (effect { return (try (Hetzner.volumeActions.detachVolume({ id: volumeId })
     |> Effect.tap(%, effect ({ action }) =>
       waitForAction(action) catch effect (e) => match (e) {
-        when { _tag: "ActionTimeout" }: try Effect.void;
+        when { _tag: "ActionTimeout" }: (undefined as void);
         default: throw e;
-      }))) catch effect (e) => match (e) {
-        when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: try Effect.void;
+      }))) }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: (undefined as void);
         default: throw e;
       }
 
 const attach = effect (volumeId: number, serverId: number, automount: boolean) =>
   try (effect {
-    return (try (Hetzner.volumeActions
+    return (effect { return (try (Hetzner.volumeActions
       .attachVolume({
         id: volumeId,
         server: serverId,
@@ -235,9 +251,9 @@ const attach = effect (volumeId: number, serverId: number, automount: boolean) =
       })
       |> Effect.tap(%, effect ({ action }) =>
         waitForAction(action) catch effect (e) => match (e) {
-          when { _tag: "ActionTimeout" }: try Effect.void;
+          when { _tag: "ActionTimeout" }: (undefined as void);
           default: throw e;
-        }))) catch effect (e) => match (e) { when { _tag: "UnprocessableEntity" }: try Effect.void; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "UnprocessableEntity" }: (undefined as void); default: throw e; }
   }
     |> Effect.retry(%, {
       while: retryable,
@@ -268,9 +284,10 @@ export const VolumeAttachmentProvider = (): infer _ =>
       })
     },
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      const nextVolume = volumeIdOf(news.volume)
-      const nextServer = serverIdOf(news.server)
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      const nextVolume = volumeIdOf(resolved.volume)
+      const nextServer = serverIdOf(resolved.server)
       if (
         output !== undefined
         && nextVolume !== undefined

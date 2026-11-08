@@ -166,13 +166,15 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, organization: string, project: string) =>
-  (Array.from(
-    try (dlp.listOrganizationsLocationsStoredInfoTypes.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.storedInfoTypes ?? []))
-      |> Stream.filter(%, (infoType) => hasOwnershipMarker(ownershipText(infoType)))
-      |> Stream.map(%, (infoType) => toAttrs(infoType, organization, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dlp.listOrganizationsLocationsStoredInfoTypes.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.storedInfoTypes ?? []))
+        |> Stream.filter(%, (infoType) => hasOwnershipMarker(ownershipText(infoType)))
+        |> Stream.map(%, (infoType) => toAttrs(infoType, organization, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const desiredConfig = (
   ownership: Record<string, string>,
@@ -193,13 +195,33 @@ export const OrganizationsLocationsStoredInfoTypeProvider = (): infer _ =>
     stables: ["name", "storedInfoTypeId", "organization", "organizationId", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+          catch: (e) => e,
+        }),
+      )
       return (
-        replaceOn(olds?.storedInfoTypeId ?? output?.storedInfoTypeId, news.storedInfoTypeId)
-          ?? replaceOn(olds?.organization ?? output?.organization, news.organization)
-          ?? replaceOn(previousLocation, nextLocation)
+        (try Effect.orDie(
+          Effect.try({
+            try: () => replaceOn(olds?.storedInfoTypeId ?? output?.storedInfoTypeId, resolved.storedInfoTypeId),
+            catch: (e) => e,
+          }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({
+              try: () => replaceOn(olds?.organization ?? output?.organization, resolved.organization),
+              catch: (e) => e,
+            }),
+          ))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousLocation, nextLocation), catch: (e) => e })))
       )
     },
 
@@ -209,7 +231,9 @@ export const OrganizationsLocationsStoredInfoTypeProvider = (): infer _ =>
         olds?.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const storedInfoTypeId = try toPhysicalId(
         id,
         olds?.storedInfoTypeId,
@@ -219,7 +243,9 @@ export const OrganizationsLocationsStoredInfoTypeProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, ownershipText(existing)))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -227,7 +253,7 @@ export const OrganizationsLocationsStoredInfoTypeProvider = (): infer _ =>
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
       const pages = try Effect.forEach(
-        locationParentsOf(organization, env.region),
+        try Effect.orDie(Effect.try({ try: () => locationParentsOf(organization, env.region), catch: (e) => e })),
         effect (parent) => try listAt(parent, organization, env.project),
         { concurrency: 3 },
       )
@@ -237,13 +263,17 @@ export const OrganizationsLocationsStoredInfoTypeProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organization = try resolveOrganization(news.organization, output?.organization)
-      const location = normalizeLocation(news.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
       const storedInfoTypeId = try toPhysicalId(
         id,
         news.storedInfoTypeId,
         output?.storedInfoTypeId,
       )
-      const parent = organizationLocationParent(organization, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => organizationLocationParent(organization, location), catch: (e) => e }),
+      )
       const name = resourceName(organization, location, storedInfoTypeId)
       const ownership = try createInternalLabels(id)
       const config = desiredConfig(ownership, news.config)
@@ -268,14 +298,31 @@ export const OrganizationsLocationsStoredInfoTypeProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       const observed = versionConfig(current)
-      const displayChanged = !sameText(observed?.displayName, config.displayName)
-      const descriptionChanged = !sameText(observed?.description, config.description)
-      const bodyChanged = fingerprint(configForCompare(observed)) !== fingerprint(configForCompare(config))
-      const updateMask = updateMaskOf(
-        displayChanged ? "displayName" : undefined,
-        descriptionChanged ? "description" : undefined,
-        bodyChanged ? "dictionary,regex,largeCustomDictionary" : undefined,
-      )
+      const displayChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(observed?.displayName, config.displayName),
+        catch: (e) => e,
+      })))
+      const descriptionChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(observed?.description, config.description),
+        catch: (e) => e,
+      })))
+      const value = configForCompare(observed)
+      const bodyChanged = (try Effect.orDie(Effect.try({
+        try: () => fingerprint(value),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, configForCompare(config)),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "displayName" : undefined,
+            descriptionChanged ? "description" : undefined,
+            bodyChanged ? "dictionary,regex,largeCustomDictionary" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try dlp.patchOrganizationsLocationsStoredInfoTypes({

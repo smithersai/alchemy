@@ -237,13 +237,14 @@ export const NetworkAclProvider = (): infer _ =>
                 acl.NetworkAclId != null && acl.IsDefault !== true,
             )
           )
-          return try Effect.forEach(acls, (acl) => toAttrs(acl))
+          return try Effect.forEach(acls, effect (acl) => try toAttrs(acl))
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           // VPC change requires replacement
-          if (news.vpcId !== olds.vpcId) {
+          if (resolved.vpcId !== olds.vpcId) {
             return { action: "replace" }
           }
           // Tags can be updated in-place
@@ -271,7 +272,7 @@ export const NetworkAclProvider = (): infer _ =>
               TagSpecifications: [
                 {
                   ResourceType: "network-acl",
-                  Tags: createTagsList(desiredTags),
+                  Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                 },
               ],
               DryRun: false,
@@ -287,7 +288,7 @@ export const NetworkAclProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (acl.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [networkAclId],
@@ -319,15 +320,15 @@ export const NetworkAclProvider = (): infer _ =>
                 NetworkAclId: networkAclId,
                 DryRun: false,
               }) catch effect (e) => match (e) {
-                when { _tag: "InvalidNetworkAclID.NotFound" }: try Effect.void;
+                when { _tag: "InvalidNetworkAclID.NotFound" }: (undefined as void);
                 default: throw e;
               }
           }
             |> Effect.retry(%, {
               while: (e) => e._tag === "DependencyViolation",
               schedule: Schedule.max([Schedule.exponential(1000, 1.5), Schedule.recurs(15)]).pipe(
-                Schedule.tap(({ attempt }) =>
-                  session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
+                Schedule.tap(effect ({ attempt }) =>
+                  try session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
                 ),
               ),
             }))

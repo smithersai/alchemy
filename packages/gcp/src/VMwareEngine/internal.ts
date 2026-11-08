@@ -35,7 +35,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const rfc1035 = (name: string, fallback = "resource"): string => {
+export const rfc1035 = /** @throws {never} */ (name: string, fallback = "resource"): string => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-")
@@ -49,8 +49,10 @@ export const rfc1035 = (name: string, fallback = "resource"): string => {
   return next.length > 0 ? next : fallback;
 };
 
-export const normalizeLocation = (location: string | undefined, fallback: string) =>
-  lastSegment(location ?? fallback).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  fallback: string,
+) => lastSegment(location ?? fallback).toLowerCase();
 
 export const parentOf = (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
@@ -152,8 +154,9 @@ export const hasOwnershipMarker = (text: string | undefined) =>
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const changedFields = (pairs: ReadonlyArray<readonly [string, boolean]>) =>
-  pairs.filter(([, changed]) => changed).map(([field]) => field);
+export const changedFields = /** @throws {never} */ (
+  pairs: ReadonlyArray<readonly [string, boolean]>,
+) => pairs.filter(([, changed]) => changed).map(([field]) => field);
 
 export const replaceOnIdentity = (input: {
   previousId: string | undefined;

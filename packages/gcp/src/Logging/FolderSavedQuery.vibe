@@ -207,32 +207,41 @@ export const FolderSavedQueryProvider = (): infer _ =>
     stables: ["name", "savedQueryId", "parent", "folderId", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.savedQueryId ?? output?.savedQueryId
       const idChanged = previousId !== undefined
-        && news.savedQueryId !== undefined
-        && news.savedQueryId !== previousId
+        && resolved.savedQueryId !== undefined
+        && resolved.savedQueryId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       const previousFolder = olds?.folderId ?? output?.folderId
-      const folderChanged = news.folderId !== undefined && news.folderId !== previousFolder
+      const folderChanged = resolved.folderId !== undefined && resolved.folderId !== previousFolder
       if (!idChanged && !locationChanged && !folderChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = scopeParent(env.project, olds?.folderId ?? output?.folderId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => scopeParent(env.project, olds?.folderId ?? output?.folderId), catch: (e) => e }),
+      )
       const location = olds?.location ?? output?.location ?? DEFAULT_LOCATION
       const savedQueryId = try toPhysicalId(id, olds?.savedQueryId, output?.savedQueryId, "q")
       const name = output?.name ?? resourceName(parent, location, savedQueryId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, parent, location)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -257,12 +266,16 @@ export const FolderSavedQueryProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = scopeParent(env.project, news.folderId ?? output?.folderId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => scopeParent(env.project, news.folderId ?? output?.folderId), catch: (e) => e }),
+      )
       const location = news.location ?? output?.location ?? DEFAULT_LOCATION
       const savedQueryId = try toPhysicalId(id, news.savedQueryId, output?.savedQueryId, "q")
       const name = resourceName(parent, location, savedQueryId)
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const desiredVisibility = news.visibility ?? "PRIVATE"
 
       let current = try getByName(output?.name ?? name)
@@ -284,11 +297,22 @@ export const FolderSavedQueryProvider = (): infer _ =>
       const displayNameChanged = (current.displayName ?? "") !== news.displayName
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const visibilityChanged = (current.visibility ?? "PRIVATE") !== desiredVisibility
-      const loggingChanged = !jsonEqual(current.loggingQuery ?? null, news.loggingQuery ?? null)
-      const analyticsChanged = !jsonEqual(
-        current.opsAnalyticsQuery?.sqlQueryText ?? null,
-        news.opsAnalyticsQuery?.sqlQueryText ?? null,
-      )
+      const loggingChanged = !(try Effect.orDie(
+        Effect.try({
+          try: jsonEqual.bind(undefined, current.loggingQuery ?? null, news.loggingQuery ?? null),
+          catch: (e) => e,
+        }),
+      ))
+      const analyticsChanged = !(try Effect.orDie(
+        Effect.try({
+          try: jsonEqual.bind(
+            undefined,
+            current.opsAnalyticsQuery?.sqlQueryText ?? null,
+            news.opsAnalyticsQuery?.sqlQueryText ?? null,
+          ),
+          catch: (e) => e,
+        }),
+      ))
 
       const updateMask = [
         displayNameChanged ? "displayName" : undefined,

@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as rum from "@distilled.cloud/aws/rum"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -158,8 +160,14 @@ export const MetricsDestination = Resource<MetricsDestination>("AWS.RUM.MetricsD
  * Raised when a `BatchCreateRumMetricDefinitions` /
  * `BatchDeleteRumMetricDefinitions` call reports per-definition errors.
  */
-export error RumMetricDefinitionsError {
-  mutable message: string
+export class RumMetricDefinitionsError extends $MutableErrorBase("RumMetricDefinitionsError")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "RumMetricDefinitionsError", true);
+}
+
+
 }
 
 const toWireDefinition = (def: MetricDefinition): rum.MetricDefinitionRequest => ({
@@ -198,9 +206,9 @@ export const MetricsDestinationProvider = (): infer _ =>
       const observeDestination = effect (
         props: Pick<MetricsDestinationProps, "appMonitorName" | "destination" | "destinationArn">,
       ) => {
-        const destinations = (try (rum.listRumMetricsDestinations
+        const destinations = (effect { return (try (rum.listRumMetricsDestinations
           .items({ AppMonitorName: props.appMonitorName })
-          |> Stream.runCollect(%))) catch effect (e) => match (e) {
+          |> Stream.runCollect(%))) }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: [] as rum.MetricDestinationSummary[];
             default: throw e;
           }
@@ -225,11 +233,12 @@ export const MetricsDestinationProvider = (): infer _ =>
         stables: ["appMonitorName", "destination", "destinationArn"],
 
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
-            olds?.appMonitorName !== news.appMonitorName
-            || olds?.destination !== news.destination
-            || olds?.destinationArn !== news.destinationArn
+            olds?.appMonitorName !== resolved.appMonitorName
+            || olds?.destination !== resolved.destination
+            || olds?.destinationArn !== resolved.destinationArn
           ) {
             return { action: "replace" } as const
           }
@@ -269,13 +278,13 @@ export const MetricsDestinationProvider = (): infer _ =>
             observed === undefined
             || (props.iamRoleArn !== undefined && observed.IamRoleArn !== props.iamRoleArn)
           ) {
-            ;(try (rum
+            ;(effect { return (try (rum
               .putRumMetricsDestination({
                 ...key,
                 IamRoleArn: props.iamRoleArn,
               })
-              |> Effect.asVoid(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
+              |> Effect.asVoid(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -316,8 +325,8 @@ export const MetricsDestinationProvider = (): infer _ =>
                 ? [{ id: current.MetricDefinitionId, definition: d }]
                 : []
             }),
-            ({ id, definition }) =>
-              rum.updateRumMetricDefinition({
+            effect ({ id, definition }) =>
+              try rum.updateRumMetricDefinition({
                 ...key,
                 MetricDefinitionId: id,
                 MetricDefinition: toWireDefinition(definition),
@@ -356,7 +365,7 @@ export const MetricsDestinationProvider = (): infer _ =>
                   ? { DestinationArn: output.destinationArn }
                   : {}),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }

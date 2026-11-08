@@ -190,7 +190,7 @@ const findOwned = effect (id: string, environment: string, hinted?: string) => {
   }
   const experiments = try listExperiments(environment)
   for (const experiment of experiments) {
-    if (try ownedByAlchemy(id, ownershipText(experiment))) {
+    if (try ownedByAlchemy(id, try Effect.orDie(Effect.try({ try: () => ownershipText(experiment), catch: (e) => e })))) {
       return experiment
     }
   }
@@ -223,20 +223,21 @@ export const AgentsEnvironmentsExperimentProvider = (): infer _ =>
     stables: ["name", "experimentId", "environment", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousParent = olds?.environment ?? output?.environment
       const previousId = olds?.experimentId ?? output?.experimentId
       if (
-        (previousParent !== undefined && news.environment !== previousParent)
+        (previousParent !== undefined && resolved.environment !== previousParent)
         || (previousId !== undefined
-          && news.experimentId !== undefined
-          && news.experimentId !== previousId)
+          && resolved.experimentId !== undefined
+          && resolved.experimentId !== previousId)
       ) {
         return {
           action: "replace" as const,
-          deleteFirst: previousParent === news.environment
+          deleteFirst: previousParent === resolved.environment
             && previousId !== undefined
-            && news.experimentId === previousId,
+            && resolved.experimentId === previousId,
         }
       }
       return undefined
@@ -252,7 +253,7 @@ export const AgentsEnvironmentsExperimentProvider = (): infer _ =>
         : undefined
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, try Effect.orDie(Effect.try({ try: () => ownershipText(existing), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -265,7 +266,7 @@ export const AgentsEnvironmentsExperimentProvider = (): infer _ =>
         const env = try GcpEnvironment.current
         const environment = news.environment
         const ownership = try ownershipLabels(id)
-        const description = encodeOwnership(ownership, news.description)
+        const description = try Effect.orDie(Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }))
         const displayName = news.displayName ?? "experiment"
         const body: dialogflow.GoogleCloudDialogflowCxV3Experiment = {
           displayName,
@@ -297,18 +298,19 @@ export const AgentsEnvironmentsExperimentProvider = (): infer _ =>
         const currentName = current.name ?? output?.name ?? ""
         const displayChanged = !sameText(current.displayName, displayName)
         const descriptionChanged = !sameText(current.description, description)
-        const definitionChanged = !sameJson(definitionOf(current.definition), news.definition)
+        const left = definitionOf(current.definition)
+        const definitionChanged = !(try Effect.orDie(Effect.try({ try: () => sameJson(left, news.definition), catch: (e) => e })))
         const lengthChanged = !sameText(current.experimentLength, news.experimentLength)
 
         if (displayChanged || descriptionChanged || definitionChanged || lengthChanged) {
           current = try dialogflow.patchProjectsLocationsAgentsEnvironmentsExperiments({
             name: currentName,
-            updateMask: updateMaskOf(
+            updateMask: try Effect.orDie(Effect.try({ try: () => updateMaskOf(
               displayChanged ? "display_name" : undefined,
               descriptionChanged ? "description" : undefined,
               definitionChanged ? "definition" : undefined,
               lengthChanged ? "experiment_length" : undefined,
-            ),
+            ), catch: (e) => e })),
             body: { ...body, name: currentName },
           })
         }

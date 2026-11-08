@@ -91,7 +91,7 @@ export interface List extends
 export const List = Resource<List>("AWS.FraudDetector.List")
 
 /** Coerce a distilled sensitive element (`string | Redacted<string>`) to a plain string. */
-const toElement = (e: string | Redacted<string>): string => typeof e === "string" ? e : Redacted.value(e)
+const toElement = (e: string | Redacted.Redacted<string>): string => typeof e === "string" ? e : Redacted.value(e)
 
 export const ListProvider = (): infer _ =>
   Provider.effect(
@@ -104,7 +104,7 @@ export const ListProvider = (): infer _ =>
       const get = effect (name: string) => {
         const response = frauddetector
           .getListsMetadata({ name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.lists?.find((list) => list.name === name)
@@ -125,14 +125,15 @@ export const ListProvider = (): infer _ =>
         stables: ["name", "arn"],
 
         diff: effect ({ id, olds = {}, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (
             oldName !== newName
             // The variable type can only be set once — changing an
             // already-set variable type requires a replacement.
-            || (olds.variableType !== undefined && news.variableType !== olds.variableType)
+            || (olds.variableType !== undefined && resolved.variableType !== olds.variableType)
           ) {
             return { action: "replace" } as const
           }
@@ -144,7 +145,7 @@ export const ListProvider = (): infer _ =>
           if (list === undefined) return undefined
           const attrs = toAttrs(list)
           const tags = try readFraudDetectorTags(list.arn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news = {}, session }) => {
@@ -202,7 +203,7 @@ export const ListProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           frauddetector.deleteList({ name: output.name }) catch effect (e) => match (e) {
-            when { _tag: "ValidationException" }: try Effect.void;
+            when { _tag: "ValidationException" }: (undefined as void);
             default: throw e;
           }
         },

@@ -215,7 +215,7 @@ const toAttrs = (
 const fetchTags = effect (arn: string) => {
   const response = influxdb
     .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   const tags = response?.tags ?? {}
@@ -227,7 +227,7 @@ const fetchTags = effect (arn: string) => {
 const readInstanceById = effect (identifier: string) => {
   const instance = influxdb
     .getDbInstance({ identifier }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!instance) return undefined
@@ -277,12 +277,12 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("20 seconds"), Schedule.recurs(90)]),
   })
 
-const waitForStatus = (identifier: string, target: "AVAILABLE" | "DELETED") =>
-  retryWhileNotReady(
+const waitForStatus = effect (identifier: string, target: "AVAILABLE" | "DELETED") =>
+  try retryWhileNotReady(
     effect {
       const instance = influxdb
         .getDbInstance({ identifier }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (target === "DELETED") {
@@ -313,7 +313,7 @@ export const DbInstanceProvider = (): infer _ =>
           ).flatMap((page) => page.items ?? [])
           const hydrated = try Effect.forEach(
             summaries,
-            (summary) => readInstanceById(summary.id),
+            effect (summary) => try readInstanceById(summary.id),
             { concurrency: 5 },
           )
           return hydrated.filter(
@@ -325,25 +325,26 @@ export const DbInstanceProvider = (): infer _ =>
             ? try readInstanceById(output.id)
             : try findInstanceByName(try createInstanceName(id, olds ?? {}))
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds = {} }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createInstanceName(id, olds)
-          const newName = try createInstanceName(id, news)
+          const newName = try createInstanceName(id, resolved)
           // Name and the networking/credential aspects are immutable — changing
           // any of them requires a replacement.
           const arraysDiffer = (a?: string[], b?: string[]): infer _ =>
             JSON.stringify([...(a ?? [])].sort()) !== JSON.stringify([...(b ?? [])].sort())
           if (
             oldName !== newName
-            || arraysDiffer(olds.vpcSubnetIds, news.vpcSubnetIds)
-            || arraysDiffer(olds.vpcSecurityGroupIds, news.vpcSecurityGroupIds)
-            || olds.username !== news.username
-            || olds.organization !== news.organization
-            || olds.bucket !== news.bucket
-            || olds.publiclyAccessible !== news.publiclyAccessible
-            || olds.networkType !== news.networkType
+            || arraysDiffer(olds.vpcSubnetIds, resolved.vpcSubnetIds)
+            || arraysDiffer(olds.vpcSecurityGroupIds, resolved.vpcSecurityGroupIds)
+            || olds.username !== resolved.username
+            || olds.organization !== resolved.organization
+            || olds.bucket !== resolved.bucket
+            || olds.publiclyAccessible !== resolved.publiclyAccessible
+            || olds.networkType !== resolved.networkType
           ) {
             return { action: "replace" } as const
           }
@@ -422,7 +423,7 @@ export const DbInstanceProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try influxdb.untagResource({
               resourceArn: state.arn,
@@ -449,7 +450,7 @@ export const DbInstanceProvider = (): infer _ =>
         delete: effect ({ output }) => {
           influxdb
             .deleteDbInstance({ identifier: output.id }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           try waitForStatus(output.id, "DELETED")

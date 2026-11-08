@@ -15,8 +15,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -359,7 +357,7 @@ const alreadyVoided = (error: StripeOpError): boolean =>
 
 const getById = effect (id: string) =>
   try (GetBillingCreditGrant({ id })
-    |> Effect.catchIf(%, isMissingGrant, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingGrant, effect () => undefined))
 
 const listAllCreditGrants = effect () => {
   const grants: StripeCreditGrant[] = []
@@ -386,7 +384,7 @@ const findByAlchemyId = effect (id: string) => {
   const matches: StripeCreditGrant[] = []
   for (const grant of grants) {
     if (isVoided(grant)) continue
-    if (try hasAlchemyMetadata(id, tagRecord(grant.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(grant.metadata), catch: (e) => e })))) {
       matches.push(grant)
     }
   }
@@ -481,8 +479,9 @@ export const CreditGrantProvider = (): infer _ =>
     ],
 
     diff: effect ({ olds, news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (replaceOnCreateOnlyChange(olds, news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (replaceOnCreateOnlyChange(olds, resolved, output)) {
         return { action: "replace" as const }
       }
       return undefined
@@ -495,7 +494,7 @@ export const CreditGrantProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -535,17 +534,17 @@ export const CreditGrantProvider = (): infer _ =>
           ...(news.expiresAt !== undefined ? { expires_at: news.expiresAt } : {}),
           ...(news.priority !== undefined ? { priority: news.priority } : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-credit-grant-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
       if (current === undefined) {
         throw new CreditGrantNotResolved({ customer: news.customer })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const expiresAtChanged = news.expiresAt !== undefined && (current.expires_at ?? undefined) !== news.expiresAt
 
@@ -572,7 +571,7 @@ export const CreditGrantProvider = (): infer _ =>
       const existing = try getById(output.id)
       if (existing === undefined || isVoided(existing)) return
       try (CreateBillingCreditGrantVoid({ id: existing.id })
-        |> Effect.catchIf(%, isMissingGrant, effect () => try Effect.void)
-        |> Effect.catchIf(%, alreadyVoided, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingGrant, effect () => (undefined as void))
+        |> Effect.catchIf(%, alreadyVoided, effect () => (undefined as void)))
     },
   })

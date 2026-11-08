@@ -3,11 +3,7 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
 import * as Redacted from "effect/Redacted"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { extractValue } from "./common.vibe"
 
@@ -105,7 +101,7 @@ export const PublicKeyProvider = (): infer _ =>
       const getById = effect (id: string) => {
         const config = cloudfront
           .getPublicKeyConfig({ Id: id }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchPublicKey" }: try Effect.undefined;
+            when { _tag: "NoSuchPublicKey" }: undefined;
             default: throw e;
           }
         if (!config?.PublicKeyConfig) return undefined
@@ -173,8 +169,11 @@ export const PublicKeyProvider = (): infer _ =>
           return rows.filter((row) => row !== undefined)
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
-          if ((try createName(id, olds ?? {})) !== (try createName(id, news))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try createName(id, olds ?? {})) !== (try createName(id, resolved))) {
             return { action: "replace" } as const
           }
           // Compare only when the old key is known — an Output-valued
@@ -182,8 +181,8 @@ export const PublicKeyProvider = (): infer _ =>
           // deserializes as `undefined`).
           if (
             olds.encodedKey !== undefined
-            && isResolved(olds.encodedKey)
-            && extractValue(olds.encodedKey) !== extractValue(news.encodedKey)
+            && (try Effect.orDie(Effect.try({ try: () => isResolved(olds.encodedKey), catch: (e) => e })))
+            && extractValue(olds.encodedKey) !== extractValue(resolved.encodedKey)
           ) {
             return { action: "replace" } as const
           }
@@ -278,7 +277,10 @@ export const PublicKeyProvider = (): infer _ =>
               .deletePublicKey({
                 Id: output.publicKeyId,
                 IfMatch: current.etag,
-              }) catch effect (e) => match (e) { when { _tag: "NoSuchPublicKey" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchPublicKey" }: (undefined as void);
+                default: throw e;
+              }
           }
             |> Effect.retry(%, {
               while: (error) => error._tag === "PublicKeyInUse",

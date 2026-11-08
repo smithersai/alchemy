@@ -4,7 +4,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
 import { type BranchScope, resolveBranchScope, type ResolvedBranchScope } from "./BranchScope.ts"
 import { waitForOperations } from "./Project.ts"
@@ -84,10 +83,10 @@ const createRoleName = effect (id: string, name: string | undefined) => {
 }
 
 const observeRole = effect (scope: ResolvedBranchScope, roleName: string) => {
-  return (try effect {
+  return (effect { return (try effect {
     const { role } = try Neon.getProjectBranchRole({ ...requestScope(scope), role_name: roleName })
     return role
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 }
 
 const isNoLogin = (role: Neon.Role): infer _ => role.authentication_method === "no_login"
@@ -96,10 +95,10 @@ const isNoLogin = (role: Neon.Role): infer _ => role.authentication_method === "
 const revealPassword = effect (scope: ResolvedBranchScope, role: Neon.Role) => {
   if (isNoLogin(role)) return undefined
   const request = { ...requestScope(scope), role_name: role.name }
-  const stored = (try effect {
+  const stored = (effect { return (try effect {
     const { password } = try Neon.getProjectBranchRolePassword(request)
     return redact(password)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
   if (stored) return stored
   const reset = try Neon.resetProjectBranchRolePassword(request)
   try waitForOperations(reset.operations)
@@ -156,7 +155,7 @@ export const RoleProvider = (): infer _ =>
       }
       // Only an explicit name can collide with a role this stack did not create.
       const attrs = toAttributes(scope, role, try revealPassword(scope, role))
-      return olds?.name !== undefined ? Unowned(attrs) : attrs
+      return olds?.name !== undefined ? try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e })) : attrs
     },
     reconcile: effect ({ id, news, output }) => {
       const scope = try resolveBranchScope(news)
@@ -166,7 +165,7 @@ export const RoleProvider = (): infer _ =>
         const created = Neon.createProjectBranchRole({
           ...requestScope(scope),
           role: { name: roleName, ...(news.noLogin ? { no_login: true } : {}) },
-        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created) {
           try waitForOperations(created.operations)
           return toAttributes(
@@ -191,7 +190,7 @@ export const RoleProvider = (): infer _ =>
       const deleted = Neon.deleteProjectBranchRole({
         ...requestScope(output),
         role_name: output.roleName,
-      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (deleted) try waitForOperations(deleted.operations)
     },
   })

@@ -1,7 +1,6 @@
 import * as ivschat from "@distilled.cloud/aws/ivschat"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * IVS Chat wire tags allow `undefined` values in the record type —
@@ -35,7 +34,9 @@ export const syncIvsChatTags = effect (
   desiredTags: Record<string, string>,
 ) => {
   const observedTags = try readIvsChatTags(arn)
-  const { removed, upsert } = diffTags(observedTags, desiredTags)
+  const { removed, upsert } = try Effect.orDie(
+    Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+  )
   if (upsert.length > 0) {
     try (ivschat
       .tagResource({
@@ -54,10 +55,10 @@ export const syncIvsChatTags = effect (
  * `ConflictException` — e.g. mutating or deleting a logging
  * configuration while it is mid-state-transition — on a bounded schedule.
  */
-export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileConflict = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ConflictException",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(8)]),
   })
@@ -70,10 +71,10 @@ export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
  * ("Request member: uri failed to satisfy the constraints: invalid lambda
  * permission"). Bounded (~30s).
  */
-export const retryWhileHandlerPermissionPropagating = <A, E, R>(
+export const retryWhileHandlerPermissionPropagating = effect <A, E, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): boolean => ivschat.ValidationException.is(e) && e.message.includes("invalid lambda permission"),
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
   })
@@ -83,10 +84,10 @@ export const retryWhileHandlerPermissionPropagating = <A, E, R>(
  * APIs have very low TPS limits (e.g. ListPlaybackKeyPairs is 1 TPS), so
  * back-to-back reconciles routinely trip 429s.
  */
-export const retryWhileThrottled = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileThrottled = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ThrottlingException",
     schedule: Schedule.max([Schedule.exponential("1 second"), Schedule.recurs(6)]),
   })

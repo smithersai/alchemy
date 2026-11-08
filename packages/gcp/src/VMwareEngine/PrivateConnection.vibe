@@ -233,35 +233,51 @@ export const PrivateConnectionProvider = (): infer _ =>
     stables: ["name", "privateConnectionId", "project", "location", "type", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousVen = canonicalizeLink(
-        olds?.vmwareEngineNetwork ?? output?.vmwareEngineNetwork,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const nextVen = canonicalizeLink(news.vmwareEngineNetwork)
-      const previousService = canonicalizeLink(olds?.serviceNetwork ?? output?.serviceNetwork)
-      const nextService = canonicalizeLink(news.serviceNetwork)
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousVen = try Effect.orDie(Effect.try({
+        try: () =>
+          canonicalizeLink(
+            olds?.vmwareEngineNetwork ?? output?.vmwareEngineNetwork,
+          ),
+        catch: (e) => e,
+      }))
+      const nextVen = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.vmwareEngineNetwork), catch: (e) => e }),
+      )
+      const previousService = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(olds?.serviceNetwork ?? output?.serviceNetwork), catch: (e) => e }),
+      )
+      const nextService = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.serviceNetwork), catch: (e) => e }),
+      )
       const previousType = (olds?.type ?? output?.type ?? "").toUpperCase()
-      const nextType = news.type.toUpperCase()
-      return replaceOnIdentity({
+      const nextType = resolved.type.toUpperCase()
+      const input = {
         previousId: olds?.privateConnectionId ?? output?.privateConnectionId,
-        nextId: news.privateConnectionId
-          ? rfc1035(news.privateConnectionId, "connection")
+        nextId: resolved.privateConnectionId
+          ? rfc1035(resolved.privateConnectionId, "connection")
           : (olds?.privateConnectionId ?? output?.privateConnectionId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         extra: (previousType.length > 0 && previousType !== nextType)
           || (previousVen.length > 0 && previousVen !== nextVen)
           || (previousService.length > 0 && previousService !== nextService),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const connectionId = try toPhysicalId(
         id,
         olds?.privateConnectionId,
@@ -272,8 +288,12 @@ export const PrivateConnectionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -293,7 +313,9 @@ export const PrivateConnectionProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const connectionId = try toPhysicalId(
         id,
         news.privateConnectionId,
@@ -302,7 +324,9 @@ export const PrivateConnectionProvider = (): infer _ =>
       )
       const name = resourceName(env.project, location, connectionId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const type = news.type.toUpperCase()
       const routingMode = routingOf(news.routingMode)
       const vmwareEngineNetwork = expandVen(env.project, news.vmwareEngineNetwork)
@@ -311,23 +335,25 @@ export const PrivateConnectionProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsPrivateConnections({
-            parent: parentOf(env.project, location),
-            privateConnectionId: connectionId,
-            body: {
-              type,
-              vmwareEngineNetwork,
-              serviceNetwork,
-              routingMode,
-              description: desiredDescription,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateConnections({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              privateConnectionId: connectionId,
+              body: {
+                type,
+                vmwareEngineNetwork,
+                serviceNetwork,
+                routingMode,
+                description: desiredDescription,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -370,13 +396,15 @@ export const PrivateConnectionProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsPrivateConnections({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateConnections({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

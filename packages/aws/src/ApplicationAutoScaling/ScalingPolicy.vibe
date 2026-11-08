@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as aas from "@distilled.cloud/aws/application-auto-scaling"
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
 import { isResolved } from "alchemy/Diff"
@@ -183,7 +185,13 @@ export const ScalingPolicy = Resource<ScalingPolicy>("AWS.ApplicationAutoScaling
  * of `targetTracking` / `stepScaling` — the two configurations are mutually
  * exclusive and exactly one is required.
  */
-export error ScalingPolicyConfigurationConflict { mutable message: string }
+export class ScalingPolicyConfigurationConflict extends $MutableErrorBase("ScalingPolicyConfigurationConflict")<{
+  message: string;
+}> {static {
+    $MutableErrorMatcher(this, "ScalingPolicyConfigurationConflict", true);
+} 
+
+}
 
 const validateConfiguration = effect (props: {
   targetTracking?: aas.TargetTrackingScalingPolicyConfiguration
@@ -192,7 +200,7 @@ const validateConfiguration = effect (props: {
   ? throw new ScalingPolicyConfigurationConflict({
     message: "Exactly one of targetTracking or stepScaling must be provided.",
   })
-  : try Effect.void)
+  : (undefined as void))
 
 export const ScalingPolicyProvider = (): infer _ =>
   Provider.effect(
@@ -258,9 +266,10 @@ export const ScalingPolicyProvider = (): infer _ =>
           )).flat(),
 
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try toName(id, olds ?? {})
-          const newName = try toName(id, news)
+          const newName = try toName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
@@ -269,7 +278,7 @@ export const ScalingPolicyProvider = (): infer _ =>
           // a half-created state row may have lost Output-valued props.
           for (const key of ["serviceNamespace", "resourceId", "scalableDimension"] as const) {
             const oldValue = olds?.[key]
-            if (oldValue !== undefined && isResolved(oldValue) && oldValue !== news[key]) {
+            if (oldValue !== undefined && (try Effect.orDie(Effect.try({ try: () => isResolved(oldValue), catch: (e) => e }))) && oldValue !== resolved[key]) {
               return { action: "replace" } as const
             }
           }
@@ -322,9 +331,9 @@ export const ScalingPolicyProvider = (): infer _ =>
             scalableDimension: news.scalableDimension,
           })
           if (policy === undefined) {
-            throw aas.ObjectNotFoundException.make({
+            throw try Effect.orDie(Effect.try({ try: () => aas.ObjectNotFoundException.make({
               message: `Scaling policy '${policyName}' was not readable after PutScalingPolicy`,
-            })
+            }), catch: (e) => e }))
           }
 
           try session.note(policy.PolicyARN)
@@ -353,7 +362,7 @@ export const ScalingPolicyProvider = (): infer _ =>
                 ResourceId: policy.ResourceId,
                 ScalableDimension: policy.ScalableDimension,
               }) catch effect (e) => match (e) {
-                when { _tag: "ObjectNotFoundException" }: try Effect.void;
+                when { _tag: "ObjectNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -369,7 +378,7 @@ export const ScalingPolicyProvider = (): infer _ =>
           if (alarms.length > 0) {
             cloudwatch
               .deleteAlarms({ AlarmNames: alarms }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFound" }: try Effect.void;
+                when { _tag: "ResourceNotFound" }: (undefined as void);
                 default: throw e;
               }
           }

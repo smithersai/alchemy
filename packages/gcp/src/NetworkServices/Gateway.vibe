@@ -266,25 +266,41 @@ export const GatewayProvider = (): infer _ =>
     stables: ["name", "gatewayId", "project", "location", "selfLink", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.gatewayId ?? output?.gatewayId
-      const nextId = news.gatewayId ? rfc1035(news.gatewayId, "gateway") : previousId
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
+      const nextId = try Effect.orDie(
+        Effect.try({
+          try: () => resolved.gatewayId ? rfc1035(resolved.gatewayId, "gateway") : previousId,
+          catch: (e) => e,
+        }),
       )
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const previousType = olds?.type ?? output?.type ?? DEFAULT_TYPE
-      const nextType = news.type ?? previousType
+      const nextType = resolved.type ?? previousType
       const previousNetwork = olds?.network ?? output?.network ?? ""
-      const nextNetwork = news.network ?? previousNetwork
+      const nextNetwork = resolved.network ?? previousNetwork
       const previousSubnetwork = olds?.subnetwork ?? output?.subnetwork ?? ""
-      const nextSubnetwork = news.subnetwork ?? previousSubnetwork
+      const nextSubnetwork = resolved.subnetwork ?? previousSubnetwork
       const previousScope = olds?.scope ?? output?.scope ?? previousId ?? ""
-      const nextScope = news.scope ?? previousScope
+      const nextScope = resolved.scope ?? previousScope
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -301,19 +317,32 @@ export const GatewayProvider = (): infer _ =>
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const gatewayId = try toPhysicalId(id, olds?.gatewayId, output?.gatewayId, "gateway")
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, gatewayId)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, gatewayId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networkservices.listProjectsLocationsGateways.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.gateways,
@@ -326,10 +355,17 @@ export const GatewayProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const gatewayId = try toPhysicalId(id, news.gatewayId, output?.gatewayId, "gateway")
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
-      const name = resourceName(env.project, location, COLLECTION, gatewayId)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, gatewayId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const type = news.type ?? DEFAULT_TYPE
@@ -341,34 +377,36 @@ export const GatewayProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkservices
-          .createProjectsLocationsGateways({
-            parent: parentOf(env.project, location),
-            gatewayId,
-            body: {
-              type,
-              labels: desiredLabels,
-              description: news.description,
-              ports,
-              allPorts: allPorts ? true : undefined,
-              addresses: news.addresses,
-              scope,
-              serverTlsPolicy: news.serverTlsPolicy,
-              certificateUrls: news.certificateUrls,
-              gatewaySecurityPolicy: news.gatewaySecurityPolicy,
-              network: news.network,
-              subnetwork: news.subnetwork,
-              ipVersion: news.ipVersion,
-              envoyHeaders: news.envoyHeaders,
-              routingMode: news.routingMode,
-              allowGlobalAccess: allowGlobalAccess ? true : undefined,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkservices
+            .createProjectsLocationsGateways({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              gatewayId,
+              body: {
+                type,
+                labels: desiredLabels,
+                description: news.description,
+                ports,
+                allPorts: allPorts ? true : undefined,
+                addresses: news.addresses,
+                scope,
+                serverTlsPolicy: news.serverTlsPolicy,
+                certificateUrls: news.certificateUrls,
+                gatewaySecurityPolicy: news.gatewaySecurityPolicy,
+                network: news.network,
+                subnetwork: news.subnetwork,
+                ipVersion: news.ipVersion,
+                envoyHeaders: news.envoyHeaders,
+                routingMode: news.routingMode,
+                allowGlobalAccess: allowGlobalAccess ? true : undefined,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -376,7 +414,9 @@ export const GatewayProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const portsChanged = !sameNumberList(current.ports, ports ?? [])
@@ -391,21 +431,25 @@ export const GatewayProvider = (): infer _ =>
       const routingChanged = (current.routingMode ?? "") !== (news.routingMode ?? "")
       const globalAccessChanged = (current.allowGlobalAccess === true) !== allowGlobalAccess
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["ports", portsChanged],
-        ["allPorts", allPortsChanged],
-        ["addresses", addressesChanged],
-        ["scope", scopeChanged],
-        ["serverTlsPolicy", serverTlsChanged],
-        ["certificateUrls", certsChanged],
-        ["gatewaySecurityPolicy", securityChanged],
-        ["ipVersion", ipVersionChanged],
-        ["envoyHeaders", envoyChanged],
-        ["routingMode", routingChanged],
-        ["allowGlobalAccess", globalAccessChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["ports", portsChanged],
+            ["allPorts", allPortsChanged],
+            ["addresses", addressesChanged],
+            ["scope", scopeChanged],
+            ["serverTlsPolicy", serverTlsChanged],
+            ["certificateUrls", certsChanged],
+            ["gatewaySecurityPolicy", securityChanged],
+            ["ipVersion", ipVersionChanged],
+            ["envoyHeaders", envoyChanged],
+            ["routingMode", routingChanged],
+            ["allowGlobalAccess", globalAccessChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkservices.patchProjectsLocationsGateways({
@@ -437,13 +481,15 @@ export const GatewayProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkservices
-        .deleteProjectsLocationsGateways({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkservices
+          .deleteProjectsLocationsGateways({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -358,16 +358,23 @@ export const DeployPolicyProvider = (): infer _ =>
     stables: ["name", "deployPolicyId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.deployPolicyId ?? output?.deployPolicyId,
-        nextId: news.deployPolicyId ?? olds?.deployPolicyId ?? output?.deployPolicyId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.deployPolicyId ?? output?.deployPolicyId,
+            nextId: resolved.deployPolicyId ?? olds?.deployPolicyId ?? output?.deployPolicyId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -378,12 +385,19 @@ export const DeployPolicyProvider = (): infer _ =>
         output?.deployPolicyId,
         "deploypolicy",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, deployPolicyId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -400,10 +414,12 @@ export const DeployPolicyProvider = (): infer _ =>
         output?.deployPolicyId,
         "deploypolicy",
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, deployPolicyId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
@@ -439,12 +455,23 @@ export const DeployPolicyProvider = (): infer _ =>
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, desiredAnnotations),
+            catch: (e) => e,
+          })))
         && "annotations",
         !sameText(current.description, news.description) && "description",
         !sameBool(current.suspended, desiredSuspended) && "suspended",
-        fingerprint(toSelectors(current.selectors)) !== fingerprint(news.selectors) && "selectors",
-        fingerprint(toRules(current.rules)) !== fingerprint(news.rules) && "rules",
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toSelectors(current.selectors)), catch: (e) => e }),
+          )) !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.selectors), catch: (e) => e })))
+        && "selectors",
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, toRules(current.rules)), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.rules), catch: (e) => e })))
+        && "rules",
       ])
 
       if (mask.length > 0) {
@@ -469,16 +496,18 @@ export const DeployPolicyProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (clouddeploy
-        .deleteProjectsLocationsDeployPolicies({
-          name: output.name,
-          allowMissing: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (clouddeploy
+          .deleteProjectsLocationsDeployPolicies({
+            name: output.name,
+            allowMissing: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

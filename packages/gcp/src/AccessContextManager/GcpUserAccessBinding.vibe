@@ -17,7 +17,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.vibe"
+} from "./internal.ts"
 
 export type GcpUserAccessBindingApplication = acm.Application
 export type GcpUserAccessBindingSessionSettings = acm.SessionSettings
@@ -162,7 +162,7 @@ const toAttrs = (binding: acm.GcpUserAccessBinding): GcpUserAccessBinding["Attri
 const getByName = effect (name: string) =>
   acm
     .getOrganizationsGcpUserAccessBindings({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -196,14 +196,17 @@ export const GcpUserAccessBindingProvider = (): infer _ =>
     stables: ["name", "gcpUserAccessBindingId", "organization", "groupKey"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousOrg = olds?.organization ?? output?.organization
-      const nextOrg = news.organization ?? previousOrg
+      const nextOrg = resolved.organization ?? previousOrg
       const orgChanged = previousOrg !== undefined
         && nextOrg !== undefined
         && lastSegment(previousOrg) !== lastSegment(nextOrg)
       const previousGroup = olds?.groupKey ?? output?.groupKey
-      const groupChanged = previousGroup !== undefined && news.groupKey !== previousGroup
+      const groupChanged = previousGroup !== undefined && resolved.groupKey !== previousGroup
       return replaceOnIdentity(orgChanged || groupChanged)
     },
 
@@ -225,7 +228,7 @@ export const GcpUserAccessBindingProvider = (): infer _ =>
       ) {
         return attrs
       }
-      return Unowned(attrs)
+      return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -254,11 +257,11 @@ export const GcpUserAccessBindingProvider = (): infer _ =>
               scopedAccessSettings: news.scopedAccessSettings,
               restrictedClientApplications: news.restrictedClientApplications,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           // ALREADY_EXISTS (6): a concurrent create won the race.
           const settled = waitForOperation(created) catch effect (error) => match (error) {
-            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? created : throw error);
+            when { _tag: "GCP.OperationFailed" }: (error.code === 6 ? created : throw error);
             default: throw error;
           }
           const createdName = resourceNameFromOperation(settled)
@@ -287,11 +290,26 @@ export const GcpUserAccessBindingProvider = (): infer _ =>
       const levelsChanged = !sameStringList(current.accessLevels, desiredLevels)
       const dryRunChanged = !sameStringList(current.dryRunAccessLevels, desiredDryRun)
       const sessionChanged = news.sessionSettings !== undefined
-        && !jsonEqual(current.sessionSettings, news.sessionSettings)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, current.sessionSettings, news.sessionSettings),
+            catch: (e) => e,
+          }),
+        ))
       const appsChanged = news.restrictedClientApplications !== undefined
-        && !jsonEqual(current.restrictedClientApplications, news.restrictedClientApplications)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, current.restrictedClientApplications, news.restrictedClientApplications),
+            catch: (e) => e,
+          }),
+        ))
       const scopedChanged = news.scopedAccessSettings !== undefined
-        && !jsonEqual(current.scopedAccessSettings, news.scopedAccessSettings)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, current.scopedAccessSettings, news.scopedAccessSettings),
+            catch: (e) => e,
+          }),
+        ))
 
       const updateMask = [
         levelsChanged ? "access_levels" : undefined,
@@ -330,7 +348,7 @@ export const GcpUserAccessBindingProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const operation = acm
         .deleteOrganizationsGcpUserAccessBindings({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

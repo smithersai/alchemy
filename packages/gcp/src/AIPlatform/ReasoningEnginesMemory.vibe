@@ -179,7 +179,7 @@ const toAttrs = (memory: aiplatform.GoogleCloudAiplatformV1Memory, project: stri
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsReasoningEnginesMemories({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -210,12 +210,14 @@ const waitUntilGone = effect (name: string) =>
     }))
 
 const listMemories = effect (parent: string) =>
-  ((try collectPages(
-    aiplatform.listProjectsLocationsReasoningEnginesMemories.pages({
-      parent,
-      pageSize: 100,
-    }),
-  )).flatMap((page) => page.memories ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return ((try collectPages(
+      aiplatform.listProjectsLocationsReasoningEnginesMemories.pages({
+        parent,
+        pageSize: 100,
+      }),
+    )).flatMap((page) => page.memories ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [];
     default: throw e;
   }
@@ -226,14 +228,17 @@ export const ReasoningEnginesMemoryProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.memoryId ?? output?.memoryId
-      const nextId = news.memoryId ?? previousId
+      const nextId = resolved.memoryId ?? previousId
       const previousParent = lastSegment(olds?.reasoningEngine ?? output?.reasoningEngine ?? "")
-      const nextParent = lastSegment(news.reasoningEngine)
+      const nextParent = lastSegment(resolved.reasoningEngine)
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
-      const scopeChanged = olds !== undefined && !jsonEqual(news.scope, olds.scope)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
+      const scopeChanged = olds !== undefined && !jsonEqual(resolved.scope, olds.scope)
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || (previousParent.length > 0 && previousParent !== nextParent)
         || previousLocation !== nextLocation
@@ -263,7 +268,9 @@ export const ReasoningEnginesMemoryProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const parsed = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, parsed.labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, parsed.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -310,11 +317,13 @@ export const ReasoningEnginesMemoryProvider = (): infer _ =>
               ttl: news.ttl,
               expireTime: news.expireTime,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
-        const createdName = resourceNameFromOperation(created ?? {}) ?? output?.name ?? name
+        const createdName =
+          (try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(created ?? {}), catch: (e) => e })))
+            ?? output?.name ?? name
         current = try waitUntilExists(createdName)
       }
 
@@ -335,7 +344,9 @@ export const ReasoningEnginesMemoryProvider = (): infer _ =>
           displayChanged ? "display_name" : undefined,
           descriptionChanged ? "description" : undefined,
           metadataChanged ? "metadata" : undefined,
-        ].filter((field): field is string => field !== undefined)
+        ].filter((field): field is string =>
+          field !== undefined
+        )
         const patched = try aiplatform.patchProjectsLocationsReasoningEnginesMemories({
           name: observedName,
           updateMask: updateMask.join(","),
@@ -363,7 +374,7 @@ export const ReasoningEnginesMemoryProvider = (): infer _ =>
       const operation = aiplatform
         .deleteProjectsLocationsReasoningEnginesMemories({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

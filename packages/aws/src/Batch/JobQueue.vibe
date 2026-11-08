@@ -139,16 +139,16 @@ export const JobQueueProvider = (): infer _ =>
         }
 
       /** Wait until any CREATING/UPDATING/DELETING transition settles. */
-      const awaitSettled = (name: string) =>
-        pollBatch(
+      const awaitSettled = effect (name: string) =>
+        try pollBatch(
           describeOne(name),
           (q) =>
             q === undefined
             || (q.status !== "CREATING" && q.status !== "UPDATING" && q.status !== "DELETING"),
         )
 
-      const awaitDisabled = (name: string) =>
-        pollBatch(
+      const awaitDisabled = effect (name: string) =>
+        try pollBatch(
           describeOne(name),
           (queue) =>
             queue === undefined
@@ -162,8 +162,9 @@ export const JobQueueProvider = (): infer _ =>
       return {
         stables: ["jobQueueName", "jobQueueArn"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -210,7 +211,7 @@ export const JobQueueProvider = (): infer _ =>
               }),
               (e) => e._tag === "ComputeEnvironmentNotValid",
             ) catch effect (e) => match (e) {
-              when { _tag: "JobQueueAlreadyExists" }: try Effect.void;
+              when { _tag: "JobQueueAlreadyExists" }: (undefined as void);
               default: throw e;
             }
           }
@@ -266,7 +267,8 @@ export const JobQueueProvider = (): infer _ =>
           }
 
           // Sync tags — diff against OBSERVED cloud tags.
-          const { upsert, removed } = diffTags(observedTagsOf(queue), desiredTags)
+          const oldTags = observedTagsOf(queue)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try batch.tagResource({
               resourceArn: arn,
@@ -290,7 +292,7 @@ export const JobQueueProvider = (): infer _ =>
             retryBatch(
               batch.updateJobQueue({ jobQueue: name, state: "DISABLED" }),
               (e) => e._tag === "JobQueueBeingModified",
-            ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: try Effect.void; default: throw e; }
+            ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: (undefined as void); default: throw e; }
           }
           const disabled = try awaitDisabled(name)
           if (!disabled || disabled.status === "DELETED") return
@@ -302,7 +304,7 @@ export const JobQueueProvider = (): infer _ =>
             retryBatch(
               batch.deleteJobQueue({ jobQueue: name }),
               (e) => e._tag === "JobQueueBeingModified",
-            ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: try Effect.void; default: throw e; }
+            ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: (undefined as void); default: throw e; }
           }
 
           // Wait until fully gone so downstream compute-environment deletion

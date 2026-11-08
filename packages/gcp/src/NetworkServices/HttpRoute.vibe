@@ -548,17 +548,33 @@ export const HttpRouteProvider = (): infer _ =>
     stables: ["name", "httpRouteId", "project", "location", "selfLink", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.httpRouteId ?? output?.httpRouteId
-      const nextId = news.httpRouteId ? rfc1035(news.httpRouteId, "http-route") : previousId
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
+      const nextId = try Effect.orDie(
+        Effect.try({
+          try: () => resolved.httpRouteId ? rfc1035(resolved.httpRouteId, "http-route") : previousId,
+          catch: (e) => e,
+        }),
       )
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -576,19 +592,32 @@ export const HttpRouteProvider = (): infer _ =>
         output?.httpRouteId,
         "http-route",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, httpRouteId)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, httpRouteId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networkservices.listProjectsLocationsHttpRoutes.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
           returnPartialSuccess: true,
         }),
@@ -607,10 +636,17 @@ export const HttpRouteProvider = (): infer _ =>
         output?.httpRouteId,
         "http-route",
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
-      const name = resourceName(env.project, location, COLLECTION, httpRouteId)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, httpRouteId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredRules = news.rules.map(toRule)
@@ -621,24 +657,26 @@ export const HttpRouteProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkservices
-          .createProjectsLocationsHttpRoutes({
-            parent: parentOf(env.project, location),
-            httpRouteId,
-            body: {
-              labels: desiredLabels,
-              description: news.description,
-              hostnames: desiredHostnames,
-              rules: desiredRules,
-              meshes: desiredMeshes,
-              gateways: desiredGateways,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkservices
+            .createProjectsLocationsHttpRoutes({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              httpRouteId,
+              body: {
+                labels: desiredLabels,
+                description: news.description,
+                hostnames: desiredHostnames,
+                rules: desiredRules,
+                meshes: desiredMeshes,
+                gateways: desiredGateways,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -646,22 +684,33 @@ export const HttpRouteProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const hostnamesChanged = !sameStringList(current.hostnames, desiredHostnames)
-      const rulesChanged = !sameJson((current.rules ?? []).map(toRule), desiredRules)
+      const rulesChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, (current.rules ?? []).map(toRule), desiredRules),
+          catch: (e) => e,
+        }),
+      ))
       const meshesChanged = !sameStringList(current.meshes, desiredMeshes)
       const gatewaysChanged = !sameStringList(current.gateways, desiredGateways)
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["hostnames", hostnamesChanged],
-        ["rules", rulesChanged],
-        ["meshes", meshesChanged],
-        ["gateways", gatewaysChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["hostnames", hostnamesChanged],
+            ["rules", rulesChanged],
+            ["meshes", meshesChanged],
+            ["gateways", gatewaysChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkservices.patchProjectsLocationsHttpRoutes({
@@ -685,13 +734,15 @@ export const HttpRouteProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkservices
-        .deleteProjectsLocationsHttpRoutes({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkservices
+          .deleteProjectsLocationsHttpRoutes({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

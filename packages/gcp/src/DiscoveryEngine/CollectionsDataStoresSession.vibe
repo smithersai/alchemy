@@ -131,9 +131,9 @@ const toAttrs = (session: discoveryengine.GoogleCloudDiscoveryengineV1Session, p
 
 const resourceName = (dataStore: string, sessionId: string): infer _ => `${dataStore}/sessions/${sessionId}`
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : discoveryengine
+const getByName = effect (name: string) => (name.length === 0 ? undefined : discoveryengine
   .getProjectsLocationsCollectionsDataStoresSessions({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -142,18 +142,21 @@ export const CollectionsDataStoresSessionProvider = (): infer _ =>
     stables: ["name", "sessionId", "dataStore", "project", "location", "startTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.dataStore ?? output?.dataStore
       const previousId = olds?.sessionId ?? output?.sessionId
       if (
-        (previousParent !== undefined && news.dataStore !== previousParent)
-        || (previousId !== undefined && news.sessionId !== undefined && news.sessionId !== previousId)
+        (previousParent !== undefined && resolved.dataStore !== previousParent)
+        || (previousId !== undefined && resolved.sessionId !== undefined && resolved.sessionId !== previousId)
       ) {
         return {
           action: "replace" as const,
-          deleteFirst: previousParent === news.dataStore
+          deleteFirst: previousParent === resolved.dataStore
             && previousId !== undefined
-            && news.sessionId === previousId,
+            && resolved.sessionId === previousId,
         }
       }
       return undefined
@@ -169,7 +172,9 @@ export const CollectionsDataStoresSessionProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -242,6 +247,6 @@ export const CollectionsDataStoresSessionProvider = (): infer _ =>
       discoveryengine
         .deleteProjectsLocationsCollectionsDataStoresSessions({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

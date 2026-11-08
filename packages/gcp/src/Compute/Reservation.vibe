@@ -359,7 +359,7 @@ const sameJson = (left: unknown, right: unknown): infer _ =>
 const getByName = effect (project: string, zone: string, reservation: string) =>
   compute
     .getReservations({ project, zone, reservation }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -392,7 +392,7 @@ const waitReservationGone = effect (project: string, zone: string, reservationNa
   try (effect {
     return try effect {
       const reservation = try getByName(project, zone, reservationName)
-      return (reservation === undefined ? try Effect.void : throw new ReservationStillExists({
+      return (reservation === undefined ? (undefined as void) : throw new ReservationStillExists({
         reservationName,
         status: reservation.status ?? "UNKNOWN",
       }))
@@ -416,45 +416,48 @@ export const ReservationProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
 
       const previousName = olds?.reservationName ?? output?.reservationName
-      const nextName = news.reservationName ?? previousName
+      const nextName = resolved.reservationName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
 
       const previousZone = normalizeZone(olds?.zone ?? output?.zone)
-      const nextZone = normalizeZone(news.zone ?? output?.zone)
+      const nextZone = normalizeZone(resolved.zone ?? output?.zone)
       const zoneChanged = previousZone !== nextZone
 
       const previousRequired = olds?.specificReservationRequired ?? output?.specificReservationRequired ?? false
-      const nextRequired = news.specificReservationRequired === true
+      const nextRequired = resolved.specificReservationRequired === true
 
       const previousMachine = olds?.specificReservation?.instanceProperties?.machineType
         ?? output?.specificReservation?.instanceProperties?.machineType
-      const nextMachine = news.specificReservation?.instanceProperties?.machineType
+      const nextMachine = resolved.specificReservation?.instanceProperties?.machineType
       const machineChanged = nextMachine !== undefined
         && previousMachine !== undefined
         && previousMachine !== nextMachine
 
       const previousTemplate = olds?.specificReservation?.sourceInstanceTemplate
         ?? output?.specificReservation?.sourceInstanceTemplate
-      const nextTemplate = news.specificReservation?.sourceInstanceTemplate
+      const nextTemplate = resolved.specificReservation?.sourceInstanceTemplate
       const templateChanged = (previousTemplate ?? "") !== (nextTemplate ?? "")
         && (previousTemplate !== undefined || nextTemplate !== undefined)
 
       const previousIsAggregate = olds?.aggregateReservation !== undefined
-      const nextIsAggregate = news.aggregateReservation !== undefined
+      const nextIsAggregate = resolved.aggregateReservation !== undefined
       const previousIsSpecific = (olds?.specificReservation ?? output?.specificReservation) !== undefined
-      const nextIsSpecific = news.specificReservation !== undefined
+      const nextIsSpecific = resolved.specificReservation !== undefined
       const kindChanged = (previousIsAggregate && nextIsSpecific) || (previousIsSpecific && nextIsAggregate)
 
       const deploymentChanged = olds?.deploymentType !== undefined
-        && news.deploymentType !== undefined
-        && olds.deploymentType !== news.deploymentType
+        && resolved.deploymentType !== undefined
+        && olds.deploymentType !== resolved.deploymentType
 
       // `reservations.update` accepts a description mask but leaves the
       // stored description unchanged, so a new description replaces.
-      const descriptionChanged = olds !== undefined && (olds.description ?? "") !== (news.description ?? "")
+      const descriptionChanged = olds !== undefined && (olds.description ?? "") !== (resolved.description ?? "")
 
       if (
         nameChanged
@@ -482,7 +485,9 @@ export const ReservationProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -522,7 +527,7 @@ export const ReservationProvider = (): infer _ =>
             project: env.project,
             zone,
             body: desired,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (inserted !== undefined) {
           try waitZoneOperation(env.project, zone, inserted, {
             ignore: ["RESOURCE_ALREADY_EXISTS"],
@@ -625,7 +630,7 @@ export const ReservationProvider = (): infer _ =>
             project,
             zone,
             reservation: output.reservationName,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",

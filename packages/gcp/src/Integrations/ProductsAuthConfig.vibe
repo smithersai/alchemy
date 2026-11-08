@@ -176,39 +176,46 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : integrations
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
   .getProjectsLocationsProductsAuthConfigs({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (integrations.listProjectsLocationsProductsAuthConfigs.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authConfigs ?? []))
-      |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
-      |> Stream.map(%, (config) => toAttrs(config, project, region))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsProductsAuthConfigs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authConfigs ?? []))
+        |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
+        |> Stream.map(%, (config) => toAttrs(config, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, id: string) =>
-  (try effect {
-    const option = try (integrations.listProjectsLocationsProductsAuthConfigs.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authConfigs ?? []))
-      |> Stream.filterEffect(%, effect (config) => try ownedByAlchemy(id, config.description))
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsProductsAuthConfigs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authConfigs ?? []))
+        |> Stream.filterEffect(%, effect (config) => try ownedByAlchemy(id, config.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 export const ProductsAuthConfigProvider = (): infer _ =>
   Provider.succeed(ProductsAuthConfig, {
     stables: ["name", "authConfigId", "location", "product", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = normalizeLocation(news.location, previousLocation ?? env.region)
+      const nextLocation = normalizeLocation(resolved.location, previousLocation ?? env.region)
       if (
         previousLocation !== undefined
         && normalizeLocation(previousLocation, env.region) !== nextLocation
@@ -216,15 +223,15 @@ export const ProductsAuthConfigProvider = (): infer _ =>
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousProduct = olds?.product ?? output?.product
-      const nextProduct = normalizeProduct(news.product)
+      const nextProduct = normalizeProduct(resolved.product)
       if (previousProduct !== undefined && normalizeProduct(previousProduct) !== nextProduct) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.authConfigId ?? output?.authConfigId
       if (
         previousId !== undefined
-        && news.authConfigId !== undefined
-        && news.authConfigId !== previousId
+        && resolved.authConfigId !== undefined
+        && resolved.authConfigId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -243,7 +250,9 @@ export const ProductsAuthConfigProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -267,7 +276,9 @@ export const ProductsAuthConfigProvider = (): infer _ =>
       const displayName = news.displayName ?? authConfigId
       const credentialType = news.credentialType ?? DEFAULT_CREDENTIAL_TYPE
       const visibility = news.visibility ?? DEFAULT_VISIBILITY
-      const decryptedCredential = credentialBody(news.decryptedCredential, credentialType)
+      const decryptedCredential = try Effect.orDie(
+        Effect.try({ try: () => credentialBody(news.decryptedCredential, credentialType), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
       if (current === undefined) {
@@ -333,7 +344,7 @@ export const ProductsAuthConfigProvider = (): infer _ =>
     delete: effect ({ output }) => {
       integrations
         .deleteProjectsLocationsProductsAuthConfigs({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

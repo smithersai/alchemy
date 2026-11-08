@@ -614,29 +614,30 @@ export const TableProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousTableId = olds?.tableId ?? output?.tableId
-      const nextTableId = news.tableId ?? previousTableId
-      const tableIdChanged = news.tableId !== undefined
+      const nextTableId = resolved.tableId ?? previousTableId
+      const tableIdChanged = resolved.tableId !== undefined
         && previousTableId !== undefined
-        && news.tableId !== previousTableId
+        && resolved.tableId !== previousTableId
 
       const previousDataset = olds?.datasetId ?? output?.datasetId
-      const nextDataset = datasetIdOf(news.datasetId)
+      const nextDataset = datasetIdOf(resolved.datasetId)
       const datasetChanged = previousDataset !== undefined && datasetIdOf(previousDataset) !== nextDataset
 
       const previousPartition = olds?.timePartitioning ?? output?.timePartitioning
-      const nextPartition = news.timePartitioning
+      const nextPartition = resolved.timePartitioning
       const partitionChanged = nextPartition !== undefined
         && ((previousPartition?.type ?? "").toUpperCase() !== nextPartition.type.toUpperCase()
           || (previousPartition?.field ?? "") !== (nextPartition.field ?? ""))
 
       const previousKms = olds?.kmsKeyName ?? output?.kmsKeyName ?? ""
-      const nextKms = news.kmsKeyName ?? previousKms
+      const nextKms = resolved.kmsKeyName ?? previousKms
       const kmsChanged = previousKms !== nextKms
 
       const previousKind = olds !== undefined ? kindOf(olds) : output?.type
-      const kindChanged = previousKind !== undefined && previousKind !== kindOf(news)
+      const kindChanged = previousKind !== undefined && previousKind !== kindOf(resolved)
 
       if (!tableIdChanged && !datasetChanged && !partitionChanged && !kmsChanged && !kindChanged) {
         return undefined
@@ -659,12 +660,12 @@ export const TableProvider = (): infer _ =>
       const existing = try getByRef(env.project, datasetId, tableId)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const datasets = (Array.from(
+      const datasets = (effect { return (Array.from(
         try (bigquery.listDatasets
           .pages({
             projectId: env.project,
@@ -673,7 +674,7 @@ export const TableProvider = (): infer _ =>
           })
           |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
           |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      )) }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: [] as bigquery.DatasetListDatasetsItem[];
         default: throw e;
       }
@@ -684,7 +685,7 @@ export const TableProvider = (): infer _ =>
           if (datasetId === undefined) {
             return [] as ReturnType<typeof toAttrs>[]
           }
-          return (Array.from(
+          return (effect { return (Array.from(
             try (bigquery.listTables
               .pages({
                 projectId: env.project,
@@ -698,7 +699,7 @@ export const TableProvider = (): infer _ =>
               )
               |> Stream.map(%, (table) => toAttrs(table, env.project))
               |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) {
+          )) }) catch effect (e) => match (e) {
             when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
             default: throw e;
           }
@@ -719,7 +720,7 @@ export const TableProvider = (): infer _ =>
       const datasetId = datasetIdOf(news.datasetId)
       const name = resourceName(env.project, datasetId, tableId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -743,7 +744,7 @@ export const TableProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       if (removed.length > 0) {
         // PATCH merges labels; removing one needs a JSON null the typed body
         // cannot carry, so replace the labels with PUT (get-modify-put).

@@ -52,10 +52,12 @@ export const rfc1035 = (name: string, fallback = "workstation"): string => {
   return next.slice(0, MAX_NAME_LENGTH);
 };
 
-export const normalizeLocation = (location: string | undefined, fallback: string) =>
-  lastSegment(location ?? fallback).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  fallback: string,
+) => lastSegment(location ?? fallback).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const toPhysicalId = (
@@ -122,12 +124,13 @@ export const sameResource = (left: string | undefined, right: string | undefined
   return lastSegment(left) === lastSegment(right);
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -152,17 +155,23 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameBool = (left: boolean | undefined, right: boolean | undefined) =>
-  (left === true) === (right === true);
+export const sameBool = /** @throws {never} */ (
+  left: boolean | undefined,
+  right: boolean | undefined,
+) => (left === true) === (right === true);
 
-export const sameNumber = (left: number | undefined, right: number | undefined) =>
-  (left ?? 0) === (right ?? 0);
+export const sameNumber = /** @throws {never} */ (
+  left: number | undefined,
+  right: number | undefined,
+) => (left ?? 0) === (right ?? 0);
 
 export const replaceOnIdentity = (input: {
   previousId: string | undefined;
@@ -287,7 +296,7 @@ export const listLabeledPages = <Page, A, E, R>(
     Effect.map((chunk) => Array.from(chunk)),
   );
 
-export const stringMap = (
+export const stringMap = /** @throws {never} */ (
   value: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> | undefined => {
   const next = Object.fromEntries(

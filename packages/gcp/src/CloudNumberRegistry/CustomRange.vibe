@@ -227,29 +227,33 @@ export const CustomRangeProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousRealm = olds?.realm ?? output?.realm
       const previousParent = olds?.parentRange ?? output?.parentRange
       const previousV4 = olds?.ipv4CidrRange ?? output?.ipv4CidrRange
-      const nextV4 = news.ipv4CidrRange ?? previousV4
+      const nextV4 = resolved.ipv4CidrRange ?? previousV4
       const previousV6 = olds?.ipv6CidrRange ?? output?.ipv6CidrRange
-      const nextV6 = news.ipv6CidrRange ?? previousV6
-      return replaceOnIdentity({
+      const nextV6 = resolved.ipv6CidrRange ?? previousV6
+      const input = {
         previousId: olds?.customRangeId ?? output?.customRangeId,
-        nextId: news.customRangeId ?? olds?.customRangeId ?? output?.customRangeId,
+        nextId: resolved.customRangeId ?? olds?.customRangeId ?? output?.customRangeId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location),
-        nextLocation: normalizeLocation(news.location ?? olds?.location ?? output?.location),
-        extra: (news.realm !== undefined
+        nextLocation: normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+        extra: (resolved.realm !== undefined
           && previousRealm !== undefined
-          && !sameRef(previousRealm, news.realm))
-          || (news.parentRange !== undefined
+          && !sameRef(previousRealm, resolved.realm))
+          || (resolved.parentRange !== undefined
             && previousParent !== undefined
-            && !sameRef(previousParent, news.parentRange))
-          || (news.realm !== undefined && previousParent !== undefined)
-          || (news.parentRange !== undefined && previousRealm !== undefined)
+            && !sameRef(previousParent, resolved.parentRange))
+          || (resolved.realm !== undefined && previousParent !== undefined)
+          || (resolved.parentRange !== undefined && previousRealm !== undefined)
           || (previousV4 !== undefined && nextV4 !== undefined && previousV4 !== nextV4)
           || (previousV6 !== undefined && nextV6 !== undefined && previousV6 !== nextV6),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -260,12 +264,22 @@ export const CustomRangeProvider = (): infer _ =>
         output?.customRangeId,
         "range",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, customRangeId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, customRangeId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -282,18 +296,30 @@ export const CustomRangeProvider = (): infer _ =>
         output?.customRangeId,
         "range",
       )
-      const location = normalizeLocation(news.location ?? output?.location)
-      const name = resourceName(env.project, location, COLLECTION, customRangeId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, customRangeId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const realm = news.parentRange === undefined && news.realm !== undefined
-        ? expandName(news.realm, env.project, location, "realms")
-        : undefined
-      const parentRange = news.parentRange !== undefined
-        ? expandName(news.parentRange, env.project, location, COLLECTION)
-        : undefined
+      const realm = try Effect.orDie(Effect.try({
+        try: () =>
+          news.parentRange === undefined && news.realm !== undefined
+            ? expandName(news.realm, env.project, location, "realms")
+            : undefined,
+        catch: (e) => e,
+      }))
+      const parentRange = try Effect.orDie(Effect.try({
+        try: () =>
+          news.parentRange !== undefined
+            ? expandName(news.parentRange, env.project, location, COLLECTION)
+            : undefined,
+        catch: (e) => e,
+      }))
       const attributes = news.attributes
 
       let current = try getByName(output?.name ?? name)
@@ -329,7 +355,9 @@ export const CustomRangeProvider = (): infer _ =>
         (upsert.length > 0 || removed.length > 0) && "labels",
         !sameText(current.description, news.description) && "description",
         attributes !== undefined
-        && fingerprint(toAttributes(current.attributes)) !== fingerprint(attributes)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toAttributes(current.attributes)), catch: (e) => e }),
+          )) !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, attributes), catch: (e) => e })))
         && "attributes",
       ])
 
@@ -352,16 +380,18 @@ export const CustomRangeProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (cnr
-        .deleteProjectsLocationsCustomRanges({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (cnr
+          .deleteProjectsLocationsCustomRanges({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

@@ -97,7 +97,7 @@ export const ACLProvider = (): infer _ =>
       const readAcl = effect (name: string) => {
         const response = memorydb
           .describeACLs({ ACLName: name }) catch effect (e) => match (e) {
-            when { _tag: "ACLNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ACLNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.ACLs?.[0]
@@ -140,8 +140,9 @@ export const ACLProvider = (): infer _ =>
         stables: ["aclName", "aclArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
         },
@@ -151,7 +152,7 @@ export const ACLProvider = (): infer _ =>
           const acl = try readAcl(name)
           if (!acl?.ARN) return undefined
           const attrs = try toAttrs(acl)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -175,7 +176,7 @@ export const ACLProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ACLAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "ACLAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try waitUntilActive(name)
@@ -204,7 +205,7 @@ export const ACLProvider = (): infer _ =>
           const arn = observed.ARN
           if (arn) {
             const observedTags = try readMemoryDbTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
             }
@@ -225,10 +226,10 @@ export const ACLProvider = (): infer _ =>
           // The ACL must be detached from any cluster first; while it is still
           // in use (or mid-modify) deletion rejects with InvalidACLStateFault.
           // Retry bounded; NotFound is success.
-          waitUntilActive(name) catch effect (e) => try Effect.void
+          waitUntilActive(name) catch effect (e) => (undefined as void)
           try (effect {
             return memorydb.deleteACL({ ACLName: name }) catch effect (e) => match (e) {
-              when { _tag: "ACLNotFoundFault" }: try Effect.void;
+              when { _tag: "ACLNotFoundFault" }: (undefined as void);
               default: throw e;
             }
           }
@@ -255,7 +256,7 @@ export const ACLProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((acl) => toAttrs(acl), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (acl) => try toAttrs(acl), { concurrency: 4 }))),
       }
     },
   )

@@ -374,41 +374,47 @@ const getByName = effect (name: string) =>
     }
 
 const listSlos = effect (parent: string) =>
-  (Array.from(
-    try (monitoring.listServicesServiceLevelObjectives
-      .pages({
-        parent,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.serviceLevelObjectives ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (monitoring.listServicesServiceLevelObjectives
+        .pages({
+          parent,
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.serviceLevelObjectives ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as monitoring.ServiceLevelObjective[];
     default: throw e;
   }
 
 const listServices = effect (project: string) =>
-  (Array.from(
-    try (monitoring.listServices
-      .pages({
-        parent: parentOf(project),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.services ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (monitoring.listServices
+        .pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(project), catch: (e) => e })),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.services ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const listOwned = effect (project: string) => {
-  const services = (Array.from(
-    try (monitoring.listServices
-      .pages({
-        parent: parentOf(project),
-        pageSize: 1000,
-        filter: "identifier_case = \"CUSTOM\"",
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.services ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  const services = (effect {
+    return (Array.from(
+      try (monitoring.listServices
+        .pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(project), catch: (e) => e })),
+          pageSize: 1000,
+          filter: "identifier_case = \"CUSTOM\"",
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.services ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
   const nested = try Effect.forEach(
     services,
     effect (
@@ -429,7 +435,12 @@ const findOwned = effect (project: string, id: string, service: string | undefin
   for (const parent of parents) {
     const slos = try listSlos(parent)
     for (const slo of slos) {
-      if (try hasAlchemyLabels(id, tagRecord(slo.userLabels))) {
+      if (
+        try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(slo.userLabels), catch: (e) => e })),
+        )
+      ) {
         return slo
       }
     }
@@ -455,13 +466,16 @@ export const ServicesServiceLevelObjectiveProvider = (): infer _ =>
     stables: ["name", "serviceLevelObjectiveId", "service", "serviceId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.serviceLevelObjectiveId ?? output?.serviceLevelObjectiveId
-      const idChanged = news.serviceLevelObjectiveId !== undefined
+      const idChanged = resolved.serviceLevelObjectiveId !== undefined
         && previousId !== undefined
-        && news.serviceLevelObjectiveId !== previousId
+        && resolved.serviceLevelObjectiveId !== previousId
       const previousService = olds?.service ?? output?.service
-      const nextService = news.service
+      const nextService = resolved.service
       const serviceChanged = previousService !== undefined
         && nextService !== previousService
         && !previousService.endsWith(`/${nextService}`)
@@ -478,7 +492,12 @@ export const ServicesServiceLevelObjectiveProvider = (): infer _ =>
       const existing = try observe(env.project, id, output?.name, output?.service)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.userLabels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.userLabels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -493,7 +512,7 @@ export const ServicesServiceLevelObjectiveProvider = (): infer _ =>
       const name = resourceName(service, sloId)
       const displayName = news.displayName ?? sloId
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredPeriod = periodBody(news)
@@ -524,16 +543,23 @@ export const ServicesServiceLevelObjectiveProvider = (): infer _ =>
 
       const resource = current.name ?? name
       const observedLabels = tagRecord(current.userLabels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = (current.displayName ?? "") !== displayName
       const goalChanged = (current.goal ?? 0) !== news.goal
       const rollingChanged = (current.rollingPeriod ?? "") !== (desiredPeriod.rollingPeriod ?? "")
       const calendarChanged = (current.calendarPeriod ?? "") !== (desiredPeriod.calendarPeriod ?? "")
-      const sliChanged = !jsonEqual(
-        toSli(current.serviceLevelIndicator) ?? null,
-        news.serviceLevelIndicator,
-      )
+      const left = toSli(current.serviceLevelIndicator) ?? null
+      const sliChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          jsonEqual(
+            left,
+            news.serviceLevelIndicator,
+          ),
+        catch: (e) => e,
+      })))
 
       const updateMask = [
         displayNameChanged ? "display_name" : undefined,

@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import type * as NFW from "@distilled.cloud/aws/network-firewall"
 import * as nfw from "@distilled.cloud/aws/network-firewall"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -122,13 +125,21 @@ export interface Firewall extends
 export const Firewall = Resource<Firewall>("AWS.NetworkFirewall.Firewall")
 
 /** Raised (internally, for bounded retry) while a firewall is provisioning. */
-export error FirewallNotReady {
-  mutable message: string
+export class FirewallNotReady extends $MutableErrorBase("FirewallNotReady")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "FirewallNotReady", true)
+  }
 }
 
 /** Raised (internally, for bounded retry) while a firewall is deleting. */
-export error FirewallNotDeleted {
-  mutable message: string
+export class FirewallNotDeleted extends $MutableErrorBase("FirewallNotDeleted")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "FirewallNotDeleted", true)
+  }
 }
 
 // Explicitly-typed pipeable retry helpers (see internal.ts for why these are
@@ -184,7 +195,7 @@ export const FirewallProvider = (): infer _ =>
       const describe = effect (name: string) =>
         nfw
           .describeFirewall({ FirewallName: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -214,11 +225,13 @@ export const FirewallProvider = (): infer _ =>
           const items = try Effect.forEach(
             metas,
             effect (meta) =>
-              (try effect {
-                const r = try nfw.describeFirewall({ FirewallArn: meta.FirewallArn })
-                return r.Firewall !== undefined ? toAttrs(r.Firewall, r.FirewallStatus) : undefined
+              (effect {
+                return (try effect {
+                  const r = try nfw.describeFirewall({ FirewallArn: meta.FirewallArn })
+                  return r.Firewall !== undefined ? toAttrs(r.Firewall, r.FirewallStatus) : undefined
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               },
             { concurrency: 5 },
@@ -232,11 +245,14 @@ export const FirewallProvider = (): infer _ =>
           if (found?.Firewall === undefined) return undefined
           const attrs = toAttrs(found.Firewall, found.FirewallStatus)
           const tags = nfwTagsToRecord(found.Firewall.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName || olds.vpcId !== news.vpcId) {
@@ -375,7 +391,7 @@ export const FirewallProvider = (): infer _ =>
           const name = output.firewallName
           const observed = nfw
             .describeFirewall({ FirewallName: name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (observed === undefined) return
@@ -388,7 +404,7 @@ export const FirewallProvider = (): infer _ =>
                 FirewallName: name,
                 DeleteProtection: false,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -396,18 +412,20 @@ export const FirewallProvider = (): infer _ =>
           try session.note(
             `deleting firewall ${name} (endpoints deprovision over several minutes)`,
           )
-          ;(try (nfw.deleteFirewall({ FirewallName: name })
-            |> retryWhileFirewallBusy(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (nfw.deleteFirewall({ FirewallName: name })
+              |> retryWhileFirewallBusy(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
 
           // Wait until the firewall (and its endpoints) are fully gone so
           // dependent deletions (subnets, VPC) don't hit DependencyViolations.
           try (effect {
             const remaining = nfw
               .describeFirewall({ FirewallName: name }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             if (remaining !== undefined) {

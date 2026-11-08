@@ -185,22 +185,28 @@ export const NodesNodesDeviceProvider = (): infer _ =>
     stables: ["name", "deviceId", "parent", "project", "serialNumber", "fccId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const input = {
         previousParent: olds?.parent ?? output?.parent,
-        nextParent: expandPath(news.parent),
+        nextParent: expandPath(resolved.parent),
         previousId: olds?.name ?? output?.name,
-        nextId: news.name,
-        extra: (news.serialNumber !== undefined
+        nextId: resolved.name,
+        extra: (resolved.serialNumber !== undefined
           && output?.serialNumber !== undefined
-          && news.serialNumber !== output.serialNumber)
-          || (news.fccId !== undefined && output?.fccId !== undefined && news.fccId !== output.fccId),
-      })
+          && resolved.serialNumber !== output.serialNumber)
+          || (resolved.fccId !== undefined && output?.fccId !== undefined && resolved.fccId !== output.fccId),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandPath(olds?.parent ?? output?.parent ?? "")
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => expandPath(olds?.parent ?? output?.parent ?? ""), catch: (e) => e }),
+      )
       const name = olds?.name ?? output?.name ?? ""
       let existing = try getNodeDevice(name)
       let locatedParent = existing ? parentOf(existing.name ?? "") || parent : parent
@@ -212,7 +218,9 @@ export const NodesNodesDeviceProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, locatedParent, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -233,22 +241,31 @@ export const NodesNodesDeviceProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandPath(news.parent)
+      const parent = try Effect.orDie(Effect.try({ try: () => expandPath(news.parent), catch: (e) => e }))
       const ownership = try ownershipLabels(id)
-      const displayName = encodeOwnershipLine(
-        ownership,
-        try toDisplayName(id, news.displayName, output?.displayName),
-        MAX_DISPLAY_NAME_LENGTH,
-      )
+      const text = try toDisplayName(id, news.displayName, output?.displayName)
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            text,
+            MAX_DISPLAY_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
       const serialNumber = try toSerialNumber(id, news.serialNumber, output?.serialNumber)
-      const desired = deviceBody({
-        displayName,
-        serialNumber,
-        fccId: news.fccId ?? output?.fccId,
-        grantRangeAllowlists: news.grantRangeAllowlists,
-        preloadedConfig: news.preloadedConfig,
-        deviceMetadata: news.deviceMetadata,
-      })
+      const desired = try Effect.orDie(Effect.try({
+        try: () =>
+          deviceBody({
+            displayName,
+            serialNumber,
+            fccId: news.fccId ?? output?.fccId,
+            grantRangeAllowlists: news.grantRangeAllowlists,
+            preloadedConfig: news.preloadedConfig,
+            deviceMetadata: news.deviceMetadata,
+          }),
+        catch: (e) => e,
+      }))
 
       let current = try getNodeDevice(news.name ?? output?.name ?? "")
       if (current === undefined) {
@@ -279,20 +296,39 @@ export const NodesNodesDeviceProvider = (): infer _ =>
       const name = current.name ?? news.name ?? output?.name ?? ""
       const nameChanged = !sameText(current.displayName, displayName)
       const allowlistsChanged = news.grantRangeAllowlists !== undefined
-        && !sameJson(frequencyRangesOf(current.grantRangeAllowlists), news.grantRangeAllowlists)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, frequencyRangesOf(current.grantRangeAllowlists), news.grantRangeAllowlists),
+            catch: (e) => e,
+          }),
+        ))
       const configChanged = news.preloadedConfig !== undefined
-        && !sameJson(deviceConfigOf(current.preloadedConfig), news.preloadedConfig)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, deviceConfigOf(current.preloadedConfig), news.preloadedConfig),
+            catch: (e) => e,
+          }),
+        ))
       const metadataChanged = news.deviceMetadata !== undefined
-        && !sameJson(deviceMetadataOf(current.deviceMetadata), news.deviceMetadata)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, deviceMetadataOf(current.deviceMetadata), news.deviceMetadata),
+            catch: (e) => e,
+          }),
+        ))
       if (nameChanged || allowlistsChanged || configChanged || metadataChanged) {
         current = try sasportal.patchNodesDevices({
           name,
-          updateMask: updateMaskOf(
-            "displayName",
-            news.grantRangeAllowlists !== undefined ? "grantRangeAllowlists" : undefined,
-            news.preloadedConfig !== undefined ? "preloadedConfig" : undefined,
-            news.deviceMetadata !== undefined ? "deviceMetadata" : undefined,
-          ),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              updateMaskOf(
+                "displayName",
+                news.grantRangeAllowlists !== undefined ? "grantRangeAllowlists" : undefined,
+                news.preloadedConfig !== undefined ? "preloadedConfig" : undefined,
+                news.deviceMetadata !== undefined ? "deviceMetadata" : undefined,
+              ),
+            catch: (e) => e,
+          })),
           body: desired,
         })
       }

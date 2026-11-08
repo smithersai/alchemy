@@ -302,7 +302,7 @@ const needsUpdate = (current: compute.FutureReservation, desired: compute.Future
 const getByName = effect (project: string, zone: string, futureReservation: string) =>
   compute
     .getFutureReservations({ project, zone, futureReservation }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -326,11 +326,14 @@ export const FutureReservationProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.futureReservationName ?? output?.futureReservationName
-      const nextName = news.futureReservationName
+      const nextName = resolved.futureReservationName
       const previousZone = zoneOf(olds?.zone ?? output?.zone)
-      const nextZone = zoneOf(news.zone ?? output?.zone)
+      const nextZone = zoneOf(resolved.zone ?? output?.zone)
       if (
         (previousName !== undefined && nextName !== undefined && previousName !== nextName)
         || previousZone !== nextZone
@@ -358,7 +361,9 @@ export const FutureReservationProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -396,19 +401,21 @@ export const FutureReservationProvider = (): infer _ =>
       let current = try getByName(env.project, zone, futureReservationName)
 
       if (current === undefined) {
-        ;(try waitZoneOperation(
-          env.project,
-          zone,
-          try compute
-            .insertFutureReservations({
-              project: env.project,
-              zone,
-              body: desired,
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitZoneOperation(
+            env.project,
+            zone,
+            try compute
+              .insertFutureReservations({
+                project: env.project,
+                zone,
+                body: desired,
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, zone, futureReservationName)
       }
 
@@ -446,20 +453,22 @@ export const FutureReservationProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       const zone = zoneOf(output.zone)
-      const operation = (try (compute
-        .deleteFutureReservations({
-          project: env.project,
-          zone,
-          futureReservation: output.futureReservationName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteFutureReservations({
+            project: env.project,
+            zone,
+            futureReservation: output.futureReservationName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitZoneOperation(env.project, zone, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

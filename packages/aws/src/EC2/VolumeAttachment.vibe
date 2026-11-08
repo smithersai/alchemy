@@ -1,9 +1,9 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import type { Credentials } from "@distilled.cloud/aws/Credentials"
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import type { Region } from "@distilled.cloud/aws/Region"
-import * as Effect from "effect/Effect"
 import type { HttpClient } from "effect/http/HttpClient"
-import * as Schedule from "effect/Schedule"
 
 // Explicitly-typed pipeable retry helpers. Inlining `Effect.retry` in a
 // provider lifecycle op leaks `Retry.Return`'s conditional into declaration
@@ -126,11 +126,14 @@ export const VolumeAttachmentProvider = (): infer _ =>
         stables: ["volumeId", "instanceId", "device"],
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
           if (
-            olds.volumeId !== news.volumeId
-            || olds.instanceId !== news.instanceId
-            || olds.device !== news.device
+            olds.volumeId !== resolved.volumeId
+            || olds.instanceId !== resolved.instanceId
+            || olds.device !== resolved.device
           ) {
             return { action: "replace" }
           }
@@ -214,37 +217,39 @@ export const VolumeAttachmentProvider = (): infer _ =>
           } // Normal detach, retrying while the volume is still in a transient
           // state (attaching / busy → IncorrectState).
 
-          ;(try (effect {
-            return ec2
-              .detachVolume({
-                VolumeId: volumeId,
-                InstanceId: instanceId,
-                Device: device,
-                DryRun: false,
-              }) catch effect (e) => match (e) {
-                when { _tag: "InvalidVolume.NotFound" }: try Effect.void;
-                default: throw e;
-              }
-          }
-            |> retryWhileIncorrectState(%))) catch effect (e) => match (e) {
-              when { _tag: "IncorrectState" }: try (force
-                ? effect {
-                  return ec2
-                    .detachVolume({
-                      VolumeId: volumeId,
-                      InstanceId: instanceId,
-                      Device: device,
-                      Force: true,
-                      DryRun: false,
-                    }) catch effect (e) => match (e) {
-                      when { _tag: "InvalidVolume.NotFound" }: try Effect.void;
-                      when { _tag: "IncorrectState" }: try Effect.void;
-                      default: throw e;
-                    }
+          ;(effect {
+            return (try (effect {
+              return ec2
+                .detachVolume({
+                  VolumeId: volumeId,
+                  InstanceId: instanceId,
+                  Device: device,
+                  DryRun: false,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "InvalidVolume.NotFound" }: (undefined as void);
+                  default: throw e;
                 }
-                : throw e);
-              default: throw e;
             }
+              |> retryWhileIncorrectState(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "IncorrectState" }: try (force
+              ? effect {
+                return ec2
+                  .detachVolume({
+                    VolumeId: volumeId,
+                    InstanceId: instanceId,
+                    Device: device,
+                    Force: true,
+                    DryRun: false,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "InvalidVolume.NotFound" }: (undefined as void);
+                    when { _tag: "IncorrectState" }: (undefined as void);
+                    default: throw e;
+                  }
+              }
+              : throw e);
+            default: throw e;
+          }
 
           // Wait for the volume to return to 'available'.
           try waitForVolumeDetached(volumeId, session)
@@ -254,14 +259,24 @@ export const VolumeAttachmentProvider = (): infer _ =>
     },
   )
 
-error AttachmentNotReady {
-  mutable volumeId: string
-  mutable state: string
+class AttachmentNotReady extends $MutableErrorBase("AttachmentNotReady")<{
+  volumeId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "AttachmentNotReady", true)
+  }
 }
 
-error VolumeStillAttached {
-  mutable volumeId: string
-  mutable state: string
+class VolumeStillAttached extends $MutableErrorBase("VolumeStillAttached")<{
+  volumeId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "VolumeStillAttached", true)
+  }
 }
 
 /**
@@ -273,7 +288,7 @@ const waitForAttachmentState = effect (
   instanceId: string,
   target: ec2.VolumeAttachmentState,
   session?: ScopedPlanStatusSession,
-): ec2.VolumeAttachmentState!ec2.DescribeVolumesError | AttachmentNotReady!Credentials | Region | HttpClient =>
+): ec2.VolumeAttachmentState!(ec2.DescribeVolumesError | AttachmentNotReady)!(Credentials | Region | HttpClient) =>
   try (effect {
     const result = try ec2.describeVolumes({ VolumeIds: [volumeId] })
     const attachment = result.Volumes?.[0]?.Attachments?.find((a) => a.InstanceId === instanceId)
@@ -296,7 +311,7 @@ const waitForAttachmentState = effect (
           { attempt },
         ) => (session
           ? try session.note(`Waiting for volume attachment... (${(attempt + 1) * 2}s)`)
-          : try Effect.void)
+          : (undefined as void))
         ),
       ),
     }))
@@ -330,7 +345,7 @@ const waitForVolumeDetached = effect (volumeId: string, session?: ScopedPlanStat
           { attempt },
         ) => (session
           ? try session.note(`Waiting for volume to detach... (${(attempt + 1) * 2}s)`)
-          : try Effect.void)
+          : (undefined as void))
         ),
       ),
     }))

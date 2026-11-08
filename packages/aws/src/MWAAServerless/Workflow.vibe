@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
 import * as mwaa from "@distilled.cloud/aws/mwaa-serverless"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -225,7 +226,7 @@ export const WorkflowProvider = (): infer _ =>
       const observeByArn = effect (arn: string) =>
         mwaa
           .getWorkflow({ WorkflowArn: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -245,14 +246,16 @@ export const WorkflowProvider = (): infer _ =>
       }
 
       const observedTags = effect (arn: string) =>
-        (try effect {
-          const r = try mwaa.listTagsForResource({ ResourceArn: arn })
+        (effect {
+          return (try effect {
+            const r = try mwaa.listTagsForResource({ ResourceArn: arn })
 
-          const tags: Record<string, string> = {}
-          for (const [key, value] of Object.entries(r.Tags ?? {})) {
-            if (value !== undefined) tags[key] = value
-          }
-          return tags
+            const tags: Record<string, string> = {}
+            for (const [key, value] of Object.entries(r.Tags ?? {})) {
+              if (value !== undefined) tags[key] = value
+            }
+            return tags
+          })
         }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
@@ -329,10 +332,13 @@ export const WorkflowProvider = (): infer _ =>
           }
           const attrs = toAttributes(live, name)
           const tags = try observedTags(live.WorkflowArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName) {
@@ -365,36 +371,38 @@ export const WorkflowProvider = (): infer _ =>
           //    persistence failed) raced us: converge on the workflow with
           //    OUR name if one now exists, otherwise propagate.
           if (live === undefined) {
-            live = (try observeByArn(
-              (try (mwaa
-                .createWorkflow({
-                  Name: name,
-                  DefinitionS3Location: toDefinitionS3Location(news.definitionS3Location),
-                  RoleArn: news.roleArn,
-                  Description: news.description,
-                  EncryptionConfiguration: news.encryptionConfiguration === undefined
-                    ? undefined
-                    : {
-                      Type: news.encryptionConfiguration.type,
-                      KmsKeyId: news.encryptionConfiguration.kmsKeyId,
-                    },
-                  LoggingConfiguration: news.loggingConfiguration === undefined
-                    ? undefined
-                    : {
-                      LogGroupName: news.loggingConfiguration.logGroupName,
-                    },
-                  EngineVersion: news.engineVersion,
-                  NetworkConfiguration: news.networkConfiguration === undefined
-                    ? undefined
-                    : {
-                      SecurityGroupIds: news.networkConfiguration.securityGroupIds,
-                      SubnetIds: news.networkConfiguration.subnetIds,
-                    },
-                  TriggerMode: news.triggerMode,
-                  Tags: desiredTags,
-                })
-                |> retryWhileRolePropagates(%))).WorkflowArn,
-            )) catch effect (error) => match (error) {
+            live = effect {
+              return (try observeByArn(
+                (try (mwaa
+                  .createWorkflow({
+                    Name: name,
+                    DefinitionS3Location: toDefinitionS3Location(news.definitionS3Location),
+                    RoleArn: news.roleArn,
+                    Description: news.description,
+                    EncryptionConfiguration: news.encryptionConfiguration === undefined
+                      ? undefined
+                      : {
+                        Type: news.encryptionConfiguration.type,
+                        KmsKeyId: news.encryptionConfiguration.kmsKeyId,
+                      },
+                    LoggingConfiguration: news.loggingConfiguration === undefined
+                      ? undefined
+                      : {
+                        LogGroupName: news.loggingConfiguration.logGroupName,
+                      },
+                    EngineVersion: news.engineVersion,
+                    NetworkConfiguration: news.networkConfiguration === undefined
+                      ? undefined
+                      : {
+                        SecurityGroupIds: news.networkConfiguration.securityGroupIds,
+                        SubnetIds: news.networkConfiguration.subnetIds,
+                      },
+                    TriggerMode: news.triggerMode,
+                    Tags: desiredTags,
+                  })
+                  |> retryWhileRolePropagates(%))).WorkflowArn,
+              ))
+            } catch effect (error) => match (error) {
               when { _tag: "ConflictException" }: try effect {
                 const existing = try observe(name, undefined)
                 return (existing === undefined ? throw error : existing)
@@ -477,7 +485,7 @@ export const WorkflowProvider = (): infer _ =>
           // Omitting WorkflowVersion deletes the workflow and all versions.
           mwaa
             .deleteWorkflow({ WorkflowArn: output.workflowArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
 
@@ -500,19 +508,21 @@ export const WorkflowProvider = (): infer _ =>
             const reapLogGroup = effect {
               return logs
                 .deleteLogGroup({ logGroupName }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             }
-            const observed = ({
-              exists: true,
-              lastIngestion: (try logs
-                .describeLogStreams({
-                  logGroupName,
-                  orderBy: "LastEventTime",
-                  descending: true,
-                  limit: 1,
-                })).logStreams?.[0]?.lastIngestionTime,
+            const observed = (effect {
+              return ({
+                exists: true,
+                lastIngestion: (try logs
+                  .describeLogStreams({
+                    logGroupName,
+                    orderBy: "LastEventTime",
+                    descending: true,
+                    limit: 1,
+                  })).logStreams?.[0]?.lastIngestionTime,
+              })
             }) catch effect (e) => match (e) {
               when { _tag: "ResourceNotFoundException" }: {
                 exists: false,
@@ -520,7 +530,7 @@ export const WorkflowProvider = (): infer _ =>
               };
               default: throw e;
             }
-            const now = try Effect.sync(() => Date.now())
+            const now = Date.now()
             const quiescent = observed.exists
               && (observed.lastIngestion === undefined || now - observed.lastIngestion > 120_000)
             if (quiescent) {

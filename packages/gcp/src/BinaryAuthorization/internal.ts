@@ -133,8 +133,10 @@ export const ownedBy = (id: string, labels: Record<string, string>) => hasAlchem
 
 export const createOwnership = (id: string) => createInternalLabels(id);
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
@@ -289,6 +291,6 @@ export const samePublicKeys = (
   });
 };
 
-export const gkePolicyOf = (
+export const gkePolicyOf = /** @throws {never} */ (
   policy: binaryauthorization.GkePolicy | undefined,
 ): binaryauthorization.GkePolicy => policy ?? {};

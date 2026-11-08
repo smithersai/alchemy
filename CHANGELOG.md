@@ -2,6 +2,10 @@
 
 ### Bug fixes
 
+- This migration checkout installs its bundled VibeLang packages without waiting for an npm release.
+- Test collection progress could name a file that had already finished when a later import stalled. It now shows the active import and clears it when collection is idle.
+- Loading `alchemy/Phase` with the released compiler could reject its global runtime flags. The module now keeps its original declarations and resolves through the package export.
+- Install the compiler, runtime, and bundler integrations from the published `0.0.12` packages with matching Effect `4.1.1`, so published packages no longer depend on local toolchain archives.
 - Chat examples could leave room and history services unprovided. Every Worker variant now supplies the room implementation, and preview setup reads its stack before construction.
 - Linting could reject the declaration-cache generator. It now spells out the same deterministic source ordering.
 - Test collection progress could name a file that had already loaded. It now identifies the import in progress and clears the filename while idle.

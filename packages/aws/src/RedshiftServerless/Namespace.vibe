@@ -181,7 +181,7 @@ export const NamespaceProvider = (): infer _ =>
       const readNamespace = effect (name: string) => {
         const response = redshiftserverless
           .getNamespace({ namespaceName: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.namespace
@@ -210,7 +210,7 @@ export const NamespaceProvider = (): infer _ =>
         try (effect {
           return try effect {
             const ns = try readNamespace(name)
-            return (ns === undefined ? try Effect.void : throw new NamespaceNotSettled({
+            return (ns === undefined ? (undefined as void) : throw new NamespaceNotSettled({
               namespaceName: name,
               status: ns.status ?? "DELETING",
             }))
@@ -235,15 +235,16 @@ export const NamespaceProvider = (): infer _ =>
         stables: ["namespaceName", "namespaceArn", "namespaceId"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // dbName and the KMS key are create-only.
-          if ((news?.dbName ?? undefined) !== (olds?.dbName ?? undefined)) {
+          if ((resolved?.dbName ?? undefined) !== (olds?.dbName ?? undefined)) {
             return { action: "replace" } as const
           }
-          if ((news?.kmsKeyId ?? undefined) !== (olds?.kmsKeyId ?? undefined)) {
+          if ((resolved?.kmsKeyId ?? undefined) !== (olds?.kmsKeyId ?? undefined)) {
             return { action: "replace" } as const
           }
         },
@@ -254,7 +255,7 @@ export const NamespaceProvider = (): infer _ =>
           if (ns === undefined) return undefined
           const attrs = toAttrs(ns)
           const tags = try readTags(attrs.namespaceArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -267,7 +268,7 @@ export const NamespaceProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate a concurrent create.
           if (observed === undefined) {
-            const created = (try redshiftserverless
+            const created = (effect { return (try redshiftserverless
               .createNamespace({
                 namespaceName: name,
                 dbName: news.dbName,
@@ -282,7 +283,7 @@ export const NamespaceProvider = (): infer _ =>
                 iamRoles: news.iamRoles,
                 logExports: news.logExports,
                 tags: toWireTags(desiredTags),
-              })).namespace catch effect (e) => match (e) {
+              })).namespace }) catch effect (e) => match (e) {
                 when { _tag: "ConflictException" }: (try redshiftserverless
                   .getNamespace({ namespaceName: name })).namespace;
                 default: throw e;
@@ -337,16 +338,16 @@ export const NamespaceProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (effect {
+          ;(effect { return (try (effect {
             return redshiftserverless.deleteNamespace({ namespaceName: output.namespaceName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }
             |> Effect.retry(%, {
               while: (e) => e._tag === "ConflictException",
               schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(24)]),
-            }))) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            }))) }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
           try waitUntilGone(output.namespaceName)
         },
 

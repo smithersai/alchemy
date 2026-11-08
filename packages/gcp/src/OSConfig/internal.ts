@@ -76,10 +76,10 @@ export const toPhysicalId = (
     );
   });
 
-export const folderParent = (value: string) =>
+export const folderParent = /** @throws {never} */ (value: string) =>
   value.startsWith("folders/") ? value : `folders/${lastSegment(value)}`;
 
-export const organizationParent = (value: string) =>
+export const organizationParent = /** @throws {never} */ (value: string) =>
   value.startsWith("organizations/") ? value : `organizations/${lastSegment(value)}`;
 
 export const projectParent = (value: string) =>
@@ -111,12 +111,13 @@ export const parseName = (name: string) => {
   };
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -169,7 +170,7 @@ export const assignmentPayload = (
   return next as osconfig.OSPolicyAssignment;
 };
 
-export const orchestratedPayload = (
+export const orchestratedPayload = /** @throws {never} */ (
   resource: OrchestratedResource | undefined,
 ): OrchestratedResource | undefined => {
   if (resource === undefined) return undefined;

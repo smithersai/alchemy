@@ -76,9 +76,10 @@ export const alphanumericId = (name: string, maxLength = 32): string => {
   return next;
 };
 
-export const normalizeLocation = (location: string) => lastSegment(location).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (location: string) =>
+  lastSegment(location).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${normalizeLocation(location)}`;
 
 export const toPhysicalId = (
@@ -188,12 +189,13 @@ export const specifiedEquals = (desired: unknown, observed: unknown): boolean =>
   return JSON.stringify(canonical(desired) ?? null) === JSON.stringify(canonical(observed) ?? null);
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const replaceOnIdentity = (input: {
   previousId: string | undefined;

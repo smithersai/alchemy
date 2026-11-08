@@ -42,5 +42,5 @@ export const hasOwnershipMarker = (description: string | undefined) =>
 export const jsonEqual = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const sortedStrings = (values: readonly string[] | undefined) =>
+export const sortedStrings = /** @throws {never} */ (values: readonly string[] | undefined) =>
   [...(values ?? [])].slice().sort();

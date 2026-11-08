@@ -1,11 +1,8 @@
+import * as Effect from "effect/Effect"
 import * as notifications from "@distilled.cloud/aws/notifications"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { pinNotificationsRegion } from "./internal.ts"
 
@@ -152,8 +149,8 @@ const retryWhileConflict = effect <A, E extends { _tag: string }, R>(
  * operations on the same configuration.
  */
 const pollUntilGone = effect <A, E, R>(
-  self: A | undefined!E!R,
-): A | undefined!E!R =>
+  self: (A | undefined)!E!R,
+): (A | undefined)!E!R =>
   try Effect.repeat(self, {
     schedule: Schedule.fixed("2 seconds"),
     until: (a) => a === undefined,
@@ -180,7 +177,7 @@ export const EventRuleProvider = (): infer _ =>
           effect {
             return notifications
               .getEventRule({ arn }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
           },
@@ -198,7 +195,7 @@ export const EventRuleProvider = (): infer _ =>
             |> Stream.filter(%, (rule) => rule.source === source && rule.eventType === eventType)
             |> Stream.runHead(%)
             |> Effect.map(%, Option.getOrUndefined)
-            |> Effect.catchTag(%, "ResourceNotFoundException", effect () => try Effect.undefined),
+            |> Effect.catchTag(%, "ResourceNotFoundException", effect () => undefined),
         )
 
       const toAttrs = (live: {
@@ -237,8 +234,9 @@ export const EventRuleProvider = (): infer _ =>
           return found ? toAttrs(found) : undefined
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.notificationConfigurationArn !== olds.notificationConfigurationArn
             || news.source !== olds.source
@@ -268,19 +266,21 @@ export const EventRuleProvider = (): infer _ =>
             // Retry the transitional lock (a sibling rule still DELETING);
             // a conflict that persists past the budget means the same rule
             // already exists → re-observe by signature.
-            const created = (try (notifications
-              .createEventRule({
-                notificationConfigurationArn: news.notificationConfigurationArn,
-                source: news.source,
-                eventType: news.eventType,
-                ...(desiredPattern !== "" ? { eventPattern: desiredPattern } : {}),
-                regions: news.regions,
-              })
-              |> pinNotificationsRegion(%)
-              |> retryWhileConflict(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try (notifications
+                .createEventRule({
+                  notificationConfigurationArn: news.notificationConfigurationArn,
+                  source: news.source,
+                  eventType: news.eventType,
+                  ...(desiredPattern !== "" ? { eventPattern: desiredPattern } : {}),
+                  regions: news.regions,
+                })
+                |> pinNotificationsRegion(%)
+                |> retryWhileConflict(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             live = created
               ? try getByArn(created.arn)
               : try findBySignature(
@@ -318,12 +318,14 @@ export const EventRuleProvider = (): infer _ =>
           // Idempotent — the parent configuration's deletion cascades rules,
           // so the rule may already be gone. A ConflictException means a
           // sibling mutation is still settling — retry through it.
-          ;(try (notifications.deleteEventRule({ arn: output.eventRuleArn })
-            |> pinNotificationsRegion(%)
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (notifications.deleteEventRule({ arn: output.eventRuleArn })
+              |> pinNotificationsRegion(%)
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
           // Deletion is asynchronous — wait until the rule is actually gone
           // so follow-up mutations on the configuration don't hit the
           // transitional lock (bounded, fail-open).

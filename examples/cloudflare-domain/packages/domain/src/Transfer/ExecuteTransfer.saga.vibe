@@ -46,7 +46,7 @@ export class ExecuteTransfer extends Domain.Saga("ExecuteTransfer", {
 }) {}
 
 /** Why a transfer failed, in the words the Transfer records. */
-const reasonOf = (cause: Cause<unknown>): string => {
+const reasonOf = (cause: Cause.Cause<unknown>): string => {
   const rejection = cause.reasons.find((reason) => reason._tag === "Fail")
   const error = rejection?._tag === "Fail" ? (rejection.error as { readonly _tag: string }) : undefined
   switch (error?._tag) {
@@ -72,13 +72,13 @@ export const ExecuteTransferLive = ExecuteTransfer.toLayer(
 
     return effect ({ key, from, to, amount, requestedBy, needsApproval }) => {
       // Registered first, so it runs last: after any compensations.
-      try Workflow.addFinalizer((exit) =>
+      try Workflow.addFinalizer(effect (exit) =>
         Exit.isSuccess(exit)
           ? Effect.void
           : (Activity.make({
             name: "record-failure",
             execute: transfers.send(key, new FailTransfer({ reason: reasonOf(exit.cause) })),
-          }) |> Effect.orDie(%))
+          }) |> try Effect.orDie(%))
       )
 
       if (needsApproval) {
@@ -92,7 +92,7 @@ export const ExecuteTransferLive = ExecuteTransfer.toLayer(
         error: Schema.Union([NotOpen, NotOwner, Frozen, InsufficientFunds]),
         execute: accounts.send(from, new DebitTransfer({ transferId: key, amount, requestedBy })),
       }).pipe(
-        ExecuteTransfer.withCompensation(() =>
+        ExecuteTransfer.withCompensation(effect () =>
           Activity.make({
             name: "refund",
             execute: accounts.send(from, new RefundTransfer({ transferId: key, amount })),
@@ -100,17 +100,17 @@ export const ExecuteTransferLive = ExecuteTransfer.toLayer(
         ),
       )
 
-      try Effect.suspend(() =>
+      try Effect.suspend(effect () =>
         Activity.make({
           name: "credit",
           error: DestinationClosed,
           execute: accounts
             .send(to, new CreditTransfer({ transferId: key, amount }))
-            |> Effect.catchTag(%, "NotOpen", () => throw new DestinationClosed()),
+            |> Effect.catchTag(%, "NotOpen", effect () => throw new DestinationClosed()),
         })
       )
 
-      try Effect.suspend(() =>
+      try Effect.suspend(effect () =>
         Activity.make({
           name: "complete",
           execute: transfers.send(key, new CompleteTransfer()),

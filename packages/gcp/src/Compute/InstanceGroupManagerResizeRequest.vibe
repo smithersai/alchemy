@@ -224,7 +224,7 @@ const getByName = effect (
       zone,
       instanceGroupManager,
       resizeRequest,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const awaitResource = effect (
   project: string,
@@ -255,15 +255,18 @@ export const InstanceGroupManagerResizeRequestProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.resizeRequestName ?? output?.resizeRequestName
-      const nextName = news.resizeRequestName
+      const nextName = resolved.resizeRequestName
       const previousZone = zoneOf(olds?.zone ?? output?.zone)
-      const nextZone = zoneOf(news.zone ?? output?.zone)
+      const nextZone = zoneOf(resolved.zone ?? output?.zone)
       const previousMig = lastSegment(olds?.instanceGroupManager ?? output?.instanceGroupManager)
-      const nextMig = lastSegment(news.instanceGroupManager)
+      const nextMig = lastSegment(resolved.instanceGroupManager)
       const previousBy = olds?.resizeBy ?? output?.resizeBy
-      const nextBy = news.resizeBy
+      const nextBy = resolved.resizeBy
       if (
         (previousName !== undefined && nextName !== undefined && previousName !== nextName)
         || previousZone !== nextZone
@@ -298,7 +301,9 @@ export const InstanceGroupManagerResizeRequestProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, instanceGroupManager)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -325,21 +330,23 @@ export const InstanceGroupManagerResizeRequestProvider = (): infer _ =>
       const perManager = try Effect.forEach(
         managers,
         effect ({ zone, name }) =>
-          (Array.from(
-            try (compute.listInstanceGroupManagerResizeRequests
-              .items({
-                project: env.project,
-                zone,
-                instanceGroupManager: name,
-                maxResults: 500,
-              })
-              |> Stream.filter(%, (request) => {
-                const { labels } = parseDescription(request.description)
-                return Object.keys(labels).some((key) => key.startsWith("alchemy-"))
-              })
-              |> Stream.map(%, (request) => toAttrs(request, env.project, name))
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+          (effect {
+            return (Array.from(
+              try (compute.listInstanceGroupManagerResizeRequests
+                .items({
+                  project: env.project,
+                  zone,
+                  instanceGroupManager: name,
+                  maxResults: 500,
+                })
+                |> Stream.filter(%, (request) => {
+                  const { labels } = parseDescription(request.description)
+                  return Object.keys(labels).some((key) => key.startsWith("alchemy-"))
+                })
+                |> Stream.map(%, (request) => toAttrs(request, env.project, name))
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
         { concurrency: 4 },
       )
       return perManager.flat()
@@ -360,25 +367,27 @@ export const InstanceGroupManagerResizeRequestProvider = (): infer _ =>
       let current = try getByName(env.project, zone, instanceGroupManager, resizeRequestName)
 
       if (current === undefined) {
-        ;(try waitZoneOperation(
-          env.project,
-          zone,
-          try compute
-            .insertInstanceGroupManagerResizeRequests({
-              project: env.project,
-              zone,
-              instanceGroupManager,
-              body: {
-                name: resizeRequestName,
-                description,
-                resizeBy: news.resizeBy,
-                requestedRunDuration: news.requestedRunDuration,
-              },
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitZoneOperation(
+            env.project,
+            zone,
+            try compute
+              .insertInstanceGroupManagerResizeRequests({
+                project: env.project,
+                zone,
+                instanceGroupManager,
+                body: {
+                  name: resizeRequestName,
+                  description,
+                  resizeBy: news.resizeBy,
+                  requestedRunDuration: news.requestedRunDuration,
+                },
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, zone, instanceGroupManager, resizeRequestName)
       }
 
@@ -413,14 +422,14 @@ export const InstanceGroupManagerResizeRequestProvider = (): infer _ =>
             instanceGroupManager,
             resizeRequest: output.resizeRequestName,
           }) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.undefined;
-            when { _tag: "BadRequest" }: try Effect.undefined;
-            when { _tag: "Conflict" }: try Effect.undefined;
+            when { _tag: "NotFound" }: undefined;
+            when { _tag: "BadRequest" }: undefined;
+            when { _tag: "Conflict" }: undefined;
             default: throw e;
           }
         if (cancelled !== undefined) {
           waitZoneOperation(env.project, zone, cancelled) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.void;
+            when { _tag: "NotFound" }: (undefined as void);
             default: throw e;
           }
         }
@@ -432,21 +441,23 @@ export const InstanceGroupManagerResizeRequestProvider = (): infer _ =>
           }))
       }
 
-      const operation = (try (compute
-        .deleteInstanceGroupManagerResizeRequests({
-          project: env.project,
-          zone,
-          instanceGroupManager,
-          resizeRequest: output.resizeRequestName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteInstanceGroupManagerResizeRequests({
+            project: env.project,
+            zone,
+            instanceGroupManager,
+            resizeRequest: output.resizeRequestName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitZoneOperation(env.project, zone, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

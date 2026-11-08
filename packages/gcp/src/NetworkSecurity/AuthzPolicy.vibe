@@ -17,7 +17,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./operations.vibe"
+} from "./operations.ts"
 
 const DEFAULT_ACTION = "ALLOW" satisfies networksecurity.AuthzPolicyActionEnum
 const DEFAULT_PROFILE = "REQUEST_AUTHZ" satisfies networksecurity.AuthzPolicyPolicyProfileEnum
@@ -280,17 +280,19 @@ const getByName = effect (name: string) =>
     }
 
 const listOwned = effect (project: string) =>
-  (Array.from(
-    try (networksecurity.listProjectsLocationsAuthzPolicies
-      .pages({
-        parent: projectParent(project, "-"),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authzPolicies ?? []))
-      |> Stream.filter(%, (policy) => Object.keys(policy.labels ?? {}).some((key) => key.startsWith("alchemy-")))
-      |> Stream.map(%, (policy) => toAttrs(policy, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (networksecurity.listProjectsLocationsAuthzPolicies
+        .pages({
+          parent: projectParent(project, "-"),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authzPolicies ?? []))
+        |> Stream.filter(%, (policy) => Object.keys(policy.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+        |> Stream.map(%, (policy) => toAttrs(policy, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const toCustomProviderBody = (
   provider: AuthzPolicyCustomProvider | undefined,
@@ -307,18 +309,21 @@ export const AuthzPolicyProvider = (): infer _ =>
     stables: ["name", "authzPolicyId", "project", "location", "policyProfile", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.authzPolicyId ?? output?.authzPolicyId
-      const nextId = news.authzPolicyId ?? previousId
+      const nextId = resolved.authzPolicyId ?? previousId
       const previousLocation = locationOf(olds?.location ?? output?.location, env.region)
       const nextLocation = locationOf(
-        news.location ?? olds?.location ?? output?.location,
+        resolved.location ?? olds?.location ?? output?.location,
         env.region,
       )
       const previousProfile = profileOf(olds?.policyProfile ?? output?.policyProfile)
       const nextProfile = profileOf(
-        news.policyProfile ?? olds?.policyProfile ?? output?.policyProfile,
+        resolved.policyProfile ?? olds?.policyProfile ?? output?.policyProfile,
       )
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -343,7 +348,12 @@ export const AuthzPolicyProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -365,33 +375,35 @@ export const AuthzPolicyProvider = (): infer _ =>
       const policyProfile = profileOf(news.policyProfile)
       const customProvider = toCustomProviderBody(news.customProvider)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networksecurity
-          .createProjectsLocationsAuthzPolicies({
-            parent: projectParent(env.project, location),
-            authzPolicyId,
-            body: {
-              action,
-              target: news.target,
-              httpRules: news.httpRules,
-              networkRules: news.networkRules,
-              policyProfile,
-              customProvider,
-              description: news.description,
-              labels: desiredLabels,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsAuthzPolicies({
+              parent: projectParent(env.project, location),
+              authzPolicyId,
+              body: {
+                action,
+                target: news.target,
+                httpRules: news.httpRules,
+                networkRules: news.networkRules,
+                policyProfile,
+                customProvider,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -403,17 +415,31 @@ export const AuthzPolicyProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const actionChanged = actionOf(current.action) !== action
-      const targetChanged = !sameJson(current.target, news.target)
-      const httpChanged = !sameJson(current.httpRules ?? [], news.httpRules ?? [])
-      const networkChanged = !sameJson(current.networkRules ?? [], news.networkRules ?? [])
-      const providerChanged = !sameJson(
-        toCustomProvider(current.customProvider),
-        news.customProvider,
-      )
+      const targetChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.target, news.target),
+        catch: (e) => e,
+      })))
+      const httpChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.httpRules ?? [], news.httpRules ?? []), catch: (e) => e }),
+      ))
+      const networkChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.networkRules ?? [], news.networkRules ?? []),
+          catch: (e) => e,
+        }),
+      ))
+      const providerChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, toCustomProvider(current.customProvider), news.customProvider),
+          catch: (e) => e,
+        }),
+      ))
 
       if (
         labelsChanged
@@ -456,13 +482,15 @@ export const AuthzPolicyProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networksecurity
-        .deleteProjectsLocationsAuthzPolicies({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsAuthzPolicies({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

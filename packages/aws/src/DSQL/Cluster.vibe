@@ -155,14 +155,14 @@ export const ClusterProvider = (): infer _ =>
       const readCluster = effect (identifier: string) =>
         dsql
           .getCluster({ identifier }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       const readTags = effect (arn: string) => {
         const response = dsql
           .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return Object.fromEntries(
@@ -221,14 +221,15 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterId", "clusterArn", "endpoint"],
 
         diff: effect ({ olds = {}, news, output }) => {
-          if (!isResolved(news)) return undefined
-          const input = migrationsInputOf(news)
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          const input = try Effect.orDie(Effect.try({ try: () => migrationsInputOf(resolved), catch: (e) => e }))
           if (input) try validateDsqlMigrations(input, output?.migrationsHashes)
           // KMS key is create-only; changing it forces a replacement.
-          if ((news.kmsEncryptionKey ?? undefined) !== (olds.kmsEncryptionKey ?? undefined)) {
+          if ((resolved.kmsEncryptionKey ?? undefined) !== (olds.kmsEncryptionKey ?? undefined)) {
             return { action: "replace" } as const
           }
-          if (try diffMigrations({ news, output })) {
+          if (try diffMigrations({ news: resolved, output })) {
             return { action: "update" } as const
           }
         },
@@ -248,11 +249,11 @@ export const ClusterProvider = (): infer _ =>
             migrationsTable: output?.migrationsTable,
             migrationsHashes: output?.migrationsHashes ?? {},
           }
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, instanceId, news = {}, output, session }) => {
-          const input = migrationsInputOf(news)
+          const input = try Effect.orDie(Effect.try({ try: () => migrationsInputOf(news), catch: (e) => e }))
           if (input) try validateDsqlMigrations(input, output?.migrationsHashes)
           const { region } = try AWSEnvironment.current
           const internalTags = try createInternalTags(id)
@@ -297,7 +298,7 @@ export const ClusterProvider = (): infer _ =>
 
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const observedTags = try readTags(observed.arn)
-          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try dsql.tagResource({
               resourceArn: observed.arn,
@@ -317,10 +318,10 @@ export const ClusterProvider = (): infer _ =>
             ? try runDsqlMigrations({
               endpoint: attrs.endpoint,
               input,
-              stamped: stampedOf(output),
+              stamped: try Effect.orDie(Effect.try({ try: () => stampedOf(output), catch: (e) => e })),
             })
             : undefined
-          return { ...attrs, ...migrationsAttrs({ input, run, output }) }
+          return { ...attrs, ...try Effect.orDie(Effect.try({ try: () => migrationsAttrs({ input, run, output }), catch: (e) => e })) }
         },
 
         delete: effect ({ output }) => {
@@ -334,13 +335,13 @@ export const ClusterProvider = (): infer _ =>
                 identifier,
                 deletionProtectionEnabled: false,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
           try (effect {
             return dsql.deleteCluster({ identifier }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }

@@ -148,8 +148,13 @@ export const BigQueryExportProvider = (): infer _ =>
     stables: ["name", "exportId", "project", "principal", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOn(olds?.exportId ?? output?.exportId, news.exportId)
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(
+        Effect.try({ try: () => replaceOn(olds?.exportId ?? output?.exportId, resolved.exportId), catch: (e) => e }),
+      )
     },
 
     read: effect ({ id, olds, output }) => {
@@ -159,7 +164,9 @@ export const BigQueryExportProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -184,7 +191,9 @@ export const BigQueryExportProvider = (): infer _ =>
       const exportId = try toResourceId(id, news.exportId, output?.exportId, "e")
       const name = resourceName(env.project, exportId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const filter = news.filter ?? ""
       const body: scc.GoogleCloudSecuritycenterV1BigQueryExport = {
         dataset: news.dataset,
@@ -212,11 +221,15 @@ export const BigQueryExportProvider = (): infer _ =>
       const datasetChanged = !sameText(current.dataset, news.dataset)
       const filterChanged = !sameText(current.filter, filter)
       const descriptionChanged = !sameText(current.description, description)
-      const updateMask = updateMaskOf(
-        datasetChanged ? "dataset" : undefined,
-        filterChanged ? "filter" : undefined,
-        descriptionChanged ? "description" : undefined,
-      )
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            datasetChanged ? "dataset" : undefined,
+            filterChanged ? "filter" : undefined,
+            descriptionChanged ? "description" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try scc.patchProjectsBigQueryExports({

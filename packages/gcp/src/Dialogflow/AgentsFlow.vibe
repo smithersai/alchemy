@@ -183,7 +183,7 @@ const findOwned = effect (id: string, agent: string, hinted?: string) => {
   }
   const flows = try listFlows(agent)
   for (const flow of flows) {
-    if (try ownedByAlchemy(id, ownershipText(flow))) return flow
+    if (try ownedByAlchemy(id, try Effect.orDie(Effect.try({ try: () => ownershipText(flow), catch: (e) => e })))) return flow
   }
   return undefined as dialogflow.GoogleCloudDialogflowCxV3Flow | undefined
 }
@@ -193,16 +193,17 @@ export const AgentsFlowProvider = (): infer _ =>
     stables: ["name", "flowId", "agent", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
       const previousId = olds?.flowId ?? output?.flowId
       if (
-        (previousAgent !== undefined && news.agent !== previousAgent)
-        || (previousId !== undefined && news.flowId !== undefined && news.flowId !== previousId)
+        (previousAgent !== undefined && resolved.agent !== previousAgent)
+        || (previousId !== undefined && resolved.flowId !== undefined && resolved.flowId !== previousId)
       ) {
         return {
           action: "replace" as const,
-          deleteFirst: previousAgent === news.agent && previousId !== undefined && news.flowId === previousId,
+          deleteFirst: previousAgent === resolved.agent && previousId !== undefined && resolved.flowId === previousId,
         }
       }
       return undefined
@@ -218,7 +219,7 @@ export const AgentsFlowProvider = (): infer _ =>
         : undefined
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, try Effect.orDie(Effect.try({ try: () => ownershipText(existing), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -243,10 +244,10 @@ export const AgentsFlowProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location)
-        const agent = expandName(news.agent, env.project, location, "agents")
+        const location = try Effect.orDie(Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }))
+        const agent = try Effect.orDie(Effect.try({ try: () => expandName(news.agent, env.project, location, "agents"), catch: (e) => e }))
         const ownership = try ownershipLabels(id)
-        const description = encodeOwnership(ownership, news.description)
+        const description = try Effect.orDie(Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }))
         const displayName = news.displayName ?? "flow"
         const locked = news.locked === true
         const body: dialogflow.GoogleCloudDialogflowCxV3Flow = {
@@ -280,19 +281,20 @@ export const AgentsFlowProvider = (): infer _ =>
         const currentName = current.name ?? output?.name ?? ""
         const displayChanged = !sameText(current.displayName, displayName)
         const descriptionChanged = !sameText(current.description, description)
-        const nluChanged = !sameJson(nluOf(current.nluSettings), news.nluSettings)
+        const left = nluOf(current.nluSettings)
+        const nluChanged = !(try Effect.orDie(Effect.try({ try: () => sameJson(left, news.nluSettings), catch: (e) => e })))
         const lockedChanged = (current.locked === true) !== locked
 
         if (displayChanged || descriptionChanged || nluChanged || lockedChanged) {
           current = try dialogflow.patchProjectsLocationsAgentsFlows({
             name: currentName,
             languageCode: news.languageCode,
-            updateMask: updateMaskOf(
+            updateMask: try Effect.orDie(Effect.try({ try: () => updateMaskOf(
               displayChanged ? "display_name" : undefined,
               descriptionChanged ? "description" : undefined,
               nluChanged ? "nlu_settings" : undefined,
               lockedChanged ? "locked" : undefined,
-            ),
+            ), catch: (e) => e })),
             body: { ...body, name: currentName },
           })
         }

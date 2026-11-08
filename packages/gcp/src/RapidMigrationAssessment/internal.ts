@@ -62,7 +62,7 @@ export const rfc1035 = (name: string, fallback = "collector"): string => {
 export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
   lastSegment(location ?? defaultLocation).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const toPhysicalId = (
@@ -96,23 +96,28 @@ export const parseName = (name: string, collection = "collectors") => {
   };
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const expectedAssetCountOf = (value: number | string | undefined): string | undefined =>
   value === undefined ? undefined : String(value);
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameNumber = (left: number | undefined, right: number | undefined) =>
-  (left ?? 0) === (right ?? 0);
+export const sameNumber = /** @throws {never} */ (
+  left: number | undefined,
+  right: number | undefined,
+) => (left ?? 0) === (right ?? 0);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
 export const replaceOnIdentity = (input: {

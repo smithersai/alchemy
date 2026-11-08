@@ -326,44 +326,71 @@ export const ServicesSchemaProvider = (): infer _ =>
     stables: ["name", "schemaId", "service", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const previousParent = (olds?.service ?? output?.service)
-        ? expandParent(
-          olds?.service ?? output?.service ?? "",
-          env.project,
-          previousLocation,
-          "services",
-        )
+        ? try Effect.orDie(Effect.try({
+          try: () =>
+            expandParent(
+              olds?.service ?? output?.service ?? "",
+              env.project,
+              previousLocation,
+              "services",
+            ),
+          catch: (e) => e,
+        }))
         : undefined
-      const nextParent = expandParent(news.service, env.project, location, "services")
-      return replaceOnIdentity({
+      const nextParent = try Effect.orDie(
+        Effect.try({ try: () => expandParent(resolved.service, env.project, location, "services"), catch: (e) => e }),
+      )
+      const input = {
         previousId: olds?.schemaId ?? output?.schemaId,
-        nextId: schemaIdOf(news.schemaId ?? olds?.schemaId ?? output?.schemaId),
+        nextId: schemaIdOf(resolved.schemaId ?? olds?.schemaId ?? output?.schemaId),
         previousLocation,
         nextLocation: location,
         previousParent,
         nextParent,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const schemaId = schemaIdOf(olds?.schemaId ?? output?.schemaId)
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const service = output?.service
-        ?? (olds?.service ? expandParent(olds.service, env.project, location, "services") : undefined)
+        ?? (olds?.service
+          ? try Effect.orDie(
+            Effect.try({ try: () => expandParent(olds.service, env.project, location, "services"), catch: (e) => e }),
+          )
+          : undefined)
       const name = output?.name ?? (service ? resourceName(service, schemaId) : undefined)
       if (name === undefined) return undefined
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -375,11 +402,15 @@ export const ServicesSchemaProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const schemaId = schemaIdOf(news.schemaId ?? output?.schemaId)
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const service = expandParent(news.service, env.project, location, "services")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const service = try Effect.orDie(
+        Effect.try({ try: () => expandParent(news.service, env.project, location, "services"), catch: (e) => e }),
+      )
       const name = resourceName(service, schemaId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
@@ -411,16 +442,26 @@ export const ServicesSchemaProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
-      const mask = fieldMask([
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const fields = [
         (upsert.length > 0 || removed.length > 0) && "labels",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAnnotations), catch: (e) => e })))
         && "annotations",
         !sameText(current.displayName, news.displayName) && "displayName",
-        fingerprint(toSource(current.source)) !== fingerprint(news.source) && "source",
-        fingerprint(current.datasources?.map(toDatasource)) !== fingerprint(news.datasources)
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, toSource(current.source)), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.source), catch: (e) => e }))) && "source",
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.datasources?.map(toDatasource)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.datasources), catch: (e) => e })))
         && "datasources",
-      ])
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const patchName = current.name ?? name
@@ -444,16 +485,18 @@ export const ServicesSchemaProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (firebasedataconnect
-        .deleteProjectsLocationsServicesSchemas({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (firebasedataconnect
+          .deleteProjectsLocationsServicesSchemas({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

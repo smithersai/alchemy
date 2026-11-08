@@ -176,30 +176,39 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (apihub.listProjectsLocationsExternalApis.pages({ parent, pageSize: 1000 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.externalApis ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
-      |> Stream.map(%, (item) => toAttrs(item, project, region))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (apihub.listProjectsLocationsExternalApis.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.externalApis ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+        |> Stream.map(%, (item) => toAttrs(item, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const ExternalApiProvider = (): infer _ =>
   Provider.succeed(ExternalApi, {
     stables: ["name", "externalApiId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.externalApiId ?? output?.externalApiId,
-        nextId: news.externalApiId ?? olds?.externalApiId ?? output?.externalApiId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.externalApiId ?? output?.externalApiId,
+            nextId: resolved.externalApiId ?? olds?.externalApiId ?? output?.externalApiId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -210,22 +219,32 @@ export const ExternalApiProvider = (): infer _ =>
         output?.externalApiId,
         MAX_LONG_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, externalApiId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return try listAt(locationParent(env.project, env.region), env.project, env.region)
+      return try listAt(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+        env.project,
+        env.region,
+      )
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const externalApiId = try toPhysicalId(
         id,
         news.externalApiId,
@@ -234,9 +253,13 @@ export const ExternalApiProvider = (): infer _ =>
       )
       const name = resourceName(env.project, location, externalApiId)
       const ownership = try ownershipLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = (news.displayName ?? externalApiId).slice(0, 63)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -264,18 +287,27 @@ export const ExternalApiProvider = (): infer _ =>
       const currentName = current.name ?? name
       const observed = parseOwnership(current.description).text
       const displayChanged = !sameText(current.displayName, displayName)
-      const descriptionChanged = !sameText(observed, news.description)
-      const documentationChanged = !sameJson(current.documentation, news.documentation)
+      const descriptionChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(observed, news.description),
+        catch: (e) => e,
+      })))
+      const documentationChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.documentation, news.documentation), catch: (e) => e }),
+      ))
       const endpointsChanged = !sameStringList(current.endpoints, news.endpoints)
       const pathsChanged = !sameStringList(current.paths, news.paths)
 
-      const updateMask = updateMaskOf(
-        displayChanged ? "display_name" : undefined,
-        descriptionChanged ? "description" : undefined,
-        documentationChanged ? "documentation" : undefined,
-        endpointsChanged ? "endpoints" : undefined,
-        pathsChanged ? "paths" : undefined,
-      )
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            documentationChanged ? "documentation" : undefined,
+            endpointsChanged ? "endpoints" : undefined,
+            pathsChanged ? "paths" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try apihub.patchProjectsLocationsExternalApis({

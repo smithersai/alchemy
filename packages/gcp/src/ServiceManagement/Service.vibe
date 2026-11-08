@@ -130,20 +130,23 @@ export const ServiceProvider = (): infer _ =>
     stables: ["serviceName", "producerProjectId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.serviceName ?? output?.serviceName
       if (
         previousName !== undefined
-        && news.serviceName !== undefined
-        && news.serviceName !== previousName
+        && resolved.serviceName !== undefined
+        && resolved.serviceName !== previousName
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousProducer = olds?.producerProjectId ?? output?.producerProjectId
       if (
         previousProducer !== undefined
-        && news.producerProjectId !== undefined
-        && news.producerProjectId !== previousProducer
+        && resolved.producerProjectId !== undefined
+        && resolved.producerProjectId !== previousProducer
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -164,9 +167,12 @@ export const ServiceProvider = (): infer _ =>
       // Managed services have no labels. A generated `alch-` name derives
       // from this stack, stage and logical id; any other name is only ours
       // when state already records it.
-      return output !== undefined || isGeneratedServiceName(serviceName, env.project)
+      return output !== undefined
+          || (try Effect.orDie(
+            Effect.try({ try: () => isGeneratedServiceName(serviceName, env.project), catch: (e) => e }),
+          ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -200,7 +206,7 @@ export const ServiceProvider = (): infer _ =>
               producerProjectId,
             },
           }) catch effect (e) => match (e) {
-            when { _tag: "Conflict" } or { _tag: "ServiceSoftDeleted" }: try Effect.undefined;
+            when { _tag: "Conflict" } or { _tag: "ServiceSoftDeleted" }: undefined;
             default: throw e;
           }
         if (created !== undefined) {
@@ -234,16 +240,18 @@ export const ServiceProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (servicemanagement
-        .deleteServices({ serviceName: output.serviceName })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("1 second"),
-        }))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ServiceNotFound" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (servicemanagement
+          .deleteServices({ serviceName: output.serviceName })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("1 second"),
+          })))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ServiceNotFound" }: undefined;
+        default: throw e;
+      }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

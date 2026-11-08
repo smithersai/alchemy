@@ -97,7 +97,7 @@ export const MetricStreamProvider = (): infer _ =>
   Provider.effect(
     MetricStream,
     effect {
-      const createMetricStreamName = (id: string, props: { name?: string } = {}) => createName(id, props.name, 255)
+      const createMetricStreamName = effect (id: string, props: { name?: string } = {}) => try createName(id, props.name, 255)
 
       const metricStreamArn = effect (name: string) =>
         try effect {
@@ -110,8 +110,8 @@ export const MetricStreamProvider = (): infer _ =>
           .getMetricStream({
             Name: name,
           }) catch effect (e) => match (e) {
-            when { _tag: "InvalidParameterValueException" }: try Effect.undefined;
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "InvalidParameterValueException" }: undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -160,9 +160,10 @@ export const MetricStreamProvider = (): infer _ =>
       return {
         stables: ["metricStreamName", "metricStreamArn"],
         diff: effect ({ id, olds = {}, news = {} as Input<MetricStreamProps> }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try createMetricStreamName(id, olds)
-          const newName = try createMetricStreamName(id, news)
+          const newName = try createMetricStreamName(id, resolved)
 
           if (oldName !== newName) {
             return { action: "replace" } as const
@@ -179,7 +180,7 @@ export const MetricStreamProvider = (): infer _ =>
 
           const results = try Effect.forEach(
             entries,
-            effect (entry) => (entry.Name ? try readMetricStream(entry.Name) : try Effect.undefined),
+            effect (entry) => (entry.Name ? try readMetricStream(entry.Name) : undefined),
             { concurrency: 10 },
           )
 
@@ -191,7 +192,7 @@ export const MetricStreamProvider = (): infer _ =>
           const name = output?.metricStreamName ?? (try createMetricStreamName(id, olds ?? {}))
           const state = try readMetricStream(name)
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, olds, output, session }) => {
           // Observe — pin the physical name from `output` if present;
@@ -250,7 +251,7 @@ export const MetricStreamProvider = (): infer _ =>
               Name: output.metricStreamName,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "InvalidParameterValueException" }: try Effect.void;
+            when { _tag: "InvalidParameterValueException" }: (undefined as void);
             default: throw e;
           }
         },

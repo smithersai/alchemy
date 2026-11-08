@@ -1,7 +1,6 @@
 import * as quicksight from "@distilled.cloud/aws/quicksight"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * A QuickSight resource whose asynchronous create/update has not converged
@@ -42,20 +41,20 @@ const isFailed = (status: string | undefined): boolean => status === "CREATION_F
  * `*_IN_PROGRESS`, the last observation is returned as-is so the caller sees
  * the real (still-converging) resource rather than a spurious failure.
  */
-export const waitForSettled = <
+export const waitForSettled = effect <
   A extends { status?: string },
   E extends { readonly _tag: string },
   R,
 >(
   resourceId: string,
-  read: A | undefined!E!R,
-): A | undefined!E | QuickSightOperationFailed!R =>
-  Effect.flatMap(
+  read: (A | undefined)!E!R,
+): (A | undefined)!(E | QuickSightOperationFailed)!R =>
+  try Effect.flatMap(
     Effect.repeat(read, {
       schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(30)]),
       until: (observed): infer _ => observed === undefined || !isInProgress(observed.status),
     }),
-    (observed): A | undefined!QuickSightOperationFailed =>
+    effect (observed): (A | undefined)!QuickSightOperationFailed =>
       observed !== undefined && isFailed(observed.status)
         ? throw new QuickSightOperationFailed({
           resourceId,
@@ -84,8 +83,8 @@ export const toTagRecord = (
  * failure (e.g. a race with deletion) reports no tags.
  */
 export const readQuickSightTags = effect (arn: string) => {
-  const response = try (quicksight
-    .listTagsForResource({ ResourceArn: arn }) |> Effect.orElseSucceed(%, () => undefined))
+  const response = quicksight
+    .listTagsForResource({ ResourceArn: arn }) catch () => undefined
   return toTagRecord(response?.Tags)
 }
 
@@ -98,7 +97,9 @@ export const syncQuickSightTags = effect (
   desiredTags: Record<string, string>,
 ) => {
   const observedTags = try readQuickSightTags(arn)
-  const { removed, upsert } = diffTags(observedTags, desiredTags)
+  const { removed, upsert } = try Effect.orDie(
+    Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+  )
   if (upsert.length > 0) {
     try quicksight.tagResource({ ResourceArn: arn, Tags: upsert })
   }

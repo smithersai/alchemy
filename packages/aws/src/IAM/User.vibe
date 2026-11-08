@@ -4,8 +4,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, createTagsList, diffTags, hasTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { parsePolicyDocument, stringifyPolicyDocument, toTagRecord } from "./common.vibe"
 import type { PolicyDocument } from "./Policy.vibe"
@@ -115,16 +113,18 @@ export const UserProvider = (): infer _ =>
             |> Stream.runCollect(%)),
         )
         const entries = try Effect.forEach(policyNames, effect (policyName) =>
-          ([
-            policyName,
-            parsePolicyDocument(
-              (try iam
-                .getUserPolicy({
-                  UserName: userName,
-                  PolicyName: policyName,
-                })).PolicyDocument,
-            ),
-          ] as const) catch effect (e) => match (e) {
+          (effect {
+            return ([
+              policyName,
+              parsePolicyDocument(
+                (try iam
+                  .getUserPolicy({
+                    UserName: userName,
+                    PolicyName: policyName,
+                  })).PolicyDocument,
+              ),
+            ] as const)
+          }) catch effect (e) => match (e) {
             when { _tag: "NoSuchEntityException" }: [policyName, undefined] as const;
             default: throw e;
           })
@@ -166,7 +166,7 @@ export const UserProvider = (): infer _ =>
                 UserName: userName,
                 PolicyArn: policyArn,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -198,7 +198,7 @@ export const UserProvider = (): infer _ =>
                 UserName: userName,
                 PolicyName: policyName,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -220,24 +220,26 @@ export const UserProvider = (): infer _ =>
           const hydrated = try Effect.forEach(
             users,
             effect (user) =>
-              (try effect {
-                const [managedPolicyArns, inlinePolicies, tags] = try Effect.all([
-                  readManagedPolicies(user.UserName),
-                  readInlinePolicies(user.UserName),
-                  readTags(user.UserName),
-                ])
-                return {
-                  userArn: user.Arn,
-                  userName: user.UserName,
-                  userId: user.UserId,
-                  path: user.Path,
-                  permissionsBoundary: user.PermissionsBoundary?.PermissionsBoundaryArn,
-                  managedPolicyArns,
-                  inlinePolicies,
-                  tags,
-                }
+              (effect {
+                return (try effect {
+                  const [managedPolicyArns, inlinePolicies, tags] = try Effect.all([
+                    readManagedPolicies(user.UserName),
+                    readInlinePolicies(user.UserName),
+                    readTags(user.UserName),
+                  ])
+                  return {
+                    userArn: user.Arn,
+                    userName: user.UserName,
+                    userId: user.UserId,
+                    path: user.Path,
+                    permissionsBoundary: user.PermissionsBoundary?.PermissionsBoundaryArn,
+                    managedPolicyArns,
+                    inlinePolicies,
+                    tags,
+                  }
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+                when { _tag: "NoSuchEntityException" }: undefined;
                 default: throw e;
               },
             { concurrency: 10 },
@@ -248,11 +250,14 @@ export const UserProvider = (): infer _ =>
           )
         },
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toName(id, olds ?? ({} as UserProps))) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? ({} as UserProps))) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
-          if ((olds?.path ?? "/") !== (news.path ?? "/")) {
+          if ((olds?.path ?? "/") !== (resolved.path ?? "/")) {
             return { action: "replace" } as const
           }
         },
@@ -262,7 +267,7 @@ export const UserProvider = (): infer _ =>
             .getUser({
               UserName: userName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
           if (!response?.User?.Arn) {
@@ -294,7 +299,7 @@ export const UserProvider = (): infer _ =>
           // Observe — read the live user (or absence).
           const observedResponse = iam
             .getUser({ UserName: userName }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
           let observedUser = observedResponse?.User
@@ -333,7 +338,7 @@ export const UserProvider = (): infer _ =>
                 .deleteUserPermissionsBoundary({
                   UserName: userName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
+                  when { _tag: "NoSuchEntityException" }: (undefined as void);
                   default: throw e;
                 }
             }
@@ -393,44 +398,48 @@ export const UserProvider = (): infer _ =>
             .deleteUserPermissionsBoundary({
               UserName: output.userName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
-          ;(try (iam.listUserPolicies.items({ UserName: output.userName })
-            |> Stream.mapEffect(%, effect (policyName) =>
-              iam
-                .deleteUserPolicy({
-                  UserName: output.userName,
-                  PolicyName: policyName,
-                }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                })
-            |> Stream.runDrain(%))) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
-              default: throw e;
-            }
-          ;(try (iam.listAttachedUserPolicies.items({ UserName: output.userName })
-            |> Stream.mapEffect(%, effect (policy) => (policy.PolicyArn
-              ? iam
-                .detachUserPolicy({
-                  UserName: output.userName,
-                  PolicyArn: policy.PolicyArn,
-                }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                }
-              : try Effect.void))
-            |> Stream.runDrain(%))) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (iam.listUserPolicies.items({ UserName: output.userName })
+              |> Stream.mapEffect(%, effect (policyName) =>
+                iam
+                  .deleteUserPolicy({
+                    UserName: output.userName,
+                    PolicyName: policyName,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  })
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
+            default: throw e;
+          }
+          ;(effect {
+            return (try (iam.listAttachedUserPolicies.items({ UserName: output.userName })
+              |> Stream.mapEffect(%, effect (policy) => (policy.PolicyArn
+                ? iam
+                  .detachUserPolicy({
+                    UserName: output.userName,
+                    PolicyArn: policy.PolicyArn,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  }
+                : (undefined as void)))
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
+            default: throw e;
+          }
 
           iam
             .deleteUser({
               UserName: output.userName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
         },

@@ -170,31 +170,47 @@ export const SourcesUtilizationReportProvider = (): infer _ =>
     stables: ["name", "utilizationReportId", "source", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousSource = olds?.source ?? output?.source
       const previousFrame = olds?.timeFrame ?? output?.timeFrame ?? DEFAULT_TIME_FRAME
-      const nextFrame = news.timeFrame ?? previousFrame
+      const nextFrame = resolved.timeFrame ?? previousFrame
       const extra = previousFrame !== nextFrame
-        || fingerprint(news.vms?.map((vmInfo) => vmInfo.vmId))
-          !== fingerprint((olds?.vms ?? output?.vms)?.map((vmInfo) => vmInfo.vmId))
-      return replaceOnIdentity({
-        previousId: olds?.utilizationReportId ?? output?.utilizationReportId,
-        nextId: news.utilizationReportId ?? olds?.utilizationReportId ?? output?.utilizationReportId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: previousSource,
-        nextParent: news.source ?? previousSource,
-        extra,
-      })
+        || (try Effect.orDie(
+            Effect.try({ try: () => fingerprint(resolved.vms?.map((vmInfo) => vmInfo.vmId)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: () => fingerprint((olds?.vms ?? output?.vms)?.map((vmInfo) => vmInfo.vmId)),
+              catch: (e) => e,
+            }),
+          ))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.utilizationReportId ?? output?.utilizationReportId,
+            nextId: resolved.utilizationReportId ?? olds?.utilizationReportId ?? output?.utilizationReportId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: previousSource,
+            nextParent: resolved.source ?? previousSource,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const utilizationReportId = try toPhysicalId(
         id,
         olds?.utilizationReportId,
@@ -202,13 +218,15 @@ export const SourcesUtilizationReportProvider = (): infer _ =>
         "utilreport",
       )
       const source = olds?.source !== undefined
-        ? sourceOf(olds.source, env.project, location)
+        ? try Effect.orDie(Effect.try({ try: () => sourceOf(olds.source, env.project, location), catch: (e) => e }))
         : (output?.source ?? "")
       const name = output?.name ?? (source.length > 0 ? resourceName(source, utilizationReportId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -221,8 +239,12 @@ export const SourcesUtilizationReportProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const source = sourceOf(news.source, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const source = try Effect.orDie(
+        Effect.try({ try: () => sourceOf(news.source, env.project, location), catch: (e) => e }),
+      )
       const utilizationReportId = try toPhysicalId(
         id,
         news.utilizationReportId,
@@ -231,7 +253,12 @@ export const SourcesUtilizationReportProvider = (): infer _ =>
       )
       const name = resourceName(source, utilizationReportId)
       const ownership = try createInternalLabels(id)
-      const displayName = encodeOwnershipLine(ownership, news.displayName ?? utilizationReportId)
+      const displayName = try Effect.orDie(
+        Effect.try({
+          try: () => encodeOwnershipLine(ownership, news.displayName ?? utilizationReportId),
+          catch: (e) => e,
+        }),
+      )
       const timeFrame = news.timeFrame ?? DEFAULT_TIME_FRAME
 
       let current = try getByName(output?.name ?? name)
@@ -265,15 +292,17 @@ export const SourcesUtilizationReportProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vm
-        .deleteProjectsLocationsSourcesUtilizationReports({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vm
+          .deleteProjectsLocationsSourcesUtilizationReports({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

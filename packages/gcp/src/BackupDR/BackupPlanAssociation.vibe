@@ -220,7 +220,10 @@ const listOwned = effect (project: string, region: string) => {
     effect (name) =>
       try effect {
         const plan = try getPlan(name)
-        return plan !== undefined && hasAlchemyLabelMap(plan.labels) ? name : undefined
+        return plan !== undefined
+            && (try Effect.orDie(Effect.try({ try: () => hasAlchemyLabelMap(plan.labels), catch: (e) => e })))
+          ? name
+          : undefined
       },
     { concurrency: 8 },
   )
@@ -233,28 +236,35 @@ export const BackupPlanAssociationProvider = (): infer _ =>
     stables: ["name", "backupPlanAssociationId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousResource = olds?.resource ?? output?.resource
       const previousType = olds?.resourceType ?? output?.resourceType
-      return replaceOnIdentity({
-        previousId: olds?.backupPlanAssociationId ?? output?.backupPlanAssociationId,
-        nextId: news.backupPlanAssociationId
-          ?? olds?.backupPlanAssociationId
-          ?? output?.backupPlanAssociationId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (previousType !== undefined
-          && news.resourceType !== undefined
-          && previousType !== news.resourceType)
-          || (previousResource !== undefined
-            && news.resource !== undefined
-            && previousResource !== news.resource
-            && !previousResource.endsWith(`/${news.resource}`)),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backupPlanAssociationId ?? output?.backupPlanAssociationId,
+            nextId: resolved.backupPlanAssociationId
+              ?? olds?.backupPlanAssociationId
+              ?? output?.backupPlanAssociationId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (previousType !== undefined
+              && resolved.resourceType !== undefined
+              && previousType !== resolved.resourceType)
+              || (previousResource !== undefined
+                && resolved.resource !== undefined
+                && previousResource !== resolved.resource
+                && !previousResource.endsWith(`/${resolved.resource}`)),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -265,14 +275,19 @@ export const BackupPlanAssociationProvider = (): infer _ =>
         output?.backupPlanAssociationId,
         "backupplanassoc",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, backupPlanAssociationId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
       if (output !== undefined) return attrs
       const plan = try getPlan(existing.backupPlan)
-      return plan !== undefined && hasAlchemyLabelMap(plan.labels) ? attrs : Unowned(attrs)
+      return plan !== undefined
+          && (try Effect.orDie(Effect.try({ try: () => hasAlchemyLabelMap(plan.labels), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -289,9 +304,13 @@ export const BackupPlanAssociationProvider = (): infer _ =>
         output?.backupPlanAssociationId,
         "backupplanassoc",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, backupPlanAssociationId)
-      const backupPlan = backupPlanOf(news.backupPlan, env.project, location)
+      const backupPlan = try Effect.orDie(
+        Effect.try({ try: () => backupPlanOf(news.backupPlan, env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -344,13 +363,15 @@ export const BackupPlanAssociationProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (backupdr
-        .deleteProjectsLocationsBackupPlanAssociations({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (backupdr
+          .deleteProjectsLocationsBackupPlanAssociations({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as ci from "@distilled.cloud/aws/cognito-identity"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -217,7 +218,7 @@ export const IdentityPoolProvider = (): infer _ =>
       const describePool = effect (identityPoolId: string) =>
         ci
           .describeIdentityPool({ IdentityPoolId: identityPoolId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -228,7 +229,7 @@ export const IdentityPoolProvider = (): infer _ =>
           .filter((pool) => pool.IdentityPoolName === name && pool.IdentityPoolId !== undefined)
         return (try Effect.forEach(
           candidates,
-          (candidate) => describePool(candidate.IdentityPoolId!),
+          effect (candidate) => try describePool(candidate.IdentityPoolId!),
           { concurrency: 3 },
         )).filter((p) => p !== undefined)
       }
@@ -263,7 +264,9 @@ export const IdentityPoolProvider = (): infer _ =>
             if (pool === undefined) return undefined
             const attrs = attributesOf(pool)
             const tags = tagRecordOf(pool.IdentityPoolTags)
-            return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+            return (try hasAlchemyTags(id, tags))
+              ? attrs
+              : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
           }
           const name = try createName(id, olds ?? {})
           const pools = try findPoolsByName(name)
@@ -273,7 +276,9 @@ export const IdentityPoolProvider = (): infer _ =>
               return attributesOf(pool)
             }
           }
-          return Unowned(attributesOf(pools[0]!))
+          return (try Effect.orDie(
+            Effect.try({ try: () => Unowned(attributesOf(pools[0]!)), catch: (error) => error }),
+          ))
         },
 
         reconcile: effect ({ id, news = {}, output, session }) => {
@@ -315,10 +320,12 @@ export const IdentityPoolProvider = (): infer _ =>
           const identityPoolArn = identityPoolArnOf(region, accountId, identityPoolId)
 
           // 3b. SYNC TAGS against OBSERVED cloud tags.
-          const observedTags = (tagRecordOf((try ci.listTagsForResource({ ResourceArn: identityPoolArn })).Tags)) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
-              default: throw e;
-            }
+          const observedTags = (effect {
+            return (tagRecordOf((try ci.listTagsForResource({ ResourceArn: identityPoolArn })).Tags))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
+            default: throw e;
+          }
           const { upsert, removed } = diffTags(observedTags, desiredTags)
           if (upsert.length > 0) {
             try ci.tagResource({
@@ -344,7 +351,7 @@ export const IdentityPoolProvider = (): infer _ =>
         delete: effect ({ output }) => {
           ci
             .deleteIdentityPool({ IdentityPoolId: output.identityPoolId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

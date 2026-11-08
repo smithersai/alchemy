@@ -30,11 +30,15 @@ export const parentOf = (name: string) => {
 export const locationParent = (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
-export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
-  lastSegment(location ?? defaultLocation).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  defaultLocation: string,
+) => lastSegment(location ?? defaultLocation).toLowerCase();
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
@@ -69,12 +73,13 @@ export const expandParent = (
   return `projects/${project}/locations/${location}/${collection}/${value}`;
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const withOwnershipMetadata = (
   metadata: Record<string, string> | undefined,

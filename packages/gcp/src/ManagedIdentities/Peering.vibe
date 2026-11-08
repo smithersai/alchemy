@@ -163,30 +163,53 @@ export const PeeringProvider = (): infer _ =>
     stables: ["name", "peeringId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const previousDomain = domainResourceOf(
-        olds?.domainResource ?? output?.domainResource ?? "",
-        env.project,
-      )
-      const nextDomain = domainResourceOf(
-        news.domainResource ?? olds?.domainResource ?? output?.domainResource ?? "",
-        env.project,
-      )
-      const previousNetwork = networkOf(
-        olds?.authorizedNetwork ?? output?.authorizedNetwork ?? "",
-        env.project,
-      )
-      const nextNetwork = networkOf(
-        news.authorizedNetwork ?? olds?.authorizedNetwork ?? output?.authorizedNetwork ?? "",
-        env.project,
-      )
-      return replaceOnIdentity({
-        previousId: olds?.peeringId ?? output?.peeringId,
-        nextId: news.peeringId ?? olds?.peeringId ?? output?.peeringId,
-        extra: (previousDomain.length > 0 && nextDomain.length > 0 && previousDomain !== nextDomain)
-          || (previousNetwork.length > 0 && nextNetwork.length > 0 && previousNetwork !== nextNetwork),
-      })
+      const previousDomain = try Effect.orDie(Effect.try({
+        try: () =>
+          domainResourceOf(
+            olds?.domainResource ?? output?.domainResource ?? "",
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
+      const nextDomain = try Effect.orDie(Effect.try({
+        try: () =>
+          domainResourceOf(
+            resolved.domainResource ?? olds?.domainResource ?? output?.domainResource ?? "",
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
+      const previousNetwork = try Effect.orDie(Effect.try({
+        try: () =>
+          networkOf(
+            olds?.authorizedNetwork ?? output?.authorizedNetwork ?? "",
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
+      const nextNetwork = try Effect.orDie(Effect.try({
+        try: () =>
+          networkOf(
+            resolved.authorizedNetwork ?? olds?.authorizedNetwork ?? output?.authorizedNetwork ?? "",
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.peeringId ?? output?.peeringId,
+            nextId: resolved.peeringId ?? olds?.peeringId ?? output?.peeringId,
+            extra: (previousDomain.length > 0 && nextDomain.length > 0 && previousDomain !== nextDomain)
+              || (previousNetwork.length > 0 && nextNetwork.length > 0 && previousNetwork !== nextNetwork),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -196,7 +219,12 @@ export const PeeringProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -209,10 +237,14 @@ export const PeeringProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const peeringId = try toPhysicalId(id, news.peeringId, output?.peeringId, "peering")
       const name = resourceName(env.project, peeringId)
-      const domainResource = domainResourceOf(news.domainResource, env.project)
-      const authorizedNetwork = networkOf(news.authorizedNetwork, env.project)
+      const domainResource = try Effect.orDie(
+        Effect.try({ try: () => domainResourceOf(news.domainResource, env.project), catch: (e) => e }),
+      )
+      const authorizedNetwork = try Effect.orDie(
+        Effect.try({ try: () => networkOf(news.authorizedNetwork, env.project), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -273,13 +305,15 @@ export const PeeringProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name) return
-      const operation = (try (managedidentities
-        .deleteProjectsLocationsGlobalPeerings({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (managedidentities
+          .deleteProjectsLocationsGlobalPeerings({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

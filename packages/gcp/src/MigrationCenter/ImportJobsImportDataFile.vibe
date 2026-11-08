@@ -154,33 +154,39 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listFiles = effect (parent: string) =>
-  (Array.from(
-    try (mc.listProjectsLocationsImportJobsImportDataFiles.pages({ parent, pageSize: 1000 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.importDataFiles ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.ImportDataFile[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (mc.listProjectsLocationsImportJobsImportDataFiles.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.importDataFiles ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.ImportDataFile[]; default: throw e; }
 
 const listJobs = effect (project: string, region: string) =>
-  (Array.from(
-    try (mc.listProjectsLocationsImportJobs
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-        view: "IMPORT_JOB_VIEW_BASIC",
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.importJobs ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (mc.listProjectsLocationsImportJobs
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
           view: "IMPORT_JOB_VIEW_BASIC",
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.importJobs ?? []))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.ImportJob[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (mc.listProjectsLocationsImportJobs
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+            view: "IMPORT_JOB_VIEW_BASIC",
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.importJobs ?? []))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.ImportJob[]; default: throw e; };
     default: throw e;
   }
 
@@ -191,7 +197,9 @@ const listOwned = effect (project: string, region: string) => {
     if (job.name === undefined) continue
     const nested = try listFiles(job.name)
     for (const file of nested) {
-      if (hasOwnershipMarker(file.displayName)) files.push(file)
+      if (try Effect.orDie(Effect.try({ try: () => hasOwnershipMarker(file.displayName), catch: (e) => e }))) {
+        files.push(file)
+      }
     }
   }
   return files
@@ -202,29 +210,38 @@ export const ImportJobsImportDataFileProvider = (): infer _ =>
     stables: ["name", "importDataFileId", "importJob", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousFormat = olds?.format ?? output?.format ?? DEFAULT_FORMAT
-      const nextFormat = news.format ?? previousFormat
+      const nextFormat = resolved.format ?? previousFormat
       const previousJob = olds?.importJob ?? output?.importJob
-      const nextJob = news.importJob
-      return replaceOnIdentity({
-        previousId: olds?.importDataFileId ?? output?.importDataFileId,
-        nextId: news.importDataFileId ?? olds?.importDataFileId ?? output?.importDataFileId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: previousJob,
-        nextParent: nextJob,
-        extra: previousFormat !== nextFormat,
-      })
+      const nextJob = resolved.importJob
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.importDataFileId ?? output?.importDataFileId,
+            nextId: resolved.importDataFileId ?? olds?.importDataFileId ?? output?.importDataFileId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: previousJob,
+            nextParent: nextJob,
+            extra: previousFormat !== nextFormat,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const importJob = jobNameOf(
         olds?.importJob ?? output?.importJob ?? "",
         env.project,
@@ -240,7 +257,9 @@ export const ImportJobsImportDataFileProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -251,7 +270,9 @@ export const ImportJobsImportDataFileProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const importJob = jobNameOf(news.importJob, env.project, location)
       const importDataFileId = try toPhysicalId(
         id,
@@ -261,7 +282,9 @@ export const ImportJobsImportDataFileProvider = (): infer _ =>
       )
       const name = resourceName(importJob, importDataFileId)
       const ownership = try createInternalLabels(id)
-      const displayName = encodeOwnershipLine(ownership, news.displayName)
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
       const format = news.format ?? DEFAULT_FORMAT
 
       let current = try getByName(output?.name ?? name)
@@ -290,15 +313,17 @@ export const ImportJobsImportDataFileProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (mc
-        .deleteProjectsLocationsImportJobsImportDataFiles({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (mc
+          .deleteProjectsLocationsImportJobsImportDataFiles({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

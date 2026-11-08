@@ -111,7 +111,7 @@ const createEndpointName = effect (
 const fetchEndpointTags = effect (arn: string) => {
   const response = sagemaker
     .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      when { _tag: "AccessDeniedException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -122,7 +122,7 @@ const fetchEndpointTags = effect (arn: string) => {
 const describeEndpointOrUndefined = effect (name: string) =>
   sagemaker
     .describeEndpoint({ EndpointName: name }) catch effect (e) => match (e) {
-      when { _tag: "EndpointNotFound" }: try Effect.undefined;
+      when { _tag: "EndpointNotFound" }: undefined;
       default: throw e;
     }
 
@@ -158,8 +158,8 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(80)]),
   })
 
-const waitForEndpoint = (name: string, target: "InService" | "Gone") =>
-  retryWhileNotReady(
+const waitForEndpoint = effect (name: string, target: "InService" | "Gone") =>
+  try retryWhileNotReady(
     effect {
       const described = try describeEndpointOrUndefined(name)
       if (target === "Gone") {
@@ -218,13 +218,14 @@ export const EndpointProvider = (): infer _ =>
             endpointStatus: described.EndpointStatus,
           }
           const tags = try fetchEndpointTags(described.EndpointArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           const oldName = try createEndpointName(id, olds)
-          const newName = try createEndpointName(id, news)
+          const newName = try createEndpointName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
@@ -251,7 +252,7 @@ export const EndpointProvider = (): infer _ =>
             )
             sagemaker
               .deleteEndpoint({ EndpointName: name }) catch effect (e) => match (e) {
-                when { _tag: "EndpointNotFound" }: try Effect.void;
+                when { _tag: "EndpointNotFound" }: (undefined as void);
                 default: throw e;
               }
             try waitForEndpoint(name, "Gone")
@@ -270,7 +271,7 @@ export const EndpointProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "EndpointAlreadyExists" }: try Effect.void;
+                when { _tag: "EndpointAlreadyExists" }: (undefined as void);
                 default: throw e;
               }
             try session.note(`Creating endpoint ${name}...`)
@@ -301,7 +302,7 @@ export const EndpointProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchEndpointTags(final.EndpointArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: final.EndpointArn,
@@ -325,7 +326,7 @@ export const EndpointProvider = (): infer _ =>
         delete: effect ({ output }) => {
           sagemaker
             .deleteEndpoint({ EndpointName: output.endpointName }) catch effect (e) => match (e) {
-              when { _tag: "EndpointNotFound" }: try Effect.void;
+              when { _tag: "EndpointNotFound" }: (undefined as void);
               default: throw e;
             }
           try waitForEndpoint(output.endpointName, "Gone")

@@ -171,13 +171,15 @@ const getByName = effect (name: string) =>
 
 const listProducts = effect (project: string, region: string) => {
   const collect = effect (parent: string) =>
-    ((try collectPages(
-      dataplex.listProjectsLocationsDataProducts.pages({
-        parent,
-        pageSize: 1000,
-      }),
-      (page) => page.dataProducts,
-    )).filter((item) => hasAlchemyLabelMap(item.labels))) catch effect (e) => match (e) {
+    (effect {
+      return ((try collectPages(
+        dataplex.listProjectsLocationsDataProducts.pages({
+          parent,
+          pageSize: 1000,
+        }),
+        (page) => page.dataProducts,
+      )).filter((item) => hasAlchemyLabelMap(item.labels)))
+    }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: [];
       default: throw e;
     }
@@ -191,17 +193,24 @@ export const DataProductProvider = (): infer _ =>
     stables: ["name", "dataProductId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.dataProductId ?? output?.dataProductId,
-        nextId: news.dataProductId ?? olds?.dataProductId ?? output?.dataProductId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.dataProductId ?? output?.dataProductId,
+            nextId: resolved.dataProductId ?? olds?.dataProductId ?? output?.dataProductId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -212,12 +221,19 @@ export const DataProductProvider = (): infer _ =>
         output?.dataProductId,
         "dataproduct",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, dataProductId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -234,10 +250,12 @@ export const DataProductProvider = (): infer _ =>
         output?.dataProductId,
         "dataproduct",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, dataProductId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -270,15 +288,32 @@ export const DataProductProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== news.displayName
-      const ownersChanged = fingerprint([...(current.ownerEmails ?? [])].sort())
-        !== fingerprint([...(news.ownerEmails ?? [])].sort())
+      const ownersChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, [...(current.ownerEmails ?? [])].sort()), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({ try: () => fingerprint([...(news.ownerEmails ?? [])].sort()), catch: (e) => e }),
+        ))
       const iconChanged = (current.icon ?? "") !== (news.icon ?? "")
-      const groupsChanged = fingerprint(current.accessGroups) !== fingerprint(news.accessGroups)
-      const approvalChanged = fingerprint(current.accessApprovalConfig) !== fingerprint(news.accessApprovalConfig)
+      const groupsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.accessGroups), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.accessGroups),
+            catch: (e) => e,
+          })))
+      const approvalChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, current.accessApprovalConfig),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(news.accessApprovalConfig),
+        catch: (e) => e,
+      })))
 
       if (
         labelsChanged
@@ -322,16 +357,18 @@ export const DataProductProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (dataplex
-        .deleteProjectsLocationsDataProducts({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (dataplex
+          .deleteProjectsLocationsDataProducts({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

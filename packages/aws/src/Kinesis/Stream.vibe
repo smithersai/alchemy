@@ -296,7 +296,7 @@ const assertProvisionedProps = effect (
   ? throw new KinesisStreamInvalidProps({
     message: `streamMode "PROVISIONED" requires shardCount to be set`,
   })
-  : try Effect.void)
+  : (undefined as void))
 
 const toTagRecord = (tags: Array<{ Key: string; Value?: string }> | undefined): infer _ =>
   Object.fromEntries(
@@ -360,7 +360,7 @@ const readStream = effect ({
       StreamName: streamName,
       StreamARN: streamArn,
     }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 
@@ -377,7 +377,7 @@ const readStream = effect ({
     .listTagsForResource({
       ResourceARN: summary.StreamARN,
     }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!tagsResponse) {
@@ -387,7 +387,7 @@ const readStream = effect ({
     .getResourcePolicy({
       ResourceARN: summary.StreamARN,
     }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 
@@ -417,7 +417,7 @@ const waitForStreamActive = effect (streamName: string) =>
     }))
 
 const waitForStreamDeleted = effect (streamName: string) =>
-  (try (effect {
+  (effect {
     try kinesis.describeStreamSummary({
       StreamName: streamName,
     })
@@ -426,7 +426,10 @@ const waitForStreamDeleted = effect (streamName: string) =>
     |> Effect.retry(%, {
       while: (e: { _tag: string }) => e._tag === "StreamStillExists" || e._tag === "ParseError",
       schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(60)]),
-    }))) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.void; default: throw e; }
+    })) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: (undefined as void);
+      default: throw e;
+    }
 
 export const StreamProvider = (): infer _ =>
   Provider.effect(
@@ -449,7 +452,7 @@ export const StreamProvider = (): infer _ =>
 
           const hydrated = try Effect.forEach(
             streamNames,
-            (streamName) => readStream({ streamName }),
+            effect (streamName) => try readStream({ streamName }),
             { concurrency: 10 },
           )
 
@@ -462,12 +465,17 @@ export const StreamProvider = (): infer _ =>
             streamArn: output?.streamArn,
           })
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags))
+            ? state
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news = {}, olds = {} }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
           const oldStreamName = try createStreamName(id, olds)
-          const newStreamName = try createStreamName(id, news)
+          const newStreamName = try createStreamName(id, resolved)
           if (oldStreamName !== newStreamName) {
             return { action: "replace" } as const
           }
@@ -503,7 +511,7 @@ export const StreamProvider = (): infer _ =>
                   WarmThroughputMiBps: news.warmThroughputMiBps,
                   MaxRecordSizeInKiB: news.maxRecordSizeInKiB,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceInUseException" }: try Effect.void;
+                  when { _tag: "ResourceInUseException" }: (undefined as void);
                   default: throw e;
                 }
             }
@@ -557,7 +565,10 @@ export const StreamProvider = (): infer _ =>
           }
 
           // Sync retention period — observed ↔ desired.
-          const desiredRetention = toWireHours(news.retentionPeriod) ?? defaultRetentionPeriodHours
+          const desiredRetention = (try Effect.orDie(Effect.try({
+            try: () => toWireHours(news.retentionPeriod),
+            catch: (e) => e,
+          }))) ?? defaultRetentionPeriodHours
           if (state.retentionPeriodHours !== desiredRetention) {
             if (desiredRetention > state.retentionPeriodHours) {
               try kinesis.increaseStreamRetentionPeriod({
@@ -668,7 +679,9 @@ export const StreamProvider = (): infer _ =>
           // may bring us a stream that already has its own tag set; diffing
           // against `state.tags` (fetched fresh) lets the reconciler
           // converge ownership without fighting whatever was there before.
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }),
+          )
 
           if (removed.length > 0) {
             try kinesis.removeTagsFromStream({
@@ -703,7 +716,7 @@ export const StreamProvider = (): infer _ =>
                 .deleteResourcePolicy({
                   ResourceARN: streamArn,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             }
@@ -727,7 +740,7 @@ export const StreamProvider = (): infer _ =>
               StreamName: output.streamName,
               EnforceConsumerDeletion: true,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
 

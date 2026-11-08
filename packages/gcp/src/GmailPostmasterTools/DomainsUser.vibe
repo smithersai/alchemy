@@ -134,19 +134,27 @@ export const DomainsUserProvider = (): infer _ =>
     stables: ["name", "parent", "userId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
       if (
         previousParent !== undefined
-        && toDomainName(news.parent) !== toDomainName(previousParent)
+        && (try Effect.orDie(Effect.try({ try: () => toDomainName(resolved.parent), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => toDomainName(previousParent), catch: (e) => e })))
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
       const previousUser = olds?.userId ?? output?.userId
       if (
-        previousUser !== undefined
-        && news.userId !== undefined
-        && normalize(news.userId) !== normalize(previousUser)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousUser !== undefined
+            && resolved.userId !== undefined
+            && normalize(resolved.userId) !== normalize(previousUser),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -157,10 +165,17 @@ export const DomainsUserProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const parent = olds?.parent ?? output?.parent ?? ""
       const userId = olds?.userId ?? output?.userId ?? ""
-      const existing = try findUser(parent, userId, output?.name ?? toUserName(parent, userId))
+      const existing = try findUser(
+        parent,
+        userId,
+        output?.name ?? (try Effect.orDie(Effect.try({ try: () => toUserName(parent, userId), catch: (e) => e }))),
+      )
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, parent, env.project)
-      return output !== undefined || isAlchemyEmail(attrs.userId) ? attrs : Unowned(attrs)
+      return output !== undefined
+          || (try Effect.orDie(Effect.try({ try: () => isAlchemyEmail(attrs.userId), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -171,9 +186,9 @@ export const DomainsUserProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = toDomainName(news.parent)
+      const parent = try Effect.orDie(Effect.try({ try: () => toDomainName(news.parent), catch: (e) => e }))
       const userId = try toGeneratedUserId(id, news.userId, output?.userId)
-      const name = toUserName(parent, userId)
+      const name = try Effect.orDie(Effect.try({ try: () => toUserName(parent, userId), catch: (e) => e }))
       const permission = news.permission ?? DEFAULT_PERMISSION
 
       let current = try findUser(parent, userId, output?.name ?? name)
@@ -194,8 +209,13 @@ export const DomainsUserProvider = (): infer _ =>
         throw new DomainsUserNotResolved({ resourceName: name })
       }
 
-      const resourceName = fullUserName(parent, current)
-      if (isPatchablePermission(permission) && !sameText(current.permission, permission)) {
+      const resourceName = try Effect.orDie(
+        Effect.try({ try: fullUserName.bind(undefined, parent, current), catch: (e) => e }),
+      )
+      if (
+        (try Effect.orDie(Effect.try({ try: () => isPatchablePermission(permission), catch: (e) => e })))
+        && !sameText(current.permission, permission)
+      ) {
         current = try gmailpostmastertools.patchDomainsUsers({
           name: resourceName,
           updateMask: "permission",
@@ -208,7 +228,8 @@ export const DomainsUserProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const name = output.name || toUserName(output.parent, output.userId)
+      const name = output.name
+        || (try Effect.orDie(Effect.try({ try: () => toUserName(output.parent, output.userId), catch: (e) => e })))
       if (name.length === 0) return
       try ignoreMissing(gmailpostmastertools.deleteDomainsUsers({ name }))
     },

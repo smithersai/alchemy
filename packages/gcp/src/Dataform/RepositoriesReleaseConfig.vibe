@@ -232,32 +232,49 @@ export const RepositoriesReleaseConfigProvider = (): infer _ =>
     stables: ["name", "releaseConfigId", "repository", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId: olds?.releaseConfigId ?? output?.releaseConfigId,
-        nextId: news.releaseConfigId ?? olds?.releaseConfigId ?? output?.releaseConfigId,
-        previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
-        previousParent: olds?.repository ?? output?.repository,
-        nextParent: expandRepository(news.repository, env.project, location),
-      })
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.releaseConfigId ?? output?.releaseConfigId,
+            nextId: resolved.releaseConfigId ?? olds?.releaseConfigId ?? output?.releaseConfigId,
+            previousLocation: olds?.location ?? output?.location,
+            nextLocation: resolved.location ?? olds?.location ?? output?.location,
+            previousParent: olds?.repository ?? output?.repository,
+            nextParent: expandRepository(resolved.repository, env.project, location),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const repository = expandRepository(
-        olds?.repository
-          ?? output?.repository
-          ?? parseResourceName(output?.name ?? "", "releaseConfigs", env.region).parent,
-        env.project,
-        location,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandRepository(
+            olds?.repository
+              ?? output?.repository
+              ?? parseResourceName(output?.name ?? "", "releaseConfigs", env.region).parent,
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
       const releaseConfigId = try toPhysicalId(
         id,
         olds?.releaseConfigId,
@@ -268,22 +285,29 @@ export const RepositoriesReleaseConfigProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
       const labeled = try hasAlchemyLabels(id, existing.codeCompilationConfig?.vars)
-      return labeled || isOwnedConfig(existing) ? attrs : Unowned(attrs)
+      return labeled || isOwnedConfig(existing)
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const configs = try forEachOwnedRepository(env.project, env.region, effect (repo) =>
-        try listReleaseConfigs(repo.name ?? ""))
-      return configs.map((item) =>
-        toAttrs(item, env.project, env.region)
+      const configs = try forEachOwnedRepository(
+        env.project,
+        env.region,
+        effect (repo) => try listReleaseConfigs(repo.name ?? ""),
       )
+      return configs.map((item) => toAttrs(item, env.project, env.region))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const repository = expandRepository(news.repository, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandRepository(news.repository, env.project, location), catch: (e) => e }),
+      )
       const releaseConfigId = try toPhysicalId(
         id,
         news.releaseConfigId,
@@ -326,13 +350,13 @@ export const RepositoriesReleaseConfigProvider = (): infer _ =>
       const zoneChanged = !sameText(current.timeZone, news.timeZone)
       const cronChanged = !sameText(current.cronSchedule, news.cronSchedule)
       const disabledChanged = (current.disabled === true) !== disabled
-      const compilationChanged = !sameJson(
-        {
+      const compilationChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, {
           ...current.codeCompilationConfig,
           vars: mergeOwnedVars(userLabels(current.codeCompilationConfig?.vars), ownership),
-        },
-        codeCompilationConfig,
-      )
+        }, codeCompilationConfig),
+        catch: (e) => e,
+      })))
       const resultChanged = !sameText(
         current.releaseCompilationResult,
         news.releaseCompilationResult,
@@ -349,14 +373,18 @@ export const RepositoriesReleaseConfigProvider = (): infer _ =>
         current = try retryTransient(
           dataform.patchProjectsLocationsRepositoriesReleaseConfigs({
             name: currentName,
-            updateMask: updateMaskOf(
-              gitChanged ? "gitCommitish" : undefined,
-              zoneChanged ? "timeZone" : undefined,
-              cronChanged ? "cronSchedule" : undefined,
-              disabledChanged ? "disabled" : undefined,
-              compilationChanged ? "codeCompilationConfig" : undefined,
-              resultChanged ? "releaseCompilationResult" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  gitChanged ? "gitCommitish" : undefined,
+                  zoneChanged ? "timeZone" : undefined,
+                  cronChanged ? "cronSchedule" : undefined,
+                  disabledChanged ? "disabled" : undefined,
+                  compilationChanged ? "codeCompilationConfig" : undefined,
+                  resultChanged ? "releaseCompilationResult" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               gitCommitish: news.gitCommitish,
               timeZone: news.timeZone,

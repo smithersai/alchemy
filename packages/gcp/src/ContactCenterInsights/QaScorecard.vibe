@@ -131,40 +131,45 @@ const toAttrs = (card: cci.GoogleCloudContactcenterinsightsV1QaScorecard, projec
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsQaScorecards({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsQaScorecards.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecards ?? []))
-      |> Stream.filter(%, (card) => hasOwnershipMarker(card.description))
-      |> Stream.map(%, (card) => toAttrs(card, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsQaScorecards.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecards ?? []))
+        |> Stream.filter(%, (card) => hasOwnershipMarker(card.description))
+        |> Stream.map(%, (card) => toAttrs(card, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const QaScorecardProvider = (): infer _ =>
   Provider.succeed(QaScorecard, {
     stables: ["name", "qaScorecardId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
       if (
         previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        && resolved.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.qaScorecardId ?? output?.qaScorecardId
       if (
         previousId !== undefined
-        && news.qaScorecardId !== undefined
-        && news.qaScorecardId !== previousId
+        && resolved.qaScorecardId !== undefined
+        && resolved.qaScorecardId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -179,7 +184,9 @@ export const QaScorecardProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -245,6 +252,6 @@ export const QaScorecardProvider = (): infer _ =>
         .deleteProjectsLocationsQaScorecards({
           name: output.name,
           force: true,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

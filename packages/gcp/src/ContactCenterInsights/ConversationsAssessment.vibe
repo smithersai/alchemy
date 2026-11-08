@@ -174,44 +174,51 @@ const toAttrs = (assessment: cci.GoogleCloudContactcenterinsightsV1Assessment, p
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsConversationsAssessments({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsConversationsAssessments.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
-      |> Stream.filter(%, (assessment) => hasOwnershipMarker(assessment.agentInfo?.displayName))
-      |> Stream.map(%, (assessment) => toAttrs(assessment, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsConversationsAssessments.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
+        |> Stream.filter(%, (assessment) => hasOwnershipMarker(assessment.agentInfo?.displayName))
+        |> Stream.map(%, (assessment) => toAttrs(assessment, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (cci.listProjectsLocationsConversationsAssessments.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
-      |> Stream.filter(%, (assessment) => assessment.agentInfo?.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (cci.listProjectsLocationsConversationsAssessments.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
+        |> Stream.filter(%, (assessment) => assessment.agentInfo?.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 export const ConversationsAssessmentProvider = (): infer _ =>
   Provider.succeed(ConversationsAssessment, {
     stables: ["name", "assessmentId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousAgent = olds?.agentInfo ?? output?.agentInfo
       if (
         previousAgent !== undefined
-        && !sameJson(toAgentInfo(previousAgent, false), toAgentInfo(news.agentInfo, false))
+        && !sameJson(toAgentInfo(previousAgent, false), toAgentInfo(resolved.agentInfo, false))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -225,7 +232,7 @@ export const ConversationsAssessmentProvider = (): infer _ =>
         const attrs = toAttrs(existing, env.project)
         return (try ownedByAlchemy(id, existing.agentInfo?.displayName))
           ? attrs
-          : Unowned(attrs)
+          : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
       }
       if (olds?.parent === undefined) return undefined
       const ownership = try createInternalLabels(id)
@@ -233,7 +240,9 @@ export const ConversationsAssessmentProvider = (): infer _ =>
       const found = try findOwned(olds.parent, displayName)
       if (found === undefined) return undefined
       const attrs = toAttrs(found, env.project)
-      return (try ownedByAlchemy(id, found.agentInfo?.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, found.agentInfo?.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -260,7 +269,7 @@ export const ConversationsAssessmentProvider = (): infer _ =>
           .createProjectsLocationsConversationsAssessments({
             parent: news.parent,
             body: { agentInfo: desiredAgent },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = created ?? (try findOwned(news.parent, displayName))
       }
 
@@ -278,6 +287,6 @@ export const ConversationsAssessmentProvider = (): infer _ =>
         .deleteProjectsLocationsConversationsAssessments({
           name: output.name,
           force: true,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

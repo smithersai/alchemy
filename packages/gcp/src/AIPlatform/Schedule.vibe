@@ -214,20 +214,22 @@ const toAttrs = (schedule: aiplatform.GoogleCloudAiplatformV1Schedule, project: 
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : aiplatform
+const getByName = effect (name: string) => (name.length === 0 ? undefined : aiplatform
   .getProjectsLocationsSchedules({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsSchedules.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
-      |> Stream.filter(%, (schedule) => hasOwnershipMarker(schedule.displayName))
-      |> Stream.map(%, (schedule) => toAttrs(schedule, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsSchedules.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
+        |> Stream.filter(%, (schedule) => hasOwnershipMarker(schedule.displayName))
+        |> Stream.map(%, (schedule) => toAttrs(schedule, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const toPipelineRequest = (
   request: PipelineJobRequest | undefined,
@@ -268,9 +270,12 @@ export const ScheduleProvider = (): infer _ =>
     stables: ["name", "scheduleId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = news.location ?? previousLocation
+      const nextLocation = resolved.location ?? previousLocation
       if (previousLocation !== undefined && previousLocation !== nextLocation) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -282,29 +287,37 @@ export const ScheduleProvider = (): infer _ =>
       const existing = try getByName(output?.name ?? "")
       if (existing !== undefined) {
         const attrs = toAttrs(existing, env.project)
-        return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+        return (try ownedByAlchemy(id, existing.displayName))
+          ? attrs
+          : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
       }
       const location = olds?.location ?? output?.location ?? env.region
       const parent = locationParent(env.project, location)
       const ownership = try createInternalLabels(id)
       const displayName = encodeOwnershipLine(ownership, olds?.displayName)
-      const found = (try effect {
-        const option = try (aiplatform.listProjectsLocationsSchedules
-          .pages({ parent, pageSize: 100 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
-          |> Stream.filter(%, (schedule) => schedule.displayName === displayName)
-          |> Stream.runHead(%))
-        return (option._tag === "Some" ? option.value : undefined)
-      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const found = (effect {
+        return (try effect {
+          const option = try (aiplatform.listProjectsLocationsSchedules
+            .pages({ parent, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
+            |> Stream.filter(%, (schedule) => schedule.displayName === displayName)
+            |> Stream.runHead(%))
+          return (option._tag === "Some" ? option.value : undefined)
+        })
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (found === undefined) return undefined
       const attrs = toAttrs(found, env.project)
-      return (try ownedByAlchemy(id, found.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, found.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (try Effect.forEach(listLocations(env.region), effect (location) =>
-        try listAt(locationParent(env.project, location), env.project))).flat()
+      return (try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listAt(locationParent(env.project, location), env.project),
+      )).flat()
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -320,15 +333,16 @@ export const ScheduleProvider = (): infer _ =>
 
       let current = try getByName(output?.name ?? "")
       if (current === undefined) {
-        current = (try effect {
-          const option = try (aiplatform.listProjectsLocationsSchedules
-            .pages({ parent, pageSize: 100 })
-            |> Stream.flatMap(%, (page) =>
-              Stream.fromIterable(page.schedules ?? []))
-            |> Stream.filter(%, (schedule) => schedule.displayName === displayName)
-            |> Stream.runHead(%))
-          return (option._tag === "Some" ? option.value : undefined)
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        current = (effect {
+          return (try effect {
+            const option = try (aiplatform.listProjectsLocationsSchedules
+              .pages({ parent, pageSize: 100 })
+              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
+              |> Stream.filter(%, (schedule) => schedule.displayName === displayName)
+              |> Stream.runHead(%))
+            return (option._tag === "Some" ? option.value : undefined)
+          })
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
 
       if (current === undefined) {
@@ -347,17 +361,19 @@ export const ScheduleProvider = (): infer _ =>
               createPipelineJobRequest: pipelineRequest,
               createNotebookExecutionJobRequest: notebookRequest,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = created ?? undefined
         if (current === undefined) {
-          current = (try effect {
-            const option = try (aiplatform.listProjectsLocationsSchedules
-              .pages({ parent, pageSize: 100 })
-              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
-              |> Stream.filter(%, (schedule) => schedule.displayName === displayName)
-              |> Stream.runHead(%))
-            return (option._tag === "Some" ? option.value : undefined)
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          current = (effect {
+            return (try effect {
+              const option = try (aiplatform.listProjectsLocationsSchedules
+                .pages({ parent, pageSize: 100 })
+                |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schedules ?? []))
+                |> Stream.filter(%, (schedule) => schedule.displayName === displayName)
+                |> Stream.runHead(%))
+              return (option._tag === "Some" ? option.value : undefined)
+            })
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
         }
       }
 
@@ -435,7 +451,7 @@ export const ScheduleProvider = (): infer _ =>
       if (existing === undefined) return
       const operation = aiplatform
         .deleteProjectsLocationsSchedules({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

@@ -125,7 +125,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           .describeReplicationSubnetGroups({
             Filters: [{ Name: "replication-subnet-group-id", Values: [identifier] }],
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.ReplicationSubnetGroups?.[0]
@@ -154,7 +154,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
               }),
               Tags: [DMS_VPC_ROLE_OWNER_TAG],
             }) catch effect (e) => match (e) {
-              when { _tag: "EntityAlreadyExistsException" }: try Effect.void;
+              when { _tag: "EntityAlreadyExistsException" }: (undefined as void);
               default: throw e;
             }
           // Idempotent — attaching an already-attached managed policy is a no-op.
@@ -185,7 +185,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
 
           const tags = iam
             .listRoleTags({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
           if (tags === undefined) return
@@ -194,22 +194,22 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           )
           if (!owned) return
 
-          const deleted = (try effect {
+          const deleted = (effect { return (try effect {
             iam
               .detachRolePolicy({
                 RoleName: DMS_VPC_ROLE_NAME,
                 PolicyArn: DMS_VPC_POLICY_ARN,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
             iam
               .deleteRole({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
             return true
-          }) catch effect (e) => match (e) {
+          }) }) catch effect (e) => match (e) {
             when { _tag: "ConcurrentModificationException" } or { _tag: "DeleteConflictException" } or { _tag: "LimitExceededException" } or { _tag: "ServiceFailureException" }:
               false;
             default: throw e;
@@ -221,7 +221,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
 
           const remaining = iam
             .getRole({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
           if (remaining === undefined) return
@@ -264,10 +264,11 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
         stables: ["replicationSubnetGroupIdentifier", "replicationSubnetGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
             (try toName(id, olds ?? ({ subnetIds: [] } as ReplicationSubnetGroupProps)))
-              !== (try toName(id, news))
+              !== (try toName(id, resolved))
           ) {
             return { action: "replace" } as const
           }
@@ -279,7 +280,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           const group = try findGroup(name)
           if (!group?.ReplicationSubnetGroupIdentifier) return undefined
           const attrs = try toAttrs(group)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -294,7 +295,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
           if (observed === undefined) {
             try ensureDmsVpcRole
-            ;(try (effect {
+            ;(effect { return (try (effect {
               return dms
                 .createReplicationSubnetGroup({
                   ReplicationSubnetGroupIdentifier: name,
@@ -314,8 +315,8 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
                 while: (e) => e._tag === "AccessDeniedFault",
                 schedule: Schedule.spaced("5 seconds"),
                 times: 10,
-              }))) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsFault" }: try Effect.void;
+              }))) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try findGroup(name)
@@ -346,7 +347,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const arn = try toArn(name)
           const observedTags = try readTags(arn)
-          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try dms.addTagsToResource({ ResourceArn: arn, Tags: upsert })
           }
@@ -366,7 +367,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
             .deleteReplicationSubnetGroup({
               ReplicationSubnetGroupIdentifier: output.replicationSubnetGroupIdentifier,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundFault" }: try Effect.void;
+              when { _tag: "ResourceNotFoundFault" }: (undefined as void);
               default: throw e;
             }
 
@@ -397,7 +398,7 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (group) => try toAttrs(group), { concurrency: 4 }))),
       }
     },
   )

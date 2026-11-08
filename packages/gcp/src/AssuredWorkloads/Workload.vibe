@@ -358,7 +358,12 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
 const findOwned = effect (id: string, organization: string, location: string) => {
   const workloads = try listWorkloads(organization, location)
   for (const workload of workloads) {
-    if (try hasAlchemyLabels(id, tagRecord(workload.labels))) {
+    if (
+      try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(workload.labels), catch: (e) => e })),
+      )
+    ) {
       return workload
     }
   }
@@ -405,9 +410,17 @@ export const WorkloadProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousOrg = olds?.organization ?? output?.organization
-      const nextOrg = news.organization !== undefined ? organizationParent(news.organization) : previousOrg
+      const nextOrg = try Effect.orDie(
+        Effect.try({
+          try: () => resolved.organization !== undefined ? organizationParent(resolved.organization) : previousOrg,
+          catch: (e) => e,
+        }),
+      )
       const previousLocation = olds?.location ?? output?.location
       const previousRegime = olds?.complianceRegime ?? output?.complianceRegime
       const previousBilling = olds?.billingAccount ?? output?.billingAccount
@@ -415,31 +428,50 @@ export const WorkloadProvider = (): infer _ =>
       const previousPartnerBilling = olds?.partnerServicesBillingAccount ?? output?.partnerServicesBillingAccount
       const previousParent = olds?.provisionedResourcesParent ?? undefined
       const previousSovereign = olds?.enableSovereignControls ?? output?.enableSovereignControls
-      return replaceOnIdentity(
-        (previousOrg !== undefined
-          && nextOrg !== undefined
-          && organizationParent(previousOrg) !== organizationParent(nextOrg))
-          || (previousLocation !== undefined
-            && news.location !== undefined
-            && normalizeLocation(previousLocation) !== normalizeLocation(news.location))
-          || (previousRegime !== undefined && previousRegime !== news.complianceRegime)
-          || !sameText(previousBilling, news.billingAccount)
-          || !sameText(previousPartner, news.partner)
-          || !sameText(previousPartnerBilling, news.partnerServicesBillingAccount)
-          || !sameText(previousParent, news.provisionedResourcesParent)
-          || (news.enableSovereignControls !== undefined
-            && previousSovereign !== undefined
-            && previousSovereign !== news.enableSovereignControls)
-          || (news.resourceSettings !== undefined
-            && olds?.resourceSettings !== undefined
-            && fingerprint(olds.resourceSettings) !== fingerprint(news.resourceSettings))
-          || (news.kmsSettings !== undefined
-            && olds?.kmsSettings !== undefined
-            && fingerprint(olds.kmsSettings) !== fingerprint(news.kmsSettings))
-          || (news.workloadOptions !== undefined
-            && olds?.workloadOptions !== undefined
-            && fingerprint(olds.workloadOptions) !== fingerprint(news.workloadOptions)),
-      )
+      const changed = (previousOrg !== undefined
+        && nextOrg !== undefined
+        && organizationParent(previousOrg) !== organizationParent(nextOrg))
+        || (previousLocation !== undefined
+          && resolved.location !== undefined
+          && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location))
+        || (previousRegime !== undefined && previousRegime !== resolved.complianceRegime)
+        || !sameText(previousBilling, resolved.billingAccount)
+        || !sameText(previousPartner, resolved.partner)
+        || !sameText(previousPartnerBilling, resolved.partnerServicesBillingAccount)
+        || !sameText(previousParent, resolved.provisionedResourcesParent)
+        || (resolved.enableSovereignControls !== undefined
+          && previousSovereign !== undefined
+          && previousSovereign !== resolved.enableSovereignControls)
+        || (resolved.resourceSettings !== undefined
+          && olds?.resourceSettings !== undefined
+          && (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, olds.resourceSettings), catch: (e) => e }),
+            ))
+            !== (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, resolved.resourceSettings), catch: (e) => e }),
+            )))
+        || (resolved.kmsSettings !== undefined
+          && olds?.kmsSettings !== undefined
+          && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, olds.kmsSettings), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({
+              try: fingerprint.bind(undefined, resolved.kmsSettings),
+              catch: (e) => e,
+            }))))
+        || (resolved.workloadOptions !== undefined
+          && olds?.workloadOptions !== undefined
+          && (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, olds.workloadOptions), catch: (e) => e }),
+            ))
+            !== (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, resolved.workloadOptions), catch: (e) => e }),
+            )))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity(
+            changed,
+          ),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -451,11 +483,18 @@ export const WorkloadProvider = (): infer _ =>
         when { _tag: "GCP.AssuredWorkloads.OrganizationNotResolved" }: output?.organization ?? "";
         default: throw e;
       }
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const existing = try observe(id, output?.name, organization, location)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -472,10 +511,14 @@ export const WorkloadProvider = (): infer _ =>
         news.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const parent = locationParent(organization, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(organization, location), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
@@ -492,10 +535,15 @@ export const WorkloadProvider = (): infer _ =>
         if (created !== undefined) {
           // ALREADY_EXISTS (code 6) is a create race: find the winner below.
           const settled = try (waitForOperation(created)
-            |> Effect.catchIf(%, (error) =>
-              error._tag === "GCP.OperationFailed" && error.code === 6, effect () =>
-              created))
-          const createdName = resourceNameFromOperation(settled) ?? resourceNameFromOperation(created)
+            |> Effect.catchIf(
+              %,
+              (error) => error._tag === "GCP.OperationFailed" && error.code === 6,
+              effect () => created,
+            ))
+          const createdName = (try Effect.orDie(Effect.try({
+            try: () => resourceNameFromOperation(settled),
+            catch: (e) => e,
+          }))) ?? (try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(created), catch: (e) => e })))
           current = createdName !== undefined
             ? try waitUntilExists(getByName(createdName), createdName)
             : try waitUntilExists(findOwned(id, organization, location), parent)
@@ -512,16 +560,22 @@ export const WorkloadProvider = (): infer _ =>
 
       const name = current.name
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayChanged = !sameText(current.displayName, displayName)
       const notifyChanged = news.violationNotificationsEnabled !== undefined
         && !sameBool(current.violationNotificationsEnabled, news.violationNotificationsEnabled)
-      const mask = fieldMask([
-        displayChanged && "display_name",
-        labelsChanged && "labels",
-        notifyChanged && "violation_notifications_enabled",
-      ])
+      const mask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            displayChanged && "display_name",
+            labelsChanged && "labels",
+            notifyChanged && "violation_notifications_enabled",
+          ]),
+        catch: (e) => e,
+      }))
 
       if (mask.length > 0) {
         current = try assuredworkloads.patchOrganizationsLocationsWorkloads({
@@ -538,7 +592,13 @@ export const WorkloadProvider = (): infer _ =>
       }
 
       const partnerChanged = news.partnerPermissions !== undefined
-        && fingerprint(current.partnerPermissions) !== fingerprint(news.partnerPermissions)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.partnerPermissions), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.partnerPermissions),
+            catch: (e) => e,
+          })))
       if (partnerChanged) {
         current = try assuredworkloads.mutatePartnerPermissionsOrganizationsLocationsWorkloads({
           name,
@@ -561,22 +621,23 @@ export const WorkloadProvider = (): infer _ =>
       if (!output.name) {
         return
       }
-      ;(try (effect {
-        const existing = try getByName(output.name)
-        if (existing !== undefined) {
-          try deleteChildResources(existing)
+      ;(effect {
+        return (try (effect {
+          const existing = try getByName(output.name)
+          if (existing !== undefined) {
+            try deleteChildResources(existing)
+          }
+          try assuredworkloads.deleteOrganizationsLocationsWorkloads({
+            name: output.name,
+            etag: output.etag,
+          })
         }
-        try assuredworkloads.deleteOrganizationsLocationsWorkloads({
-          name: output.name,
-          etag: output.etag,
-        })
-      }
-        |> Effect.retry(%, {
-          while: (error) =>
-            error._tag === "BadRequest" || error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("3 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "BadRequest" || error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("3 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(getByName(output.name), output.name)
     },
   })

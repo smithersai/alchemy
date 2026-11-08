@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as iot from "@distilled.cloud/aws/iot"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -104,7 +105,7 @@ export const ThingTypeProvider = (): infer _ =>
           const thingTypeName = output?.thingTypeName ?? (try createName(id, olds ?? {}))
           const found = iot
             .describeThingType({ thingTypeName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (!found) return undefined
@@ -113,10 +114,13 @@ export const ThingTypeProvider = (): infer _ =>
             thingTypeArn: found.thingTypeArn!,
           }
           const tags = try readIotTags(found.thingTypeArn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news = {}, olds = {} }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput = {}, olds = {} }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -133,7 +137,7 @@ export const ThingTypeProvider = (): infer _ =>
           // OBSERVE
           let live = iot
             .describeThingType({ thingTypeName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -147,7 +151,7 @@ export const ThingTypeProvider = (): infer _ =>
                   searchableAttributes: news.searchableAttributes,
                 },
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
             live = try iot.describeThingType({ thingTypeName })
@@ -182,7 +186,7 @@ export const ThingTypeProvider = (): infer _ =>
           // they share this account-global type.
           const initial = iot
             .describeThingType({ thingTypeName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (initial === undefined) return
@@ -190,7 +194,7 @@ export const ThingTypeProvider = (): infer _ =>
           if (!initial.thingTypeMetadata?.deprecated) {
             iot
               .deprecateThingType({ thingTypeName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -204,25 +208,31 @@ export const ThingTypeProvider = (): infer _ =>
           const attempts = 12
           const intervalSeconds = 4
           for (let attempt = 0; attempt < attempts; attempt++) {
-            const absent = (try (iot.describeThingType({ thingTypeName })
-              |> Effect.as(%, false))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: true;
-                default: throw e;
-              }
+            const absent = (effect {
+              return (try (iot.describeThingType({ thingTypeName })
+                |> Effect.as(%, false)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: true;
+              default: throw e;
+            }
             if (absent) return
 
-            const deleteAccepted = (try (iot.deleteThingType({ thingTypeName })
-              |> Effect.as(%, true))) catch effect (e) => match (e) {
+            const deleteAccepted = (effect {
+              return (try (iot.deleteThingType({ thingTypeName })
+                |> Effect.as(%, true)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: true;
+              when { _tag: "InvalidRequestException" }: false;
+              default: throw e;
+            }
+            if (deleteAccepted) {
+              const gone = (effect {
+                return (try (iot.describeThingType({ thingTypeName })
+                  |> Effect.as(%, false)))
+              }) catch effect (e) => match (e) {
                 when { _tag: "ResourceNotFoundException" }: true;
-                when { _tag: "InvalidRequestException" }: false;
                 default: throw e;
               }
-            if (deleteAccepted) {
-              const gone = (try (iot.describeThingType({ thingTypeName })
-                |> Effect.as(%, false))) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: true;
-                  default: throw e;
-                }
               if (gone) return
             }
             if (attempt + 1 < attempts) {

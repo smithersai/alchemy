@@ -351,25 +351,34 @@ export const PrivateCloudProvider = (): infer _ =>
     stables: ["name", "privateCloudId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousType = olds?.type ?? output?.type ?? DEFAULT_TYPE
-      const nextType = news.type ?? previousType
-      const previousCidr = olds?.networkConfig?.managementCidr ?? output?.networkConfig?.managementCidr ?? ""
-      const nextCidr = news.networkConfig?.managementCidr ?? previousCidr
-      const previousVen = canonicalizeLink(
-        olds?.networkConfig?.vmwareEngineNetwork ?? output?.networkConfig?.vmwareEngineNetwork,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const nextVen = canonicalizeLink(news.networkConfig?.vmwareEngineNetwork)
+      if (resolved === undefined) return undefined
+      const previousType = olds?.type ?? output?.type ?? DEFAULT_TYPE
+      const nextType = resolved.type ?? previousType
+      const previousCidr = olds?.networkConfig?.managementCidr ?? output?.networkConfig?.managementCidr ?? ""
+      const nextCidr = resolved.networkConfig?.managementCidr ?? previousCidr
+      const previousVen = try Effect.orDie(Effect.try({
+        try: () =>
+          canonicalizeLink(
+            olds?.networkConfig?.vmwareEngineNetwork ?? output?.networkConfig?.vmwareEngineNetwork,
+          ),
+        catch: (e) => e,
+      }))
+      const nextVen = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.networkConfig?.vmwareEngineNetwork), catch: (e) => e }),
+      )
       const previousClusterId = olds?.managementCluster?.clusterId ?? output?.managementCluster?.clusterId ?? ""
-      const nextClusterId = news.managementCluster?.clusterId ?? previousClusterId
-      return replaceOnIdentity({
+      const nextClusterId = resolved.managementCluster?.clusterId ?? previousClusterId
+      const input = {
         previousId: olds?.privateCloudId ?? output?.privateCloudId,
-        nextId: news.privateCloudId
-          ? rfc1035(news.privateCloudId, "privatecloud")
+        nextId: resolved.privateCloudId
+          ? rfc1035(resolved.privateCloudId, "privatecloud")
           : (olds?.privateCloudId ?? output?.privateCloudId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           DEFAULT_ZONE,
         ),
         extra: previousType !== nextType
@@ -378,8 +387,18 @@ export const PrivateCloudProvider = (): infer _ =>
           || (previousClusterId.length > 0
             && nextClusterId.length > 0
             && previousClusterId !== nextClusterId)
-          || !sameJson(news.encryptionConfig, olds?.encryptionConfig ?? output?.encryptionConfig),
-      })
+          || !(try Effect.orDie(
+            Effect.try({
+              try: sameJson.bind(
+                undefined,
+                resolved.encryptionConfig,
+                olds?.encryptionConfig ?? output?.encryptionConfig,
+              ),
+              catch: (e) => e,
+            }),
+          )),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -390,13 +409,19 @@ export const PrivateCloudProvider = (): infer _ =>
         output?.privateCloudId,
         "privatecloud",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, privateCloudId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -422,10 +447,14 @@ export const PrivateCloudProvider = (): infer _ =>
         output?.privateCloudId,
         "privatecloud",
       )
-      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_ZONE)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, privateCloudId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const type = news.type ?? DEFAULT_TYPE
       const managementCluster = defaultManagementCluster(news.managementCluster)
       const networkConfig = defaultNetworkConfig(env.project, news.networkConfig)
@@ -433,23 +462,25 @@ export const PrivateCloudProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsPrivateClouds({
-            parent: parentOf(env.project, location),
-            privateCloudId,
-            body: {
-              type,
-              description: desiredDescription,
-              managementCluster,
-              networkConfig,
-              encryptionConfig: news.encryptionConfig,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateClouds({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              privateCloudId,
+              body: {
+                type,
+                description: desiredDescription,
+                managementCluster,
+                networkConfig,
+                encryptionConfig: news.encryptionConfig,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -467,7 +498,9 @@ export const PrivateCloudProvider = (): infer _ =>
       )
 
       const descriptionChanged = (current.description ?? "") !== desiredDescription
-      const updateMask = changedFields([["description", descriptionChanged]])
+      const updateMask = try Effect.orDie(
+        Effect.try({ try: () => changedFields([["description", descriptionChanged]]), catch: (e) => e }),
+      )
 
       if (updateMask.length > 0) {
         const operation = try vmwareengine.patchProjectsLocationsPrivateClouds({
@@ -490,17 +523,19 @@ export const PrivateCloudProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsPrivateClouds({
-          name: output.name,
-          delayHours: 0,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateClouds({
+            name: output.name,
+            delayHours: 0,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

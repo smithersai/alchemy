@@ -238,22 +238,31 @@ export const ConnectClusterProvider = (): infer _ =>
     stables: ["name", "connectClusterId", "project", "location", "kafkaCluster", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? output?.location, env.region),
+          catch: (e) => e,
+        }),
+      )
       const previousKafka = olds?.kafkaCluster ?? output?.kafkaCluster ?? ""
-      const nextKafka = kafkaClusterOf(news.kafkaCluster, env.project, location)
+      const nextKafka = kafkaClusterOf(resolved.kafkaCluster, env.project, location)
       const previousSubnet = olds?.primarySubnet ?? output?.primarySubnet ?? ""
-      const nextSubnet = primarySubnetOf(news, env.project, location)
-      return replaceOnIdentity({
+      const nextSubnet = primarySubnetOf(resolved, env.project, location)
+      const input = {
         previousId: olds?.connectClusterId ?? output?.connectClusterId,
-        nextId: news.connectClusterId
-          ? rfc1035(news.connectClusterId, "connect", MAX_CLUSTER_ID_LENGTH)
+        nextId: resolved.connectClusterId
+          ? rfc1035(resolved.connectClusterId, "connect", MAX_CLUSTER_ID_LENGTH)
           : (olds?.connectClusterId ?? output?.connectClusterId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         extra: previousKafka !== nextKafka || previousSubnet !== nextSubnet,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -265,12 +274,19 @@ export const ConnectClusterProvider = (): infer _ =>
         "connect",
         MAX_CLUSTER_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, connectClusterId)
       const existing = try getConnectCluster(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -288,38 +304,51 @@ export const ConnectClusterProvider = (): infer _ =>
         "connect",
         MAX_CLUSTER_ID_LENGTH,
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, connectClusterId)
       const kafkaCluster = kafkaClusterOf(news.kafkaCluster, env.project, location)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const capacity = {
-        vcpuCount: asCountString(news.capacityConfig?.vcpuCount, DEFAULT_VCPU_COUNT),
-        memoryBytes: asCountString(news.capacityConfig?.memoryBytes, DEFAULT_MEMORY_BYTES),
+        vcpuCount: try Effect.orDie(
+          Effect.try({ try: () => asCountString(news.capacityConfig?.vcpuCount, DEFAULT_VCPU_COUNT), catch: (e) => e }),
+        ),
+        memoryBytes: try Effect.orDie(
+          Effect.try({
+            try: () => asCountString(news.capacityConfig?.memoryBytes, DEFAULT_MEMORY_BYTES),
+            catch: (e) => e,
+          }),
+        ),
       }
       const gcpConfig = desiredGcpConfig(news, env.project, location)
 
       let current = try getConnectCluster(name)
 
       if (current === undefined) {
-        const created = (try (kafka
-          .createProjectsLocationsConnectClusters({
-            parent: locationParent(env.project, location),
-            connectClusterId,
-            body: {
-              kafkaCluster,
-              gcpConfig,
-              capacityConfig: capacity,
-              config: news.config,
-              labels: desiredLabels,
-            },
-          })
-          |> retryCreateQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (kafka
+            .createProjectsLocationsConnectClusters({
+              parent: try Effect.orDie(
+                Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+              ),
+              connectClusterId,
+              body: {
+                kafkaCluster,
+                gcpConfig,
+                capacityConfig: capacity,
+                config: news.config,
+                labels: desiredLabels,
+              },
+            })
+            |> retryCreateQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -333,23 +362,37 @@ export const ConnectClusterProvider = (): infer _ =>
       current = try waitUntilReady(getConnectCluster(name), name, (cluster) => cluster.state)
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const capacityChanged = (current.capacityConfig?.vcpuCount ?? "") !== (capacity.vcpuCount ?? "")
         || (current.capacityConfig?.memoryBytes ?? "") !== (capacity.memoryBytes ?? "")
-      const configChanged = fingerprint(stringMapOf(current.config)) !== fingerprint(stringMapOf(news.config))
-      const secretsChanged = fingerprint(current.gcpConfig?.secretPaths ?? [])
-        !== fingerprint(gcpConfig.secretPaths ?? [])
+      const configChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, stringMapOf(current.config)),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(stringMapOf(news.config)),
+        catch: (e) => e,
+      })))
+      const secretsChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, current.gcpConfig?.secretPaths ?? []), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(Effect.try({ try: () => fingerprint(gcpConfig.secretPaths ?? []), catch: (e) => e })))
 
       if (labelsChanged || capacityChanged || configChanged || secretsChanged) {
         const op = try kafka.patchProjectsLocationsConnectClusters({
           name,
-          updateMask: fieldMask([
-            labelsChanged && "labels",
-            capacityChanged && "capacity_config",
-            configChanged && "config",
-            secretsChanged && "gcp_config.secret_paths",
-          ]),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              fieldMask([
+                labelsChanged && "labels",
+                capacityChanged && "capacity_config",
+                configChanged && "config",
+                secretsChanged && "gcp_config.secret_paths",
+              ]),
+            catch: (e) => e,
+          })),
           body: {
             labels: desiredLabels,
             capacityConfig: capacity,

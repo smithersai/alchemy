@@ -27,6 +27,7 @@ export const WriteNamespaceHttp = Layer.effect(
   ),
 );
 
+/** @throws {never} */
 export const makeWriteKVHttpClient = (
   auth: KVAuth,
   namespaceId: Effect.Effect<string>,

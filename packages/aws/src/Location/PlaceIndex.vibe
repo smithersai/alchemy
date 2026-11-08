@@ -100,7 +100,7 @@ const createIndexName = effect (id: string, props: { indexName?: string | undefi
 const readIndex = effect (indexName: string) => {
   const found = location
     .describePlaceIndex({ IndexName: indexName }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!found) return undefined
@@ -110,7 +110,7 @@ const readIndex = effect (indexName: string) => {
     dataSource: found.DataSource,
     intendedUse: found.DataSourceConfiguration?.IntendedUse,
     description: found.Description ? found.Description : undefined,
-    tags: toTagRecord(found.Tags),
+    tags: try Effect.orDie(Effect.try({ try: () => toTagRecord(found.Tags), catch: (e) => e })),
   } satisfies PlaceIndex["Attributes"]
 }
 
@@ -125,7 +125,7 @@ export const PlaceIndexProvider = (): infer _ =>
             try (location.listPlaceIndexes.pages({})
               |> EffectStream.runCollect(%)),
           ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.IndexName))
-          const hydrated = try Effect.forEach(names, (name) => readIndex(name), {
+          const hydrated = try Effect.forEach(names, effect (name) => try readIndex(name), {
             concurrency: 10,
           })
           return hydrated.filter(
@@ -136,14 +136,15 @@ export const PlaceIndexProvider = (): infer _ =>
           const indexName = output?.indexName ?? (try createIndexName(id, olds ?? {}))
           const state = try readIndex(indexName)
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createIndexName(id, olds)
-          const newName = try createIndexName(id, news)
+          const newName = try createIndexName(id, resolved)
           // Name and data source are immutable — either change forces a replace.
-          if (oldName !== newName || olds.dataSource !== news.dataSource) {
+          if (oldName !== newName || olds.dataSource !== resolved.dataSource) {
             return { action: "replace" } as const
           }
         },
@@ -164,7 +165,7 @@ export const PlaceIndexProvider = (): infer _ =>
                   ? { IntendedUse: news.intendedUse }
                   : undefined,
                 Tags: desiredTags,
-              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
             state = try readIndex(indexName)
             if (state === undefined) {
               throw new PlaceIndexUnexpectedResponse({
@@ -186,7 +187,7 @@ export const PlaceIndexProvider = (): infer _ =>
             })
           }
 
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try location.untagResource({
               ResourceArn: state.indexArn,
@@ -213,7 +214,7 @@ export const PlaceIndexProvider = (): infer _ =>
         delete: effect ({ output }) => {
           location
             .deletePlaceIndex({ IndexName: output.indexName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

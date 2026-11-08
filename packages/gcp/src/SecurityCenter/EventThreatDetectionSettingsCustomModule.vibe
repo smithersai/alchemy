@@ -216,10 +216,17 @@ export const EventThreatDetectionSettingsCustomModuleProvider = (): infer _ =>
     stables: ["name", "moduleId", "project", "type", "ancestorModule"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.moduleId ?? output?.moduleId, news.moduleId)
-          ?? replaceOn(olds?.type ?? output?.type, news.type)
+        (try Effect.orDie(
+          Effect.try({ try: () => replaceOn(olds?.moduleId ?? output?.moduleId, resolved.moduleId), catch: (e) => e }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({ try: () => replaceOn(olds?.type ?? output?.type, resolved.type), catch: (e) => e }),
+          ))
       )
     },
 
@@ -230,7 +237,9 @@ export const EventThreatDetectionSettingsCustomModuleProvider = (): infer _ =>
       const existing = try observe(env.project, id, name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -243,11 +252,15 @@ export const EventThreatDetectionSettingsCustomModuleProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = etdSettingsParent(`projects/${env.project}`)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => etdSettingsParent(`projects/${env.project}`), catch: (e) => e }),
+      )
       const moduleId = news.moduleId ?? output?.moduleId
       const name = output?.name ?? (moduleId ? resourceName(env.project, moduleId) : "")
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const enablementState = news.enablementState ?? "ENABLED"
       const displayName = news.displayName
         ?? etdDisplayNameOf(
@@ -286,13 +299,20 @@ export const EventThreatDetectionSettingsCustomModuleProvider = (): infer _ =>
       const displayChanged = !sameText(current.displayName, displayName)
       const descriptionChanged = !sameText(current.description, description)
       const enablementChanged = !sameText(current.enablementState, enablementState)
-      const configChanged = !jsonEqual(current.config, news.config)
-      const updateMask = updateMaskOf(
-        displayChanged ? "display_name" : undefined,
-        descriptionChanged ? "description" : undefined,
-        enablementChanged ? "enablement_state" : undefined,
-        configChanged ? "config" : undefined,
-      )
+      const configChanged = !(try Effect.orDie(Effect.try({
+        try: jsonEqual.bind(undefined, current.config, news.config),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            enablementChanged ? "enablement_state" : undefined,
+            configChanged ? "config" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try scc.patchProjectsEventThreatDetectionSettingsCustomModules({

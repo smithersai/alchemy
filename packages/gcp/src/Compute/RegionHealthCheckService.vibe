@@ -173,7 +173,7 @@ const getByName = effect (project: string, region: string, name: string) =>
       project,
       region,
       healthCheckService: name,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const awaitResource = effect (project: string, region: string, serviceName: string) =>
   try (effect {
@@ -193,12 +193,15 @@ export const RegionHealthCheckServiceProvider = (): infer _ =>
     stables: ["serviceName", "project", "region", "serviceId", "selfLink", "creationTimestamp"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.serviceName ?? output?.serviceName
-      const nextName = news.serviceName ?? previousName
+      const nextName = resolved.serviceName ?? previousName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? (previousRegion || env.region), env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? (previousRegion || env.region), env.region)
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
       const regionChanged = previousRegion.length > 0 && previousRegion !== nextRegion
       if (nameChanged || regionChanged) {
@@ -223,21 +226,25 @@ export const RegionHealthCheckServiceProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const pages = (try (compute.aggregatedListRegionHealthCheckServices
-        .pages({
-          project: env.project,
-          maxResults: 500,
-          returnPartialSuccess: true,
-        })
-        |> Stream.runCollect(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: [] as never[];
-          default: throw e;
-        }
+      const pages = (effect {
+        return (try (compute.aggregatedListRegionHealthCheckServices
+          .pages({
+            project: env.project,
+            maxResults: 500,
+            returnPartialSuccess: true,
+          })
+          |> Stream.runCollect(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as never[];
+        default: throw e;
+      }
       return Array.from(pages as readonly compute.HealthCheckServiceAggregatedList[]).flatMap(
         (page) =>
           Object.values(page.items ?? {}).flatMap((scoped) =>
@@ -283,7 +290,7 @@ export const RegionHealthCheckServiceProvider = (): infer _ =>
             },
           }),
           { ignoreAlreadyExists: true },
-        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, region, serviceName)
       }
 
@@ -353,6 +360,6 @@ export const RegionHealthCheckServiceProvider = (): infer _ =>
           healthCheckService: output.serviceName,
         }),
         { ignoreNotFound: true },
-      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
     },
   })

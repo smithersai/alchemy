@@ -97,15 +97,17 @@ const toAttrs = (folder: storage.Folder, bucketName: string): infer _ => ({
 const getByName = effect (bucketName: string, folderName: string) =>
   storage
     .getFolders({ bucket: bucketName, folder: folderName }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOnBucket = effect (bucketName: string) =>
-  (Array.from(
-    try (storage.listFolders.items({ bucket: bucketName, pageSize: 1000 })
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.Folder[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (storage.listFolders.items({ bucket: bucketName, pageSize: 1000 })
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.Folder[]; default: throw e; }
 
 const waitUntilGone = effect (bucketName: string, folderName: string) =>
   try ((try (effect {
@@ -126,16 +128,19 @@ export const FolderProvider = (): infer _ =>
     stables: ["bucketName", "folderName", "id", "selfLink", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousBucket = olds?.bucketName ?? output?.bucketName
-      if (previousBucket !== undefined && news.bucketName !== previousBucket) {
+      if (previousBucket !== undefined && resolved.bucketName !== previousBucket) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousName = olds?.folderName ?? output?.folderName
       if (
-        news.folderName !== undefined
+        resolved.folderName !== undefined
         && previousName !== undefined
-        && withTrailingSlash(news.folderName) !== withTrailingSlash(previousName)
+        && withTrailingSlash(resolved.folderName) !== withTrailingSlash(previousName)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -199,7 +204,7 @@ export const FolderProvider = (): infer _ =>
       if (!bucketName || !folderName) return
       storage
         .deleteFolders({ bucket: bucketName, folder: folderName }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       try waitUntilGone(bucketName, folderName)

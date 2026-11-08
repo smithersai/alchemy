@@ -226,7 +226,7 @@ const toAttrs = (
 const getByRef = effect (projectId: string, jobId: string, location: string) =>
   bigquery
     .getJobs({ projectId, jobId, location }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -235,7 +235,7 @@ const waitUntilDone = effect (projectId: string, jobId: string, location: string
     return try effect {
       const job = try getByRef(projectId, jobId, location)
 
-      if (job === undefined) return try Effect.undefined
+      if (job === undefined) return undefined
       const state = job.status?.state ?? ""
       if (state === "DONE") return job
       throw new JobNotDone({ jobId, state })
@@ -315,24 +315,29 @@ export const JobProvider = (): infer _ =>
     stables: ["name", "id", "jobId", "project", "location", "creationTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.jobId ?? output?.jobId
-      const jobIdChanged = news.jobId !== undefined && previousId !== undefined && news.jobId !== previousId
+      const jobIdChanged = resolved_.jobId !== undefined && previousId !== undefined && resolved_.jobId !== previousId
 
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
       const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
+        resolved_.location ?? olds?.location ?? output?.location,
         env.region,
       )
       const locationChanged = output !== undefined && previousLocation !== nextLocation
 
-      const labelsChanged = news.labels !== undefined
+      const labelsChanged = resolved_.labels !== undefined
         && output !== undefined
-        && !jsonEqual(toLabels(news.labels), output.labels)
+        && !jsonEqual(toLabels(resolved_.labels), output.labels)
 
-      const timeoutChanged = news.jobTimeoutMs !== undefined && (olds?.jobTimeoutMs ?? "") !== news.jobTimeoutMs
-      const reservationChanged = news.reservation !== undefined && (olds?.reservation ?? "") !== news.reservation
+      const timeoutChanged = resolved_.jobTimeoutMs !== undefined
+        && (olds?.jobTimeoutMs ?? "") !== resolved_.jobTimeoutMs
+      const reservationChanged = resolved_.reservation !== undefined
+        && (olds?.reservation ?? "") !== resolved_.reservation
 
       const replaced = jobIdChanged
         || locationChanged
@@ -340,22 +345,22 @@ export const JobProvider = (): infer _ =>
         || timeoutChanged
         || reservationChanged
         || nestedChanged(
-          news.query as Record<string, unknown> | undefined,
+          resolved_.query as Record<string, unknown> | undefined,
           olds?.query as Record<string, unknown> | undefined,
           olds !== undefined,
         )
         || nestedChanged(
-          news.load as Record<string, unknown> | undefined,
+          resolved_.load as Record<string, unknown> | undefined,
           olds?.load as Record<string, unknown> | undefined,
           olds !== undefined,
         )
         || nestedChanged(
-          news.copy as Record<string, unknown> | undefined,
+          resolved_.copy as Record<string, unknown> | undefined,
           olds?.copy as Record<string, unknown> | undefined,
           olds !== undefined,
         )
         || nestedChanged(
-          news.extract as Record<string, unknown> | undefined,
+          resolved_.extract as Record<string, unknown> | undefined,
           olds?.extract as Record<string, unknown> | undefined,
           olds !== undefined,
         )
@@ -374,47 +379,54 @@ export const JobProvider = (): infer _ =>
       const existing = try getByRef(project, jobId, location)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.configuration?.labels)))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.configuration?.labels), catch: (e) => e })),
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (bigquery.listJobs
-          .pages({
-            projectId: env.project,
-            maxResults: 1000,
-            projection: "full",
-            allUsers: true,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobs ?? []))
-          |> Stream.filter(
-            %,
-            (job) => Object.keys(job.configuration?.labels ?? {}).some((key) => key.startsWith("alchemy-")),
-          )
-          |> Stream.map(%, (job) => toAttrs(job, env.project, env.region))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) =>
-        match (e) {
-          when { _tag: "Forbidden" }: Array.from(
-            try (bigquery.listJobs
-              .pages({
-                projectId: env.project,
-                maxResults: 1000,
-                projection: "full",
-              })
-              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobs ?? []))
-              |> Stream.filter(
-                %,
-                (job) => Object.keys(job.configuration?.labels ?? {}).some((key) => key.startsWith("alchemy-")),
-              )
-              |> Stream.map(%, (job) => toAttrs(job, env.project, env.region))
-              |> Stream.runCollect(%)),
-          );
-          default: throw e;
-        } catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (bigquery.listJobs
+            .pages({
+              projectId: env.project,
+              maxResults: 1000,
+              projection: "full",
+              allUsers: true,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobs ?? []))
+            |> Stream.filter(
+              %,
+              (job) => Object.keys(job.configuration?.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+            )
+            |> Stream.map(%, (job) => toAttrs(job, env.project, env.region))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) =>
+        (effect {
+          return match (e) {
+            when { _tag: "Forbidden" }: Array.from(
+              try (bigquery.listJobs
+                .pages({
+                  projectId: env.project,
+                  maxResults: 1000,
+                  projection: "full",
+                })
+                |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobs ?? []))
+                |> Stream.filter(
+                  %,
+                  (job) => Object.keys(job.configuration?.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+                )
+                |> Stream.map(%, (job) => toAttrs(job, env.project, env.region))
+                |> Stream.runCollect(%)),
+            );
+            default: throw e;
+          }
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
           default: throw e;
         }
@@ -427,7 +439,7 @@ export const JobProvider = (): infer _ =>
       const project = output?.project ?? env.project
       const name = resourceName(project, jobId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -466,25 +478,27 @@ export const JobProvider = (): infer _ =>
             jobId: output.jobId,
             location: output.location,
           }) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.void;
-            when { _tag: "BadRequest" }: try Effect.void;
+            when { _tag: "NotFound" }: (undefined as void);
+            when { _tag: "BadRequest" }: (undefined as void);
             default: throw e;
           }
         waitUntilDone(output.project, output.jobId, output.location) catch effect (e) => match (e) {
-          when { _tag: "GCP.BigQuery.JobNotDone" }: try Effect.void;
+          when { _tag: "GCP.BigQuery.JobNotDone" }: (undefined as void);
           default: throw e;
         }
       }
-      ;(try (bigquery
-        .deleteJobs({
-          projectId: output.project,
-          jobId: output.jobId,
-          location: output.location,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try (bigquery
+          .deleteJobs({
+            projectId: output.project,
+            jobId: output.jobId,
+            location: output.location,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

@@ -3,8 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 import type { Providers } from "../Providers.ts"
 
 export interface NamespaceProps {
@@ -92,25 +90,30 @@ export const NamespaceProvider = (): infer _ =>
       const tableBucketArn = output?.tableBucketArn ?? olds?.tableBucket
       if (typeof tableBucketArn !== "string") return undefined
       const namespace = output?.namespace ?? (try createNamespaceName(id, olds ?? {}))
-      return (try effect {
-        const n = try s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace })
-        return ({
-          tableBucketArn,
-          namespace: n.namespace[0] ?? namespace,
-          namespaceId: n.namespaceId,
-          createdAt: n.createdAt,
-          createdBy: n.createdBy,
-          ownerAccountId: n.ownerAccountId,
+      return (effect {
+        return (try effect {
+          const n = try s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace })
+          return ({
+            tableBucketArn,
+            namespace: n.namespace[0] ?? namespace,
+            namespaceId: n.namespaceId,
+            createdAt: n.createdAt,
+            createdBy: n.createdBy,
+            ownerAccountId: n.ownerAccountId,
+          })
         })
-      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
     },
     diff: effect ({ id, news, olds }) => {
-      if (!isResolved(news)) return
-      if (news.tableBucket !== olds?.tableBucket) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if (resolved.tableBucket !== olds?.tableBucket) {
         return { action: "replace" } as const
       }
       const oldName = try createNamespaceName(id, olds ?? {})
-      const newName = try createNamespaceName(id, news)
+      const newName = try createNamespaceName(id, resolved)
       if (oldName !== newName) {
         return { action: "replace" } as const
       }
@@ -121,22 +124,26 @@ export const NamespaceProvider = (): infer _ =>
 
       // Observe — read live state; the namespace may have been removed
       // out-of-band even if `output` cached it.
-      let ns = (try s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace })) catch effect (e) => match (e) {
-        when { _tag: "NotFoundException" }: try Effect.undefined;
+      let ns = (effect {
+        return (try s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace }))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFoundException" }: undefined;
         default: throw e;
       }
 
       // Ensure — create if missing, tolerating a concurrent create.
       if (ns === undefined) {
-        ;(try (s3tables
-          .createNamespace({
-            tableBucketARN: tableBucketArn,
-            namespace: [namespace],
-          })
-          |> Effect.asVoid(%))) catch effect (e) => match (e) {
-            when { _tag: "ConflictException" }: try Effect.void;
-            default: throw e;
-          }
+        ;(effect {
+          return (try (s3tables
+            .createNamespace({
+              tableBucketARN: tableBucketArn,
+              namespace: [namespace],
+            })
+            |> Effect.asVoid(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ConflictException" }: (undefined as void);
+          default: throw e;
+        }
         // Eventual consistency: getNamespace can briefly 404 a namespace that
         // createNamespace just returned.
         ns = try (s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace })
@@ -157,14 +164,16 @@ export const NamespaceProvider = (): infer _ =>
       }
     },
     delete: effect ({ output }) => {
-      ;(try (s3tables
-        .deleteNamespace({
-          tableBucketARN: output.tableBucketArn,
-          namespace: output.namespace,
-        })
-        |> Effect.retry(%, {
-          while: (e) => e._tag === "ConflictException",
-          schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try (s3tables
+          .deleteNamespace({
+            tableBucketARN: output.tableBucketArn,
+            namespace: output.namespace,
+          })
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "ConflictException",
+            schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
     },
   })

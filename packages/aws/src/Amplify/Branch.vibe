@@ -159,15 +159,15 @@ export const BranchProvider = (): infer _ =>
       ) => (props.branchName ? props.branchName : try createPhysicalName({ id, maxLength: 100 }))
 
       const observe = effect (appId: string, branchName: string) =>
-        (try (effect {
+        (effect { return (try (effect {
           return (try amplify.getBranch({ appId, branchName })).branch
         }
           |> Effect.retry(%, {
             while: (e): boolean => e._tag === "TimeoutException",
             schedule: Schedule.exponential("2 seconds"),
             times: 3,
-          }))) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+          }))) }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -176,7 +176,7 @@ export const BranchProvider = (): infer _ =>
         desiredTags: Record<string, string>,
         observedTags: Record<string, string>,
       ) => {
-        const { removed, upsert } = diffTags(observedTags, desiredTags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try amplify.tagResource({
             resourceArn: branchArn,
@@ -194,8 +194,9 @@ export const BranchProvider = (): infer _ =>
       return {
         stables: ["appId", "branchName", "branchArn"],
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
-          if (somePropsAreDifferent(olds, news, ["appId", "branchName"])) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if (try Effect.orDie(Effect.try({ try: () => somePropsAreDifferent(olds, resolved, ["appId", "branchName"]), catch: (e) => e }))) {
             return { action: "replace" }
           }
         },
@@ -207,15 +208,15 @@ export const BranchProvider = (): infer _ =>
             appId: output.appId,
             branchName: branch.branchName,
             branchArn: branch.branchArn,
-            tags: tagRecord(branch.tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(branch.tags), catch: (e) => e })),
           }
-          return (try hasAlchemyTags(id, branch.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, branch.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, session }) => {
           const branchName = try toName(id, news)
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...internalTags, ...news.tags }
-          const ttl = news.ttl === undefined ? undefined : String(toWireSeconds(news.ttl))
+          const ttl = try Effect.orDie(Effect.try({ try: () => news.ttl === undefined ? undefined : String(toWireSeconds(news.ttl)), catch: (e) => e }))
 
           const settings = {
             description: news.description,
@@ -310,7 +311,7 @@ export const BranchProvider = (): infer _ =>
                 appId: app.appId,
                 branchName: branch.branchName,
                 branchArn: branch.branchArn,
-                tags: tagRecord(branch.tags),
+                tags: try Effect.orDie(Effect.try({ try: () => tagRecord(branch.tags), catch: (e) => e })),
               })
             }
           }
@@ -321,7 +322,7 @@ export const BranchProvider = (): infer _ =>
           // account-wide "Rate exceeded" throttle; a timed-out delete that
           // actually landed resolves to NotFoundException on the retry,
           // which is swallowed below.
-          ;(try (amplify
+          ;(effect { return (try (amplify
             .deleteBranch({
               appId: output.appId,
               branchName: output.branchName,
@@ -331,7 +332,7 @@ export const BranchProvider = (): infer _ =>
                 e._tag === "TimeoutException"
                 || (e._tag === "BadRequestException" && (e.message ?? "").includes("Rate exceeded")),
               schedule: amplifyWriteRetrySchedule,
-            }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }))) }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
         },
       }
     },

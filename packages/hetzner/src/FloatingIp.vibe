@@ -6,8 +6,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import { waitForAction } from "./actions.vibe"
 import { findLocation } from "./Catalog.vibe"
 import {
@@ -189,10 +187,12 @@ const createFloatingIpName = effect (id: string, name: string | undefined, exist
   name ?? existing ?? (try createPhysicalName({ id, maxLength: 63 }))
 
 const getById = effect (id: number) =>
-  (try effect {
-    const { floating_ip } = try Hetzner.floatingIps.getFloatingIp({ id })
-    return floating_ip
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const { floating_ip } = try Hetzner.floatingIps.getFloatingIp({ id })
+      return floating_ip
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const getByName = effect (name: string) =>
   try effect {
@@ -289,12 +289,15 @@ export const FloatingIpProvider = (): infer _ =>
       return items.map(toAttrs)
     },
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       if (output !== undefined) {
-        if (news.type !== output.type) {
+        if (resolved.type !== output.type) {
           return { action: "replace" } as const
         }
-        if (!sameHomeLocation(news.homeLocation, output)) {
+        if (!sameHomeLocation(resolved.homeLocation, output)) {
           return { action: "replace" } as const
         }
       }
@@ -304,8 +307,11 @@ export const FloatingIpProvider = (): infer _ =>
       const found = try observe({ id, name: olds?.name ?? output?.name, outputId: output?.id })
       if (found === undefined) return undefined
       const attrs = toAttrs(found)
-      const owned = try hasAlchemyLabels(id, tagRecord(found.labels))
-      return owned ? attrs : Unowned(attrs)
+      const owned = try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(found.labels), catch: (e) => e })),
+      )
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ id, news, output }) => {
       const location = try findLocation(news.homeLocation)
@@ -339,7 +345,7 @@ export const FloatingIpProvider = (): infer _ =>
             name,
             description: desiredDescription,
             labels: desiredLabels,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           if (created.action) {
             try waitForAction(created.action)
@@ -359,8 +365,13 @@ export const FloatingIpProvider = (): infer _ =>
 
       // Sync — name / description / labels via PUT (labels overwrite the
       // full set). Protection is a separate Action.
-      const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabelsInput = current.labels
+      const observedLabels = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(observedLabelsInput), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const needsUpdate = current.name !== name
         || (current.description ?? null) !== desiredDescription
         || upsert.length > 0
@@ -397,7 +408,7 @@ export const FloatingIpProvider = (): infer _ =>
       }
       Hetzner.floatingIps
         .deleteFloatingIp({ id: current.id }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

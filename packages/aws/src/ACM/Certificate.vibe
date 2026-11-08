@@ -6,11 +6,7 @@ import type { DnsRecord } from "alchemy/DNS/Adapter"
 import * as Provider from "alchemy/Provider"
 import { Resource, type ResourceBinding } from "alchemy/Resource"
 import { createInternalTags, createTagsList, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe"
 
@@ -315,8 +311,10 @@ export const CertificateProvider = (): infer _ =>
     effect {
       const describeCertificate = effect (certificateArn: string) =>
         try (effect {
-          return (try acm.describeCertificate({ CertificateArn: certificateArn })).Certificate catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          return (effect {
+            return (try acm.describeCertificate({ CertificateArn: certificateArn })).Certificate
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         }
@@ -324,7 +322,9 @@ export const CertificateProvider = (): infer _ =>
 
       const listCertificateTags = effect (certificateArn: string) =>
         try (effect {
-          return (toTagRecord((try acm.listTagsForCertificate({ CertificateArn: certificateArn })).Tags)) catch effect (
+          return (effect {
+            return (toTagRecord((try acm.listTagsForCertificate({ CertificateArn: certificateArn })).Tags))
+          }) catch effect (
             e,
           ) => match (e) { when { _tag: "ResourceNotFoundException" }: {}; default: throw e; }
         }
@@ -391,7 +391,7 @@ export const CertificateProvider = (): infer _ =>
             schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(60)]),
           }))
 
-      const waitForIssued = (certificateArn: string) => waitForCertificateIssued(certificateArn)
+      const waitForIssued = effect (certificateArn: string) => try waitForCertificateIssued(certificateArn)
 
       const upsertValidationRecords = effect (
         hostedZoneId: string,
@@ -475,7 +475,10 @@ export const CertificateProvider = (): infer _ =>
           return rows.filter((row): row is ReturnType<typeof toAttrs> => row !== undefined)
         },
         diff: effect ({ olds, news: _news, oldBindings, newBindings: _newBindings }) => {
-          if (!isResolved(_news) || !isResolved(_newBindings)) {
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(_news), catch: (e) => e })))
+            || !(try Effect.orDie(Effect.try({ try: () => isResolved(_newBindings), catch: (e) => e })))
+          ) {
             return undefined
           }
           const news = _news as typeof olds
@@ -485,10 +488,14 @@ export const CertificateProvider = (): infer _ =>
             // ACM certificates are immutable: the SAN set — declared props
             // plus SANs contributed through the binding contract — cannot
             // change in place, so any delta plans a replacement.
-            || !deepEqual(
-              normalizeSanList(resolveEffectiveSans(olds.subjectAlternativeNames, oldBindings)),
-              normalizeSanList(resolveEffectiveSans(news.subjectAlternativeNames, newBindings)),
-            )
+            || !(try Effect.orDie(Effect.try({
+              try: () =>
+                deepEqual(
+                  normalizeSanList(resolveEffectiveSans(olds.subjectAlternativeNames, oldBindings)),
+                  normalizeSanList(resolveEffectiveSans(news.subjectAlternativeNames, newBindings)),
+                ),
+              catch: (error) => error,
+            })))
             || (olds.validationMethod ?? defaultValidationMethod)
               !== (news.validationMethod ?? defaultValidationMethod)
             // An undefined side means "inferred" — only two explicit,
@@ -583,7 +590,10 @@ export const CertificateProvider = (): infer _ =>
                       }
                       : undefined,
                     IdempotencyToken: instanceId.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 32),
-                    Tags: createTagsList(desiredTags),
+                    Tags: try Effect.orDie(Effect.try({
+                      try: () => createTagsList(desiredTags),
+                      catch: (e) => e,
+                    })),
                   })
                   |> Effect.flatMap(%, effect (response) => {
                     if (!response.CertificateArn) {
@@ -659,7 +669,9 @@ export const CertificateProvider = (): infer _ =>
           // Sync tags — diff observed cloud tags against desired so
           // adoption rewrites ownership tags correctly.
           const observedTags = try listCertificateTags(certificateArn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
 
           if (upsert.length > 0) {
             try withCertRegion(regionOfCertificateArn(certificateArn))(
@@ -685,17 +697,19 @@ export const CertificateProvider = (): infer _ =>
         delete: effect ({ output }) => {
           try withCertRegion(regionOfCertificateArn(output.certificateArn))(
             effect {
-              return (try (acm
-                .deleteCertificate({
-                  CertificateArn: output.certificateArn,
-                })
-                |> Effect.retry(%, {
-                  while: (e): boolean => e._tag === "ConflictException" || e._tag === "ResourceInUseException",
-                  schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(30)]),
-                }))) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
-                  default: throw e;
-                }
+              return (effect {
+                return (try (acm
+                  .deleteCertificate({
+                    CertificateArn: output.certificateArn,
+                  })
+                  |> Effect.retry(%, {
+                    while: (e): boolean => e._tag === "ConflictException" || e._tag === "ResourceInUseException",
+                    schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(30)]),
+                  })))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
+                default: throw e;
+              }
             },
           )
         },
@@ -826,11 +840,11 @@ export const validationRecordsOf = (
  * Describe a certificate in its own region; `undefined` when it is gone.
  * @internal shared with `CertificateValidation`
  */
-export const describeCertificateDetail = (certificateArn: string) =>
+export const describeCertificateDetail = effect (certificateArn: string) =>
   acm.describeCertificate({ CertificateArn: certificateArn })
   |> Effect.map(%, (response) => response.Certificate)
-  |> Effect.catchTag(%, "ResourceNotFoundException", effect () => try Effect.undefined)
-  |> withCertRegion(regionOfCertificateArn(certificateArn))(%)
+  |> Effect.catchTag(%, "ResourceNotFoundException", effect () => undefined)
+  |> try withCertRegion(regionOfCertificateArn(certificateArn))(%)
 
 /**
  * Poll a certificate until ACM issues it (bounded: 10s × 60). Fails with

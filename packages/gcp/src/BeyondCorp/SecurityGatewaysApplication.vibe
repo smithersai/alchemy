@@ -275,36 +275,49 @@ export const SecurityGatewaysApplicationProvider = (): infer _ =>
     stables: ["name", "applicationId", "securityGateway", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
         previousId: olds?.applicationId ?? output?.applicationId,
-        nextId: news.applicationId
-          ? rfc1035(news.applicationId, "application")
+        nextId: resolved.applicationId
+          ? rfc1035(resolved.applicationId, "application")
           : (olds?.applicationId ?? output?.applicationId),
         previousLocation,
         nextLocation: normalizeLocation(
-          news.location ?? locationFromParent(news.securityGateway, previousLocation),
+          resolved.location ?? locationFromParent(resolved.securityGateway, previousLocation),
           DEFAULT_GLOBAL,
         ),
         previousParent: olds?.securityGateway ?? output?.securityGateway,
-        nextParent: news.securityGateway,
-      })
+        nextParent: resolved.securityGateway,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.securityGateway
-            ? locationFromParent(olds.securityGateway, DEFAULT_GLOBAL)
-            : undefined),
-        DEFAULT_GLOBAL,
-      )
+      const location2 = olds?.location
+        ?? output?.location
+        ?? (olds?.securityGateway
+          ? locationFromParent(olds.securityGateway, DEFAULT_GLOBAL)
+          : undefined)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const applicationId = try toPhysicalId(
         id,
         olds?.applicationId,
@@ -319,7 +332,9 @@ export const SecurityGatewaysApplicationProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -330,12 +345,17 @@ export const SecurityGatewaysApplicationProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location
-          ?? output?.location
-          ?? locationFromParent(news.securityGateway, DEFAULT_GLOBAL),
-        DEFAULT_GLOBAL,
-      )
+      const location2 = news.location
+        ?? output?.location
+        ?? locationFromParent(news.securityGateway, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const applicationId = try toPhysicalId(
         id,
         news.applicationId,
@@ -345,7 +365,9 @@ export const SecurityGatewaysApplicationProvider = (): infer _ =>
       const parent = parentGatewayName(env.project, location, news.securityGateway)
       const name = resourceNameOf(parent, applicationId)
       const ownership = try createInternalLabels(id)
-      const desiredDisplayName = encodeOwnershipLine(ownership, news.displayName)
+      const desiredDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
       const endpointMatchers = news.endpointMatchers.map((matcher) => ({
         hostname: matcher.hostname,
         ports: matcher.ports,
@@ -376,13 +398,20 @@ export const SecurityGatewaysApplicationProvider = (): infer _ =>
         throw new ResourceNotResolved({ resourceName: name })
       }
 
-      const mask = fieldMask([
+      const fields = [
         (current.displayName ?? "") !== desiredDisplayName && "display_name",
-        fingerprint(toMatchers(current.endpointMatchers)) !== fingerprint(endpointMatchers)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toMatchers(current.endpointMatchers)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(endpointMatchers), catch: (e) => e })))
         && "endpoint_matchers",
         (current.schema ?? "") !== (news.schema ?? "") && "schema",
-        fingerprint(toUpstreams(current.upstreams)) !== fingerprint(upstreams) && "upstreams",
-      ])
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toUpstreams(current.upstreams)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(upstreams), catch: (e) => e }))) && "upstreams",
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const operation = try beyondcorp.patchProjectsLocationsSecurityGatewaysApplications({
@@ -403,15 +432,17 @@ export const SecurityGatewaysApplicationProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (beyondcorp
-        .deleteProjectsLocationsSecurityGatewaysApplications({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (beyondcorp
+          .deleteProjectsLocationsSecurityGatewaysApplications({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

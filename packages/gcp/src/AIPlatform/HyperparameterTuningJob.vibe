@@ -173,16 +173,18 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsHyperparameterTuningJobs({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listPage = effect (parent: string, filter?: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsHyperparameterTuningJobs
-      .pages({ parent, pageSize: 100, filter })
-      |> Stream.runCollect(%)),
-  ).flatMap((page) => page.hyperparameterTuningJobs ?? [])) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsHyperparameterTuningJobs
+        .pages({ parent, pageSize: 100, filter })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.hyperparameterTuningJobs ?? []))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1HyperparameterTuningJob[];
     default: throw e;
   }
@@ -211,25 +213,28 @@ export const HyperparameterTuningJobProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
       const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
+        resolved.location ?? olds?.location ?? output?.location,
         env.region,
       )
       const previousDisplay = olds?.displayName ?? output?.displayName
-      const displayChanged = news.displayName !== undefined
+      const displayChanged = resolved.displayName !== undefined
         && previousDisplay !== undefined
-        && news.displayName !== previousDisplay
+        && resolved.displayName !== previousDisplay
       const previousMax = olds?.maxTrialCount ?? output?.maxTrialCount
       const previousParallel = olds?.parallelTrialCount ?? output?.parallelTrialCount
-      const specsChanged = (olds !== undefined && stableJson(olds.studySpec) !== stableJson(news.studySpec))
-        || (olds !== undefined && stableJson(olds.trialJobSpec) !== stableJson(news.trialJobSpec))
+      const specsChanged = (olds !== undefined && stableJson(olds.studySpec) !== stableJson(resolved.studySpec))
+        || (olds !== undefined && stableJson(olds.trialJobSpec) !== stableJson(resolved.trialJobSpec))
       if (
         previousLocation !== nextLocation
         || displayChanged
-        || (previousMax !== undefined && news.maxTrialCount !== previousMax)
-        || (previousParallel !== undefined && news.parallelTrialCount !== previousParallel)
+        || (previousMax !== undefined && resolved.maxTrialCount !== previousMax)
+        || (previousParallel !== undefined && resolved.parallelTrialCount !== previousParallel)
         || specsChanged
       ) {
         return { action: "replace" as const, deleteFirst: false }
@@ -245,7 +250,12 @@ export const HyperparameterTuningJobProvider = (): infer _ =>
         ?? (try findOwned(env.project, location, ownership))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -266,7 +276,7 @@ export const HyperparameterTuningJobProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -287,7 +297,7 @@ export const HyperparameterTuningJobProvider = (): infer _ =>
               trialJobSpec: news.trialJobSpec,
               encryptionSpec: news.encryptionSpec,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = created ?? (try findOwned(env.project, location, desiredLabels))
       }
 
@@ -306,7 +316,7 @@ export const HyperparameterTuningJobProvider = (): infer _ =>
           name: output.name,
           body: {},
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "BadRequest" } or { _tag: "Conflict" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "BadRequest" } or { _tag: "Conflict" }: (undefined as void);
           default: throw e;
         }
       // Running jobs reject deletes; wait for the cancel to land.
@@ -316,15 +326,17 @@ export const HyperparameterTuningJobProvider = (): infer _ =>
           until: (job) => job === undefined || isJobTerminal(job.state),
           times: 45,
         }))
-      const operation = (try (aiplatform
-        .deleteProjectsLocationsHyperparameterTuningJobs({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (aiplatform
+          .deleteProjectsLocationsHyperparameterTuningJobs({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

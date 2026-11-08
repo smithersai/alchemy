@@ -66,7 +66,7 @@ export const rfc1035 = (name: string, fallback = "baremetal"): string => {
 export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
   lastSegment(location ?? defaultLocation).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const toPhysicalId = (
@@ -127,12 +127,13 @@ export const networkOf = (value: string, project: string, location: string) => {
 export const gibOf = (value: number | string | undefined): string | undefined =>
   value === undefined ? undefined : String(value);
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const encodeOwnership = (
   labels: Record<string, string>,
@@ -215,11 +216,13 @@ export const differs = (observed: unknown, desired: unknown): boolean => {
   return fingerprint(pickDefined(observed, desired)) !== fingerprint(desired);
 };
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const replaceOnIdentity = (input: {
   previousId: string | undefined;
@@ -262,7 +265,7 @@ export const isReadyState = (state: string | undefined) =>
 export const isFailedState = (state: string | undefined) =>
   FAILED_STATES.has((state ?? "").toUpperCase());
 
-export const isDeletingState = (state: string | undefined) =>
+export const isDeletingState = /** @throws {never} */ (state: string | undefined) =>
   (state ?? "").toUpperCase() === "DELETING";
 
 /**

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import type * as NFW from "@distilled.cloud/aws/network-firewall"
 import * as nfw from "@distilled.cloud/aws/network-firewall"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -113,10 +114,14 @@ export const FirewallPolicyProvider = (): infer _ =>
           const items = try Effect.forEach(
             metas,
             effect (meta) =>
-              (toAttrs((try nfw.describeFirewallPolicy({ FirewallPolicyArn: meta.Arn })).FirewallPolicyResponse)) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-                  default: throw e;
-                },
+              (effect {
+                return (toAttrs(
+                  (try nfw.describeFirewallPolicy({ FirewallPolicyArn: meta.Arn })).FirewallPolicyResponse,
+                ))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              },
             { concurrency: 5 },
           )
           return items.filter((item): item is FirewallPolicy["Attributes"] => item !== undefined)
@@ -126,17 +131,20 @@ export const FirewallPolicyProvider = (): infer _ =>
           const name = output?.firewallPolicyName ?? (try createName(id, olds ?? {}))
           const found = nfw
             .describeFirewallPolicy({ FirewallPolicyName: name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (found === undefined) return undefined
           const attrs = toAttrs(found.FirewallPolicyResponse)
           const tags = nfwTagsToRecord(found.FirewallPolicyResponse.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) {
@@ -155,7 +163,7 @@ export const FirewallPolicyProvider = (): infer _ =>
           // 1. Observe — cloud state is authoritative.
           let observed = nfw
             .describeFirewallPolicy({ FirewallPolicyName: name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -174,7 +182,10 @@ export const FirewallPolicyProvider = (): infer _ =>
 
           // 3. Sync definition — compare desired against OBSERVED state.
           const observedDescription = observed.FirewallPolicyResponse.Description
-          const definitionDiffers = !deepEqual(news.firewallPolicy, observed.FirewallPolicy)
+          const definitionDiffers = !(try Effect.orDie(Effect.try({
+            try: () => deepEqual(news.firewallPolicy, observed.FirewallPolicy),
+            catch: (error) => error,
+          })))
             || (news.description ?? undefined) !== observedDescription
           if (definitionDiffers) {
             try nfw.updateFirewallPolicy({
@@ -204,14 +215,16 @@ export const FirewallPolicyProvider = (): infer _ =>
           // A policy still associated to a firewall (deleted moments ago by
           // the engine) rejects deletion with InvalidOperationException —
           // retry through the release window.
-          ;(try (nfw
-            .deleteFirewallPolicy({
-              FirewallPolicyArn: output.firewallPolicyArn,
-            })
-            |> retryWhileNfwInUse(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (nfw
+              .deleteFirewallPolicy({
+                FirewallPolicyArn: output.firewallPolicyArn,
+              })
+              |> retryWhileNfwInUse(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

@@ -253,8 +253,10 @@ export class ApplyExpr<A, B, Req = never> extends BaseExpr<B, Req> {
   }
 }
 
+/** @throws {never} */
 export const mapEffect =
   <A, B, Req2>(fn: (value: A) => Effect.Effect<B, never, Req2>) =>
+  /** @throws {never} */
   <Req>(output: Output<A, Req>): ToOutput<B, Req | Req2> =>
     new EffectExpr(output as Expr<A, Req>, fn) as any;
 
@@ -342,6 +344,7 @@ export class NamedExpr<A, Req = never> extends BaseExpr<A, Req> {
 export const named = <A, Req>(expr: Output<A, Req>, name: string): Output<A, Req> =>
   new NamedExpr(expr as Expr<A, Req>, name) as any;
 
+/** @throws {never} */
 export const all = <Outs extends (Output | Expr)[]>(...outs: Outs) =>
   new AllExpr(outs as any) as unknown as All<Outs>;
 

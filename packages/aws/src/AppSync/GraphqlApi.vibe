@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as appsync from "@distilled.cloud/aws/appsync"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { deepEqual, isResolved } from "alchemy/Diff"
@@ -373,35 +374,33 @@ const authSurface = (api: {
   resolverCountLimit?: number
   logConfig?: appsync.LogConfig
 }): infer _ =>
-  JSON.parse(
-    JSON.stringify({
-      name: api.name,
-      authenticationType: api.authenticationType,
-      userPoolConfig: api.userPoolConfig,
-      openIDConnectConfig: api.openIDConnectConfig,
-      lambdaAuthorizerConfig: {
-        ...api.lambdaAuthorizerConfig,
-        // AWS normalizes the TTL default (300) into the response
-        authorizerResultTtlInSeconds: api.lambdaAuthorizerConfig === undefined
-          ? undefined
-          : (api.lambdaAuthorizerConfig.authorizerResultTtlInSeconds ?? 300),
-      },
-      additionalAuthenticationProviders: api.additionalAuthenticationProviders?.map((p) => ({
-        ...p,
-        lambdaAuthorizerConfig: p.lambdaAuthorizerConfig === undefined
-          ? undefined
-          : {
-            ...p.lambdaAuthorizerConfig,
-            authorizerResultTtlInSeconds: p.lambdaAuthorizerConfig.authorizerResultTtlInSeconds ?? 300,
-          },
-      })),
-      xrayEnabled: api.xrayEnabled ?? false,
-      introspectionConfig: api.introspectionConfig ?? "ENABLED",
-      queryDepthLimit: api.queryDepthLimit ?? 0,
-      resolverCountLimit: api.resolverCountLimit ?? 0,
-      logConfig: api.logConfig,
-    }),
-  )
+  $invoke(JSON, () => (JSON.stringify({
+    name: api.name,
+    authenticationType: api.authenticationType,
+    userPoolConfig: api.userPoolConfig,
+    openIDConnectConfig: api.openIDConnectConfig,
+    lambdaAuthorizerConfig: {
+      ...api.lambdaAuthorizerConfig,
+      // AWS normalizes the TTL default (300) into the response
+      authorizerResultTtlInSeconds: api.lambdaAuthorizerConfig === undefined
+        ? undefined
+        : (api.lambdaAuthorizerConfig.authorizerResultTtlInSeconds ?? 300),
+    },
+    additionalAuthenticationProviders: api.additionalAuthenticationProviders?.map((p) => ({
+      ...p,
+      lambdaAuthorizerConfig: p.lambdaAuthorizerConfig === undefined
+        ? undefined
+        : {
+          ...p.lambdaAuthorizerConfig,
+          authorizerResultTtlInSeconds: p.lambdaAuthorizerConfig.authorizerResultTtlInSeconds ?? 300,
+        },
+    })),
+    xrayEnabled: api.xrayEnabled ?? false,
+    introspectionConfig: api.introspectionConfig ?? "ENABLED",
+    queryDepthLimit: api.queryDepthLimit ?? 0,
+    resolverCountLimit: api.resolverCountLimit ?? 0,
+    logConfig: api.logConfig,
+  })))
 
 export const GraphqlApiProvider = (): infer _ =>
   Provider.effect(
@@ -411,8 +410,10 @@ export const GraphqlApiProvider = (): infer _ =>
         props.name ?? (try createPhysicalName({ id, maxLength: 64 }))
 
       const getApiSafe = effect (apiId: string) =>
-        (try appsync.getGraphqlApi({ apiId })).graphqlApi catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try appsync.getGraphqlApi({ apiId })).graphqlApi
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -439,7 +440,7 @@ export const GraphqlApiProvider = (): infer _ =>
        * schema creation is normally seconds).
        */
       const applySchema = effect (apiId: string, schema: string) => {
-        const definition = try Effect.sync(() => new TextEncoder().encode(schema))
+        const definition = new TextEncoder().encode(schema)
         try retryConcurrentModification(appsync.startSchemaCreation({ apiId, definition }))
         const final = try (appsync.getSchemaCreationStatus({ apiId })
           |> Effect.repeat(%, {
@@ -467,8 +468,10 @@ export const GraphqlApiProvider = (): infer _ =>
        * is asynchronous and NOT awaited (10–20 minutes to AVAILABLE).
        */
       const syncCache = effect (apiId: string, desired: ApiCacheConfig | undefined) => {
-        const observed = (try appsync.getApiCache({ apiId })).apiCache catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
+        const observed = (effect {
+          return (try appsync.getApiCache({ apiId })).apiCache
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
           default: throw e;
         }
         if (desired === undefined) {
@@ -477,7 +480,7 @@ export const GraphqlApiProvider = (): infer _ =>
               effect {
                 return appsync
                   .deleteApiCache({ apiId }) catch effect (e) => match (e) {
-                    when { _tag: "NotFoundException" }: try Effect.void;
+                    when { _tag: "NotFoundException" }: (undefined as void);
                     default: throw e;
                   }
               },
@@ -486,7 +489,7 @@ export const GraphqlApiProvider = (): infer _ =>
           return
         }
         // The wire TTL is whole seconds.
-        const desiredTtl = toWireSeconds(desired.ttl)!
+        const desiredTtl = (try Effect.orDie(Effect.try({ try: () => toWireSeconds(desired.ttl), catch: (e) => e })))!
         if (observed === undefined) {
           try retryConcurrentModification(
             appsync.createApiCache({
@@ -531,7 +534,7 @@ export const GraphqlApiProvider = (): infer _ =>
         if (desired === undefined) return
         const observed = (try appsync
           .getGraphqlApiEnvironmentVariables({ apiId })).environmentVariables ?? {}
-        if (!deepEqual(tagRecord(observed), desired)) {
+        if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(tagRecord(observed), desired), catch: (e) => e })))) {
           try retryConcurrentModification(
             appsync.putGraphqlApiEnvironmentVariables({
               apiId,
@@ -558,12 +561,15 @@ export const GraphqlApiProvider = (): infer _ =>
             : try findApiByName(try createName(id, olds ?? {}))
           if (api?.apiId == null) return undefined
           const attrs = toAttributes(api)
-          const tags = tagRecord(api.tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          const tags = try Effect.orDie(Effect.try({ try: () => tagRecord(api.tags), catch: (error) => error }))
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             (news.visibility ?? "GLOBAL") !== (olds.visibility ?? "GLOBAL")
             || (news.apiType ?? "GRAPHQL") !== (olds.apiType ?? "GRAPHQL")
@@ -619,10 +625,17 @@ export const GraphqlApiProvider = (): infer _ =>
             try session.note(`Created GraphQL API ${observed.apiId}`)
           }
           const apiId = observed.apiId!
+          const currentApi = observed
 
           // 3. SYNC — one update call when the observed auth/limit surface
           //    drifted from the desired one.
-          if (!justCreated && !deepEqual(authSurface(observed), authSurface(desired))) {
+          if (
+            !justCreated
+            && !(try Effect.orDie(Effect.try({
+              try: () => deepEqual(authSurface(currentApi), authSurface(desired)),
+              catch: (error) => error,
+            })))
+          ) {
             const updated = try retryConcurrentModification(
               appsync.updateGraphqlApi({ apiId, ...desired }),
             )
@@ -652,7 +665,10 @@ export const GraphqlApiProvider = (): infer _ =>
           if (observed.arn !== undefined) {
             try syncAppSyncTags({
               resourceArn: observed.arn,
-              oldTags: tagRecord(observed.tags),
+              oldTags: (try Effect.orDie(Effect.try({
+                try: () => tagRecord(observed.tags),
+                catch: (error) => error,
+              }))),
               newTags: desiredTags,
             })
           }
@@ -666,7 +682,7 @@ export const GraphqlApiProvider = (): infer _ =>
             effect {
               return appsync
                 .deleteGraphqlApi({ apiId: output.apiId }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },
@@ -675,3 +691,13 @@ export const GraphqlApiProvider = (): infer _ =>
       })
     },
   )
+
+module $call$ts {
+  export function invoke<T extends { "parse": Function }>(
+    target: T,
+    arg0: () => Parameters<Extract<T["parse"], (...args: any[]) => any>>[0],
+  ): ReturnType<Extract<T["parse"], (...args: any[]) => any>> {
+    return target["parse"](arg0())
+  }
+}
+import { invoke as $invoke } from $call$ts

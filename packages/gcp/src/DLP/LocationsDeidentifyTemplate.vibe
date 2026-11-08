@@ -154,25 +154,39 @@ export const LocationsDeidentifyTemplateProvider = (): infer _ =>
     stables: ["name", "templateId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.templateId ?? output?.templateId
-      const idChanged = previousId !== undefined && news.templateId !== undefined && news.templateId !== previousId
+      const idChanged = previousId !== undefined && resolved.templateId !== undefined
+        && resolved.templateId !== previousId
       const previousLocation = olds?.location ?? output?.location
-      const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(news.location) !== normalizeLocation(previousLocation)
-      return replaceOnIdentity(idChanged || locationChanged)
+      const locationChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousLocation !== undefined
+          && resolved.location !== undefined
+          && normalizeLocation(resolved.location) !== normalizeLocation(previousLocation),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(
+        Effect.try({ try: () => replaceOnIdentity(idChanged || locationChanged), catch: (e) => e }),
+      )
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const templateId = try toResourceId(id, olds?.templateId, output?.templateId)
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, templateId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -194,11 +208,18 @@ export const LocationsDeidentifyTemplateProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+          catch: (e) => e,
+        }),
+      )
       const templateId = try toResourceId(id, news.templateId, output?.templateId)
       const name = resourceName(env.project, location, templateId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const body: dlp.GooglePrivacyDlpV2DeidentifyTemplate = {
         displayName: news.displayName,
         description,
@@ -225,7 +246,12 @@ export const LocationsDeidentifyTemplateProvider = (): infer _ =>
 
       const displayChanged = !sameText(current.displayName, news.displayName)
       const descriptionChanged = (current.description ?? "") !== description
-      const configChanged = !jsonEqual(current.deidentifyConfig, news.deidentifyConfig)
+      const configChanged = !(try Effect.orDie(
+        Effect.try({
+          try: jsonEqual.bind(undefined, current.deidentifyConfig, news.deidentifyConfig),
+          catch: (e) => e,
+        }),
+      ))
 
       if (displayChanged || descriptionChanged || configChanged) {
         current = try dlp.patchProjectsLocationsDeidentifyTemplates({

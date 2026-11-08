@@ -225,20 +225,27 @@ export const EntryTypeProvider = (): infer _ =>
     stables: ["name", "entryTypeId", "project", "location", "alternateUsePermission", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousAuth = olds?.authorization?.alternateUsePermission ?? output?.alternateUsePermission ?? ""
-      const nextAuth = news.authorization?.alternateUsePermission ?? previousAuth
-      return replaceOnIdentity({
-        previousId: olds?.entryTypeId ?? output?.entryTypeId,
-        nextId: news.entryTypeId ?? olds?.entryTypeId ?? output?.entryTypeId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: nextAuth !== previousAuth,
-      })
+      const nextAuth = resolved.authorization?.alternateUsePermission ?? previousAuth
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.entryTypeId ?? output?.entryTypeId,
+            nextId: resolved.entryTypeId ?? olds?.entryTypeId ?? output?.entryTypeId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: nextAuth !== previousAuth,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -249,12 +256,19 @@ export const EntryTypeProvider = (): infer _ =>
         output?.entryTypeId,
         "entrytype",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, entryTypeId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -271,10 +285,12 @@ export const EntryTypeProvider = (): infer _ =>
         output?.entryTypeId,
         "entrytype",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, entryTypeId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAspects = news.requiredAspects
@@ -283,25 +299,27 @@ export const EntryTypeProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (dataplex
-          .createProjectsLocationsEntryTypes({
-            parent: parentOf(env.project, location),
-            entryTypeId,
-            body: {
-              description: news.description,
-              displayName: news.displayName,
-              labels: desiredLabels,
-              typeAliases: desiredAliases,
-              platform: news.platform,
-              system: news.system,
-              requiredAspects: desiredAspects,
-              authorization: news.authorization,
-            },
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsEntryTypes({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              entryTypeId,
+              body: {
+                description: news.description,
+                displayName: news.displayName,
+                labels: desiredLabels,
+                typeAliases: desiredAliases,
+                platform: news.platform,
+                system: news.system,
+                requiredAspects: desiredAspects,
+                authorization: news.authorization,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -313,16 +331,24 @@ export const EntryTypeProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
       const aliasesChanged = desiredAliases !== undefined
-        && fingerprint(desiredAliases) !== fingerprint(current.typeAliases)
+        && (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAliases), catch: (e) => e })))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.typeAliases), catch: (e) => e }),
+          ))
       const platformChanged = news.platform !== undefined && (current.platform ?? "") !== news.platform
       const systemChanged = news.system !== undefined && (current.system ?? "") !== news.system
       const aspectsChanged = desiredAspects !== undefined
-        && fingerprint(desiredAspects) !== fingerprint(current.requiredAspects)
+        && (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAspects), catch: (e) => e })))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.requiredAspects), catch: (e) => e }),
+          ))
 
       if (
         labelsChanged
@@ -368,15 +394,17 @@ export const EntryTypeProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (dataplex
-        .deleteProjectsLocationsEntryTypes({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict" || error._tag === "TooManyRequests",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (dataplex
+          .deleteProjectsLocationsEntryTypes({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict" || error._tag === "TooManyRequests",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

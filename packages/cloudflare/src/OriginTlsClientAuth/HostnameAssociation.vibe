@@ -142,19 +142,20 @@ export const HostnameAssociationProvider = (): infer _ =>
     list: effect () => [],
 
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
       // zoneId is Input<string>; compare only once both sides are concrete.
       if (
         typeof olds.zoneId === "string"
-        && typeof news.zoneId === "string"
-        && olds.zoneId !== news.zoneId
+        && typeof resolved_.zoneId === "string"
+        && olds.zoneId !== resolved_.zoneId
       ) {
         return { action: "replace" } as const
       }
       // The hostname is the association's identity in Cloudflare's bulk
       // upsert — changing it must void the old hostname's entry, so it is a
       // replacement.
-      if (olds.hostname !== news.hostname) {
+      if (olds.hostname !== resolved_.hostname) {
         return { action: "replace" } as const
       }
       return undefined
@@ -171,7 +172,7 @@ export const HostnameAssociationProvider = (): infer _ =>
       // but carries no ownership markers, so we cannot prove we created it —
       // brand it `Unowned` so the engine refuses to take it over unless
       // `adopt` is set.
-      return output === undefined ? Unowned(attrs) : attrs
+      return output === undefined ? try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e })) : attrs
     },
 
     reconcile: effect ({ news }) => {
@@ -219,18 +220,18 @@ export const HostnameAssociationProvider = (): infer _ =>
               enabled: null,
             },
           ],
-        }) catch effect (e) => match (e) { when { _tag: "InvalidHostnameConfig" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "InvalidHostnameConfig" }: (undefined as void); default: throw e; }
     },
   })
 
 // Observe a hostname's association, mapping "never configured" (HTTP 404 /
 // code 1553) and "voided" (`enabled: null`) to `undefined`.
 const observeAssociation = effect (zoneId: string, hostname: string) =>
-  (try effect {
+  (effect { return (try effect {
     const assoc = try originTls.getHostname({ zoneId, hostname })
     return assoc.enabled === null || assoc.enabled === undefined ? undefined : assoc
-  }) catch effect (e) => match (e) {
-    when { _tag: "HostnameAssociationNotFound" }: try Effect.undefined;
+  }) }) catch effect (e) => match (e) {
+    when { _tag: "HostnameAssociationNotFound" }: undefined;
     default: throw e;
   }
 

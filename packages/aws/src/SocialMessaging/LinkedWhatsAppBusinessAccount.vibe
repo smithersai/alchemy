@@ -190,7 +190,7 @@ interface LinkedAccountState {
 const readLinkedAccount = effect (accountId: string) => {
   const response = socialmessaging
     .getLinkedWhatsAppBusinessAccount({ id: accountId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   const account = response?.account
@@ -253,7 +253,7 @@ export const LinkedWhatsAppBusinessAccountProvider = (): infer _ =>
           ).flatMap((page) => page.linkedAccounts ?? [])
           const hydrated = try Effect.forEach(
             summaries,
-            (summary) => readLinkedAccount(summary.id),
+            effect (summary) => try readLinkedAccount(summary.id),
             { concurrency: 5 },
           )
           return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
@@ -265,13 +265,14 @@ export const LinkedWhatsAppBusinessAccountProvider = (): infer _ =>
           if (state === undefined) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The linked account identity is fixed by Meta onboarding.
-          if (news.accountId !== olds.accountId) {
+          if (resolved.accountId !== olds.accountId) {
             return { action: "replace" } as const
           }
         },
@@ -308,7 +309,7 @@ export const LinkedWhatsAppBusinessAccountProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.attrs.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try socialmessaging.untagResource({
               resourceArn: state.attrs.arn,
@@ -336,7 +337,7 @@ export const LinkedWhatsAppBusinessAccountProvider = (): infer _ =>
         delete: effect ({ output }) => {
           socialmessaging
             .disassociateWhatsAppBusinessAccount({ id: output.id }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

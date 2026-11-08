@@ -226,16 +226,16 @@ export const InstrumentationConfigurationProvider = (): infer _ =>
               ? { LocationHash: locationHash }
               : { CodeLocation: props.location },
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.Configuration
       }
 
       const observedTags = effect (arn: string) =>
-        (Object.fromEntries(
+        (effect { return (Object.fromEntries(
           ((try appsignals.listTagsForResource({ ResourceArn: arn })).Tags ?? []).map((tag) => [tag.Key, tag.Value]),
-        )) catch effect (e) => match (e) {
+        )) }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -267,14 +267,15 @@ export const InstrumentationConfigurationProvider = (): infer _ =>
           if (found === undefined) return undefined
           const attrs = toAttrs(found)
           const tags = try observedTags(found.ARN)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // Configurations are immutable after creation — any change other
           // than tags replaces. Tags fall through to the default update.
-          if (olds !== undefined && immutableFingerprint(news) !== immutableFingerprint(olds)) {
+          if (olds !== undefined && immutableFingerprint(resolved) !== immutableFingerprint(olds)) {
             return { action: "replace" } as const
           }
         },
@@ -321,7 +322,7 @@ export const InstrumentationConfigurationProvider = (): infer _ =>
           // 3b. SYNC TAGS — diff against OBSERVED cloud tags so adoption
           //     converges (create-time Tags only apply on first create).
           const currentTags = try observedTags(live.ARN)
-          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try appsignals.tagResource({
               ResourceArn: live.ARN,
@@ -348,7 +349,7 @@ export const InstrumentationConfigurationProvider = (): infer _ =>
               SignalType: output.signalType,
               LocationIdentifier: { LocationHash: output.locationHash },
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

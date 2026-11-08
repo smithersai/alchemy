@@ -216,15 +216,19 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
     when { _tag: "NotFound" }: try Effect.undefined;
     default: throw e;
   }
-  return (item === undefined || isGoneState(item.state) ? undefined : item)
+  return (item === undefined || (try Effect.orDie(Effect.try({ try: () => isGoneState(item.state), catch: (e) => e })))
+    ? undefined
+    : item)
 })
 
 const ignoreConflict = effect <A, R>(
-  effect: A!| rma.PauseProjectsLocationsCollectorsError
+  effect: A!(| rma.PauseProjectsLocationsCollectorsError
     | rma.RegisterProjectsLocationsCollectorsError
-    | rma.ResumeProjectsLocationsCollectorsError!R,
+    | rma.ResumeProjectsLocationsCollectorsError)!R,
 ) =>
-  (try effect) catch effect (e) => match (e) {
+  (effect {
+    return (try effect)
+  }) catch effect (e) => match (e) {
     when { _tag: "Conflict" } or { _tag: "BadRequest" }: try Effect.undefined;
     default: throw e;
   }
@@ -233,7 +237,10 @@ const applyDesiredState = effect (name: string, current: rma.Collector, news: Co
   let next = current
   const state = next.state
 
-  if (news.registered === true && !isRegisteredState(state)) {
+  if (
+    news.registered === true
+    && !(try Effect.orDie(Effect.try({ try: () => isRegisteredState(state), catch: (e) => e })))
+  ) {
     const operation = try ignoreConflict(rma.registerProjectsLocationsCollectors({ name }))
     if (operation !== undefined) {
       try waitForOperation(operation)
@@ -241,7 +248,9 @@ const applyDesiredState = effect (name: string, current: rma.Collector, news: Co
     }
   }
 
-  if (news.paused === true && !isPausedState(next.state)) {
+  if (
+    news.paused === true && !(try Effect.orDie(Effect.try({ try: () => isPausedState(next.state), catch: (e) => e })))
+  ) {
     const operation = try ignoreConflict(rma.pauseProjectsLocationsCollectors({ name }))
     if (operation !== undefined) {
       try waitForOperation(operation)
@@ -249,7 +258,9 @@ const applyDesiredState = effect (name: string, current: rma.Collector, news: Co
     }
   }
 
-  if (news.paused === false && isPausedState(next.state)) {
+  if (
+    news.paused === false && (try Effect.orDie(Effect.try({ try: () => isPausedState(next.state), catch: (e) => e })))
+  ) {
     const operation = try ignoreConflict(rma.resumeProjectsLocationsCollectors({ name }))
     if (operation !== undefined) {
       try waitForOperation(operation)
@@ -265,28 +276,42 @@ export const CollectorProvider = (): infer _ =>
     stables: ["name", "collectorId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.collectorId ?? output?.collectorId,
-        nextId: news.collectorId ?? olds?.collectorId ?? output?.collectorId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.collectorId ?? output?.collectorId,
+            nextId: resolved.collectorId ?? olds?.collectorId ?? output?.collectorId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const collectorId = try toPhysicalId(id, olds?.collectorId, output?.collectorId)
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, collectorId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -300,12 +325,16 @@ export const CollectorProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const collectorId = try toPhysicalId(id, news.collectorId, output?.collectorId)
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, collectorId)
       const displayName = news.displayName ?? collectorId
-      const expectedAssetCount = expectedAssetCountOf(news.expectedAssetCount)
+      const expectedAssetCount = try Effect.orDie(
+        Effect.try({ try: () => expectedAssetCountOf(news.expectedAssetCount), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -386,12 +415,14 @@ export const CollectorProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (rma.deleteProjectsLocationsCollectors({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (rma.deleteProjectsLocationsCollectors({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

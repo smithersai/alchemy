@@ -13,8 +13,6 @@ import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -242,7 +240,7 @@ const isMissingPlan = isMissingStripeResource
 
 const getById = effect (plan: string) =>
   try (GetPlan({ plan })
-    |> Effect.catchIf(%, isMissingPlan, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingPlan, effect () => undefined))
 
 const listByActive = effect (active: boolean) => {
   const plans: StripePlan[] = []
@@ -283,7 +281,7 @@ const findByAlchemyId = effect (id: string) => {
   const plans = try listAllPlans()
   const matches: StripePlan[] = []
   for (const plan of plans) {
-    if (try hasAlchemyMetadata(id, tagRecord(plan.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(plan.metadata), catch: (e) => e })))) {
       matches.push(plan)
     }
   }
@@ -339,8 +337,9 @@ export const PlanProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -353,7 +352,7 @@ export const PlanProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -404,9 +403,9 @@ export const PlanProvider = (): infer _ =>
             ? { trial_period_days: desiredTrialPeriodDays }
             : {}),
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-plan-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
       if (current === undefined) {
@@ -416,8 +415,8 @@ export const PlanProvider = (): infer _ =>
         })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const activeChanged = current.active !== desiredActive
       const nicknameChanged = (current.nickname ?? "") !== desiredNickname
@@ -455,6 +454,6 @@ export const PlanProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       try (DeletePlan({ plan: output.id })
-        |> Effect.catchIf(%, isMissingPlan, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingPlan, effect () => (undefined as void)))
     },
   })

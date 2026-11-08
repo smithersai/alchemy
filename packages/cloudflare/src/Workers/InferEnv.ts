@@ -24,7 +24,7 @@ import type * as FlagshipNs from "../Flagship/index.ts";
 import type * as HyperdriveNs from "../Hyperdrive/index.ts";
 import type * as ImagesNs from "../Images/index.ts";
 import type * as K2Ns from "../K2/index.ts";
-import type { K2StreamBinding } from "../K2/WriteStreamBinding.vibe";
+import type { K2StreamBinding } from "../K2/WriteStreamBinding.ts";
 import type * as KV from "../KV/index.ts";
 import type { MtlsCertificate } from "../MtlsCertificate/MtlsCertificate.ts";
 import type * as PipelinesNs from "../Pipelines/index.ts";

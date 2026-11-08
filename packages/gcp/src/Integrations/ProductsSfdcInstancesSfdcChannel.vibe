@@ -161,40 +161,46 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : integrations
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
   .getProjectsLocationsProductsSfdcInstancesSfdcChannels({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (integrations.listProjectsLocationsProductsSfdcInstancesSfdcChannels
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcChannels ?? []))
-      |> Stream.filter(%, (channel) => hasOwnershipMarker(channel.description))
-      |> Stream.map(%, (channel) => toAttrs(channel, project, region, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsProductsSfdcInstancesSfdcChannels
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcChannels ?? []))
+        |> Stream.filter(%, (channel) => hasOwnershipMarker(channel.description))
+        |> Stream.map(%, (channel) => toAttrs(channel, project, region, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, id: string) =>
-  (try effect {
-    const option = try (integrations.listProjectsLocationsProductsSfdcInstancesSfdcChannels
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcChannels ?? []))
-      |> Stream.filterEffect(%, effect (channel) => try ownedByAlchemy(id, channel.description))
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsProductsSfdcInstancesSfdcChannels
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcChannels ?? []))
+        |> Stream.filterEffect(%, effect (channel) => try ownedByAlchemy(id, channel.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const listOwnedChannels = effect (project: string, location: string, product: string) => {
   const parent = productParent(project, location, product)
-  const instances = (Array.from(
-    try (integrations.listProjectsLocationsProductsSfdcInstances
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcInstances ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  const instances = (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsProductsSfdcInstances
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcInstances ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
   const nested = try Effect.forEach(
     instances,
     effect (
@@ -218,20 +224,23 @@ export const ProductsSfdcInstancesSfdcChannelProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousInstance = olds?.sfdcInstance ?? output?.sfdcInstance
       if (
         previousInstance !== undefined
-        && news.sfdcInstance !== previousInstance
-        && !news.sfdcInstance.endsWith(`/${lastSegment(previousInstance)}`)
+        && resolved.sfdcInstance !== previousInstance
+        && !resolved.sfdcInstance.endsWith(`/${lastSegment(previousInstance)}`)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.sfdcChannelId ?? output?.sfdcChannelId
       if (
         previousId !== undefined
-        && news.sfdcChannelId !== undefined
-        && news.sfdcChannelId !== previousId
+        && resolved.sfdcChannelId !== undefined
+        && resolved.sfdcChannelId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -256,7 +265,9 @@ export const ProductsSfdcInstancesSfdcChannelProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region, sfdcInstance)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -331,6 +342,6 @@ export const ProductsSfdcInstancesSfdcChannelProvider = (): infer _ =>
       integrations
         .deleteProjectsLocationsProductsSfdcInstancesSfdcChannels({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

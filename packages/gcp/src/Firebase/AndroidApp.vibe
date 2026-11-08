@@ -119,9 +119,9 @@ const toAttrs = (app: firebase.AndroidApp): infer _ => ({
   expireTime: app.expireTime,
 })
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : firebase
+const getByName = effect (name: string) => (name.length === 0 ? undefined : firebase
   .getProjectsAndroidApps({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" } or { _tag: "AndroidAppNotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" } or { _tag: "AndroidAppNotFound" }: undefined;
     default: throw e;
   })
 
@@ -140,12 +140,15 @@ export const AndroidAppProvider = (): infer _ =>
     stables: ["name", "appId", "projectId", "packageName"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousPackage = olds?.packageName ?? output?.packageName
       if (
         previousPackage !== undefined
-        && news.packageName !== undefined
-        && news.packageName !== previousPackage
+        && resolved.packageName !== undefined
+        && resolved.packageName !== previousPackage
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -171,7 +174,9 @@ export const AndroidAppProvider = (): infer _ =>
         return undefined
       }
       const attrs = toAttrs(existing)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -269,14 +274,16 @@ export const AndroidAppProvider = (): infer _ =>
           name: output.name,
           body: { immediate: true, allowMissing: true },
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "AndroidAppNotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" } or { _tag: "AndroidAppNotFound" }: undefined;
           default: throw e;
         }
       if (operation) {
         try (waitForOperation(operation)
-          |> Effect.catchIf(%, (error) =>
-            error._tag === "GCP.OperationFailed" && error.code === 5, effect () =>
-            try Effect.void))
+          |> Effect.catchIf(
+            %,
+            (error) => error._tag === "GCP.OperationFailed" && error.code === 5,
+            effect () => (undefined as void),
+          ))
       }
     },
   })

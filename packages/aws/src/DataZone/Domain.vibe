@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as datazone from "@distilled.cloud/aws/datazone"
 import * as iam from "@distilled.cloud/aws/iam"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -173,7 +174,7 @@ export const DomainProvider = (): infer _ =>
       const createName = effect (id: string, props: DomainProps) =>
         props.name ?? (try createPhysicalName({ id, maxLength: 64 }))
 
-      const createRoleName = (id: string) => createPhysicalName({ id, maxLength: 64 })
+      const createRoleName = effect (id: string) => try createPhysicalName({ id, maxLength: 64 })
 
       // A deleted (or never-existing) domain is reported by GetDomain as
       // AccessDeniedException ("User is not permitted to perform operation:
@@ -181,8 +182,8 @@ export const DomainProvider = (): infer _ =>
       // domain-scoped authorization before existence. Both mean "absent".
       const getDomainOrUndefined = effect (identifier: string) =>
         datazone.getDomain({ identifier }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-          when { _tag: "AccessDeniedException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          when { _tag: "AccessDeniedException" }: undefined;
           default: throw e;
         }
 
@@ -260,7 +261,10 @@ export const DomainProvider = (): infer _ =>
           .attachRolePolicy({
             RoleName: roleName,
             PolicyArn: DOMAIN_EXECUTION_MANAGED_POLICY,
-          }) catch effect (e) => match (e) { when { _tag: "InvalidInputException" }: try Effect.void; default: throw e; }
+          }) catch effect (e) => match (e) {
+            when { _tag: "InvalidInputException" }: (undefined as void);
+            default: throw e;
+          }
 
         return role.Role.Arn
       }
@@ -306,11 +310,14 @@ export const DomainProvider = (): infer _ =>
             roleName: output?.roleName,
           }
           const tags = toTagRecord(domain.tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds?.kmsKeyIdentifier !== news?.kmsKeyIdentifier) {
             return { action: "replace" } as const
           }
@@ -420,9 +427,9 @@ export const DomainProvider = (): infer _ =>
               identifier: output.domainId,
               skipDeletionCheck: true,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              when { _tag: "AccessDeniedException" }: try Effect.void;
-              when { _tag: "ConflictException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
+              when { _tag: "AccessDeniedException" }: (undefined as void);
+              when { _tag: "ConflictException" }: (undefined as void);
               default: throw e;
             }
           try waitForGone(output.domainId)
@@ -437,12 +444,12 @@ export const DomainProvider = (): infer _ =>
                 RoleName: roleName,
                 PolicyArn: DOMAIN_EXECUTION_MANAGED_POLICY,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
             iam
               .deleteRole({ RoleName: roleName }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }

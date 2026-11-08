@@ -439,12 +439,15 @@ export const ScanConfigProvider = (): infer _ =>
     stables: ["name", "scanConfigId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.scanConfigId ?? output?.scanConfigId
       if (
-        news.scanConfigId !== undefined
+        resolved.scanConfigId !== undefined
         && previousId !== undefined
-        && news.scanConfigId !== previousId
+        && resolved.scanConfigId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -453,18 +456,20 @@ export const ScanConfigProvider = (): infer _ =>
 
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
-      const existing = getScanConfig(lookupNameOf(env.project, olds ?? {}, output))
+      const existing = try getScanConfig(lookupNameOf(env.project, olds ?? {}, output))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const lookupName = lookupNameOf(env.project, news, output)
 
-      let current = getScanConfig(lookupName)
+      let current = try getScanConfig(lookupName)
       const displayName = try toUserDisplayName(
         id,
         news.displayName,
@@ -478,7 +483,10 @@ export const ScanConfigProvider = (): infer _ =>
             .createProjectsScanConfigs({
               parent: `projects/${env.project}`,
               body: desired,
-            }) catch effect (e) => match (e) { when { _tag: "Conflict" }: getScanConfig(lookupName); default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try getScanConfig(lookupName);
+              default: throw e;
+            }
         }
           |> Effect.retry(%, {
             while: (e) => e._tag === "StartingUrlIpNotReserved",
@@ -555,7 +563,7 @@ export const ScanConfigProvider = (): infer _ =>
       if (output.name.length === 0) return
       websecurityscanner
         .deleteProjectsScanConfigs({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

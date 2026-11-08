@@ -271,16 +271,19 @@ export const OrganizationProvider = (): infer _ =>
     stables: ["name", "organizationId", "project", "createdAt", "apigeeProjectId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.organizationId ?? output?.organizationId
       const previousRegion = olds?.analyticsRegion ?? output?.analyticsRegion
       const previousRuntime = olds?.runtimeType ?? output?.runtimeType
       const previousBilling = olds?.billingType ?? output?.billingType
-      const nextId = news.organizationId ?? previousId
-      const nextRegion = news.analyticsRegion ?? previousRegion ?? env.region
-      const nextRuntime = news.runtimeType ?? DEFAULT_RUNTIME_TYPE
-      const nextBilling = news.billingType ?? DEFAULT_BILLING_TYPE
+      const nextId = resolved.organizationId ?? previousId
+      const nextRegion = resolved.analyticsRegion ?? previousRegion ?? env.region
+      const nextRuntime = resolved.runtimeType ?? DEFAULT_RUNTIME_TYPE
+      const nextBilling = resolved.billingType ?? DEFAULT_BILLING_TYPE
       if (
         (previousId !== undefined && nextId !== previousId)
         || (previousRegion !== undefined
@@ -296,12 +299,17 @@ export const OrganizationProvider = (): infer _ =>
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const organizationId = toOrgId(env.project, olds?.organizationId, output?.organizationId)
-      const name = output?.name ?? orgName(organizationId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => orgName(organizationId), catch: (e) => e })))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -316,9 +324,16 @@ export const OrganizationProvider = (): infer _ =>
       )
       const attrs = []
       for (const mapping of mapped) {
-        const organizationId = lastSegment(mapping.organization ?? env.project)
-        const existing = try getByName(orgName(organizationId))
-        if (existing !== undefined && hasOwnershipMarker(existing.description)) {
+        const organizationId = try Effect.orDie(
+          Effect.try({ try: () => lastSegment(mapping.organization ?? env.project), catch: (e) => e }),
+        )
+        const existing = try getByName(
+          try Effect.orDie(Effect.try({ try: () => orgName(organizationId), catch: (e) => e })),
+        )
+        if (
+          existing !== undefined
+          && (try Effect.orDie(Effect.try({ try: () => hasOwnershipMarker(existing.description), catch: (e) => e })))
+        ) {
           attrs.push(toAttrs(existing, env.project))
         }
       }
@@ -328,24 +343,28 @@ export const OrganizationProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organizationId = toOrgId(env.project, news.organizationId, output?.organizationId)
-      const name = orgName(organizationId)
+      const name = try Effect.orDie(Effect.try({ try: () => orgName(organizationId), catch: (e) => e }))
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const analyticsRegion = news.analyticsRegion ?? output?.analyticsRegion ?? env.region
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try effect {
-          try waitForOperation(
-            try apigee
-              .createOrganizations({
-                parent: `projects/${env.project}`,
-                body: toBody(news, desiredDescription, analyticsRegion),
-              }),
-            { budget: ORGANIZATION_BUDGET },
-          )
-          return try getByName(name)
+        const created = (effect {
+          return (try effect {
+            try waitForOperation(
+              try apigee
+                .createOrganizations({
+                  parent: `projects/${env.project}`,
+                  body: toBody(news, desiredDescription, analyticsRegion),
+                }),
+              { budget: ORGANIZATION_BUDGET },
+            )
+            return try getByName(name)
+          })
         }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
         current = created ?? undefined
       }
@@ -362,7 +381,12 @@ export const OrganizationProvider = (): infer _ =>
         || (current.networkEgressRestricted === true) !== (news.networkEgressRestricted === true)
         || (current.portalDisabled === true) !== (news.portalDisabled === true)
         || (current.apiConsumerDataLocation ?? "") !== (news.apiConsumerDataLocation ?? "")
-        || !sameJson(current.addonsConfig ?? {}, news.addonsConfig ?? {})
+        || !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.addonsConfig ?? {}, news.addonsConfig ?? {}),
+            catch: (e) => e,
+          }),
+        ))
 
       if (needsUpdate) {
         current = try apigee.updateOrganizations({

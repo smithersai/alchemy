@@ -20,7 +20,7 @@ import {
   toId,
   userLabels,
 } from "./names.vibe";
-import { waitForOperation } from "./operations.vibe";
+import { waitForOperation } from "./operations.ts";
 import { sameJson } from "./ownership.ts";
 
 const COLLECTION = "securityProfiles";

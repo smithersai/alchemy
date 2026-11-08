@@ -40,7 +40,11 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const rfc1035 = (name: string, fallback = "kafka", maxLength = MAX_NAME_LENGTH): string => {
+export const rfc1035 = /** @throws {never} */ (
+  name: string,
+  fallback = "kafka",
+  maxLength = MAX_NAME_LENGTH,
+): string => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-")
@@ -53,7 +57,10 @@ export const rfc1035 = (name: string, fallback = "kafka", maxLength = MAX_NAME_L
   return next.slice(0, maxLength);
 };
 
-export const schemaRegistryIdOf = (name: string, fallback = "schema"): string => {
+export const schemaRegistryIdOf = /** @throws {never} */ (
+  name: string,
+  fallback = "schema",
+): string => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, "_")
@@ -64,10 +71,12 @@ export const schemaRegistryIdOf = (name: string, fallback = "schema"): string =>
   return next.length > 0 ? next : fallback;
 };
 
-export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
-  lastSegment(location ?? defaultLocation).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  defaultLocation: string,
+) => lastSegment(location ?? defaultLocation).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
 export const defaultSubnet = (project: string, location: string) =>
@@ -160,14 +169,15 @@ export const expandParent = (
   return `projects/${project}/locations/${location}/${collection}/${value}`;
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const stringMapOf = (
+export const stringMapOf = /** @throws {never} */ (
   value: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> =>
   Object.fromEntries(
@@ -456,12 +466,16 @@ export const parseHttpJson = (body: kafka.HttpBody | undefined) =>
     }
   });
 
-export const subjectParent = (schemaRegistry: string, subject: string, context?: string) =>
+export const subjectParent = /** @throws {never} */ (
+  schemaRegistry: string,
+  subject: string,
+  context?: string,
+) =>
   context !== undefined && context.length > 0
     ? `${schemaRegistry}/contexts/${context}/subjects/${subject}`
     : `${schemaRegistry}/subjects/${subject}`;
 
-export const versionName = (parent: string, version: number | string) =>
+export const versionName = /** @throws {never} */ (parent: string, version: number | string) =>
   `${parent}/versions/${version}`;
 
 export const retryTransient = <A, E extends { readonly _tag: string }, R>(

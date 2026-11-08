@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as sqs from "@distilled.cloud/aws/sqs"
 import { AdoptPolicy, OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
 import { AlchemyContext } from "alchemy/AlchemyContext"
@@ -326,13 +329,21 @@ export const Queue = Resource<Queue>("AWS.SQS.Queue")
  * and `sqsManagedSseEnabled` (SSE-SQS). The two encryption modes are
  * mutually exclusive.
  */
-export error SqsEncryptionConflict {
-  mutable message: string
+export class SqsEncryptionConflict extends $MutableErrorBase("SqsEncryptionConflict")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "SqsEncryptionConflict", true)
+  }
 }
 
 /** Raised when a queue identity depends on an unresolved resource output. */
-export error UnresolvedQueueIdentity {
-  mutable message: string
+export class UnresolvedQueueIdentity extends $MutableErrorBase("UnresolvedQueueIdentity")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "UnresolvedQueueIdentity", true)
+  }
 }
 
 const validateEncryption = effect (
@@ -341,7 +352,7 @@ const validateEncryption = effect (
   ? throw new SqsEncryptionConflict({
     message: "kmsMasterKeyId (SSE-KMS) and sqsManagedSseEnabled (SSE-SQS) are mutually exclusive — set only one.",
   })
-  : try Effect.void)
+  : (undefined as void))
 
 export const QueueProvider = (): infer _ =>
   Provider.effect(
@@ -366,14 +377,16 @@ export const QueueProvider = (): infer _ =>
         })
         return props.fifo ? `${baseName}.fifo` : baseName
       }
-      const buildPolicy = (
+      const buildPolicy = effect (
         props: QueueProps,
         bindings: ResourceBinding<Queue["Binding"]>[],
-      ): string | undefined => {
+      ): (string | undefined)!! => {
         const bindingStatements = bindings.flatMap((p) => p.data.policyStatements)
         let userStatements: any[] = []
         if (props.policy !== undefined) {
-          const doc = typeof props.policy === "string" ? JSON.parse(props.policy) : props.policy
+          const doc = typeof props.policy === "string"
+            ? try Effect.orDie(Effect.try({ try: () => JSON.parse(props.policy as string), catch: (e) => e }))
+            : props.policy
           const stmt = doc?.Statement
           userStatements = Array.isArray(stmt) ? stmt : stmt ? [stmt] : []
         }
@@ -388,10 +401,10 @@ export const QueueProvider = (): infer _ =>
       // against observed cloud state. An empty-string value explicitly
       // CLEARS an attribute (SQS interprets `""` as "remove"); `undefined`
       // means "leave alone" and is filtered out before diffing.
-      const createAttributes = (
+      const createAttributes = effect (
         props: QueueProps,
         bindings: ResourceBinding<Queue["Binding"]>[],
-      ): infer _ => {
+      ) => {
         // Removable attributes always emit a key: the desired value when set,
         // or "" to clear when the prop is absent. This lets the delta loop
         // converge when a user removes redrive/policy/kms props.
@@ -409,7 +422,7 @@ export const QueueProvider = (): infer _ =>
               : {}),
           })
           : ""
-        const policy = buildPolicy(props, bindings) ?? ""
+        const policy = (try buildPolicy(props, bindings)) ?? ""
 
         const baseAttributes: Record<string, string | undefined> = {
           DelaySeconds: toWireSeconds(props.delay)?.toString(),
@@ -446,12 +459,12 @@ export const QueueProvider = (): infer _ =>
        * converges for `props` (an absent removable attribute reads as "").
        * `read` and `reconcile` share it so a converged queue reads unchanged.
        */
-      const observeManagedAttributes = (
+      const observeManagedAttributes = effect (
         props: QueueProps,
         observed: Record<string, string | undefined>,
-      ): Record<string, string> =>
+      ): Record<string, string>!! =>
         Object.fromEntries(
-          Object.entries(createAttributes(props, []))
+          Object.entries(try createAttributes(props, []))
             .filter(([key, value]) => value !== undefined && key !== "FifoQueue")
             .map(([key]) => [key, observed[key] ?? ""] as const)
             .sort(([a], [b]) => a.localeCompare(b)),
@@ -475,8 +488,10 @@ export const QueueProvider = (): infer _ =>
         const { accountId, region } = try AWSEnvironment.current
         const queueName = output?.queueName ?? (try createQueueName(id, news))
         const queueArn = `arn:aws:sqs:${region}:${accountId}:${queueName}` as const
-        let queueUrl = (try sqs.getQueueUrl({ QueueName: queueName })).QueueUrl catch effect (e) => match (e) {
-          when { _tag: "QueueDoesNotExist" }: try Effect.undefined;
+        let queueUrl = effect {
+          return ((try sqs.getQueueUrl({ QueueName: queueName })).QueueUrl)
+        } catch effect (e) => match (e) {
+          when { _tag: "QueueDoesNotExist" }: undefined;
           default: throw e;
         }
 
@@ -484,7 +499,7 @@ export const QueueProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
           const attributes: Record<string, string> = {}
           // Empty strings clear existing attributes but are invalid on create.
-          for (const [key, value] of Object.entries(createAttributes(news, bindings))) {
+          for (const [key, value] of Object.entries(try createAttributes(news, bindings))) {
             if (value !== undefined && value !== "") attributes[key] = value
           }
           queueUrl = (try (effect {
@@ -528,18 +543,20 @@ export const QueueProvider = (): infer _ =>
           const items = try Effect.forEach(
             urls,
             effect (queueUrl) =>
-              (try effect {
-                const r = try sqs
-                  .getQueueAttributes({
-                    QueueUrl: queueUrl,
-                    AttributeNames: ["QueueArn"],
-                  })
+              (effect {
+                return (try effect {
+                  const r = try sqs
+                    .getQueueAttributes({
+                      QueueUrl: queueUrl,
+                      AttributeNames: ["QueueArn"],
+                    })
 
-                const queueName = r.Attributes?.QueueArn?.split(":").pop() ?? queueUrl.split("/").pop()!
-                const queueArn = `arn:aws:sqs:${region}:${accountId}:${queueName}` as const
-                return { queueName, queueUrl, queueArn }
+                  const queueName = r.Attributes?.QueueArn?.split(":").pop() ?? queueUrl.split("/").pop()!
+                  const queueArn = `arn:aws:sqs:${region}:${accountId}:${queueName}` as const
+                  return { queueName, queueUrl, queueArn }
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "QueueDoesNotExist" }: try Effect.undefined;
+                when { _tag: "QueueDoesNotExist" }: undefined;
                 default: throw e;
               },
             { concurrency: 10 },
@@ -549,42 +566,57 @@ export const QueueProvider = (): infer _ =>
         read: effect ({ id, olds, output }) => {
           const { accountId, region } = try AWSEnvironment.current
           const queueName = output?.queueName ?? (try createQueueName(id, olds ?? {}))
-          const url = (try sqs.getQueueUrl({ QueueName: queueName })).QueueUrl catch effect (e) => match (e) {
-            when { _tag: "QueueDoesNotExist" }: try Effect.undefined;
+          const url = effect {
+            return ((try sqs.getQueueUrl({ QueueName: queueName })).QueueUrl)
+          } catch effect (e) => match (e) {
+            when { _tag: "QueueDoesNotExist" }: undefined;
             default: throw e;
           }
           if (!url) return undefined
           const queueArn = `arn:aws:sqs:${region}:${accountId}:${queueName}` as const
-          const tagsResp = ((try sqs.listQueueTags({ QueueUrl: url })).Tags ?? {}) catch effect (e) => match (e) {
-            when { _tag: "QueueDoesNotExist" }: try Effect.undefined;
+          const tagsResp = (effect {
+            return ((try sqs.listQueueTags({ QueueUrl: url })).Tags ?? {})
+          }) catch effect (e) => match (e) {
+            when { _tag: "QueueDoesNotExist" }: undefined;
             default: throw e;
           }
           if (tagsResp === undefined) return undefined
-          const observed = ((try sqs
-            .getQueueAttributes({ QueueUrl: url, AttributeNames: ["All"] })).Attributes ?? {}) catch effect (e) => match (e) {
-              when { _tag: "QueueDoesNotExist" }: try Effect.undefined;
-              default: throw e;
-            }
+          const observed = (effect {
+            return ((try sqs
+              .getQueueAttributes({ QueueUrl: url, AttributeNames: ["All"] })).Attributes ?? {})
+          }) catch effect (e) => match (e) {
+            when { _tag: "QueueDoesNotExist" }: undefined;
+            default: throw e;
+          }
           if (observed === undefined) return undefined
           const attrs = {
             queueName,
             queueUrl: url,
             queueArn,
-            attributes: observeManagedAttributes(olds ?? {}, observed),
+            attributes: try observeManagedAttributes(olds ?? {}, observed),
             tags: definedTags(tagsResp),
           }
-          return (try hasAlchemyTags(id, tagsResp)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tagsResp))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news = {}, olds = {}, output }) => {
-          if (isOutput(news) || Effect.isEffect(news) || Config.isConfig(news)) return undefined
-          const identity = { queueName: news.queueName, fifo: news.fifo }
-          if (!isResolved<Pick<QueueProps, "queueName" | "fifo">>(identity)) return undefined
+        diff: effect ({ id, news: _newsInput = {}, olds = {}, output }) => {
+          if (
+            (try Effect.orDie(Effect.try({ try: () => isOutput(_newsInput), catch: (error) => error })))
+            || Effect.isEffect(_newsInput) || Config.isConfig(_newsInput)
+          ) return undefined
+          const news = _newsInput as import("alchemy/Input").PropsInput<QueueProps>
+          const identityInput = { queueName: news.queueName, fifo: news.fifo }
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(identityInput), catch: (error) => error })))
+          ) return undefined
+          const identity = identityInput as Pick<QueueProps, "queueName" | "fifo">
           const encryption = {
             kmsMasterKeyId: news.kmsMasterKeyId,
             sqsManagedSseEnabled: news.sqsManagedSseEnabled,
           }
-          if (isResolved<Pick<QueueProps, "kmsMasterKeyId" | "sqsManagedSseEnabled">>(encryption)) {
-            try validateEncryption(encryption)
+          if ((try Effect.orDie(Effect.try({ try: () => isResolved(encryption), catch: (error) => error })))) {
+            try validateEncryption(encryption as Pick<QueueProps, "kmsMasterKeyId" | "sqsManagedSseEnabled">)
           }
           const oldFifo = olds.fifo ?? false
           const newFifo = identity.fifo ?? false
@@ -600,18 +632,23 @@ export const QueueProvider = (): infer _ =>
         },
         // Mutable properties and bindings may reference identities that do not exist yet.
         precreate: effect ({ id, fqn, news = {} }) => {
-          const identity = { queueName: news.queueName, fifo: news.fifo }
-          if (!isResolved(identity)) {
+          const identityInput = { queueName: news.queueName, fifo: news.fifo }
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(identityInput), catch: (error) => error })))) {
             throw new UnresolvedQueueIdentity({
               message:
                 "Queue queueName and fifo must be known before precreation; use literal identity properties and put circular references in bindings.",
             })
           }
+          const identity = identityInput as Pick<QueueProps, "queueName" | "fifo">
           if (
-            isResolved({
-              kmsMasterKeyId: news.kmsMasterKeyId,
-              sqsManagedSseEnabled: news.sqsManagedSseEnabled,
-            })
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                isResolved({
+                  kmsMasterKeyId: news.kmsMasterKeyId,
+                  sqsManagedSseEnabled: news.sqsManagedSseEnabled,
+                }),
+              catch: (error) => error,
+            })))
           ) {
             try validateEncryption(news)
           }
@@ -646,7 +683,7 @@ export const QueueProvider = (): infer _ =>
             output,
             bindings,
           })
-          const desiredAttributes = createAttributes(news, bindings)
+          const desiredAttributes = try createAttributes(news, bindings)
           const internalTags = try createInternalTags(id)
 
           // Sync attributes — diff observed cloud state against desired and
@@ -747,7 +784,7 @@ export const QueueProvider = (): infer _ =>
             queueName,
             queueUrl,
             queueArn,
-            attributes: observeManagedAttributes(news, {
+            attributes: try observeManagedAttributes(news, {
               ...currentAttributes,
               ...attributeDelta,
             }),
@@ -756,15 +793,17 @@ export const QueueProvider = (): infer _ =>
         },
         delete: effect (input) => {
           const queueUrl = input.output.queueUrl
-          ;(try (sqs
-            .deleteQueue({
-              QueueUrl: queueUrl,
-            })
-            |> Effect.retry(%, {
-              while: (error) => error._tag === "RequestThrottled",
-              schedule: Schedule.exponential("500 millis"),
-              times: 6,
-            }))) catch effect (e) => match (e) { when { _tag: "QueueDoesNotExist" }: try Effect.void; default: throw e; }
+          ;(effect {
+            return (try (sqs
+              .deleteQueue({
+                QueueUrl: queueUrl,
+              })
+              |> Effect.retry(%, {
+                while: (error) => error._tag === "RequestThrottled",
+                schedule: Schedule.exponential("500 millis"),
+                times: 6,
+              })))
+          }) catch effect (e) => match (e) { when { _tag: "QueueDoesNotExist" }: (undefined as void); default: throw e; }
 
           // DeleteQueue is asynchronous and SQS can keep serving the queue
           // for up to 60 seconds. GetQueueAttributes can report not-found
@@ -775,20 +814,23 @@ export const QueueProvider = (): infer _ =>
           // re-entering delete remains safe because QueueDoesNotExist is OK.
           const queueName = queueUrl.slice(queueUrl.lastIndexOf("/") + 1)
           try (effect {
-            const attributesAbsent = (try (sqs
-              .getQueueAttributes({
-                QueueUrl: queueUrl,
-                AttributeNames: ["QueueArn"],
-              })
-              |> Effect.as(%, false))) catch effect (e) => match (e) {
-                when { _tag: "QueueDoesNotExist" }: true;
-                when { _tag: "RequestThrottled" }: false;
-                default: throw e;
-              }
-            const absentFromList =
-              (!((try sqs.listQueues({ QueueNamePrefix: queueName })).QueueUrls ?? []).includes(queueUrl)) catch effect (
-                e,
-              ) => match (e) { when { _tag: "RequestThrottled" }: false; default: throw e; }
+            const attributesAbsent = (effect {
+              return (try (sqs
+                .getQueueAttributes({
+                  QueueUrl: queueUrl,
+                  AttributeNames: ["QueueArn"],
+                })
+                |> Effect.as(%, false)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "QueueDoesNotExist" }: true;
+              when { _tag: "RequestThrottled" }: false;
+              default: throw e;
+            }
+            const absentFromList = (effect {
+              return (!((try sqs.listQueues({ QueueNamePrefix: queueName })).QueueUrls ?? []).includes(queueUrl))
+            }) catch effect (
+              e,
+            ) => match (e) { when { _tag: "RequestThrottled" }: false; default: throw e; }
             if (!attributesAbsent || !absentFromList) {
               throw new QueueStillExists({ queueUrl })
             }

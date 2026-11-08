@@ -224,14 +224,18 @@ const sameStringList = (
 const parentOfResource = (name: string): infer _ =>
   name.startsWith("projects/")
     ? effect {
-      return (try resourcemanager.getProjects({ name })).parent catch effect (e) => match (e) {
+      return (effect {
+        return (try resourcemanager.getProjects({ name })).parent
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: try Effect.undefined;
         default: throw e;
       }
     }
     : name.startsWith("folders/")
     ? effect {
-      return (try resourcemanager.getFolders({ name })).parent catch effect (e) => match (e) {
+      return (effect {
+        return (try resourcemanager.getFolders({ name })).parent
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: try Effect.undefined;
         default: throw e;
       }
@@ -340,19 +344,21 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listCustomConstraints = effect (parent: string) =>
-  (try effect {
-    const found: orgpolicy.GoogleCloudOrgpolicyV2CustomConstraint[] = []
-    let pageToken: string | undefined
-    do {
-      const response = try orgpolicy.listOrganizationsCustomConstraints({
-        parent,
-        pageSize: 1000,
-        pageToken,
-      })
-      found.push(...(response.customConstraints ?? []))
-      pageToken = response.nextPageToken
-    } while (pageToken !== undefined && pageToken !== "")
-    return found
+  (effect {
+    return (try effect {
+      const found: orgpolicy.GoogleCloudOrgpolicyV2CustomConstraint[] = []
+      let pageToken: string | undefined
+      do {
+        const response = try orgpolicy.listOrganizationsCustomConstraints({
+          parent,
+          pageSize: 1000,
+          pageToken,
+        })
+        found.push(...(response.customConstraints ?? []))
+        pageToken = response.nextPageToken
+      } while (pageToken !== undefined && pageToken !== "")
+      return found
+    })
   }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as orgpolicy.GoogleCloudOrgpolicyV2CustomConstraint[];
     default: throw e;
@@ -378,20 +384,23 @@ export const CustomConstraintProvider = (): infer _ =>
     stables: ["name", "constraintId", "organization", "organizationId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const previousId = olds?.constraintId ?? output?.constraintId
-      const nextId = news.constraintId !== undefined ? normalizeConstraintId(news.constraintId) : previousId
+      const nextId = resolved_.constraintId !== undefined ? normalizeConstraintId(resolved_.constraintId) : previousId
       const idChanged = previousId !== undefined && nextId !== undefined && previousId !== nextId
 
       const previousOrg = olds?.organization ?? output?.organization
-      const orgChanged = news.organization !== undefined
+      const orgChanged = resolved_.organization !== undefined
         && previousOrg !== undefined
-        && !sameOrganization(news.organization, previousOrg)
+        && !sameOrganization(resolved_.organization, previousOrg)
 
       const previousTypes = olds?.resourceTypes ?? output?.resourceTypes
-      const typesChanged = news.resourceTypes !== undefined
+      const typesChanged = resolved_.resourceTypes !== undefined
         && previousTypes !== undefined
-        && !sameStringList(news.resourceTypes, previousTypes)
+        && !sameStringList(resolved_.resourceTypes, previousTypes)
 
       if (!idChanged && !orgChanged && !typesChanged) return undefined
       return {
@@ -412,7 +421,9 @@ export const CustomConstraintProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {

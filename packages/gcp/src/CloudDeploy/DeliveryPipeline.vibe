@@ -259,16 +259,23 @@ export const DeliveryPipelineProvider = (): infer _ =>
     stables: ["name", "deliveryPipelineId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.deliveryPipelineId ?? output?.deliveryPipelineId,
-        nextId: news.deliveryPipelineId ?? olds?.deliveryPipelineId ?? output?.deliveryPipelineId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.deliveryPipelineId ?? output?.deliveryPipelineId,
+            nextId: resolved.deliveryPipelineId ?? olds?.deliveryPipelineId ?? output?.deliveryPipelineId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -279,12 +286,19 @@ export const DeliveryPipelineProvider = (): infer _ =>
         output?.deliveryPipelineId,
         "deliverypipeline",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, deliveryPipelineId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -301,10 +315,12 @@ export const DeliveryPipelineProvider = (): infer _ =>
         output?.deliveryPipelineId,
         "deliverypipeline",
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, deliveryPipelineId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
@@ -339,12 +355,22 @@ export const DeliveryPipelineProvider = (): infer _ =>
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, desiredAnnotations),
+            catch: (e) => e,
+          })))
         && "annotations",
         !sameText(current.description, news.description) && "description",
         !sameBool(current.suspended, desiredSuspended) && "suspended",
-        fingerprint(toSerialPipeline(current.serialPipeline))
-          !== fingerprint(news.serialPipeline) && "serialPipeline",
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toSerialPipeline(current.serialPipeline)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.serialPipeline), catch: (e) => e }),
+          )) && "serialPipeline",
       ])
 
       if (mask.length > 0) {
@@ -368,17 +394,19 @@ export const DeliveryPipelineProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (clouddeploy
-        .deleteProjectsLocationsDeliveryPipelines({
-          name: output.name,
-          force: true,
-          allowMissing: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (clouddeploy
+          .deleteProjectsLocationsDeliveryPipelines({
+            name: output.name,
+            force: true,
+            allowMissing: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

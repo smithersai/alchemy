@@ -165,11 +165,13 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string) =>
-  (Array.from(
-    try (scc.listFoldersEventThreatDetectionSettingsCustomModules.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.eventThreatDetectionCustomModules ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (scc.listFoldersEventThreatDetectionSettingsCustomModules.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.eventThreatDetectionCustomModules ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, id: string) => {
   const modules = try listAt(parent)
@@ -184,12 +186,19 @@ export const FolderEventThreatDetectionSettingsCustomModuleProvider = (): infer 
     stables: ["name", "moduleId", "folder", "folderId", "project", "type"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(
-          olds?.folder ?? output?.folder,
-          news.folder !== undefined ? folderParent(news.folder) : undefined,
-        ) ?? replaceOn(olds?.type ?? output?.type, news.type)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(
+              olds?.folder ?? output?.folder,
+              resolved.folder !== undefined ? folderParent(resolved.folder) : undefined,
+            ) ?? replaceOn(olds?.type ?? output?.type, resolved.type),
+          catch: (e) => e,
+        }))
       )
     },
 
@@ -198,18 +207,25 @@ export const FolderEventThreatDetectionSettingsCustomModuleProvider = (): infer 
       const folder = try resolveFolder(olds?.folder ?? output?.folder, output?.folder)
       let existing = try getByName(output?.name ?? "")
       if (existing === undefined) {
-        existing = try findOwned(etdSettingsParent(folder), id)
+        existing = try findOwned(
+          try Effect.orDie(Effect.try({ try: () => etdSettingsParent(folder), catch: (e) => e })),
+          id,
+        )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, folder, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const folder = try tryResolveFolder()
       if (folder === undefined) return []
-      const modules = try listAt(etdSettingsParent(folder))
+      const modules = try listAt(
+        try Effect.orDie(Effect.try({ try: () => etdSettingsParent(folder), catch: (e) => e })),
+      )
       return modules
         .filter((module) => hasOwnershipMarker(module.description))
         .map((module) => toAttrs(module, folder, env.project))
@@ -218,9 +234,11 @@ export const FolderEventThreatDetectionSettingsCustomModuleProvider = (): infer 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const folder = try resolveFolder(news.folder, output?.folder)
-      const parent = etdSettingsParent(folder)
+      const parent = try Effect.orDie(Effect.try({ try: () => etdSettingsParent(folder), catch: (e) => e }))
       const ownership = try createInternalLabels(id)
-      const description = encodeDescription(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const type = news.type ?? DEFAULT_ETD_TYPE
       const config = news.config ?? defaultEtdConfig
       const enablementState = news.enablementState ?? DEFAULT_ENABLEMENT
@@ -256,7 +274,10 @@ export const FolderEventThreatDetectionSettingsCustomModuleProvider = (): infer 
 
       const currentName = current.name ?? ""
       const updateMask = updateMaskOf(
-        fingerprint(current.config) !== fingerprint(config) ? "config" : undefined,
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.config), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, config), catch: (e) => e })))
+          ? "config"
+          : undefined,
         !sameText(current.enablementState, enablementState) ? "enablementState" : undefined,
         !sameText(current.displayName, displayName) ? "displayName" : undefined,
         !sameText(current.description, description) ? "description" : undefined,

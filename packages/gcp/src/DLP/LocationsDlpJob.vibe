@@ -246,19 +246,35 @@ export const LocationsDlpJobProvider = (): infer _ =>
     stables: ["name", "jobId", "location", "project", "createTime", "type"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.jobId ?? output?.jobId
-      const idChanged = previousId !== undefined && news.jobId !== undefined && news.jobId !== previousId
+      const idChanged = previousId !== undefined && resolved.jobId !== undefined && resolved.jobId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && normalizeLocation(news.location, LOCATION)
-          !== normalizeLocation(previousLocation, LOCATION)
+        && (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(resolved.location, LOCATION), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(previousLocation, LOCATION), catch: (e) => e }),
+          ))
       const inspectChanged = output !== undefined
-        && news.inspectJob !== undefined
-        && !jsonEqual(userInspectJob(news.inspectJob), output.inspectJob)
-      const riskChanged = output !== undefined
-        && news.riskJob !== undefined
-        && !jsonEqual(news.riskJob, output.riskJob)
+        && resolved.inspectJob !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, userInspectJob(resolved.inspectJob), output.inspectJob),
+            catch: (e) => e,
+          }),
+        ))
+      const riskChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          output !== undefined
+          && resolved.riskJob !== undefined
+          && !jsonEqual(resolved.riskJob, output.riskJob),
+        catch: (e) => e,
+      }))
       if (idChanged || locationChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -270,7 +286,9 @@ export const LocationsDlpJobProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, LOCATION)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, LOCATION), catch: (e) => e }),
+      )
       const jobId = try toJobId(id, olds?.jobId, output?.jobId)
       const name = output?.name
         ?? resourceName(
@@ -284,12 +302,17 @@ export const LocationsDlpJobProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       const hybrid = hybridOf(existing)
       const owned = try ownedByAlchemy(id, hybrid?.description)
-      return owned || hasHybridOwnership(hybrid?.labels) ? attrs : Unowned(attrs)
+      return owned
+          || (try Effect.orDie(Effect.try({ try: () => hasHybridOwnership(hybrid?.labels), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const parent = locationParent(env.project, LOCATION)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, LOCATION), catch: (e) => e }),
+      )
       const inspect = try listType(parent, "INSPECT_JOB")
       const risk = try listType(parent, "RISK_ANALYSIS_JOB")
       const rows = try Effect.forEach(
@@ -313,7 +336,9 @@ export const LocationsDlpJobProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, LOCATION)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, LOCATION), catch: (e) => e }),
+      )
       const jobId = try toJobId(id, news.jobId, output?.jobId)
       const name = resourceName(env.project, location, jobId, news.riskJob !== undefined)
       const ownership = try createInternalLabels(id)

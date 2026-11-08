@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as lf from "@distilled.cloud/aws/lakeformation"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -59,15 +60,17 @@ export const OptInProvider = (): infer _ =>
     OptIn,
     effect {
       const observe = effect (principal: string, resource: lf.Resource) => {
-        const pages = (try (lf.listLakeFormationOptIns
-          .pages({
-            Principal: { DataLakePrincipalIdentifier: principal },
-            Resource: resource,
-          })
-          |> Stream.runCollect(%))) catch effect (e) => match (e) {
-            when { _tag: "EntityNotFoundException" } or { _tag: "InvalidLakeFormationPrincipal" }: [];
-            default: throw e;
-          }
+        const pages = (effect {
+          return (try (lf.listLakeFormationOptIns
+            .pages({
+              Principal: { DataLakePrincipalIdentifier: principal },
+              Resource: resource,
+            })
+            |> Stream.runCollect(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "EntityNotFoundException" } or { _tag: "InvalidLakeFormationPrincipal" }: [];
+          default: throw e;
+        }
         return Array.from(pages)
           .flatMap((page) => page.LakeFormationOptInsInfoList ?? [])
           .find((info) => info.Principal?.DataLakePrincipalIdentifier === principal)
@@ -93,7 +96,9 @@ export const OptInProvider = (): infer _ =>
 
         read: effect ({ olds, output }) => {
           const principal = output?.principal ?? olds?.principal
-          const resource = output?.resource ?? (olds !== undefined ? toWireResource(olds.resource) : undefined)
+          const resource = output?.resource ?? (olds !== undefined
+            ? try Effect.orDie(Effect.try({ try: () => toWireResource(olds.resource), catch: (e) => e }))
+            : undefined)
           if (principal === undefined || resource === undefined) {
             return undefined
           }
@@ -103,12 +108,20 @@ export const OptInProvider = (): infer _ =>
           return { principal, resource }
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.principal !== olds.principal
-            || JSON.stringify(toWireResource(news.resource))
-              !== JSON.stringify(toWireResource(olds.resource))
+            || JSON.stringify(
+                try Effect.orDie(Effect.try({
+                  try: () => toWireResource(news.resource),
+                  catch: (e) => e,
+                })),
+              )
+              !== JSON.stringify(
+                try Effect.orDie(Effect.try({ try: () => toWireResource(olds.resource), catch: (e) => e })),
+              )
           ) {
             // an opt-in has no mutable body — any change replaces it
             return { action: "replace" } as const
@@ -116,7 +129,7 @@ export const OptInProvider = (): infer _ =>
         },
 
         reconcile: effect ({ news, session }) => {
-          const resource = toWireResource(news.resource)
+          const resource = try Effect.orDie(Effect.try({ try: () => toWireResource(news.resource), catch: (e) => e }))
 
           // 1. OBSERVE
           const found = try observe(news.principal, resource)
@@ -145,7 +158,8 @@ export const OptInProvider = (): infer _ =>
               },
               Resource: output.resource,
             }) catch effect (e) => match (e) {
-              when { _tag: "EntityNotFoundException" } or { _tag: "InvalidLakeFormationPrincipal" }: try Effect.void;
+              when { _tag: "EntityNotFoundException" } or { _tag: "InvalidLakeFormationPrincipal" }:
+                (undefined as void);
               default: throw e;
             }
         },

@@ -556,7 +556,7 @@ const needsUpdate = (current: compute.HealthCheck, desired: compute.HealthCheck)
 const getByName = effect (project: string, healthCheck: string) =>
   compute
     .getHealthChecks({ project, healthCheck }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -573,14 +573,17 @@ export const HealthCheckProvider = (): infer _ =>
     stables: ["healthCheckName", "project", "healthCheckId", "selfLink", "creationTimestamp"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.healthCheckName ?? output?.healthCheckName
-      const nextName = news.healthCheckName
+      const nextName = resolved.healthCheckName
       if (previousName !== undefined && nextName !== undefined && previousName !== nextName) {
         return { action: "replace" as const }
       }
       const previousType = (olds !== undefined ? inferType(olds) : undefined) ?? output?.type
-      const nextType = inferType(news)
+      const nextType = inferType(resolved)
       if (previousType !== undefined && previousType !== nextType) {
         return {
           action: "replace" as const,
@@ -597,7 +600,9 @@ export const HealthCheckProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -622,14 +627,16 @@ export const HealthCheckProvider = (): infer _ =>
       let current = try getByName(env.project, healthCheckName)
 
       if (current === undefined) {
-        ;(try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertHealthChecks({
-              project: env.project,
-              body: desired,
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertHealthChecks({
+                project: env.project,
+                body: desired,
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, healthCheckName)
       }
 
@@ -658,19 +665,21 @@ export const HealthCheckProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      const operation = (try (compute
-        .deleteHealthChecks({
-          project: env.project,
-          healthCheck: output.healthCheckName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteHealthChecks({
+            project: env.project,
+            healthCheck: output.healthCheckName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitGlobalOperation(env.project, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

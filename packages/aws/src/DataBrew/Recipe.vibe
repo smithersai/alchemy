@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as databrew from "@distilled.cloud/aws/databrew"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -157,7 +158,7 @@ export const RecipeProvider = (): infer _ =>
       const observeWorking = effect (name: string) =>
         databrew
           .describeRecipe({ Name: name, RecipeVersion: "LATEST_WORKING" }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -208,11 +209,14 @@ export const RecipeProvider = (): infer _ =>
             recipeVersion: latestPublished(versions) ?? "LATEST_WORKING",
           }
           const tags = cleanMap(recipe.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -238,7 +242,10 @@ export const RecipeProvider = (): infer _ =>
                 Description: news.description,
                 Steps: desiredSteps,
                 Tags: desiredTags,
-              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (undefined as void);
+                default: throw e;
+              }
             changed = true
             recipe = try observeWorking(name)
           } else if (
@@ -283,16 +290,18 @@ export const RecipeProvider = (): infer _ =>
           const name = output.recipeName
           // A recipe is deleted by deleting all of its versions: published
           // versions first (batched), then LATEST_WORKING.
-          const versions = (Array.from(
-            try (databrew.listRecipeVersions.pages({ Name: name })
-              |> Stream.runCollect(%)),
-          )
-            .flatMap((page) => page.Recipes ?? [])
-            .map((r) => r.RecipeVersion)
-            .filter((v): v is string => v !== undefined)) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: [] as string[];
-              default: throw e;
-            }
+          const versions = (effect {
+            return (Array.from(
+              try (databrew.listRecipeVersions.pages({ Name: name })
+                |> Stream.runCollect(%)),
+            )
+              .flatMap((page) => page.Recipes ?? [])
+              .map((r) => r.RecipeVersion)
+              .filter((v): v is string => v !== undefined))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: [] as string[];
+            default: throw e;
+          }
           if (versions.length > 0) {
             retryWhileConflict(
               databrew.batchDeleteRecipeVersion({
@@ -300,7 +309,7 @@ export const RecipeProvider = (): infer _ =>
                 RecipeVersions: versions,
               }),
             ) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           }
@@ -310,7 +319,7 @@ export const RecipeProvider = (): infer _ =>
               RecipeVersion: "LATEST_WORKING",
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         },

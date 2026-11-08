@@ -206,7 +206,7 @@ export const AuthorizerProvider = (): infer _ =>
       const getAuthorizerSafe = effect (apiId: string, authorizerId: string) =>
         agw2
           .getAuthorizer({ ApiId: apiId, AuthorizerId: authorizerId }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -214,16 +214,20 @@ export const AuthorizerProvider = (): infer _ =>
         stables: ["apiId", "authorizerId"],
 
         list: effect () => {
-          const apis = try collectAllPages((NextToken) => agw2.getApis({ NextToken }))
+          const apis = try collectAllPages(effect (NextToken) => try agw2.getApis({ NextToken }))
           const perApi = try Effect.forEach(
             apis.filter((api) => api.ApiId != null),
             effect (api) =>
-              ((try collectAllPages((NextToken) => agw2.getAuthorizers({ ApiId: api.ApiId!, NextToken })))
-                .filter((auth) => auth.AuthorizerId != null)
-                .map((auth) => snapshotFromAuthorizer(api.ApiId!, auth))) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: [] as AuthorizerType["Attributes"][];
-                  default: throw e;
-                },
+              (effect {
+                return ((try collectAllPages(effect (NextToken) =>
+                  try agw2.getAuthorizers({ ApiId: api.ApiId!, NextToken })
+                ))
+                  .filter((auth) => auth.AuthorizerId != null)
+                  .map((auth) => snapshotFromAuthorizer(api.ApiId!, auth)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: [] as AuthorizerType["Attributes"][];
+                default: throw e;
+              },
             { concurrency: 5 },
           )
           return perApi.flat()
@@ -236,8 +240,9 @@ export const AuthorizerProvider = (): infer _ =>
           return snapshotFromAuthorizer(output.apiId, auth)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.apiId !== olds.apiId) {
             return { action: "replace" } as const
           }
@@ -264,7 +269,9 @@ export const AuthorizerProvider = (): infer _ =>
                 AuthorizerUri: news.authorizerUri,
                 AuthorizerPayloadFormatVersion: news.authorizerPayloadFormatVersion,
                 EnableSimpleResponses: news.enableSimpleResponses,
-                AuthorizerResultTtlInSeconds: toWireSeconds(news.authorizerResultTtl),
+                AuthorizerResultTtlInSeconds: try Effect.orDie(
+                  Effect.try({ try: () => toWireSeconds(news.authorizerResultTtl), catch: (e) => e }),
+                ),
                 AuthorizerCredentialsArn: news.authorizerCredentialsArn,
                 IdentityValidationExpression: news.identityValidationExpression,
               }),
@@ -275,13 +282,21 @@ export const AuthorizerProvider = (): infer _ =>
 
           // 3. SYNC — update on drift.
           const snapshot = snapshotFromAuthorizer(apiId, observed)
-          const desiredTtlSeconds = toWireSeconds(news.authorizerResultTtl)
+          const desiredTtlSeconds = try Effect.orDie(
+            Effect.try({ try: () => toWireSeconds(news.authorizerResultTtl), catch: (e) => e }),
+          )
           const drift = snapshot.name !== name
             || snapshot.authorizerType !== news.authorizerType
             || (news.identitySource !== undefined
-              && !deepEqual(snapshot.identitySource, news.identitySource))
+              && !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(snapshot.identitySource, news.identitySource),
+                catch: (error) => error,
+              }))))
             || (news.jwtConfiguration !== undefined
-              && !deepEqual(snapshot.jwtConfiguration, news.jwtConfiguration))
+              && !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(snapshot.jwtConfiguration, news.jwtConfiguration),
+                catch: (error) => error,
+              }))))
             || snapshot.authorizerUri !== news.authorizerUri
             || snapshot.authorizerPayloadFormatVersion !== news.authorizerPayloadFormatVersion
             || (news.enableSimpleResponses !== undefined
@@ -322,7 +337,7 @@ export const AuthorizerProvider = (): infer _ =>
                   ApiId: output.apiId,
                   AuthorizerId: output.authorizerId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

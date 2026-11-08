@@ -238,21 +238,25 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsSecuritySettings.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securitySettings ?? []))
-      |> Stream.filter(%, (settings) => hasOwnershipMarker(settings.displayName))
-      |> Stream.map(%, (settings) => toAttrs(settings, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsSecuritySettings.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securitySettings ?? []))
+        |> Stream.filter(%, (settings) => hasOwnershipMarker(settings.displayName))
+        |> Stream.map(%, (settings) => toAttrs(settings, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsSecuritySettings.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securitySettings ?? []))
-      |> Stream.filter(%, (settings) => settings.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsSecuritySettings.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securitySettings ?? []))
+        |> Stream.filter(%, (settings) => settings.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const SecuritySettingProvider = (): infer _ =>
@@ -260,20 +264,27 @@ export const SecuritySettingProvider = (): infer _ =>
     stables: ["name", "securitySettingsId", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
       if (
-        previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousLocation !== undefined
+            && resolved.location !== undefined
+            && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.securitySettingsId ?? output?.securitySettingsId
       if (
         previousId !== undefined
-        && news.securitySettingsId !== undefined
-        && news.securitySettingsId !== previousId
+        && resolved.securitySettingsId !== undefined
+        && resolved.securitySettingsId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -282,7 +293,9 @@ export const SecuritySettingProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const securitySettingsId = try toResourceId(
         id,
         olds?.securitySettingsId,
@@ -293,20 +306,28 @@ export const SecuritySettingProvider = (): infer _ =>
       if (existing === undefined && output?.name === undefined) {
         const ownership = try internalLabels(id)
         existing = try findByDisplayName(
-          locationParent(env.project, location),
-          encodeOwnershipLine(ownership, olds?.displayName),
+          try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e })),
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const pages = try Effect.forEach(
-        listLocations(env.region),
-        effect (location) => try listAt(locationParent(env.project, location), env.project),
+        try Effect.orDie(Effect.try({ try: () => listLocations(env.region), catch: (e) => e })),
+        effect (location) =>
+          try listAt(
+            try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e })),
+            env.project,
+          ),
         { concurrency: 2 },
       )
       return pages.flat()
@@ -315,8 +336,15 @@ export const SecuritySettingProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
-        const parent = locationParent(env.project, location)
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const parent = try Effect.orDie(
+          Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+        )
         const securitySettingsId = try toResourceId(
           id,
           news.securitySettingsId,
@@ -324,7 +352,9 @@ export const SecuritySettingProvider = (): infer _ =>
         )
         const name = output?.name ?? resourceName(env.project, location, securitySettingsId)
         const ownership = try internalLabels(id)
-        const displayName = encodeOwnershipLine(ownership, news.displayName)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
         const body: dialogflow.GoogleCloudDialogflowCxV3SecuritySettings = {
           displayName,
           redactionStrategy: news.redactionStrategy,
@@ -365,10 +395,20 @@ export const SecuritySettingProvider = (): infer _ =>
         const scopeChanged = !sameText(current.redactionScope, news.redactionScope)
         const inspectChanged = !sameText(current.inspectTemplate, news.inspectTemplate)
         const deidentifyChanged = !sameText(current.deidentifyTemplate, news.deidentifyTemplate)
-        const purgeChanged = fingerprint(current.purgeDataTypes) !== fingerprint(news.purgeDataTypes)
-        const audioChanged = fingerprint(audioOf(current.audioExportSettings)) !== fingerprint(news.audioExportSettings)
-        const insightsChanged = fingerprint(insightsOf(current.insightsExportSettings))
-          !== fingerprint(news.insightsExportSettings)
+        const purgeChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.purgeDataTypes), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({
+              try: () => fingerprint(news.purgeDataTypes),
+              catch: (e) => e,
+            })))
+        const value = audioOf(current.audioExportSettings)
+        const audioChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.audioExportSettings), catch: (e) => e })))
+        const value2 = insightsOf(current.insightsExportSettings)
+        const insightsChanged = (try Effect.orDie(Effect.try({ try: () => fingerprint(value2), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.insightsExportSettings), catch: (e) => e })))
         const windowChanged = (current.retentionWindowDays ?? 0) !== (news.retentionWindowDays ?? 0)
         const retentionStrategyChanged = !sameText(current.retentionStrategy, body.retentionStrategy)
 
@@ -386,18 +426,22 @@ export const SecuritySettingProvider = (): infer _ =>
         ) {
           current = try dialogflow.patchProjectsLocationsSecuritySettings({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              strategyChanged ? "redaction_strategy" : undefined,
-              scopeChanged ? "redaction_scope" : undefined,
-              inspectChanged ? "inspect_template" : undefined,
-              deidentifyChanged ? "deidentify_template" : undefined,
-              purgeChanged ? "purge_data_types" : undefined,
-              audioChanged ? "audio_export_settings" : undefined,
-              insightsChanged ? "insights_export_settings" : undefined,
-              windowChanged ? "retention_window_days" : undefined,
-              retentionStrategyChanged ? "retention_strategy" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  strategyChanged ? "redaction_strategy" : undefined,
+                  scopeChanged ? "redaction_scope" : undefined,
+                  inspectChanged ? "inspect_template" : undefined,
+                  deidentifyChanged ? "deidentify_template" : undefined,
+                  purgeChanged ? "purge_data_types" : undefined,
+                  audioChanged ? "audio_export_settings" : undefined,
+                  insightsChanged ? "insights_export_settings" : undefined,
+                  windowChanged ? "retention_window_days" : undefined,
+                  retentionStrategyChanged ? "retention_strategy" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }

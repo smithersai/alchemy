@@ -85,7 +85,7 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
@@ -130,14 +130,14 @@ export const hasOwnershipMarker = (text: string | undefined) =>
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>
   JSON.stringify([...(left ?? [])].map(canonicalizeLink).sort()) ===
   JSON.stringify([...(right ?? [])].map(canonicalizeLink).sort());
 
-export const canonicalizeLink = (value: string | undefined) => {
+export const canonicalizeLink = /** @throws {never} */ (value: string | undefined) => {
   if (value === undefined || value.length === 0) return "";
   return value
     .replace(/^https?:\/\/[^/]+\//, "")
@@ -229,4 +229,4 @@ export const collectPages = <Page, Item, E extends { readonly _tag: string }, R>
     ),
   );
 
-export { waitForOperation } from "./operations.vibe";
+export { waitForOperation } from "./operations.ts";

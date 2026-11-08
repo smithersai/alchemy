@@ -223,21 +223,25 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsTools.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tools ?? []))
-      |> Stream.filter(%, (tool) => hasOwnershipMarker(tool.displayName) || hasOwnershipMarker(tool.description))
-      |> Stream.map(%, (tool) => toAttrs(tool, project, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsTools.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tools ?? []))
+        |> Stream.filter(%, (tool) => hasOwnershipMarker(tool.displayName) || hasOwnershipMarker(tool.description))
+        |> Stream.map(%, (tool) => toAttrs(tool, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsTools.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tools ?? []))
-      |> Stream.filter(%, (tool) => tool.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsTools.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tools ?? []))
+        |> Stream.filter(%, (tool) => tool.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 const toBody = (
@@ -260,17 +264,20 @@ export const AgentsToolProvider = (): infer _ =>
     stables: ["name", "toolId", "agent", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
-      if (previousAgent !== undefined && news.agent !== previousAgent) {
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.toolId ?? output?.toolId
-      if (previousId !== undefined && news.toolId !== undefined && news.toolId !== previousId) {
+      if (previousId !== undefined && resolved.toolId !== undefined && resolved.toolId !== previousId) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousKind = specKind(olds ?? output ?? {})
-      const nextKind = specKind(news)
+      const nextKind = specKind(resolved)
       if (previousKind !== nextKind && previousKind !== "function") {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -279,8 +286,12 @@ export const AgentsToolProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
       const toolId = try toResourceId(id, olds?.toolId, output?.toolId)
       const name = output?.name ?? (agent !== undefined ? resourceName(agent, toolId) : "")
       let existing = try getByName(name)
@@ -288,14 +299,16 @@ export const AgentsToolProvider = (): infer _ =>
         const ownership = try internalLabels(id)
         existing = try findByDisplayName(
           agent,
-          encodeOwnershipLine(ownership, olds?.displayName),
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, agent)
       const named = try ownedByAlchemy(id, existing.displayName)
       const described = try ownedByAlchemy(id, existing.description)
-      return named || described ? attrs : Unowned(attrs)
+      return named || described ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -310,13 +323,24 @@ export const AgentsToolProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
-        const agent = expandAgent(news.agent, env.project, location)
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
         const toolId = try toResourceId(id, news.toolId, output?.toolId)
         const name = output?.name ?? resourceName(agent, toolId)
         const ownership = try internalLabels(id)
-        const displayName = encodeOwnershipLine(ownership, news.displayName)
-        const description = encodeOwnership(ownership, news.description)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
         const body = toBody(news, displayName, description)
 
         let current = try getByName(output?.name ?? name)
@@ -343,9 +367,17 @@ export const AgentsToolProvider = (): infer _ =>
         const currentName = current.name ?? name
         const displayChanged = (current.displayName ?? "") !== displayName
         const descriptionChanged = (current.description ?? "") !== description
-        const functionChanged = fingerprint(functionSpecOf(current.functionSpec)) !== fingerprint(body.functionSpec)
-        const openApiChanged = fingerprint(current.openApiSpec) !== fingerprint(body.openApiSpec)
-        const dataStoreChanged = fingerprint(current.dataStoreSpec) !== fingerprint(body.dataStoreSpec)
+        const value = functionSpecOf(current.functionSpec)
+        const functionChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(body.functionSpec), catch: (e) => e })))
+        const openApiChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.openApiSpec), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: () => fingerprint(body.openApiSpec), catch: (e) => e })))
+        const dataStoreChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.dataStoreSpec), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: () => fingerprint(body.dataStoreSpec), catch: (e) => e })))
 
         if (
           displayChanged
@@ -356,13 +388,17 @@ export const AgentsToolProvider = (): infer _ =>
         ) {
           current = try dialogflow.patchProjectsLocationsAgentsTools({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              descriptionChanged ? "description" : undefined,
-              functionChanged && body.functionSpec ? "function_spec" : undefined,
-              openApiChanged && body.openApiSpec ? "open_api_spec" : undefined,
-              dataStoreChanged && body.dataStoreSpec ? "data_store_spec" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  functionChanged && body.functionSpec ? "function_spec" : undefined,
+                  openApiChanged && body.openApiSpec ? "open_api_spec" : undefined,
+                  dataStoreChanged && body.dataStoreSpec ? "data_store_spec" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }

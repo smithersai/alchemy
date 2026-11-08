@@ -1,7 +1,7 @@
+import * as Effect from "effect/Effect"
 import type * as TSW from "@distilled.cloud/aws/timestream-write"
 import * as Output from "alchemy/Output"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import { RecordsSink, type RecordsSinkProps, type RecordsSinkRecord } from "./RecordsSink.vibe"
@@ -51,30 +51,43 @@ export const RecordsSinkHttp = Layer.effect(
       }
       const write = try writeRecords(table)
       const commonAttributes = props?.commonAttributes
-      return makeBatchedSink<RecordsSinkRecord, WriteOutcome, WriteSendError>({
-        maxRecords: 100,
-        send: (batch) =>
-          write({
-            Records: [...batch],
-            ...(commonAttributes === undefined ? {} : { CommonAttributes: commonAttributes }),
-          })
-          |> Effect.map(%, () => noRejections)
-          // Timestream ingests the valid subset and reports invalid records
-          // positionally via RejectedRecordsException. Rejections are
-          // permanent (schema conflicts, out-of-retention timestamps,
-          // version conflicts) — drop them, never retry.
-          |> Effect.catchTag(%, "RejectedRecordsException", (error) =>
-            Effect.succeed<WriteOutcome>({
-              rejectedIndices: new Set(
-                (error.RejectedRecords ?? []).flatMap((rejected: TSW.RejectedRecord) =>
-                  rejected.RecordIndex === undefined ? [] : [rejected.RecordIndex]
+      return (try effect {
+        const sinkOptions: Parameters<typeof makeBatchedSink<RecordsSinkRecord, WriteOutcome, WriteSendError>>[0] = {
+          maxRecords: 100,
+          send: effect (batch) =>
+            write({
+              Records: [...batch],
+              ...(commonAttributes === undefined ? {} : { CommonAttributes: commonAttributes }),
+            })
+            |> Effect.map(%, () => noRejections)
+            // Timestream ingests the valid subset and reports invalid records
+            // positionally via RejectedRecordsException. Rejections are
+            // permanent (schema conflicts, out-of-retention timestamps,
+            // version conflicts) — drop them, never retry.
+            |> try Effect.catchTag(%, "RejectedRecordsException", effect (error) =>
+              try Effect.succeed<WriteOutcome>({
+                rejectedIndices: new Set(
+                  try Effect.orDie(Effect.try({
+                    try: () =>
+                      (error.RejectedRecords ?? []).flatMap(effect (rejected: TSW.RejectedRecord) =>
+                        rejected.RecordIndex === undefined ? [] : [rejected.RecordIndex]
+                      ),
+                    catch: (e) =>
+                      e,
+                  })),
                 ),
-              ),
-            })),
-        rejected: (out, batch): infer _ =>
-          out.rejectedIndices.size === 0
-            ? []
-            : batch.filter((_, index) => out.rejectedIndices.has(index)),
+              })),
+          rejected: (out, batch): infer _ =>
+            out.rejectedIndices.size === 0
+              ? []
+              : batch.filter((_, index) => out.rejectedIndices.has(index)),
+        }
+        return try Effect.orDie(
+          Effect.try({
+            try: () => makeBatchedSink<RecordsSinkRecord, WriteOutcome, WriteSendError>(sinkOptions),
+            catch: (error) => error,
+          }),
+        )
       })
     }
   },

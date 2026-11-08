@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cip from "@distilled.cloud/aws/cognito-identity-provider"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -86,8 +87,10 @@ export const GroupProvider = (): infer _ =>
         props.groupName ?? (try createPhysicalName({ id, maxLength: 128 }))
 
       const getGroup = effect (userPoolId: string, groupName: string) =>
-        (try cip.getGroup({ UserPoolId: userPoolId, GroupName: groupName })).Group catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try cip.getGroup({ UserPoolId: userPoolId, GroupName: groupName })).Group
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -108,8 +111,9 @@ export const GroupProvider = (): infer _ =>
           return observed === undefined ? undefined : { groupName: name, userPoolId }
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (oldName !== newName || olds?.userPoolId !== news?.userPoolId) {
@@ -126,17 +130,19 @@ export const GroupProvider = (): infer _ =>
 
           // 2. ENSURE — tolerate the create race.
           if (observed === undefined) {
-            observed = (try cip
-              .createGroup({
-                UserPoolId: userPoolId,
-                GroupName: groupName,
-                Description: news.description,
-                RoleArn: news.roleArn,
-                Precedence: news.precedence,
-              })).Group catch effect (e) => match (e) {
-                when { _tag: "GroupExistsException" }: try getGroup(userPoolId, groupName);
-                default: throw e;
-              }
+            observed = (effect {
+              return (try cip
+                .createGroup({
+                  UserPoolId: userPoolId,
+                  GroupName: groupName,
+                  Description: news.description,
+                  RoleArn: news.roleArn,
+                  Precedence: news.precedence,
+                })).Group
+            }) catch effect (e) => match (e) {
+              when { _tag: "GroupExistsException" }: try getGroup(userPoolId, groupName);
+              default: throw e;
+            }
           } else {
             // 3. SYNC — description/role/precedence are mutable in place.
             const drift = (news.description !== undefined && observed.Description !== news.description)
@@ -166,7 +172,7 @@ export const GroupProvider = (): infer _ =>
               UserPoolId: output.userPoolId,
               GroupName: output.groupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

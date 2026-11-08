@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as signer from "@distilled.cloud/aws/signer"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -195,7 +196,7 @@ export const SigningProfileProvider = (): infer _ =>
       const getProfile = effect (profileName: string) =>
         signer
           .getSigningProfile({ profileName }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -245,11 +246,14 @@ export const SigningProfileProvider = (): infer _ =>
           if (live === undefined || live.status !== "Active") return undefined
           const attrs = toAttributes(profileName, live)
           const tags = toTagRecord(live.tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -297,26 +301,34 @@ export const SigningProfileProvider = (): infer _ =>
                 signingParameters: news.signingParameters,
                 tags: desiredTags,
               }) catch effect (e) => match (e) {
-                when { _tag: "SigningProfileAlreadyExists" }: try Effect.void;
+                when { _tag: "SigningProfileAlreadyExists" }: (undefined as void);
                 default: throw e;
               }
             live = try getProfile(profileName)
           }
           if (live === undefined) {
             // Extremely unlikely read-after-write miss; surface loudly.
-            throw signer.ResourceNotFoundException.make({
-              message: `signing profile ${profileName} not visible after PutSigningProfile`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                signer.ResourceNotFoundException.make({
+                  message: `signing profile ${profileName} not visible after PutSigningProfile`,
+                }),
+              catch: (e) => e,
+            }))
           }
           if (live.status !== "Active") {
             // The name is tombstoned by a canceled/revoked profile — Signer
             // reserves canceled names, so the profile cannot be recreated
             // under this name. Only reachable with a user-fixed profileName
             // (generated names get a fresh random suffix per instance).
-            throw signer.SigningProfileAlreadyExists.make({
-              message:
-                `signing profile ${profileName} exists with status ${live.status}; canceled profile names stay reserved — use a different profileName (or omit it to generate one)`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                signer.SigningProfileAlreadyExists.make({
+                  message:
+                    `signing profile ${profileName} exists with status ${live.status}; canceled profile names stay reserved — use a different profileName (or omit it to generate one)`,
+                }),
+              catch: (e) => e,
+            }))
           }
 
           // SYNC TAGS — diff against OBSERVED cloud tags (adoption may bring
@@ -347,7 +359,7 @@ export const SigningProfileProvider = (): infer _ =>
           // succeeds); a missing profile is not an error.
           signer
             .cancelSigningProfile({ profileName: output.profileName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

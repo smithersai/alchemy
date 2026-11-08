@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as profiles from "@distilled.cloud/aws/route53profiles"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -121,8 +122,8 @@ const retryConflict = effect <A, E extends { _tag: string }, R>(
  * @internal
  */
 const untilAssociationGone = effect <E, R>(
-  self: profiles.ProfileResourceAssociation | undefined!E!R,
-): profiles.ProfileResourceAssociation | undefined!E!R =>
+  self: (profiles.ProfileResourceAssociation | undefined)!E!R,
+): (profiles.ProfileResourceAssociation | undefined)!E!R =>
   try (self
     |> Effect.repeat(%, {
       schedule: Schedule.fixed("4 seconds"),
@@ -163,27 +164,31 @@ export const ProfileResourceAssociationProvider = (): infer _ =>
           : undefined
 
       const observeById = effect (profileResourceAssociationId: string) =>
-        (isLive(
-          (try profiles
-            .getProfileResourceAssociation({
-              ProfileResourceAssociationId: profileResourceAssociationId,
-            })).ProfileResourceAssociation,
-        )) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (isLive(
+            (try profiles
+              .getProfileResourceAssociation({
+                ProfileResourceAssociationId: profileResourceAssociationId,
+              })).ProfileResourceAssociation,
+          ))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
       const observeByPair = effect (profileId: string, resourceArn: string) =>
-        (Array.from(
-          try (profiles.listProfileResourceAssociations.items({ ProfileId: profileId })
-            |> Stream.runCollect(%)),
-        )
-          .filter((association) => association.ResourceArn === resourceArn)
-          .map(isLive)
-          .find((association) => association !== undefined)) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return (Array.from(
+            try (profiles.listProfileResourceAssociations.items({ ProfileId: profileId })
+              |> Stream.runCollect(%)),
+          )
+            .filter((association) => association.ResourceArn === resourceArn)
+            .map(isLive)
+            .find((association) => association !== undefined))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
 
       const toAttributes = (association: profiles.ProfileResourceAssociation): infer _ => ({
         profileResourceAssociationId: association.Id!,
@@ -206,12 +211,14 @@ export const ProfileResourceAssociationProvider = (): infer _ =>
                 |> Stream.runCollect(%)),
             ).flatMap((summary) => summary.Id !== undefined ? [summary.Id] : []),
             effect (profileId) =>
-              (try (profiles.listProfileResourceAssociations.items({ ProfileId: profileId })
-                |> Stream.runCollect(%)
-                |> Effect.map(%, Array.from<profiles.ProfileResourceAssociation>))) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: [];
-                  default: throw e;
-                },
+              (effect {
+                return (try (profiles.listProfileResourceAssociations.items({ ProfileId: profileId })
+                  |> Stream.runCollect(%)
+                  |> Effect.map(%, Array.from<profiles.ProfileResourceAssociation>)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: [];
+                default: throw e;
+              },
             { concurrency: 5 },
           ))
             .flat()
@@ -235,8 +242,9 @@ export const ProfileResourceAssociationProvider = (): infer _ =>
         },
         // Identity changes replace; name and resourceProperties update in
         // place via the default update path.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.profileId !== news.profileId || olds.resourceArn !== news.resourceArn) {
             return { action: "replace" } as const
           }
@@ -286,16 +294,18 @@ export const ProfileResourceAssociationProvider = (): infer _ =>
           return toAttributes(association)
         },
         delete: effect ({ output }) => {
-          ;(try (retryConflict(
-            profiles.disassociateResourceFromProfile({
-              ProfileId: output.profileId,
-              ResourceArn: output.resourceArn,
-            }),
-          )
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (retryConflict(
+              profiles.disassociateResourceFromProfile({
+                ProfileId: output.profileId,
+                ResourceArn: output.resourceArn,
+              }),
+            )
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
           // Disassociation drains asynchronously (~1 min). Wait (bounded) so
           // the Profile and the attached resource can be deleted right after.
           try untilAssociationGone(observeById(output.profileResourceAssociationId))

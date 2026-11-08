@@ -274,16 +274,18 @@ const matchesDesired = (
 const getByName = effect (name: string) =>
   firestore
     .getProjectsDatabasesCollectionGroupsIndexes({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOnParent = effect (parent: string) =>
-  (Array.from(
-    try (firestore.listProjectsDatabasesCollectionGroupsIndexes.pages({ parent })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.indexes ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (firestore.listProjectsDatabasesCollectionGroupsIndexes.pages({ parent })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.indexes ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: [] as firestore.GoogleFirestoreAdminV1Index[];
     default: throw e;
   }
@@ -358,30 +360,33 @@ export const DatabasesCollectionGroupsIndexProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousDatabase = databaseIdOf(
         olds?.database ?? output?.database ?? output?.databaseId ?? "",
       )
-      const nextDatabase = databaseIdOf(news.database)
+      const nextDatabase = databaseIdOf(resolved.database)
       const previousGroup = lastSegment(olds?.collectionGroup ?? output?.collectionGroupId ?? "")
-      const nextGroup = lastSegment(news.collectionGroup)
+      const nextGroup = lastSegment(resolved.collectionGroup)
       const previousFields = fieldsKey(olds?.fields ?? output?.fields)
-      const nextFields = fieldsKey(news.fields)
+      const nextFields = fieldsKey(resolved.fields)
       const previousScope = normalizeEnum(
         olds?.queryScope ?? output?.queryScope,
         DEFAULT_QUERY_SCOPE,
       )
-      const nextScope = normalizeEnum(news.queryScope, DEFAULT_QUERY_SCOPE)
+      const nextScope = normalizeEnum(resolved.queryScope, DEFAULT_QUERY_SCOPE)
       const previousApi = normalizeEnum(olds?.apiScope ?? output?.apiScope, DEFAULT_API_SCOPE)
-      const nextApi = normalizeEnum(news.apiScope, DEFAULT_API_SCOPE)
+      const nextApi = normalizeEnum(resolved.apiScope, DEFAULT_API_SCOPE)
       const previousUnique = olds?.unique === true || output?.unique === true
-      const nextUnique = news.unique === true
+      const nextUnique = resolved.unique === true
       const previousMultikey = olds?.multikey === true || output?.multikey === true
-      const nextMultikey = news.multikey === true
+      const nextMultikey = resolved.multikey === true
       const previousDensity = (olds?.density ?? output?.density ?? "").toUpperCase()
-      const nextDensity = (news.density ?? previousDensity).toUpperCase()
+      const nextDensity = (resolved.density ?? previousDensity).toUpperCase()
       const previousShards = olds?.shardCount ?? output?.shardCount
-      const nextShards = news.shardCount ?? previousShards
+      const nextShards = resolved.shardCount ?? previousShards
       if (
         (previousDatabase.length > 0 && previousDatabase !== nextDatabase)
         || (previousGroup.length > 0 && previousGroup !== nextGroup)
@@ -390,7 +395,7 @@ export const DatabasesCollectionGroupsIndexProvider = (): infer _ =>
         || previousApi !== nextApi
         || previousUnique !== nextUnique
         || previousMultikey !== nextMultikey
-        || (news.density !== undefined && previousDensity !== nextDensity)
+        || (resolved.density !== undefined && previousDensity !== nextDensity)
         || previousShards !== nextShards
       ) {
         return { action: "replace" as const }
@@ -406,7 +411,9 @@ export const DatabasesCollectionGroupsIndexProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ news, output }) => {
@@ -426,7 +433,7 @@ export const DatabasesCollectionGroupsIndexProvider = (): infer _ =>
           .createProjectsDatabasesCollectionGroupsIndexes({
             parent,
             body,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         const name = try resolveCreatedIndexName(created, parent, news)
         current = try waitUntilExists(name)
       } else if (current.name !== undefined) {
@@ -444,7 +451,7 @@ export const DatabasesCollectionGroupsIndexProvider = (): infer _ =>
       firestore
         .deleteProjectsDatabasesCollectionGroupsIndexes({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       try waitUntilGone(output.name)
     },
   })

@@ -215,28 +215,37 @@ export const SourcesMigratingVmProvider = (): infer _ =>
     stables: ["name", "migratingVmId", "source", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousSource = olds?.source ?? output?.source
       const previousVm = olds?.sourceVmId ?? output?.sourceVmId
-      const nextVm = news.sourceVmId ?? previousVm
-      return replaceOnIdentity({
-        previousId: olds?.migratingVmId ?? output?.migratingVmId,
-        nextId: news.migratingVmId ?? olds?.migratingVmId ?? output?.migratingVmId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: previousSource,
-        nextParent: news.source ?? previousSource,
-        extra: previousVm !== nextVm,
-      })
+      const nextVm = resolved.sourceVmId ?? previousVm
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.migratingVmId ?? output?.migratingVmId,
+            nextId: resolved.migratingVmId ?? olds?.migratingVmId ?? output?.migratingVmId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: previousSource,
+            nextParent: resolved.source ?? previousSource,
+            extra: previousVm !== nextVm,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const migratingVmId = try toPhysicalId(
         id,
         olds?.migratingVmId,
@@ -244,13 +253,18 @@ export const SourcesMigratingVmProvider = (): infer _ =>
         "migratingvm",
       )
       const source = olds?.source !== undefined
-        ? sourceOf(olds.source, env.project, location)
+        ? try Effect.orDie(Effect.try({ try: () => sourceOf(olds.source, env.project, location), catch: (e) => e }))
         : (output?.source ?? "")
       const name = output?.name ?? (source.length > 0 ? resourceName(source, migratingVmId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -263,8 +277,12 @@ export const SourcesMigratingVmProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const source = sourceOf(news.source, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const source = try Effect.orDie(
+        Effect.try({ try: () => sourceOf(news.source, env.project, location), catch: (e) => e }),
+      )
       const migratingVmId = try toPhysicalId(
         id,
         news.migratingVmId,
@@ -273,7 +291,7 @@ export const SourcesMigratingVmProvider = (): infer _ =>
       )
       const name = resourceName(source, migratingVmId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? migratingVmId
@@ -310,23 +328,46 @@ export const SourcesMigratingVmProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = (current.displayName ?? "") !== displayName
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
-      const policyChanged = fingerprint(current.policy) !== fingerprint(news.policy)
-      const vmTargetChanged = fingerprint(userVmTarget(current.computeEngineTargetDefaults))
-        !== fingerprint(userVmTarget(news.computeEngineTargetDefaults))
-      const disksTargetChanged = fingerprint(userDisksTarget(current.computeEngineDisksTargetDefaults))
-        !== fingerprint(userDisksTarget(news.computeEngineDisksTargetDefaults))
-      const mask = fieldMask([
-        labelsChanged && "labels",
-        displayNameChanged && "displayName",
-        descriptionChanged && "description",
-        policyChanged && "policy",
-        vmTargetChanged && "computeEngineTargetDefaults",
-        disksTargetChanged && "computeEngineDisksTargetDefaults",
-      ])
+      const policyChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.policy), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.policy),
+            catch: (e) => e,
+          })))
+      const value = userVmTarget(current.computeEngineTargetDefaults)
+      const vmTargetChanged = (try Effect.orDie(Effect.try({ try: () => fingerprint(value), catch: (e) => e })))
+        !== (try Effect.orDie(
+          Effect.try({
+            try: fingerprint.bind(undefined, userVmTarget(news.computeEngineTargetDefaults)),
+            catch: (e) => e,
+          }),
+        ))
+      const value3 = userDisksTarget(current.computeEngineDisksTargetDefaults)
+      const disksTargetChanged = (try Effect.orDie(Effect.try({ try: () => fingerprint(value3), catch: (e) => e })))
+        !== (try Effect.orDie(
+          Effect.try({
+            try: fingerprint.bind(undefined, userDisksTarget(news.computeEngineDisksTargetDefaults)),
+            catch: (e) => e,
+          }),
+        ))
+      const mask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            labelsChanged && "labels",
+            displayNameChanged && "displayName",
+            descriptionChanged && "description",
+            policyChanged && "policy",
+            vmTargetChanged && "computeEngineTargetDefaults",
+            disksTargetChanged && "computeEngineDisksTargetDefaults",
+          ]),
+        catch: (e) => e,
+      }))
 
       if (mask.length > 0) {
         const operation = try vm.patchProjectsLocationsSourcesMigratingVms({
@@ -350,13 +391,15 @@ export const SourcesMigratingVmProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vm
-        .deleteProjectsLocationsSourcesMigratingVms({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vm
+          .deleteProjectsLocationsSourcesMigratingVms({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

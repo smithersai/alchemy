@@ -427,7 +427,7 @@ const toAttrs = (policy: compute.PacketMirroring, project: string): infer _ => {
 const getByName = effect (project: string, region: string, packetMirroring: string) =>
   compute
     .getPacketMirrorings({ project, region, packetMirroring }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -457,16 +457,19 @@ export const PacketMirroringProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.packetMirroringName ?? output?.packetMirroringName
-      const nextName = news.packetMirroringName ?? previousName
+      const nextName = resolved.packetMirroringName ?? previousName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? previousRegion, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? previousRegion, env.region)
       const previousNetwork = lastSegment(olds?.network ?? output?.network)
-      const nextNetwork = lastSegment(news.network)
+      const nextNetwork = lastSegment(resolved.network)
       const previousDescription = olds?.description ?? output?.description ?? ""
-      const nextDescription = news.description ?? ""
+      const nextDescription = resolved.description ?? ""
 
       const replace = (previousName !== undefined && nextName !== undefined && previousName !== nextName)
         || previousRegion !== nextRegion
@@ -495,7 +498,9 @@ export const PacketMirroringProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -554,7 +559,7 @@ export const PacketMirroringProvider = (): infer _ =>
                 mirroredResources: desiredMirrored,
                 filter: desiredFilter,
               },
-            }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+            }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         }
           |> Effect.retry(%, {
             while: (error) => error._tag === "CollectorIlbNotReady",
@@ -628,21 +633,23 @@ export const PacketMirroringProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       const region = normalizeRegion(output.region, env.region)
-      const operation = (try (compute
-        .deletePacketMirrorings({
-          project: env.project,
-          region,
-          packetMirroring: output.packetMirroringName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deletePacketMirrorings({
+            project: env.project,
+            region,
+            packetMirroring: output.packetMirroringName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitRegionOperation(env.project, region, operation, {
           ignore: ["RESOURCE_NOT_FOUND"],
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
     },
   })

@@ -320,7 +320,7 @@ const getByName = effect (name: string) =>
     }
 
 const listOwnedAt = effect (project: string, location: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (bigqueryreservation.listProjectsLocationsReservations
       .pages({
         parent: parentOf(project, location),
@@ -330,7 +330,7 @@ const listOwnedAt = effect (project: string, location: string) =>
       |> Stream.filter(%, (item) => Object.keys(item.labels ?? {}).some((key) => key.startsWith("alchemy-")))
       |> Stream.map(%, (item) => toAttrs(item, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const desiredAutoscale = (news: ReservationProps): bigqueryreservation.Autoscale | undefined =>
   news.autoscale === undefined ? undefined : compact({ maxSlots: news.autoscale.maxSlots })
@@ -374,17 +374,18 @@ export const ReservationProvider = (): infer _ =>
     stables: ["name", "reservationId", "project", "location", "edition", "creationTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousId = olds?.reservationId ?? output?.reservationId
-      const nextId = news.reservationId ?? previousId
+      const nextId = resolved.reservationId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location ?? env.region)
       const previousEdition = normalizeEdition(olds?.edition ?? output?.edition)
-      const nextEdition = normalizeEdition(news.edition ?? previousEdition)
+      const nextEdition = normalizeEdition(resolved.edition ?? previousEdition)
       const previousAuxiliary = olds?.multiRegionAuxiliary ?? output?.multiRegionAuxiliary
-      const nextAuxiliary = news.multiRegionAuxiliary ?? previousAuxiliary ?? false
+      const nextAuxiliary = resolved.multiRegionAuxiliary ?? previousAuxiliary ?? false
 
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -406,7 +407,7 @@ export const ReservationProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -430,7 +431,7 @@ export const ReservationProvider = (): infer _ =>
       const name = resourceName(env.project, location, reservationId)
       const parent = parentOf(env.project, location)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const edition = normalizeEdition(news.edition ?? output?.edition)
@@ -459,7 +460,7 @@ export const ReservationProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const slotCapacityChanged = slotCapacityOf(current.slotCapacity) !== slotCapacity
       const ignoreIdleSlotsChanged = (current.ignoreIdleSlots === true) !== ignoreIdleSlots

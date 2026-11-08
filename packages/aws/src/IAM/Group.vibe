@@ -3,8 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { parsePolicyDocument, stringifyPolicyDocument } from "./common.vibe"
 import type { PolicyDocument } from "./Policy.vibe"
@@ -94,16 +92,18 @@ export const GroupProvider = (): infer _ =>
             |> Stream.runCollect(%)),
         )
         const entries = try Effect.forEach(policyNames, effect (policyName) =>
-          ([
-            policyName,
-            parsePolicyDocument(
-              (try iam
-                .getGroupPolicy({
-                  GroupName: groupName,
-                  PolicyName: policyName,
-                })).PolicyDocument,
-            ),
-          ] as const) catch effect (e) => match (e) {
+          (effect {
+            return ([
+              policyName,
+              parsePolicyDocument(
+                (try iam
+                  .getGroupPolicy({
+                    GroupName: groupName,
+                    PolicyName: policyName,
+                  })).PolicyDocument,
+              ),
+            ] as const)
+          }) catch effect (e) => match (e) {
             when { _tag: "NoSuchEntityException" }: [policyName, undefined] as const;
             default: throw e;
           })
@@ -148,7 +148,7 @@ export const GroupProvider = (): infer _ =>
                 GroupName: groupName,
                 PolicyArn: policyArn,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -180,7 +180,7 @@ export const GroupProvider = (): infer _ =>
                 GroupName: groupName,
                 PolicyName: policyName,
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -200,21 +200,23 @@ export const GroupProvider = (): infer _ =>
           const hydrated = try Effect.forEach(
             groups,
             effect (group) =>
-              (try effect {
-                const [managedPolicyArns, inlinePolicies] = try Effect.all([
-                  readManagedPolicies(group.GroupName),
-                  readInlinePolicies(group.GroupName),
-                ])
-                return {
-                  groupArn: group.Arn,
-                  groupName: group.GroupName,
-                  groupId: group.GroupId,
-                  path: group.Path,
-                  managedPolicyArns,
-                  inlinePolicies,
-                }
+              (effect {
+                return (try effect {
+                  const [managedPolicyArns, inlinePolicies] = try Effect.all([
+                    readManagedPolicies(group.GroupName),
+                    readInlinePolicies(group.GroupName),
+                  ])
+                  return {
+                    groupArn: group.Arn,
+                    groupName: group.GroupName,
+                    groupId: group.GroupId,
+                    path: group.Path,
+                    managedPolicyArns,
+                    inlinePolicies,
+                  }
+                })
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+                when { _tag: "NoSuchEntityException" }: undefined;
                 default: throw e;
               },
             { concurrency: 10 },
@@ -222,11 +224,14 @@ export const GroupProvider = (): infer _ =>
           return hydrated.filter((g) => g !== undefined)
         },
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toName(id, olds ?? ({} as GroupProps))) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? ({} as GroupProps))) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
-          if ((olds?.path ?? "/") !== (news.path ?? "/")) {
+          if ((olds?.path ?? "/") !== (resolved.path ?? "/")) {
             return { action: "replace" } as const
           }
         },
@@ -236,7 +241,7 @@ export const GroupProvider = (): infer _ =>
             .getGroup({
               GroupName: groupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
           if (!response?.Group?.Arn) {
@@ -264,7 +269,7 @@ export const GroupProvider = (): infer _ =>
           // ensure step below.
           let observed = iam
             .getGroup({ GroupName: groupName }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              when { _tag: "NoSuchEntityException" }: undefined;
               default: throw e;
             }
 
@@ -317,55 +322,61 @@ export const GroupProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          ;(try (iam.getGroup.items({ GroupName: output.groupName })
-            |> Stream.mapEffect(%, effect (user) => (user.UserName
-              ? iam
-                .removeUserFromGroup({
-                  GroupName: output.groupName,
-                  UserName: user.UserName,
-                }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                }
-              : try Effect.void))
-            |> Stream.runDrain(%))) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
-              default: throw e;
-            }
-          ;(try (iam.listGroupPolicies.items({ GroupName: output.groupName })
-            |> Stream.mapEffect(%, effect (policyName) =>
-              iam
-                .deleteGroupPolicy({
-                  GroupName: output.groupName,
-                  PolicyName: policyName,
-                }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                })
-            |> Stream.runDrain(%))) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
-              default: throw e;
-            }
-          ;(try (iam.listAttachedGroupPolicies.items({ GroupName: output.groupName })
-            |> Stream.mapEffect(%, effect (policy) => (policy.PolicyArn
-              ? iam
-                .detachGroupPolicy({
-                  GroupName: output.groupName,
-                  PolicyArn: policy.PolicyArn,
-                }) catch effect (e) => match (e) {
-                  when { _tag: "NoSuchEntityException" }: try Effect.void;
-                  default: throw e;
-                }
-              : try Effect.void))
-            |> Stream.runDrain(%))) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (iam.getGroup.items({ GroupName: output.groupName })
+              |> Stream.mapEffect(%, effect (user) => (user.UserName
+                ? iam
+                  .removeUserFromGroup({
+                    GroupName: output.groupName,
+                    UserName: user.UserName,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  }
+                : (undefined as void)))
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
+            default: throw e;
+          }
+          ;(effect {
+            return (try (iam.listGroupPolicies.items({ GroupName: output.groupName })
+              |> Stream.mapEffect(%, effect (policyName) =>
+                iam
+                  .deleteGroupPolicy({
+                    GroupName: output.groupName,
+                    PolicyName: policyName,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  })
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
+            default: throw e;
+          }
+          ;(effect {
+            return (try (iam.listAttachedGroupPolicies.items({ GroupName: output.groupName })
+              |> Stream.mapEffect(%, effect (policy) => (policy.PolicyArn
+                ? iam
+                  .detachGroupPolicy({
+                    GroupName: output.groupName,
+                    PolicyArn: policy.PolicyArn,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: (undefined as void);
+                    default: throw e;
+                  }
+                : (undefined as void)))
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
+            default: throw e;
+          }
           iam
             .deleteGroup({
               GroupName: output.groupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              when { _tag: "NoSuchEntityException" }: (undefined as void);
               default: throw e;
             }
         },

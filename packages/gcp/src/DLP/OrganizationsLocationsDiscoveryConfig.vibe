@@ -210,13 +210,15 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, organization: string, project: string) =>
-  (Array.from(
-    try (dlp.listOrganizationsLocationsDiscoveryConfigs.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryConfigs ?? []))
-      |> Stream.filter(%, (config) => hasOwnershipMarker(config.displayName))
-      |> Stream.map(%, (config) => toAttrs(config, organization, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dlp.listOrganizationsLocationsDiscoveryConfigs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryConfigs ?? []))
+        |> Stream.filter(%, (config) => hasOwnershipMarker(config.displayName))
+        |> Stream.map(%, (config) => toAttrs(config, organization, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const statusOf = (value: string | undefined): infer _ => value ?? DEFAULT_STATUS
 
@@ -233,13 +235,30 @@ export const OrganizationsLocationsDiscoveryConfigProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+          catch: (e) => e,
+        }),
+      )
       return (
-        replaceOn(olds?.configId ?? output?.configId, news.configId)
-          ?? replaceOn(olds?.organization ?? output?.organization, news.organization)
-          ?? replaceOn(previousLocation, nextLocation)
+        (try Effect.orDie(
+          Effect.try({ try: () => replaceOn(olds?.configId ?? output?.configId, resolved.configId), catch: (e) => e }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({
+              try: () => replaceOn(olds?.organization ?? output?.organization, resolved.organization),
+              catch: (e) => e,
+            }),
+          ))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousLocation, nextLocation), catch: (e) => e })))
       )
     },
 
@@ -249,13 +268,17 @@ export const OrganizationsLocationsDiscoveryConfigProvider = (): infer _ =>
         olds?.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
       const configId = try toPhysicalId(id, olds?.configId, output?.configId)
       const name = output?.name ?? resourceName(organization, location, configId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -263,7 +286,7 @@ export const OrganizationsLocationsDiscoveryConfigProvider = (): infer _ =>
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
       const pages = try Effect.forEach(
-        locationParentsOf(organization, env.region),
+        try Effect.orDie(Effect.try({ try: () => locationParentsOf(organization, env.region), catch: (e) => e })),
         effect (parent) => try listAt(parent, organization, env.project),
         { concurrency: 3 },
       )
@@ -273,12 +296,18 @@ export const OrganizationsLocationsDiscoveryConfigProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organization = try resolveOrganization(news.organization, output?.organization)
-      const location = normalizeLocation(news.location ?? output?.location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
       const configId = try toPhysicalId(id, news.configId, output?.configId)
-      const parent = organizationLocationParent(organization, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => organizationLocationParent(organization, location), catch: (e) => e }),
+      )
       const name = resourceName(organization, location, configId)
       const ownership = try createInternalLabels(id)
-      const displayName = encodeDisplayName(ownership, news.displayName)
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeDisplayName(ownership, news.displayName), catch: (e) => e }),
+      )
       const status = statusOf(news.status)
       const orgConfig = news.orgConfig
       const targets = news.targets
@@ -315,20 +344,48 @@ export const OrganizationsLocationsDiscoveryConfigProvider = (): infer _ =>
       const currentName = current.name ?? name
       const displayChanged = !sameText(current.displayName, displayName)
       const statusChanged = !sameText(current.status, status)
-      const orgChanged = fingerprint(current.orgConfig) !== fingerprint(orgConfig)
-      const targetsChanged = fingerprint(current.targets) !== fingerprint(targets)
-      const templatesChanged = fingerprint(current.inspectTemplates) !== fingerprint(inspectTemplates)
-      const processingChanged = fingerprint(current.processingLocation) !== fingerprint(processingLocation)
-      const otherChanged = fingerprint(current.otherCloudStartingLocation) !== fingerprint(otherCloudStartingLocation)
-      const updateMask = updateMaskOf(
-        displayChanged ? "displayName" : undefined,
-        statusChanged ? "status" : undefined,
-        orgChanged ? "orgConfig" : undefined,
-        targetsChanged ? "targets" : undefined,
-        templatesChanged ? "inspectTemplates" : undefined,
-        processingChanged ? "processingLocation" : undefined,
-        otherChanged ? "otherCloudStartingLocation" : undefined,
-      )
+      const orgChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.orgConfig), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(orgConfig),
+            catch: (e) => e,
+          })))
+      const targetsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.targets), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(targets),
+            catch: (e) => e,
+          })))
+      const templatesChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.inspectTemplates), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(inspectTemplates),
+            catch: (e) => e,
+          })))
+      const processingChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, current.processingLocation),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(processingLocation),
+        catch: (e) => e,
+      })))
+      const otherChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, current.otherCloudStartingLocation), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(Effect.try({ try: () => fingerprint(otherCloudStartingLocation), catch: (e) => e })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "displayName" : undefined,
+            statusChanged ? "status" : undefined,
+            orgChanged ? "orgConfig" : undefined,
+            targetsChanged ? "targets" : undefined,
+            templatesChanged ? "inspectTemplates" : undefined,
+            processingChanged ? "processingLocation" : undefined,
+            otherChanged ? "otherCloudStartingLocation" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try dlp.patchOrganizationsLocationsDiscoveryConfigs({

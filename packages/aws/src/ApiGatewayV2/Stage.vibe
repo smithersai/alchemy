@@ -218,16 +218,18 @@ export const StageProvider = (): infer _ =>
       const getStageSafe = effect (apiId: string, stageName: string) =>
         agw2
           .getStage({ ApiId: apiId, StageName: stageName }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
       const getApiInfo = effect (apiId: string) =>
-        (try effect {
-          const api = try agw2.getApi({ ApiId: apiId })
-          return ({
-            protocolType: api.ProtocolType,
-            apiEndpoint: api.ApiEndpoint,
+        (effect {
+          return (try effect {
+            const api = try agw2.getApi({ ApiId: apiId })
+            return ({
+              protocolType: api.ProtocolType,
+              apiEndpoint: api.ApiEndpoint,
+            })
           })
         }) catch effect (e) => match (e) {
           when { _tag: "NotFoundException" }: {
@@ -242,29 +244,33 @@ export const StageProvider = (): infer _ =>
 
         list: effect () => {
           const { region, accountId } = try AWSEnvironment.current
-          const apis = try collectAllPages((NextToken) => agw2.getApis({ NextToken }))
+          const apis = try collectAllPages(effect (NextToken) => try agw2.getApis({ NextToken }))
           const perApi = try Effect.forEach(
             apis.filter((api) => api.ApiId != null),
             effect (api) =>
-              ((try collectAllPages((NextToken) => agw2.getStages({ ApiId: api.ApiId!, NextToken })))
-                .filter((stage) => stage.StageName != null)
-                .map((stage) =>
-                  snapshotFromStage(
-                    api.ApiId!,
-                    stage,
-                    computeUrls({
-                      region,
-                      accountId,
-                      apiId: api.ApiId!,
-                      stageName: stage.StageName!,
-                      protocolType: api.ProtocolType,
-                      apiEndpoint: api.ApiEndpoint,
-                    }),
-                  )
-                )) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: [] as ApiGatewayV2Stage["Attributes"][];
-                  default: throw e;
-                },
+              (effect {
+                return ((try collectAllPages(effect (NextToken) =>
+                  try agw2.getStages({ ApiId: api.ApiId!, NextToken })
+                ))
+                  .filter((stage) => stage.StageName != null)
+                  .map((stage) =>
+                    snapshotFromStage(
+                      api.ApiId!,
+                      stage,
+                      computeUrls({
+                        region,
+                        accountId,
+                        apiId: api.ApiId!,
+                        stageName: stage.StageName!,
+                        protocolType: api.ProtocolType,
+                        apiEndpoint: api.ApiEndpoint,
+                      }),
+                    )
+                  ))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: [] as ApiGatewayV2Stage["Attributes"][];
+                default: throw e;
+              },
             { concurrency: 5 },
           )
           return perApi.flat()
@@ -289,8 +295,9 @@ export const StageProvider = (): infer _ =>
           )
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             news.apiId !== olds.apiId
             || (news.stageName ?? "$default") !== (olds.stageName ?? "$default")
@@ -344,13 +351,33 @@ export const StageProvider = (): infer _ =>
             || (news.deploymentId !== undefined && snapshot.deploymentId !== news.deploymentId)
             || snapshot.description !== news.description
             || (news.stageVariables !== undefined
-              && !deepEqual(snapshot.stageVariables, news.stageVariables))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.stageVariables, news.stageVariables),
+                  catch: (error) => error,
+                }),
+              )))
             || (news.defaultRouteSettings !== undefined
-              && !deepEqual(snapshot.defaultRouteSettings, news.defaultRouteSettings))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.defaultRouteSettings, news.defaultRouteSettings),
+                  catch: (error) => error,
+                }),
+              )))
             || (news.routeSettings !== undefined
-              && !deepEqual(snapshot.routeSettings, news.routeSettings))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.routeSettings, news.routeSettings),
+                  catch: (error) => error,
+                }),
+              )))
             || (news.accessLogSettings !== undefined
-              && !deepEqual(snapshot.accessLogSettings, news.accessLogSettings))
+              && !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual(snapshot.accessLogSettings, news.accessLogSettings),
+                  catch: (error) => error,
+                }),
+              )))
             || snapshot.clientCertificateId !== news.clientCertificateId
           if (drift) {
             try retryOnTooManyRequests(
@@ -371,9 +398,16 @@ export const StageProvider = (): infer _ =>
           }
 
           // 3b. SYNC TAGS — diff against OBSERVED cloud tags.
-          if (!deepEqual(snapshot.tags, desiredTags)) {
+          if (
+            !(try Effect.orDie(Effect.try({
+              try: () => deepEqual(snapshot.tags, desiredTags),
+              catch: (error) => error,
+            })))
+          ) {
             try syncTags({
-              resourceArn: stageArn(region, apiId, stageName),
+              resourceArn: try Effect.orDie(
+                Effect.try({ try: () => stageArn(region, apiId, stageName), catch: (e) => e }),
+              ),
               oldTags: snapshot.tags,
               newTags: desiredTags,
             })
@@ -396,7 +430,7 @@ export const StageProvider = (): infer _ =>
                   ApiId: output.apiId,
                   StageName: output.stageName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

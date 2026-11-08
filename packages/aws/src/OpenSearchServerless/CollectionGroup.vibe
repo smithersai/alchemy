@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -170,7 +171,9 @@ export const CollectionGroupProvider = (): infer _ =>
         observed: Record<string, string>,
         desired: Record<string, string>,
       ) => {
-        const { upsert, removed } = diffTags(observed, desired)
+        const { upsert, removed } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }),
+        )
         if (upsert.length > 0) {
           try aoss.tagResource({
             resourceArn: arn,
@@ -211,11 +214,12 @@ export const CollectionGroupProvider = (): infer _ =>
               Object.entries(tags).map(([Key, Value]) => ({ Key, Value })),
             ))
             ? attrs
-            : Unowned(attrs)
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) {
@@ -241,17 +245,19 @@ export const CollectionGroupProvider = (): infer _ =>
 
           // 2. ENSURE — create if missing; tolerate a concurrent create race
           if (detail === undefined) {
-            const created = (try aoss
-              .createCollectionGroup({
-                name,
-                standbyReplicas: news.standbyReplicas ?? "ENABLED",
-                description: news.description,
-                capacityLimits: news.capacityLimits,
-                tags: recordToTagList(desiredTags),
-              })).createCollectionGroupDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try aoss
+                .createCollectionGroup({
+                  name,
+                  standbyReplicas: news.standbyReplicas ?? "ENABLED",
+                  description: news.description,
+                  capacityLimits: news.capacityLimits,
+                  tags: recordToTagList(desiredTags),
+                })).createCollectionGroupDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             detail = created !== undefined ? { ...created } : try observeByName(name)
           } else {
             // 3. SYNC — description/capacityLimits when observed drifts
@@ -267,9 +273,13 @@ export const CollectionGroupProvider = (): infer _ =>
           }
 
           if (detail?.id === undefined || detail.arn === undefined) {
-            throw aoss.ResourceNotFoundException.make({
-              message: `collection group ${name} not visible after reconcile`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                aoss.ResourceNotFoundException.make({
+                  message: `collection group ${name} not visible after reconcile`,
+                }),
+              catch: (e) => e,
+            }))
           }
 
           // 3b. SYNC TAGS — diff against observed cloud tags (read via
@@ -287,7 +297,7 @@ export const CollectionGroupProvider = (): infer _ =>
           retryWhileConflict(
             aoss.deleteCollectionGroup({ id: output.collectionGroupId }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

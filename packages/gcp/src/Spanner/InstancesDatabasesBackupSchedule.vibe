@@ -249,16 +249,27 @@ export const InstancesDatabasesBackupScheduleProvider = (): infer _ =>
     stables: ["name", "backupScheduleId", "databaseId", "instanceId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
 
       const previousId = olds?.backupScheduleId ?? output?.backupScheduleId
-      const nextId = news.backupScheduleId ?? previousId
-      const previousInstance = instanceIdOf(olds?.instance ?? output?.instanceId ?? "")
-      const nextInstance = instanceIdOf(news.instance)
-      const previousDatabase = databaseIdOf(olds?.database ?? output?.databaseId ?? "")
-      const nextDatabase = databaseIdOf(news.database)
+      const nextId = resolved.backupScheduleId ?? previousId
+      const previousInstance = try Effect.orDie(
+        Effect.try({ try: () => instanceIdOf(olds?.instance ?? output?.instanceId ?? ""), catch: (e) => e }),
+      )
+      const nextInstance = try Effect.orDie(
+        Effect.try({ try: () => instanceIdOf(resolved.instance), catch: (e) => e }),
+      )
+      const previousDatabase = try Effect.orDie(
+        Effect.try({ try: () => databaseIdOf(olds?.database ?? output?.databaseId ?? ""), catch: (e) => e }),
+      )
+      const nextDatabase = try Effect.orDie(
+        Effect.try({ try: () => databaseIdOf(resolved.database), catch: (e) => e }),
+      )
       const previousIncremental = olds?.incremental ?? output?.incremental
-      const nextIncremental = news.incremental ?? previousIncremental
+      const nextIncremental = resolved.incremental ?? previousIncremental
 
       const replace = (previousId !== undefined && nextId !== undefined && previousId !== nextId)
         || (previousInstance.length > 0 && previousInstance !== nextInstance)
@@ -274,16 +285,28 @@ export const InstancesDatabasesBackupScheduleProvider = (): infer _ =>
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const backupScheduleId = try toId(id, olds?.backupScheduleId, output?.backupScheduleId)
-      const instanceId = instanceIdOf(olds?.instance ?? output?.instanceId ?? "")
-      const databaseId = databaseIdOf(olds?.database ?? output?.databaseId ?? "")
+      const instanceId = try Effect.orDie(
+        Effect.try({ try: () => instanceIdOf(olds?.instance ?? output?.instanceId ?? ""), catch: (e) => e }),
+      )
+      const databaseId = try Effect.orDie(
+        Effect.try({ try: () => databaseIdOf(olds?.database ?? output?.databaseId ?? ""), catch: (e) => e }),
+      )
       if (instanceId.length === 0 || databaseId.length === 0) return undefined
-      const name = output?.name ?? backupScheduleName(env.project, instanceId, databaseId, backupScheduleId)
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => backupScheduleName(env.project, instanceId, databaseId, backupScheduleId),
+            catch: (e) => e,
+          }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try parentOwned(instanceName(attrs.project, attrs.instanceId)))
+      return (try parentOwned(
+          try Effect.orDie(Effect.try({ try: () => instanceName(attrs.project, attrs.instanceId), catch: (e) => e })),
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -296,16 +319,18 @@ export const InstancesDatabasesBackupScheduleProvider = (): infer _ =>
           if (parent === undefined || parent.length === 0) {
             return [] as InstancesDatabasesBackupSchedule["Attributes"][]
           }
-          return (Array.from(
-            try (spanner.listProjectsInstancesDatabasesBackupSchedules
-              .pages({
-                parent,
-                pageSize: 1000,
-              })
-              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.backupSchedules ?? []))
-              |> Stream.map(%, (schedule) => toAttrs(schedule, env.project))
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) {
+          return (effect {
+            return (Array.from(
+              try (spanner.listProjectsInstancesDatabasesBackupSchedules
+                .pages({
+                  parent,
+                  pageSize: 1000,
+                })
+                |> Stream.flatMap(%, (page) => Stream.fromIterable(page.backupSchedules ?? []))
+                |> Stream.map(%, (schedule) => toAttrs(schedule, env.project))
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) {
             when { _tag: "NotFound" }: [] as InstancesDatabasesBackupSchedule["Attributes"][];
             default: throw e;
           }
@@ -317,11 +342,18 @@ export const InstancesDatabasesBackupScheduleProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const instanceId = instanceIdOf(news.instance)
-      const databaseId = databaseIdOf(news.database)
+      const instanceId = try Effect.orDie(Effect.try({ try: () => instanceIdOf(news.instance), catch: (e) => e }))
+      const databaseId = try Effect.orDie(Effect.try({ try: () => databaseIdOf(news.database), catch: (e) => e }))
       const backupScheduleId = try toId(id, news.backupScheduleId, output?.backupScheduleId)
-      const parent = databaseName(env.project, instanceId, databaseId)
-      const name = backupScheduleName(env.project, instanceId, databaseId, backupScheduleId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => databaseName(env.project, instanceId, databaseId), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({
+          try: () => backupScheduleName(env.project, instanceId, databaseId, backupScheduleId),
+          catch: (e) => e,
+        }),
+      )
       const desiredCron = news.spec?.cron ?? DEFAULT_CRON
       const desiredRetention = news.retentionDuration ?? DEFAULT_RETENTION
 

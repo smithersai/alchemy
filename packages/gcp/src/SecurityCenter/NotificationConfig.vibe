@@ -151,8 +151,13 @@ export const NotificationConfigProvider = (): infer _ =>
     stables: ["name", "configId", "project", "serviceAccount"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOn(olds?.configId ?? output?.configId, news.configId)
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(
+        Effect.try({ try: () => replaceOn(olds?.configId ?? output?.configId, resolved.configId), catch: (e) => e }),
+      )
     },
 
     read: effect ({ id, olds, output }) => {
@@ -162,7 +167,9 @@ export const NotificationConfigProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -184,7 +191,9 @@ export const NotificationConfigProvider = (): infer _ =>
       const configId = try toResourceId(id, news.configId, output?.configId, "n")
       const name = resourceName(env.project, configId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const filter = news.streamingConfig?.filter ?? ""
       const body: scc.NotificationConfig = {
         pubsubTopic: news.pubsubTopic,
@@ -212,11 +221,15 @@ export const NotificationConfigProvider = (): infer _ =>
       const descriptionChanged = !sameText(current.description, description)
       const topicChanged = !sameText(current.pubsubTopic, news.pubsubTopic)
       const filterChanged = !sameText(current.streamingConfig?.filter, filter)
-      const updateMask = updateMaskOf(
-        descriptionChanged ? "description" : undefined,
-        topicChanged ? "pubsub_topic" : undefined,
-        filterChanged ? "streaming_config.filter" : undefined,
-      )
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            descriptionChanged ? "description" : undefined,
+            topicChanged ? "pubsub_topic" : undefined,
+            filterChanged ? "streaming_config.filter" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try scc.patchProjectsNotificationConfigs({

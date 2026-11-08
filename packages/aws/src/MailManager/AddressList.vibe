@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -90,7 +91,7 @@ export const AddressListProvider = (): infer _ =>
       const getById = effect (addressListId: string) =>
         mm
           .getAddressList({ AddressListId: addressListId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -145,13 +146,16 @@ export const AddressListProvider = (): infer _ =>
           if (list === undefined) return undefined
           const attrs = toAttrs(list)
           const tags = try readMailManagerTags(attrs.addressListArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Mail Manager exposes no UpdateAddressList — a name change can only
         // be realized by replacement.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds === undefined) return undefined
           if (news.addressListName !== undefined && olds.addressListName !== news.addressListName) {
             return { action: "replace" } as const
@@ -175,7 +179,7 @@ export const AddressListProvider = (): infer _ =>
                 AddressListName: name,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             list = created !== undefined

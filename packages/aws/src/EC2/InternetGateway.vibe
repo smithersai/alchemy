@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import * as Provider from "alchemy/Provider"
@@ -195,7 +197,7 @@ export const InternetGatewayProvider = (): infer _ =>
             : try findInternetGatewayByTags(id)
           if (!igw?.InternetGatewayId) return undefined
           const attrs = toAttributes(igw, region, accountId)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         list: effect () => {
@@ -276,7 +278,7 @@ export const InternetGatewayProvider = (): infer _ =>
               TagSpecifications: [
                 {
                   ResourceType: "internet-gateway",
-                  Tags: createTagsList(desiredTags),
+                  Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                 },
               ],
               DryRun: false,
@@ -302,7 +304,7 @@ export const InternetGatewayProvider = (): infer _ =>
                   InternetGatewayId: internetGatewayId,
                   VpcId: attachedVpcId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "Gateway.NotAttached" }: try Effect.void;
+                  when { _tag: "Gateway.NotAttached" }: (undefined as void);
                   default: throw e;
                 }
               try session.note(`Detached from VPC: ${attachedVpcId}`)
@@ -334,7 +336,7 @@ export const InternetGatewayProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (igw.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [internetGatewayId],
@@ -378,14 +380,14 @@ export const InternetGatewayProvider = (): infer _ =>
             for (const attachment of attachments) {
               try retryWhileLingeringEnis(
                 effect {
-                  return (try (ec2
+                  return (effect { return (try (ec2
                     .detachInternetGateway({
                       InternetGatewayId: internetGatewayId,
                       VpcId: attachment.VpcId!,
                     })
-                    |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
-                      when { _tag: "Gateway.NotAttached" }: try Effect.void;
-                      when { _tag: "InvalidInternetGatewayID.NotFound" }: try Effect.void;
+                    |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
+                      when { _tag: "Gateway.NotAttached" }: (undefined as void);
+                      when { _tag: "InvalidInternetGatewayID.NotFound" }: (undefined as void);
                       default: throw e;
                     }
                 },
@@ -401,13 +403,13 @@ export const InternetGatewayProvider = (): infer _ =>
 
           // 2. Delete the internet gateway
           try (effect {
-            return (try (ec2
+            return (effect { return (try (ec2
               .deleteInternetGateway({
                 InternetGatewayId: internetGatewayId,
                 DryRun: false,
               })
-              |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
-                when { _tag: "InvalidInternetGatewayID.NotFound" }: try Effect.void;
+              |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
+                when { _tag: "InvalidInternetGatewayID.NotFound" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -416,8 +418,8 @@ export const InternetGatewayProvider = (): infer _ =>
                 e._tag === "DependencyViolation"
                 || (e._tag === "ValidationError" && e.message?.includes("DependencyViolation")),
               schedule: Schedule.max([Schedule.fixed(5000), Schedule.recurs(60)]).pipe(
-                Schedule.tap(({ attempt }) =>
-                  session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
+                Schedule.tap(effect ({ attempt }) =>
+                  try session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
                 ),
               ),
             }))
@@ -456,18 +458,38 @@ const describeInternetGateway = effect (internetGatewayId: string) =>
       schedule: Schedule.max([Schedule.fixed(500), Schedule.recurs(10)]),
     }))
 
-error InternetGatewayStillListed {
-  mutable internetGatewayId: string
+class InternetGatewayStillListed extends $MutableErrorBase("InternetGatewayStillListed")<{
+
+   internetGatewayId: string;
+}> {static {
+    $MutableErrorMatcher(this, "InternetGatewayStillListed", true);
 }
 
-error InternetGatewayNotVisible {
-  mutable internetGatewayId: string
+
 }
 
-error InternetGatewayAttachmentPending {
-  mutable internetGatewayId: string
-  mutable vpcId: string
-  mutable state: string
+class InternetGatewayNotVisible extends $MutableErrorBase("InternetGatewayNotVisible")<{
+
+   internetGatewayId: string;
+}> {static {
+    $MutableErrorMatcher(this, "InternetGatewayNotVisible", true);
+}
+
+
+}
+
+class InternetGatewayAttachmentPending extends $MutableErrorBase("InternetGatewayAttachmentPending")<{
+
+   internetGatewayId: string;
+
+   vpcId: string;
+
+   state: string;
+}> {static {
+    $MutableErrorMatcher(this, "InternetGatewayAttachmentPending", true);
+}
+
+
 }
 
 const waitForInternetGatewayAttached = effect (
@@ -490,8 +512,8 @@ const waitForInternetGatewayAttached = effect (
     |> Effect.retry(%, {
       while: (error) => error instanceof InternetGatewayAttachmentPending,
       schedule: Schedule.max([Schedule.fixed(1000), Schedule.recurs(30)]).pipe(
-        Schedule.tap(({ attempt }) =>
-          session.note(
+        Schedule.tap(effect ({ attempt }) =>
+          try session.note(
             `Waiting for internet gateway attachment to become available... (${attempt}s)`,
           )
         ),
@@ -507,9 +529,9 @@ const waitForInternetGatewayDeleted = effect (
 ) =>
   try Effect.retry(
     effect {
-      const result = (try (ec2
+      const result = (effect { return (try (ec2
         .describeInternetGateways({ InternetGatewayIds: [internetGatewayId] })
-        |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
+        |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
           when { _tag: "InvalidInternetGatewayID.NotFound" }: { InternetGateways: [] };
           default: throw e;
         }
@@ -526,7 +548,7 @@ const waitForInternetGatewayDeleted = effect (
       // EC2 can keep listing a deleted gateway for minutes, so bound the
       // wait like NatGateway: 5s x 60 = ~5 min.
       schedule: Schedule.max([Schedule.fixed(5000), Schedule.recurs(60)]).pipe(
-        Schedule.tap(({ attempt }) => session.note(`Waiting for internet gateway deletion... (${attempt * 5}s)`)),
+        Schedule.tap(effect ({ attempt }) => try session.note(`Waiting for internet gateway deletion... (${attempt * 5}s)`)),
       ),
     },
   )

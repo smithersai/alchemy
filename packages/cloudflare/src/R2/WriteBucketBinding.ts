@@ -22,7 +22,9 @@ export const WriteBucketBinding = Layer.effect(
   Effect.suspend(() => makeBucketBinding({ makeClient: makeWrite })),
 );
 
-/** Build the write half of the binding client. */
+/** Build the write half of the binding client.
+ * @throws {never}
+ */
 export const makeWrite = ({
   raw,
   use,

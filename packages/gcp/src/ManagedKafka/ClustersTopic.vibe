@@ -148,23 +148,34 @@ export const ClustersTopicProvider = (): infer _ =>
     stables: ["name", "topicId", "cluster", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? output?.location, env.region),
+          catch: (e) => e,
+        }),
+      )
       const previousFactor = olds?.replicationFactor ?? output?.replicationFactor
-      const nextFactor = news.replicationFactor ?? previousFactor
-      return replaceOnIdentity({
+      const nextFactor = resolved.replicationFactor ?? previousFactor
+      const input = {
         previousId: olds?.topicId ?? output?.topicId,
-        nextId: news.topicId ? rfc1035(news.topicId, "topic") : (olds?.topicId ?? output?.topicId),
+        nextId: resolved.topicId ? rfc1035(resolved.topicId, "topic") : (olds?.topicId ?? output?.topicId),
         previousParent: olds?.cluster ?? output?.cluster,
-        nextParent: clusterOf(news.cluster, env.project, location),
+        nextParent: clusterOf(resolved.cluster, env.project, location),
         extra: previousFactor !== undefined && nextFactor !== undefined && previousFactor !== nextFactor,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const topicId = try toPhysicalId(id, olds?.topicId, output?.topicId, "topic")
       const cluster = olds?.cluster !== undefined
         ? clusterOf(olds.cluster, env.project, location)
@@ -173,7 +184,9 @@ export const ClustersTopicProvider = (): infer _ =>
       const existing = try getTopic(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return output !== undefined || olds !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -196,7 +209,9 @@ export const ClustersTopicProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const cluster = clusterOf(news.cluster, env.project, location)
       const topicId = try toPhysicalId(id, news.topicId, output?.topicId, "topic")
       const name = output?.name ?? resourceName(cluster, topicId)
@@ -239,15 +254,25 @@ export const ClustersTopicProvider = (): infer _ =>
       }
 
       const partitionsChanged = (current.partitionCount ?? DEFAULT_PARTITION_COUNT) !== partitionCount
-      const configsChanged = fingerprint(stringMapOf(current.configs)) !== fingerprint(stringMapOf(configs))
+      const configsChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, stringMapOf(current.configs)),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(stringMapOf(configs)),
+        catch: (e) => e,
+      })))
 
       if (partitionsChanged || configsChanged) {
         current = try kafka.patchProjectsLocationsClustersTopics({
           name,
-          updateMask: fieldMask([
-            partitionsChanged && "partition_count",
-            configsChanged && "configs",
-          ]),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              fieldMask([
+                partitionsChanged && "partition_count",
+                configsChanged && "configs",
+              ]),
+            catch: (e) => e,
+          })),
           body: {
             partitionCount,
             configs,

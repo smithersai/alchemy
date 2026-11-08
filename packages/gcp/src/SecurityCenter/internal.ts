@@ -47,7 +47,7 @@ export const organizationParent = (value: string) =>
 
 export const organizationIdOf = (value: string) => lastSegment(value);
 
-export const folderParent = (value: string) =>
+export const folderParent = /** @throws {never} */ (value: string) =>
   value.startsWith("folders/") ? value : `folders/${lastSegment(value)}`;
 
 export const folderIdOf = (value: string) => lastSegment(value);
@@ -96,17 +96,21 @@ export const defaultShaCustomConfig = {
   recommendation: "n/a",
 };
 
-export const shaSettingsParent = (parent: string) => `${parent}/securityHealthAnalyticsSettings`;
+export const shaSettingsParent = /** @throws {never} */ (parent: string) =>
+  `${parent}/securityHealthAnalyticsSettings`;
 
-export const etdSettingsParent = (parent: string) => `${parent}/eventThreatDetectionSettings`;
+export const etdSettingsParent = /** @throws {never} */ (parent: string) =>
+  `${parent}/eventThreatDetectionSettings`;
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const jsonEqual = (left: unknown, right: unknown) =>
   JSON.stringify(canonical(left) ?? null) === JSON.stringify(canonical(right) ?? null);
 
-export const updateMaskOf = (...fields: Array<string | undefined>) =>
+export const updateMaskOf = /** @throws {never} */ (...fields: Array<string | undefined>) =>
   fields.filter((field): field is string => field !== undefined).join(",");
 
 export const toResourceId = (
@@ -134,7 +138,7 @@ export const toPhysicalId = (
   existing: string | undefined,
 ) => toResourceId(id, explicit, existing);
 
-export const shaDisplayNameOf = (physical: string) => {
+export const shaDisplayNameOf = /** @throws {never} */ (physical: string) => {
   const cleaned = physical
     .replace(/[^a-zA-Z0-9_]/g, "_")
     .replace(/_+/g, "_")
@@ -143,7 +147,7 @@ export const shaDisplayNameOf = (physical: string) => {
   return withLetter.slice(0, MAX_DISPLAY_NAME_LENGTH);
 };
 
-export const etdDisplayNameOf = (physical: string) => {
+export const etdDisplayNameOf = /** @throws {never} */ (physical: string) => {
   const cleaned = physical
     .replace(/[^a-zA-Z0-9_]/g, "_")
     .replace(/_+/g, "_")

@@ -192,31 +192,47 @@ export const PrivateCloudsLoggingServerProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
-      return replaceOnIdentity({
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const input = {
         previousId: olds?.loggingServerId ?? output?.loggingServerId,
-        nextId: news.loggingServerId
-          ? rfc1035(news.loggingServerId, "loggingserver")
+        nextId: resolved.loggingServerId
+          ? rfc1035(resolved.loggingServerId, "loggingserver")
           : (olds?.loggingServerId ?? output?.loggingServerId),
         previousLocation,
         nextLocation: normalizeLocation(
-          news.location ?? locationFromName(news.privateCloud, previousLocation),
+          resolved.location
+            ?? (try Effect.orDie(
+              Effect.try({
+                try: locationFromName.bind(undefined, resolved.privateCloud, previousLocation),
+                catch: (e) => e,
+              }),
+            )),
           DEFAULT_ZONE,
         ),
         previousParent: olds?.privateCloud ?? output?.privateCloud,
-        nextParent: news.privateCloud,
-      })
+        nextParent: resolved.privateCloud,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
-        DEFAULT_ZONE,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location
+              ?? output?.location
+              ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentCloudName(
         env.project,
         location,
@@ -234,7 +250,11 @@ export const PrivateCloudsLoggingServerProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       if (output?.name === (existing.name ?? name)) return attrs
       const parentCloud = try getParentCloud(attrs.privateCloud)
-      return hasOwnershipMarker(parentCloud?.description) ? attrs : Unowned(attrs)
+      return (try Effect.orDie(
+          Effect.try({ try: () => hasOwnershipMarker(parentCloud?.description), catch: (e) => e }),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -265,10 +285,14 @@ export const PrivateCloudsLoggingServerProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
-        DEFAULT_ZONE,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentCloudName(env.project, location, news.privateCloud)
       const loggingServerId = try toPhysicalId(
         id,
@@ -285,22 +309,24 @@ export const PrivateCloudsLoggingServerProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsPrivateCloudsLoggingServers({
-            parent,
-            loggingServerId,
-            body: {
-              hostname: news.hostname,
-              port,
-              protocol,
-              sourceType,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateCloudsLoggingServers({
+              parent,
+              loggingServerId,
+              body: {
+                hostname: news.hostname,
+                port,
+                protocol,
+                sourceType,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -315,12 +341,16 @@ export const PrivateCloudsLoggingServerProvider = (): infer _ =>
       const portChanged = (current.port ?? 0) !== port
       const protocolChanged = (current.protocol ?? "") !== protocol
       const sourceChanged = (current.sourceType ?? "") !== sourceType
-      const updateMask = changedFields([
-        ["hostname", hostnameChanged],
-        ["port", portChanged],
-        ["protocol", protocolChanged],
-        ["sourceType", sourceChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["hostname", hostnameChanged],
+            ["port", portChanged],
+            ["protocol", protocolChanged],
+            ["sourceType", sourceChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try vmwareengine.patchProjectsLocationsPrivateCloudsLoggingServers({
@@ -342,15 +372,17 @@ export const PrivateCloudsLoggingServerProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsPrivateCloudsLoggingServers({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateCloudsLoggingServers({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -12,7 +12,6 @@ import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
 import { alchemyMetadataKeys } from "./Metadata.vibe"
 import { isMissingStripeResource } from "./missing.ts"
 import type { Providers } from "./Providers.vibe"
@@ -109,7 +108,7 @@ const isMissing = isMissingStripeResource
 
 const getById = effect (product: string, id: string) =>
   try (GetProductFeature({ product, id })
-    |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissing, effect () => undefined))
 
 const listFeatures = effect (product: string) => {
   const features: StripeProductFeature[] = []
@@ -120,7 +119,7 @@ const listFeatures = effect (product: string) => {
       limit: LIST_PAGE_SIZE,
       ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
     })
-      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+      |> Effect.catchIf(%, isMissing, effect () => undefined))
     if (response === undefined) {
       break
     }
@@ -167,7 +166,7 @@ const listAlchemyProducts = effect () => {
   for (const product of [...active, ...inactive]) {
     if (seen.has(product.id)) continue
     seen.add(product.id)
-    if (tagRecord(product.metadata)[alchemyMetadataKeys.stack] !== undefined) {
+    if ((try Effect.orDie(Effect.try({ try: () => tagRecord(product.metadata), catch: (e) => e })))[alchemyMetadataKeys.stack] !== undefined) {
       products.push(product)
     }
   }
@@ -206,8 +205,9 @@ export const ProductFeatureProvider = (): infer _ =>
     nuke: { dependsOn: ["Stripe.Product"] },
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -253,9 +253,9 @@ export const ProductFeatureProvider = (): infer _ =>
           product: news.product,
           entitlement_feature: news.entitlementFeature,
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-product-feature-${instanceId}`,
-          })(%)
+          }), catch: (e) => e })))(%)
           |> Effect.catchIf(%, (e) =>
             e._tag === "InvalidRequestError" || e._tag === "Conflict", effect (e) =>
             try effect {
@@ -276,6 +276,6 @@ export const ProductFeatureProvider = (): infer _ =>
         id: output.id,
       })
         |> Effect.catchIf(%, isMissing, effect () =>
-          try Effect.void))
+          (undefined as void)))
     },
   })

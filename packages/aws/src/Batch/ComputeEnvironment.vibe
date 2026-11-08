@@ -269,16 +269,16 @@ export const ComputeEnvironmentProvider = (): infer _ =>
         }
 
       /** Wait until any CREATING/UPDATING/DELETING transition settles. */
-      const awaitSettled = (name: string) =>
-        pollBatch(
+      const awaitSettled = effect (name: string) =>
+        try pollBatch(
           describeOne(name),
           (ce) =>
             ce === undefined
             || (ce.status !== "CREATING" && ce.status !== "UPDATING" && ce.status !== "DELETING"),
         )
 
-      const awaitDisabled = (name: string) =>
-        pollBatch(
+      const awaitDisabled = effect (name: string) =>
+        try pollBatch(
           describeOne(name),
           (ce) =>
             ce === undefined
@@ -309,10 +309,10 @@ export const ComputeEnvironmentProvider = (): infer _ =>
           return undefined
         }
         const roleName = serviceRoleArn.split("/").pop()!
-        const exists = (try effect {
+        const exists = (effect { return (try effect {
           try iam.getRole({ RoleName: roleName })
           return true
-        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: false; default: throw e; }
+        }) }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: false; default: throw e; }
         if (exists) return undefined
         iam
           .createRole({
@@ -330,7 +330,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
             Description:
               "Temporarily restored by alchemy so AWS Batch can tear down a compute environment whose service role was deleted",
           }) catch effect (e) => match (e) {
-            when { _tag: "EntityAlreadyExistsException" }: try Effect.void;
+            when { _tag: "EntityAlreadyExistsException" }: (undefined as void);
             default: throw e;
           }
         try iam.attachRolePolicy({
@@ -348,10 +348,10 @@ export const ComputeEnvironmentProvider = (): infer _ =>
           .detachRolePolicy({
             RoleName: roleName,
             PolicyArn: "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole",
-          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: (undefined as void); default: throw e; }
         iam
           .deleteRole({ RoleName: roleName }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.void;
+            when { _tag: "NoSuchEntityException" }: (undefined as void);
             default: throw e;
           }
       }
@@ -401,7 +401,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
                   state: "DISABLED",
                 }),
                 (error) => error._tag === "JobQueueBeingModified",
-              ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: try Effect.void; default: throw e; }
+              ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: (undefined as void); default: throw e; }
             }
             observed = try pollBatch(
               describeQueue,
@@ -417,7 +417,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
               retryBatch(
                 batch.deleteJobQueue({ jobQueue: queueName }),
                 (error) => error._tag === "JobQueueBeingModified",
-              ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: try Effect.void; default: throw e; }
+              ) catch effect (e) => match (e) { when { _tag: "JobQueueNotFound" }: (undefined as void); default: throw e; }
             }
             try pollBatch(
               describeQueue,
@@ -431,14 +431,15 @@ export const ComputeEnvironmentProvider = (): infer _ =>
       return {
         stables: ["computeEnvironmentName", "computeEnvironmentArn"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
-          if ((olds?.type ?? "FARGATE") !== (news?.type ?? "FARGATE")) {
+          if ((olds?.type ?? "FARGATE") !== (resolved?.type ?? "FARGATE")) {
             return { action: "replace" } as const
           }
-          if ((olds?.managementType ?? "MANAGED") !== (news?.managementType ?? "MANAGED")) {
+          if ((olds?.managementType ?? "MANAGED") !== (resolved?.managementType ?? "MANAGED")) {
             return { action: "replace" } as const
           }
         },
@@ -612,7 +613,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
               }),
               (e) => e._tag === "ComputeEnvironmentBeingModified",
             ) catch effect (e) => match (e) {
-              when { _tag: "ComputeEnvironmentNotFound" }: try Effect.void;
+              when { _tag: "ComputeEnvironmentNotFound" }: (undefined as void);
               default: throw e;
             }
             const disabled = try awaitDisabled(name)
@@ -624,7 +625,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
                   e._tag === "ComputeEnvironmentInUse"
                   || e._tag === "ComputeEnvironmentBeingModified",
               ) catch effect (e) => match (e) {
-                when { _tag: "ComputeEnvironmentNotFound" }: try Effect.void;
+                when { _tag: "ComputeEnvironmentNotFound" }: (undefined as void);
                 default: throw e;
               }
             }
@@ -744,7 +745,8 @@ export const ComputeEnvironmentProvider = (): infer _ =>
           }
 
           // Sync tags — diff against OBSERVED cloud tags.
-          const { upsert, removed } = diffTags(observedTagsOf(ce), desiredTags)
+          const oldTags = observedTagsOf(ce)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try batch.tagResource({
               resourceArn: arn,
@@ -779,7 +781,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
               }),
               (e) => e._tag === "ComputeEnvironmentBeingModified",
             ) catch effect (e) => match (e) {
-              when { _tag: "ComputeEnvironmentNotFound" }: try Effect.void;
+              when { _tag: "ComputeEnvironmentNotFound" }: (undefined as void);
               default: throw e;
             }
           }
@@ -804,7 +806,7 @@ export const ComputeEnvironmentProvider = (): infer _ =>
               (e) => e._tag === "ComputeEnvironmentInUse" || e._tag === "ComputeEnvironmentBeingModified",
               24,
             ) catch effect (e) => match (e) {
-              when { _tag: "ComputeEnvironmentNotFound" }: try Effect.void;
+              when { _tag: "ComputeEnvironmentNotFound" }: (undefined as void);
               default: throw e;
             }
           }

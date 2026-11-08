@@ -149,30 +149,50 @@ export const DomainsBackupProvider = (): infer _ =>
     stables: ["name", "backupId", "domain", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousDomain = domainResourceOf(olds?.domain ?? output?.domain ?? "", env.project)
-      const nextDomain = domainResourceOf(
-        news.domain ?? olds?.domain ?? output?.domain ?? "",
-        env.project,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId: olds?.backupId ?? output?.backupId,
-        nextId: news.backupId ?? olds?.backupId ?? output?.backupId,
-        previousParent: previousDomain,
-        nextParent: nextDomain,
-      })
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousDomain = try Effect.orDie(
+        Effect.try({ try: () => domainResourceOf(olds?.domain ?? output?.domain ?? "", env.project), catch: (e) => e }),
+      )
+      const nextDomain = try Effect.orDie(Effect.try({
+        try: () =>
+          domainResourceOf(
+            resolved.domain ?? olds?.domain ?? output?.domain ?? "",
+            env.project,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backupId ?? output?.backupId,
+            nextId: resolved.backupId ?? olds?.backupId ?? output?.backupId,
+            previousParent: previousDomain,
+            nextParent: nextDomain,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const domain = domainResourceOf(olds?.domain ?? output?.domain ?? "", env.project)
+      const domain = try Effect.orDie(
+        Effect.try({ try: () => domainResourceOf(olds?.domain ?? output?.domain ?? "", env.project), catch: (e) => e }),
+      )
       const backupId = try toPhysicalId(id, olds?.backupId, output?.backupId, "backup")
       const name = output?.name ?? resourceName(domain, backupId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -183,11 +203,13 @@ export const DomainsBackupProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const domain = domainResourceOf(news.domain, env.project)
+      const domain = try Effect.orDie(
+        Effect.try({ try: () => domainResourceOf(news.domain, env.project), catch: (e) => e }),
+      )
       const backupId = try toPhysicalId(id, news.backupId, output?.backupId, "backup")
       const name = output?.name ?? resourceName(domain, backupId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -220,8 +242,12 @@ export const DomainsBackupProvider = (): infer _ =>
       )
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
-      const mask = fieldMask([(upsert.length > 0 || removed.length > 0) && "labels"])
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const mask = try Effect.orDie(
+        Effect.try({ try: () => fieldMask([(upsert.length > 0 || removed.length > 0) && "labels"]), catch: (e) => e }),
+      )
 
       if (mask.length > 0) {
         const operation = try managedidentities.patchProjectsLocationsGlobalDomainsBackups({
@@ -246,13 +272,15 @@ export const DomainsBackupProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name || output.name.includes("//")) return
-      const operation = (try (managedidentities
-        .deleteProjectsLocationsGlobalDomainsBackups({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (managedidentities
+          .deleteProjectsLocationsGlobalDomainsBackups({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

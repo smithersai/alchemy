@@ -156,13 +156,15 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (try effect {
-  provide noRetryLayer {
-    return try datalabeling
-      .getProjectsDatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessages({
-        name,
-      })
-  }
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    provide noRetryLayer {
+      return try datalabeling
+        .getProjectsDatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessages({
+          name,
+        })
+    }
+  })
 }) catch effect (e) => match (e) {
   when { _tag: "NotFound" }: try Effect.undefined;
   when { _tag: "BadGateway" }: try Effect.undefined;
@@ -179,16 +181,27 @@ export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider = (
     stables: ["name", "feedbackMessageId", "parent", "project", "datasetId", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const extra = (olds !== undefined && !sameText(news.body, output?.body))
-        || (output !== undefined && !sameText(news.image, output.image))
-      return replaceOnIdentity({
-        previousId: olds?.feedbackMessageId ?? output?.feedbackMessageId,
-        nextId: news.feedbackMessageId,
-        previousParent: olds?.parent ?? output?.parent,
-        nextParent: news.parent,
-        extra,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const extra = (olds !== undefined && !(try Effect.orDie(Effect.try({
+        try: () => sameText(resolved.body, output?.body),
+        catch: (e) => e,
+      }))))
+        || (output !== undefined
+          && !(try Effect.orDie(Effect.try({ try: () => sameText(resolved.image, output.image), catch: (e) => e }))))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.feedbackMessageId ?? output?.feedbackMessageId,
+            nextId: resolved.feedbackMessageId,
+            previousParent: olds?.parent ?? output?.parent,
+            nextParent: resolved.parent,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -199,10 +212,14 @@ export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider = (
       const feedbackMessageId = olds?.feedbackMessageId
         ?? output?.feedbackMessageId
         ?? (output?.name
-          ? parseResourceName(
-            output.name.replace(/\/feedbackMessage\//, "/feedbackMessages/"),
-            "feedbackMessages",
-          ).id
+          ? (try Effect.orDie(Effect.try({
+            try: () =>
+              parseResourceName(
+                output.name.replace(/\/feedbackMessage\//, "/feedbackMessages/"),
+                "feedbackMessages",
+              ),
+            catch: (e) => e,
+          }))).id
           : "")
       const name = output?.name
         ?? (parent.length > 0 && feedbackMessageId.length > 0
@@ -211,7 +228,9 @@ export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider = (
       const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.body)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.body))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -229,7 +248,9 @@ export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider = (
       const name = output?.name
         ?? (feedbackMessageId !== undefined ? resourceNameOf(parent, feedbackMessageId) : "")
       const ownership = try createInternalLabels(id)
-      const body = encodeOwnership(ownership, news.body, MAX_FEEDBACK_BODY_LENGTH)
+      const body = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.body, MAX_FEEDBACK_BODY_LENGTH), catch: (e) => e }),
+      )
 
       let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
 
@@ -246,7 +267,9 @@ export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider = (
         ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           const done = try waitForOperation(created)
-          const createdName = resourceNameFromOperation(done)
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }),
+          )
           if (createdName !== undefined) {
             current = try waitForVisible(getByName(createdName))
           }

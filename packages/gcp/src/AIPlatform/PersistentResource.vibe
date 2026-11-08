@@ -244,7 +244,7 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsPersistentResources({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -280,20 +280,23 @@ export const PersistentResourceProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.persistentResourceId ?? output?.persistentResourceId
-      const nextId = news.persistentResourceId ?? previousId
+      const nextId = resolved.persistentResourceId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
-      const networkChanged = (news.network ?? olds?.network ?? "") !== (olds?.network ?? "")
-      const machineChanged = olds !== undefined && machineKey(news.resourcePools) !== machineKey(olds.resourcePools)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
+      const networkChanged = (resolved.network ?? olds?.network ?? "") !== (olds?.network ?? "")
+      const machineChanged = olds !== undefined && machineKey(resolved.resourcePools) !== machineKey(olds.resourcePools)
       // PATCH only accepts `resource_pools.replica_count`; `display_name` and
       // `labels` are rejected ("Unrecognized path"), so changing them
       // replaces the resource.
-      const displayNameChanged = olds !== undefined && (news.displayName ?? "") !== (olds.displayName ?? "")
+      const displayNameChanged = olds !== undefined && (resolved.displayName ?? "") !== (olds.displayName ?? "")
       const labelsChanged = olds !== undefined
         && JSON.stringify(
-            Object.entries(news.labels ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+            Object.entries(resolved.labels ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
           )
           !== JSON.stringify(
             Object.entries(olds.labels ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
@@ -302,8 +305,8 @@ export const PersistentResourceProvider = (): infer _ =>
       // support the update function on Ray cluster"); any other resource is
       // replaced when its replica counts change.
       const replicasChanged = olds !== undefined
-        && news.raySpec === undefined
-        && JSON.stringify((news.resourcePools ?? []).map((p) => p.replicaCount))
+        && resolved.raySpec === undefined
+        && JSON.stringify((resolved.resourcePools ?? []).map((p) => p.replicaCount))
           !== JSON.stringify((olds.resourcePools ?? []).map((p) => p.replicaCount))
       const replace = replicasChanged
         || (previousId !== undefined && nextId !== undefined && nextId !== previousId)
@@ -331,7 +334,12 @@ export const PersistentResourceProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -360,7 +368,7 @@ export const PersistentResourceProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const name = resourceName(env.project, location, resourceId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? resourceId
@@ -396,11 +404,15 @@ export const PersistentResourceProvider = (): infer _ =>
               encryptionSpec: news.encryptionSpec,
               resourceRuntimeSpec,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
-        const createdName = resourceNameFromOperation(created ?? {}) ?? output?.name ?? name
+        const createdName = (try Effect.orDie(Effect.try({
+          try: () => resourceNameFromOperation(created ?? {}),
+          catch: (e) => e,
+        })))
+          ?? output?.name ?? name
         current = try waitUntilExists(createdName)
       }
 
@@ -456,7 +468,7 @@ export const PersistentResourceProvider = (): infer _ =>
         }))
       const operation = aiplatform
         .deleteProjectsLocationsPersistentResources({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

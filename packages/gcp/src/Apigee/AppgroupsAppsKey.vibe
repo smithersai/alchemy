@@ -232,23 +232,31 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
     stables: ["name", "consumerKey", "appGroup", "app", "organization", "issuedAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousKey = olds?.consumerKey ?? output?.consumerKey
       const previousSecret = olds?.consumerSecret ?? output?.consumerSecret
       const previousGroup = olds?.appGroup ?? output?.appGroup
       const previousApp = olds?.app ?? output?.app
       const previousOrg = olds?.organization ?? output?.organization
       const keyChanged = previousKey !== undefined
-        && news.consumerKey !== undefined
-        && news.consumerKey !== previousKey
+        && resolved.consumerKey !== undefined
+        && resolved.consumerKey !== previousKey
       const secretChanged = previousSecret !== undefined
-        && news.consumerSecret !== undefined
-        && news.consumerSecret !== previousSecret
-      const groupChanged = previousGroup !== undefined && appGroupIdOf(news.appGroup) !== appGroupIdOf(previousGroup)
-      const appChanged = previousApp !== undefined && appNameOf(news.app) !== appNameOf(previousApp)
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+        && resolved.consumerSecret !== undefined
+        && resolved.consumerSecret !== previousSecret
+      const groupChanged = previousGroup !== undefined
+        && appGroupIdOf(resolved.appGroup) !== appGroupIdOf(previousGroup)
+      const appChanged = previousApp !== undefined && appNameOf(resolved.app) !== appNameOf(previousApp)
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
       if (keyChanged || secretChanged || groupChanged || appChanged || orgChanged) {
         return {
           action: "replace" as const,
@@ -260,7 +268,12 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const appGroup = olds?.appGroup ?? output?.appGroup
       const app = olds?.app ?? output?.app
       if (appGroup === undefined || app === undefined) return undefined
@@ -269,7 +282,12 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, appGroup, app)
-      return (try ownedBy(id, attributesToRecord(existing.attributes))) ? attrs : Unowned(attrs)
+      return (try ownedBy(
+          id,
+          try Effect.orDie(Effect.try({ try: () => attributesToRecord(existing.attributes), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -280,7 +298,9 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
         for (const group of groups) {
           const groupId = group.name ?? ""
           if (groupId.length === 0) continue
-          const parent = childName(organization, "appgroups", groupId)
+          const parent = try Effect.orDie(
+            Effect.try({ try: () => childName(organization, "appgroups", groupId), catch: (e) => e }),
+          )
           const apps = try listApps(parent)
           for (const app of apps) {
             const appName = app.name ?? ""
@@ -294,7 +314,9 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
                   default: throw e;
                 }
             for (const credential of fetched.credentials ?? []) {
-              const labels = attributesToRecord(credential.attributes)
+              const labels = try Effect.orDie(
+                Effect.try({ try: () => attributesToRecord(credential.attributes), catch: (e) => e }),
+              )
               if (!Object.keys(labels).some((key) => key.startsWith("alchemy-"))) {
                 continue
               }
@@ -327,7 +349,9 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const appGroup = appGroupIdOf(news.appGroup)
       const app = appNameOf(news.app)
       const consumerKey = try toKeyId(id, news.consumerKey, output?.consumerKey)
@@ -335,7 +359,9 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
       const parent = appParentOf(organization, appGroup, app)
       const name = `${parent}/keys/${consumerKey}`
       const ownership = try createOwnership(id)
-      const attributes = desiredAttributes(news.attributes, ownership)
+      const attributes = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.attributes, ownership), catch: (e) => e }),
+      )
       const status = news.status ?? "approved"
 
       let current = try getByName(output?.name ?? name)
@@ -365,7 +391,10 @@ export const AppgroupsAppsKeyProvider = (): infer _ =>
         news.apiProducts ?? [],
       )
       const statusChanged = (current.status ?? "") !== status
-      const attributesChanged = !sameRecord(observedAttributes, attributes)
+      const attributesChanged = !(try Effect.orDie(Effect.try({
+        try: sameRecord.bind(undefined, observedAttributes, attributes),
+        catch: (e) => e,
+      })))
 
       if (scopesChanged || productsChanged || statusChanged || attributesChanged) {
         current = try apigee.updateAppGroupAppKeyOrganizationsAppgroupsAppsKeys({

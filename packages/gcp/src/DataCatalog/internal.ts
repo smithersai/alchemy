@@ -31,10 +31,12 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const normalizeLocation = (location: string | undefined, fallback: string) =>
-  lastSegment(location ?? fallback).toLowerCase();
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  fallback: string,
+) => lastSegment(location ?? fallback).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const parseName = (name: string, collection: string, fallbackLocation: string) => {
@@ -129,7 +131,7 @@ export const encodeOwnership = (
   return `${marker}\n${trimmed}`.slice(0, maxLength);
 };
 
-export const parseOwnership = (
+export const parseOwnership = /** @throws {never} */ (
   text: string | undefined,
 ): {
   labels: Record<string, string>;
@@ -160,13 +162,17 @@ export const ownedByAlchemy = (id: string, text: string | undefined) =>
     return yield* hasAlchemyLabels(id, labels);
   });
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameBool = (left: boolean | undefined, right: boolean | undefined) =>
-  (left === true) === (right === true);
+export const sameBool = /** @throws {never} */ (
+  left: boolean | undefined,
+  right: boolean | undefined,
+) => (left === true) === (right === true);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify([...(left ?? [])].sort()) === JSON.stringify([...(right ?? [])].sort());
@@ -194,7 +200,7 @@ export const fingerprint = (value: unknown): string => JSON.stringify(canonical(
 
 export const sameJson = (left: unknown, right: unknown) => fingerprint(left) === fingerprint(right);
 
-export const updateMaskOf = (...fields: Array<string | undefined>) =>
+export const updateMaskOf = /** @throws {never} */ (...fields: Array<string | undefined>) =>
   fields.filter((field): field is string => field !== undefined).join(",");
 
 export const replaceOnIdentity = (input: {
@@ -316,7 +322,9 @@ export const ownershipField = (labels: Record<string, string>): TagTemplateField
   order: 0,
 });
 
-export const userFields = (fields: TagTemplateFieldMap | undefined): TagTemplateFieldMap => {
+export const userFields = /** @throws {never} */ (
+  fields: TagTemplateFieldMap | undefined,
+): TagTemplateFieldMap => {
   const next: TagTemplateFieldMap = {};
   for (const [key, field] of Object.entries(fields ?? {})) {
     if (key === OWNERSHIP_FIELD_ID || field === undefined) continue;
@@ -339,7 +347,7 @@ export const desiredFields = (
   [OWNERSHIP_FIELD_ID]: ownershipField(labels),
 });
 
-export const fieldBody = (field: TagTemplateField): TagTemplateField => ({
+export const fieldBody = /** @throws {never} */ (field: TagTemplateField): TagTemplateField => ({
   displayName: field.displayName,
   type: field.type,
   isRequired: field.isRequired === true ? true : undefined,

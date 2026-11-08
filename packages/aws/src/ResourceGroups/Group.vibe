@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as resourcegroups from "@distilled.cloud/aws/resource-groups"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -185,7 +188,13 @@ export const Group = Resource<Group>("AWS.ResourceGroups.Group")
  * Raised when a `Group` is configured with both `resourceQuery` and
  * `configuration`. A resource group is defined by exactly one of the two.
  */
-export error ResourceGroupDefinitionConflict { mutable message: string }
+export class ResourceGroupDefinitionConflict extends $MutableErrorBase("ResourceGroupDefinitionConflict")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "ResourceGroupDefinitionConflict", true)
+  }
+}
 
 const validateDefinition = effect (
   props: GroupProps,
@@ -194,7 +203,7 @@ const validateDefinition = effect (
     message:
       "resourceQuery and configuration are mutually exclusive — a resource group is defined by exactly one of the two.",
   })
-  : try Effect.void)
+  : (undefined as void))
 
 /** Wire shape of the resource query, built from props. */
 const toResourceQuery = (query: GroupResourceQuery): infer _ => ({
@@ -242,8 +251,9 @@ export const GroupProvider = (): infer _ =>
         props.groupName ?? (try createPhysicalName({ id, forbiddenPrefixes: ["aws"] }))
 
       const readGroupTags = effect (groupArn: string) =>
-        (((try resourcegroups.getTags({ Arn: groupArn })).Tags ?? {}) as Record<string, string>) catch () =>
-          ({}) as Record<string, string>
+        (effect {
+          return (((try resourcegroups.getTags({ Arn: groupArn })).Tags ?? {}) as Record<string, string>)
+        }) catch () => ({}) as Record<string, string>
 
       return Group.Provider.of({
         stables: ["groupName", "groupArn"],
@@ -261,8 +271,10 @@ export const GroupProvider = (): infer _ =>
           ),
         read: effect ({ id, olds, output }) => {
           const groupName = output?.groupName ?? (try createName(id, olds ?? {}))
-          const found = (try resourcegroups.getGroup({ Group: groupName })).Group catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+          const found = (effect {
+            return (try resourcegroups.getGroup({ Group: groupName })).Group
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
           if (!found) return undefined
@@ -271,10 +283,13 @@ export const GroupProvider = (): infer _ =>
             groupArn: found.GroupArn,
           }
           const tags = try readGroupTags(found.GroupArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           try validateDefinition(news)
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
@@ -292,24 +307,28 @@ export const GroupProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
 
           // OBSERVE — cloud state is authoritative; output is only a name cache.
-          let live = (try resourcegroups.getGroup({ Group: groupName })).Group catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+          let live = (effect {
+            return (try resourcegroups.getGroup({ Group: groupName })).Group
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
           // ENSURE — create if missing; tolerate the already-exists race.
           if (live === undefined) {
-            live = (try resourcegroups
-              .createGroup({
-                Name: groupName,
-                Description: news.description,
-                ResourceQuery: news.resourceQuery ? toResourceQuery(news.resourceQuery) : undefined,
-                Configuration: news.configuration ? toConfiguration(news.configuration) : undefined,
-                Tags: { ...news.tags, ...internalTags },
-              })).Group catch effect (e) => match (e) {
-                when { _tag: "GroupAlreadyExists" }: (try resourcegroups.getGroup({ Group: groupName })).Group;
-                default: throw e;
-              }
+            live = effect {
+              return (try resourcegroups
+                .createGroup({
+                  Name: groupName,
+                  Description: news.description,
+                  ResourceQuery: news.resourceQuery ? toResourceQuery(news.resourceQuery) : undefined,
+                  Configuration: news.configuration ? toConfiguration(news.configuration) : undefined,
+                  Tags: { ...news.tags, ...internalTags },
+                })).Group
+            } catch effect (e) => match (e) {
+              when { _tag: "GroupAlreadyExists" }: (try resourcegroups.getGroup({ Group: groupName })).Group;
+              default: throw e;
+            }
           }
           const groupArn = live.GroupArn
 
@@ -327,9 +346,11 @@ export const GroupProvider = (): infer _ =>
           // (getGroupQuery rejects configuration-based groups).
           if (news.resourceQuery !== undefined) {
             const desiredQuery = toResourceQuery(news.resourceQuery)
-            const observedQuery = ((try resourcegroups.getGroupQuery({ Group: groupName })).GroupQuery?.ResourceQuery)
+            const observedQuery = (effect {
+              return ((try resourcegroups.getGroupQuery({ Group: groupName })).GroupQuery?.ResourceQuery)
+            })
               catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.undefined;
+                when { _tag: "NotFoundException" }: undefined;
                 default: throw e;
               }
             if (
@@ -347,10 +368,12 @@ export const GroupProvider = (): infer _ =>
           // API returns configuration items in arbitrary order.
           if (news.configuration !== undefined) {
             const desiredConfiguration = toConfiguration(news.configuration)
-            const observedConfiguration = ((try resourcegroups
-              .getGroupConfiguration({ Group: groupName })).GroupConfiguration?.Configuration ?? []) catch effect (
-                e,
-              ) => match (e) { when { _tag: "NotFoundException" }: []; default: throw e; }
+            const observedConfiguration = (effect {
+              return ((try resourcegroups
+                .getGroupConfiguration({ Group: groupName })).GroupConfiguration?.Configuration ?? [])
+            }) catch effect (
+              e,
+            ) => match (e) { when { _tag: "NotFoundException" }: []; default: throw e; }
             if (
               configurationFingerprint(observedConfiguration)
                 !== configurationFingerprint(desiredConfiguration)
@@ -388,7 +411,7 @@ export const GroupProvider = (): infer _ =>
         delete: effect ({ output }) => {
           resourcegroups
             .deleteGroup({ Group: output.groupName }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.void;
+              when { _tag: "NotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

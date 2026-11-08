@@ -97,13 +97,15 @@ const getByName = effect (bucketName: string, managedFolderName: string) =>
     .getManagedFolders({
       bucket: bucketName,
       managedFolder: managedFolderName,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const listOnBucket = effect (bucketName: string) =>
-  (Array.from(
-    try (storage.listManagedFolders.items({ bucket: bucketName, pageSize: 1000 })
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.ManagedFolder[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (storage.listManagedFolders.items({ bucket: bucketName, pageSize: 1000 })
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.ManagedFolder[]; default: throw e; }
 
 const waitUntilGone = effect (bucketName: string, managedFolderName: string) =>
   try ((try (effect {
@@ -124,16 +126,19 @@ export const ManagedProvider = (): infer _ =>
     stables: ["bucketName", "managedFolderName", "id", "selfLink", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousBucket = olds?.bucketName ?? output?.bucketName
-      if (previousBucket !== undefined && news.bucketName !== previousBucket) {
+      if (previousBucket !== undefined && resolved.bucketName !== previousBucket) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousName = olds?.managedFolderName ?? output?.managedFolderName
       if (
-        news.managedFolderName !== undefined
+        resolved.managedFolderName !== undefined
         && previousName !== undefined
-        && withTrailingSlash(news.managedFolderName) !== withTrailingSlash(previousName)
+        && withTrailingSlash(resolved.managedFolderName) !== withTrailingSlash(previousName)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -213,7 +218,7 @@ export const ManagedProvider = (): infer _ =>
           bucket: bucketName,
           managedFolder: managedFolderName,
           allowNonEmpty: true,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       try waitUntilGone(bucketName, managedFolderName)
     },
   })

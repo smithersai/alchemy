@@ -6,7 +6,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import { waitForAction } from "./actions.vibe"
 import {
@@ -137,10 +136,12 @@ const toAttrs = (group: GetPlacementGroupResponsePlacementGroup): infer _ => ({
 })
 
 const getById = effect (id: number) =>
-  (try effect {
-    const { placement_group } = try Hetzner.placementGroups.getPlacementGroup({ id })
-    return placement_group
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const { placement_group } = try Hetzner.placementGroups.getPlacementGroup({ id })
+      return placement_group
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const findByName = effect (name: string) =>
   try effect {
@@ -179,13 +180,15 @@ const observe = effect (input: { id?: number; name?: string; logicalId: string }
  */
 export const waitUntilPlacementGroupGone = effect (
   id: number,
-): "found" | "gone"!Hetzner.BadRequest | Hetzner.ConfigError | Hetzner.Conflict | Hetzner.Forbidden | import("effect/http/HttpClientError").HttpClientError | import("@distilled.cloud/core/errors").InvalidInput | Hetzner.Locked | Hetzner.UnprocessableEntity | Hetzner.ClientErrors | import("@distilled.cloud/core/errors").DefaultErrors!Hetzner.HetznerOpContext =>
+): ("found" | "gone")!(Hetzner.BadRequest | Hetzner.ConfigError | Hetzner.Conflict | Hetzner.Forbidden | import("effect/http/HttpClientError").HttpClientError | import("@distilled.cloud/core/errors").InvalidInput | Hetzner.Locked | Hetzner.UnprocessableEntity | Hetzner.ClientErrors | import("@distilled.cloud/core/errors").DefaultErrors)!Hetzner.HetznerOpContext =>
   try (effect {
-    return (try (Hetzner.placementGroups.getPlacementGroup({ id })
-      |> Effect.as(%, "found" as const))) catch effect (e) => match (e) {
-        when { _tag: "NotFound" }: "gone" as const;
-        default: throw e;
-      }
+    return (effect {
+      return (try (Hetzner.placementGroups.getPlacementGroup({ id })
+        |> Effect.as(%, "found" as const)))
+    }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: "gone" as const;
+      default: throw e;
+    }
   }
     |> Effect.repeat(%, {
       schedule: Schedule.spaced("1 second"),
@@ -198,8 +201,11 @@ export const PlacementGroupProvider = (): infer _ =>
     stables: ["id", "type", "created"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      const nextType = news.type ?? DEFAULT_TYPE
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const nextType = resolved.type ?? DEFAULT_TYPE
       if (output !== undefined && nextType !== output.type) {
         return { action: "replace" } as const
       }
@@ -211,7 +217,12 @@ export const PlacementGroupProvider = (): infer _ =>
       const existing = try observe({ id: output?.id, name, logicalId: id })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () =>
@@ -232,7 +243,7 @@ export const PlacementGroupProvider = (): infer _ =>
       if (current === undefined) {
         const created = Hetzner.placementGroups
           .createPlacementGroup({ name, type, labels: desired }) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
+            when { _tag: "Conflict" }: undefined;
             default: throw e;
           }
         if (created?.action != null) {
@@ -245,8 +256,13 @@ export const PlacementGroupProvider = (): infer _ =>
         throw new PlacementGroupNotResolved({ resourceName: name })
       }
 
-      const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desired)
+      const observedLabelsInput = current.labels
+      const observedLabels = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(observedLabelsInput), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desired), catch: (e) => e }),
+      )
       const nameChanged = current.name !== name
       const labelsChanged = upsert.length > 0 || removed.length > 0
       if (nameChanged || labelsChanged) {
@@ -264,7 +280,7 @@ export const PlacementGroupProvider = (): infer _ =>
     delete: effect ({ output }) => {
       Hetzner.placementGroups
         .deletePlacementGroup({ id: output.id }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

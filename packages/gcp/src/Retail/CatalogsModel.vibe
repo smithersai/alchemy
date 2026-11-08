@@ -196,24 +196,35 @@ export const CatalogsModelProvider = (): infer _ =>
     stables: ["name", "modelId", "catalog", "project", "location", "type", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousParent = olds?.catalog ?? output?.catalog
-      const nextParent = expandCatalog(
-        news.catalog,
-        env.project,
-        normalizeLocation(news.location ?? output?.location),
-      )
+      const nextParent = try Effect.orDie(Effect.try({
+        try: () =>
+          expandCatalog(
+            resolved.catalog,
+            env.project,
+            normalizeLocation(resolved.location ?? output?.location),
+          ),
+        catch: (e) => e,
+      }))
       const previousType = olds?.type ?? output?.type
-      const nextType = news.type ?? previousType
+      const nextType = resolved.type ?? previousType
       const previousObjective = olds?.optimizationObjective ?? output?.optimizationObjective
-      const nextObjective = news.optimizationObjective ?? previousObjective
-      const identity = replaceOnIdentity({
-        previousId: olds?.modelId ?? output?.modelId,
-        nextId: news.modelId,
-        previousParent,
-        nextParent,
-      })
+      const nextObjective = resolved.optimizationObjective ?? previousObjective
+      const identity = try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.modelId ?? output?.modelId,
+            nextId: resolved.modelId,
+            previousParent,
+            nextParent,
+          }),
+        catch: (e) => e,
+      }))
       if (
         identity !== undefined
         || (previousType !== undefined && nextType !== undefined && previousType !== nextType)
@@ -244,7 +255,12 @@ export const CatalogsModelProvider = (): infer _ =>
       const name = output?.name
         ?? (catalog !== undefined
           ? resourceName(
-            expandCatalog(catalog, env.project, normalizeLocation(output?.location)),
+            try Effect.orDie(
+              Effect.try({
+                try: () => expandCatalog(catalog, env.project, normalizeLocation(output?.location)),
+                catch: (e) => e,
+              }),
+            ),
             modelId,
           )
           : undefined)
@@ -253,13 +269,19 @@ export const CatalogsModelProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location)
-      const catalog = expandCatalog(news.catalog, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const catalog = try Effect.orDie(
+        Effect.try({ try: () => expandCatalog(news.catalog, env.project, location), catch: (e) => e }),
+      )
       const modelId = try toPhysical(
         id,
         news.modelId,
@@ -295,7 +317,10 @@ export const CatalogsModelProvider = (): infer _ =>
             default: throw e;
           }
         try waitForOperation(operation)
-        const createdName = resourceNameFromOperation(operation) ?? name
+        const createdName = (try Effect.orDie(Effect.try({
+          try: () => resourceNameFromOperation(operation),
+          catch: (e) => e,
+        }))) ?? name
         current = try effect {
           const model = try getByName(createdName)
           return (model !== undefined ? model : try getByName(name))

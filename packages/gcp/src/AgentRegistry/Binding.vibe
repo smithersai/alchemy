@@ -233,9 +233,9 @@ const toAttrs = (item: registry.Binding, project: string, location: string): inf
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : registry
+const getByName = effect (name: string) => (name.length === 0 ? undefined : registry
   .getProjectsLocationsBindings({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
@@ -247,20 +247,23 @@ export const BindingProvider = (): infer _ =>
     stables: ["name", "bindingId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousSource = olds?.sourceIdentifier ?? output?.sourceIdentifier
       const previousTarget = olds?.targetIdentifier ?? output?.targetIdentifier
       return replaceOnIdentity({
         previousId: olds?.bindingId ?? output?.bindingId,
-        nextId: news.bindingId ?? olds?.bindingId ?? output?.bindingId,
+        nextId: resolved.bindingId ?? olds?.bindingId ?? output?.bindingId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
-        extra: (previousSource !== undefined && previousSource !== news.sourceIdentifier)
-          || (previousTarget !== undefined && previousTarget !== news.targetIdentifier),
+        extra: (previousSource !== undefined && previousSource !== resolved.sourceIdentifier)
+          || (previousTarget !== undefined && previousTarget !== resolved.targetIdentifier),
       })
     },
 
@@ -272,7 +275,9 @@ export const BindingProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, location)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -311,13 +316,15 @@ export const BindingProvider = (): infer _ =>
               authProviderBinding,
             },
           }),
-        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           // ALREADY_EXISTS (code 6): a concurrent create won the race.
           try (waitForOperation(created)
-            |> Effect.catchIf(%, (error) =>
-              error._tag === "GCP.OperationFailed" && error.code === 6, effect () =>
-              try Effect.void))
+            |> Effect.catchIf(
+              %,
+              (error) => error._tag === "GCP.OperationFailed" && error.code === 6,
+              effect () => (undefined as void),
+            ))
         }
         current = try waitForVisible(getByName(name))
       }
@@ -372,7 +379,7 @@ export const BindingProvider = (): infer _ =>
       }
       const deleted = retryTransient(
         registry.deleteProjectsLocationsBindings({ name: output.name }),
-      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (deleted !== undefined) {
         try waitForDeleteOperation(deleted)
       }

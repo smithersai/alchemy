@@ -790,18 +790,19 @@ export const SubscriptionProvider = (): infer _ =>
     stables: ["name", "subscriptionId", "project", "topic"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousId = olds?.subscriptionId ?? output?.subscriptionId
-      const nextId = news.subscriptionId ?? previousId
-      const nameChanged = news.subscriptionId !== undefined
+      const nextId = resolved.subscriptionId ?? previousId
+      const nameChanged = resolved.subscriptionId !== undefined
         && previousId !== undefined
-        && news.subscriptionId !== previousId
+        && resolved.subscriptionId !== previousId
       const previousTopic = olds?.topic ?? output?.topic
-      const topicChanged = previousTopic !== undefined && topicKey(news.topic) !== topicKey(previousTopic)
+      const topicChanged = previousTopic !== undefined && topicKey(resolved.topic) !== topicKey(previousTopic)
       const previousFilter = olds?.filter ?? output?.filter ?? ""
-      const nextFilter = news.filter ?? ""
+      const nextFilter = resolved.filter ?? ""
       const previousOrdering = olds?.enableMessageOrdering ?? output?.enableMessageOrdering ?? false
-      const nextOrdering = news.enableMessageOrdering ?? false
+      const nextOrdering = resolved.enableMessageOrdering ?? false
       if (
         !nameChanged
         && !topicChanged
@@ -823,7 +824,7 @@ export const SubscriptionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = { ...toAttrs(existing, env.project), iamGrants: output?.iamGrants }
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -850,7 +851,7 @@ export const SubscriptionProvider = (): infer _ =>
       const name = resourceName(env.project, subscriptionId)
       const topicName = topicNameOf(env.project, news.topic)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const previousGrants = output?.iamGrants ?? []
@@ -873,12 +874,12 @@ export const SubscriptionProvider = (): infer _ =>
         : try getByName(name)
 
       if (current === undefined) {
-        const created = (try (pubsub
+        const created = (effect { return (try (pubsub
           .createProjectsSubscriptions({
             name,
             body: toCreateBody(topicName, news, desiredLabels, bigqueryConfig),
           })
-          |> retryWriterGrants(bigqueryConfig)(%))) catch effect (e) => match (e) {
+          |> retryWriterGrants(bigqueryConfig)(%))) }) catch effect (e) => match (e) {
             when { _tag: "Conflict" }: try waitUntilPresent(name);
             default: throw e;
           }
@@ -892,7 +893,7 @@ export const SubscriptionProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const desiredAck = news.ackDeadlineSeconds ?? current.ackDeadlineSeconds ?? DEFAULT_ACK_DEADLINE_SECONDS
       const ackChanged = desiredAck !== (current.ackDeadlineSeconds ?? DEFAULT_ACK_DEADLINE_SECONDS)
@@ -993,11 +994,11 @@ export const SubscriptionProvider = (): infer _ =>
       // that failed after minting it never recorded any.
       try revokeStaleGrants(output.iamGrants ?? [], [])
       const writer = bigqueryWriterEmail(output.project, output.name, instanceId)
-      const minted = (try (iam
+      const minted = (effect { return (try (iam
         .getProjectsServiceAccounts({
           name: `projects/${output.project}/serviceAccounts/${writer}`,
         })
-        |> Effect.as(%, true))) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
+        |> Effect.as(%, true))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
       if (minted) {
         try deleteHostServiceAccount({ project: output.project, email: writer })
       }

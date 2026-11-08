@@ -73,7 +73,7 @@ export interface PostgresDatabase<C extends AnyPostgresContract, E = never, R = 
    */
   readonly use: <A>(
     f: (client: PostgresClient<C>) => PromiseLike<A>,
-  ) => A!ClientError | E!R
+  ) => A!(ClientError | E)!R
   /**
    * The Effect-native orm lane — chain like Prisma, yield the terminal:
    *
@@ -90,7 +90,7 @@ export interface PostgresDatabase<C extends AnyPostgresContract, E = never, R = 
   /** The raw SQL lane (pure): ``db.raw.sql`SELECT ...` `` builds plans. */
   readonly raw: PostgresStaticContext<C>["raw"]
   /** Execute a plan, buffering all rows. */
-  execute<Row>(plan: Plan<Row>): Row[]!ClientError | E!R
+  execute<Row>(plan: Plan<Row>): Row[]!(ClientError | E)!R
   /** Execute a plan as a row stream (each run re-executes the plan). */
   stream<Row>(plan: Plan<Row>): Stream.Stream<Row, ClientError | E, R>
   /** Prepare a typed statement; each query resolves the current execution's client. */
@@ -102,7 +102,7 @@ export interface PostgresDatabase<C extends AnyPostgresContract, E = never, R = 
    */
   transaction<A, E2, R2>(
     f: (tx: PostgresTransaction<C>) => A!E2!R2,
-  ): A!E2 | ClientError | E!R | R2
+  ): A!(E2 | ClientError | E)!(R | R2)
 }
 
 /**
@@ -244,7 +244,7 @@ export const Postgres = effect <C extends AnyPostgresContract, E = never, R = ne
     },
   )
 
-  const execute = effect <Row>(plan: Plan<Row>): Row[]!ClientError | E!R =>
+  const execute = effect <Row>(plan: Plan<Row>): Row[]!(ClientError | E)!R =>
     try Effect.flatMap(client, effect (c) =>
       try Effect.tryPromise({
         try: (signal) => c.runtime().query(plan, { signal }).toArray(),
@@ -255,9 +255,15 @@ export const Postgres = effect <C extends AnyPostgresContract, E = never, R = ne
     // unwrap re-evaluates per run, so each run gets a fresh
     // AsyncIterableResult (they are single-consumption).
     Stream.unwrap(
-      Effect.map(
+      Effect.flatMap(
         client,
-        (c) => Stream.fromAsyncIterable(c.runtime().query(plan) as AsyncIterable<Row>, wrapPrismaError),
+        effect (c) => {
+          const iterable = try Effect.orDie(Effect.try({
+            try: () => c.runtime().query(plan) as AsyncIterable<Row>,
+            catch: (e) => e,
+          }))
+          return Stream.fromAsyncIterable(iterable, wrapPrismaError)
+        },
       ),
     )
 
@@ -283,7 +289,7 @@ export const Postgres = effect <C extends AnyPostgresContract, E = never, R = ne
 
   const transaction = effect <A, E2, R2>(
     f: (tx: PostgresTransaction<C>) => A!E2!R2,
-  ): A!E2 | ClientError | E!R | R2 =>
+  ): A!(E2 | ClientError | E)!(R | R2) =>
     try Effect.flatMap(client, effect (c) =>
       try Effect.acquireUseRelease(
         Effect.tryPromise({
@@ -333,13 +339,19 @@ export const Postgres = effect <C extends AnyPostgresContract, E = never, R = ne
           try: () => Promise.resolve(f(c)),
           catch: wrapPrismaError,
         })),
-    orm: makeOrmProxy<C, ClientError | E, R>(Effect.map(client, (c) => c.orm)),
+    orm: try Effect.orDie(
+      Effect.try({ try: () => makeOrmProxy<C, ClientError | E, R>(Effect.map(client, (c) => c.orm)), catch: (e) => e }),
+    ),
     sql: statics.sql,
     raw: statics.raw,
-    prepare: makePrepare(
-      Effect.map(client, (c) => c.runtime()),
-      statics.sql,
-    ),
+    prepare: try Effect.orDie(Effect.try({
+      try: () =>
+        makePrepare(
+          Effect.map(client, (c) => c.runtime()),
+          statics.sql,
+        ),
+      catch: (e) => e,
+    })),
     execute,
     stream,
     transaction,

@@ -288,21 +288,33 @@ export const ClusterProvider = (): infer _ =>
     stables: ["name", "clusterId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const previousSubnets = fingerprint([...(olds?.subnets ?? output?.subnets ?? [])].sort())
-      const nextSubnets = fingerprint([...subnetsOf(news, env.project, location)].sort())
-      return replaceOnIdentity({
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? output?.location, env.region),
+          catch: (e) => e,
+        }),
+      )
+      const previousSubnets = try Effect.orDie(
+        Effect.try({ try: () => fingerprint([...(olds?.subnets ?? output?.subnets ?? [])].sort()), catch: (e) => e }),
+      )
+      const value = [...subnetsOf(resolved, env.project, location)].sort()
+      const nextSubnets = try Effect.orDie(Effect.try({ try: () => fingerprint(value), catch: (e) => e }))
+      const input = {
         previousId: olds?.clusterId ?? output?.clusterId,
-        nextId: news.clusterId
-          ? rfc1035(news.clusterId, "kafka", MAX_CLUSTER_ID_LENGTH)
+        nextId: resolved.clusterId
+          ? rfc1035(resolved.clusterId, "kafka", MAX_CLUSTER_ID_LENGTH)
           : (olds?.clusterId ?? output?.clusterId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         extra: previousSubnets !== nextSubnets
-          || (kmsOf(news) ?? "") !== (olds?.kmsKey ?? output?.kmsKey ?? ""),
-      })
+          || (kmsOf(resolved) ?? "") !== (olds?.kmsKey ?? output?.kmsKey ?? ""),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -314,12 +326,19 @@ export const ClusterProvider = (): infer _ =>
         "kafka",
         MAX_CLUSTER_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, clusterId)
       const existing = try getCluster(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -337,10 +356,12 @@ export const ClusterProvider = (): infer _ =>
         "kafka",
         MAX_CLUSTER_ID_LENGTH,
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, clusterId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const capacity = desiredCapacity(news)
@@ -350,23 +371,27 @@ export const ClusterProvider = (): infer _ =>
       let current = try getCluster(name)
 
       if (current === undefined) {
-        const created = (try (kafka
-          .createProjectsLocationsClusters({
-            parent: locationParent(env.project, location),
-            clusterId,
-            body: {
-              gcpConfig,
-              capacityConfig: capacity,
-              rebalanceConfig,
-              tlsConfig: news.tlsConfig,
-              updateOptions: news.updateOptions,
-              labels: desiredLabels,
-            },
-          })
-          |> retryCreateQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (kafka
+            .createProjectsLocationsClusters({
+              parent: try Effect.orDie(
+                Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+              ),
+              clusterId,
+              body: {
+                gcpConfig,
+                capacityConfig: capacity,
+                rebalanceConfig,
+                tlsConfig: news.tlsConfig,
+                updateOptions: news.updateOptions,
+                labels: desiredLabels,
+              },
+            })
+            |> retryCreateQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -380,13 +405,25 @@ export const ClusterProvider = (): infer _ =>
       current = try waitUntilReady(getCluster(name), name, (cluster) => cluster.state)
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const capacityChanged = (current.capacityConfig?.vcpuCount ?? "") !== (capacity.vcpuCount ?? "")
         || (current.capacityConfig?.memoryBytes ?? "") !== (capacity.memoryBytes ?? "")
       const rebalanceChanged = (current.rebalanceConfig?.mode ?? "") !== (rebalanceConfig?.mode ?? "")
-      const tlsChanged = fingerprint(current.tlsConfig) !== fingerprint(news.tlsConfig)
-      const updateOptionsChanged = fingerprint(current.updateOptions) !== fingerprint(news.updateOptions)
+      const tlsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.tlsConfig), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.tlsConfig),
+            catch: (e) => e,
+          })))
+      const updateOptionsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.updateOptions), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.updateOptions),
+            catch: (e) => e,
+          })))
 
       if (
         labelsChanged
@@ -397,13 +434,17 @@ export const ClusterProvider = (): infer _ =>
       ) {
         const op = try kafka.patchProjectsLocationsClusters({
           name,
-          updateMask: fieldMask([
-            labelsChanged && "labels",
-            capacityChanged && "capacity_config",
-            rebalanceChanged && "rebalance_config",
-            tlsChanged && "tls_config",
-            updateOptionsChanged && "update_options",
-          ]),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              fieldMask([
+                labelsChanged && "labels",
+                capacityChanged && "capacity_config",
+                rebalanceChanged && "rebalance_config",
+                tlsChanged && "tls_config",
+                updateOptionsChanged && "update_options",
+              ]),
+            catch: (e) => e,
+          })),
           body: {
             labels: desiredLabels,
             capacityConfig: capacity,

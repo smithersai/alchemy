@@ -125,29 +125,46 @@ export const DatasetProvider = (): infer _ =>
     stables: ["name", "datasetId", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousLocation = olds?.location ?? output?.location
       if (
-        previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation, env.region)
-          !== normalizeLocation(news.location, env.region)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousLocation !== undefined
+            && resolved.location !== undefined
+            && normalizeLocation(previousLocation, env.region)
+              !== normalizeLocation(resolved.location, env.region),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
-      return replaceOnIdentity({
-        previousId: olds?.datasetId ?? output?.datasetId,
-        nextId: news.datasetId,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.datasetId ?? output?.datasetId,
+            nextId: resolved.datasetId,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const datasetId = olds?.datasetId
         ?? output?.datasetId
-        ?? (output?.name ? parseResourceName(output.name, "datasets", env.region).id : "")
+        ?? (output?.name
+          ? (try Effect.orDie(
+            Effect.try({ try: () => parseResourceName(output.name, "datasets", env.region), catch: (e) => e }),
+          )).id
+          : "")
       const name = output?.name
         ?? (datasetId.length > 0 ? resourceName(env.project, location, datasetId) : "")
       const existing = try getByName(name)
@@ -155,17 +172,23 @@ export const DatasetProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project, env.region)
       // Datasets have no labels. The physical name is unique per
       // instance id, so a hit at our computed name is treated as owned.
-      return output?.name !== undefined && output.name !== attrs.name ? Unowned(attrs) : attrs
+      return output?.name !== undefined && output.name !== attrs.name
+        ? try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        : attrs
     },
 
     list: effect () => [],
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const datasetId = try toPhysicalId(id, news.datasetId, output?.datasetId)
       const name = output?.name ?? resourceName(env.project, location, datasetId)
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(name)
 

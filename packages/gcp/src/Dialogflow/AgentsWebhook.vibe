@@ -290,21 +290,25 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsWebhooks.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.webhooks ?? []))
-      |> Stream.filter(%, (webhook) => hasOwnershipMarker(webhook.displayName))
-      |> Stream.map(%, (webhook) => toAttrs(webhook, project, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsWebhooks.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.webhooks ?? []))
+        |> Stream.filter(%, (webhook) => hasOwnershipMarker(webhook.displayName))
+        |> Stream.map(%, (webhook) => toAttrs(webhook, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsWebhooks.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.webhooks ?? []))
-      |> Stream.filter(%, (webhook) => webhook.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsWebhooks.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.webhooks ?? []))
+        |> Stream.filter(%, (webhook) => webhook.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const AgentsWebhookProvider = (): infer _ =>
@@ -312,24 +316,31 @@ export const AgentsWebhookProvider = (): infer _ =>
     stables: ["name", "webhookId", "agent", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
-      if (previousAgent !== undefined && news.agent !== previousAgent) {
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.webhookId ?? output?.webhookId
       if (
         previousId !== undefined
-        && news.webhookId !== undefined
-        && news.webhookId !== previousId
+        && resolved.webhookId !== undefined
+        && resolved.webhookId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousLocation = olds?.location ?? output?.location
       if (
-        previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousLocation !== undefined
+            && resolved.location !== undefined
+            && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -338,8 +349,12 @@ export const AgentsWebhookProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
       const webhookId = try toResourceId(id, olds?.webhookId, output?.webhookId)
       const name = output?.name ?? (agent !== undefined ? resourceName(agent, webhookId) : "")
       let existing = try getByName(name)
@@ -347,12 +362,16 @@ export const AgentsWebhookProvider = (): infer _ =>
         const ownership = try internalLabels(id)
         existing = try findByDisplayName(
           agent,
-          encodeOwnershipLine(ownership, olds?.displayName),
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, agent)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -367,12 +386,21 @@ export const AgentsWebhookProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
-        const agent = expandAgent(news.agent, env.project, location)
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
         const webhookId = try toResourceId(id, news.webhookId, output?.webhookId)
         const name = output?.name ?? resourceName(agent, webhookId)
         const ownership = try internalLabels(id)
-        const displayName = encodeOwnershipLine(ownership, news.displayName)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
         const disabled = news.disabled === true
         const body: dialogflow.GoogleCloudDialogflowCxV3Webhook = {
           displayName,
@@ -407,9 +435,16 @@ export const AgentsWebhookProvider = (): infer _ =>
         const displayChanged = !sameText(current.displayName, displayName)
         const timeoutChanged = !sameText(current.timeout, news.timeout)
         const disabledChanged = (current.disabled === true) !== disabled
-        const genericChanged = fingerprint(genericOf(current.genericWebService)) !== fingerprint(news.genericWebService)
-        const directoryChanged =
-          fingerprint(directoryOf(current.serviceDirectory)) !== fingerprint(news.serviceDirectory)
+        const value = genericOf(current.genericWebService)
+        const genericChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.genericWebService), catch: (e) => e })))
+        const value2 = directoryOf(current.serviceDirectory)
+        const directoryChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value2),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.serviceDirectory), catch: (e) => e })))
 
         if (
           displayChanged
@@ -420,13 +455,17 @@ export const AgentsWebhookProvider = (): infer _ =>
         ) {
           current = try dialogflow.patchProjectsLocationsAgentsWebhooks({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              timeoutChanged ? "timeout" : undefined,
-              disabledChanged ? "disabled" : undefined,
-              genericChanged ? "generic_web_service" : undefined,
-              directoryChanged ? "service_directory" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  timeoutChanged ? "timeout" : undefined,
+                  disabledChanged ? "disabled" : undefined,
+                  genericChanged ? "generic_web_service" : undefined,
+                  directoryChanged ? "service_directory" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }

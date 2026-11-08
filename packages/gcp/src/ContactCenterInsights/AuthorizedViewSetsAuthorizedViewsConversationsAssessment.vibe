@@ -141,49 +141,56 @@ const toAttrs = (assessment: cci.GoogleCloudContactcenterinsightsV1Assessment, p
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
-      |> Stream.filter(%, (assessment) => hasOwnershipMarker(assessment.agentInfo?.displayName))
-      |> Stream.map(%, (assessment) => toAttrs(assessment, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
+        |> Stream.filter(%, (assessment) => hasOwnershipMarker(assessment.agentInfo?.displayName))
+        |> Stream.map(%, (assessment) => toAttrs(assessment, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, displayName: string, agentId: string | undefined) =>
-  (try effect {
-    const option = try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
-      |> Stream.filter(%, (assessment) =>
-        assessment.agentInfo?.displayName === displayName
-        && (agentId === undefined || assessment.agentInfo?.agentId === agentId))
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
+        |> Stream.filter(%, (assessment) =>
+          assessment.agentInfo?.displayName === displayName
+          && (agentId === undefined || assessment.agentInfo?.agentId === agentId))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 export const AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProvider = (): infer _ =>
   Provider.succeed(AuthorizedViewSetsAuthorizedViewsConversationsAssessment, {
     stables: ["name", "assessmentId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousAgent = olds?.agentInfo?.agentId ?? output?.agentInfo?.agentId
       if (
         previousAgent !== undefined
-        && news.agentInfo.agentId !== undefined
-        && news.agentInfo.agentId !== previousAgent
+        && resolved.agentInfo.agentId !== undefined
+        && resolved.agentInfo.agentId !== previousAgent
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -203,20 +210,24 @@ export const AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProvider = 
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.agentInfo?.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.agentInfo?.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const viewsParent = `${locationParent(env.project, env.region)}/authorizedViewSets/-`
-      const views = (Array.from(
-        try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViews
-          .pages({ parent: viewsParent, pageSize: 100 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authorizedViews ?? []))
-          |> Stream.map(%, (view) => view.name ?? "")
-          |> Stream.filter(%, (name) => name.length > 0)
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+      const views = (effect {
+        return (Array.from(
+          try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViews
+            .pages({ parent: viewsParent, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authorizedViews ?? []))
+            |> Stream.map(%, (view) => view.name ?? "")
+            |> Stream.filter(%, (name) => name.length > 0)
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
       const pages = try Effect.forEach(
         views,
         effect (view) => try listAtParent(`${view}/conversations/-`, env.project),
@@ -265,6 +276,6 @@ export const AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProvider = 
         .deleteProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments({
           name: output.name,
           force: true,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

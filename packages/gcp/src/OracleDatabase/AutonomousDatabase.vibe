@@ -499,17 +499,21 @@ export const AutonomousDatabaseProvider = (): infer _ =>
     stables: ["name", "autonomousDatabaseId", "project", "location", "createTime", "ocid"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.autonomousDatabaseId ?? output?.autonomousDatabaseId,
-        nextId: news.autonomousDatabaseId ?? olds?.autonomousDatabaseId ?? output?.autonomousDatabaseId,
+        nextId: resolved.autonomousDatabaseId ?? olds?.autonomousDatabaseId ?? output?.autonomousDatabaseId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
         ),
-        extra: identityChanged(news, olds, output),
-      })
+        extra: identityChanged(resolved, olds, output),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -520,12 +524,25 @@ export const AutonomousDatabaseProvider = (): infer _ =>
         output?.autonomousDatabaseId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, autonomousDatabaseId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceNameOf(env.project, location, COLLECTION, autonomousDatabaseId),
+            catch: (e) => e,
+          }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -542,26 +559,35 @@ export const AutonomousDatabaseProvider = (): infer _ =>
         output?.autonomousDatabaseId,
         FALLBACK_ID,
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceNameOf(env.project, location, COLLECTION, autonomousDatabaseId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({
+          try: () => resourceNameOf(env.project, location, COLLECTION, autonomousDatabaseId),
+          catch: (e) => e,
+        }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (oracle
-          .createProjectsLocationsAutonomousDatabases({
-            parent: parentOf(env.project, location),
-            autonomousDatabaseId,
-            body: toCreateBody(news, desiredLabels, env.project),
-          })
-          |> retryQuota(%))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
-            default: throw e;
-          }
+        const created = (effect {
+          return (try (oracle
+            .createProjectsLocationsAutonomousDatabases({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              autonomousDatabaseId,
+              body: toCreateBody(news, desiredLabels, env.project),
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -579,30 +605,48 @@ export const AutonomousDatabaseProvider = (): infer _ =>
       )
 
       const props = mergedProperties(news)
-      const observedLabels = tagRecord(ready.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabels = try Effect.orDie(Effect.try({ try: () => tagRecord(ready.labels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
-      const computeChanged = (props.cpuCoreCount !== undefined
-        && !specifiedEquals(props.cpuCoreCount, ready.properties?.cpuCoreCount))
-        || (props.computeCount !== undefined
-          && !specifiedEquals(props.computeCount, ready.properties?.computeCount))
-      const storageChanged = (props.dataStorageSizeGb !== undefined
-        && !specifiedEquals(props.dataStorageSizeGb, ready.properties?.dataStorageSizeGb))
-        || (props.dataStorageSizeTb !== undefined
-          && !specifiedEquals(props.dataStorageSizeTb, ready.properties?.dataStorageSizeTb))
+      const computeChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          (props.cpuCoreCount !== undefined
+            && !specifiedEquals(props.cpuCoreCount, ready.properties?.cpuCoreCount))
+          || (props.computeCount !== undefined
+            && !specifiedEquals(props.computeCount, ready.properties?.computeCount)),
+        catch: (e) => e,
+      }))
+      const storageChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          (props.dataStorageSizeGb !== undefined
+            && !specifiedEquals(props.dataStorageSizeGb, ready.properties?.dataStorageSizeGb))
+          || (props.dataStorageSizeTb !== undefined
+            && !specifiedEquals(props.dataStorageSizeTb, ready.properties?.dataStorageSizeTb)),
+        catch: (e) => e,
+      }))
       const scalingChanged = (props.isAutoScalingEnabled !== undefined
         && props.isAutoScalingEnabled !== ready.properties?.isAutoScalingEnabled)
         || (props.isStorageAutoScalingEnabled !== undefined
           && props.isStorageAutoScalingEnabled !== ready.properties?.isStorageAutoScalingEnabled)
-      const encryptionChanged = props.encryptionKey !== undefined
-        && !specifiedEquals(props.encryptionKey, ready.properties?.encryptionKey)
+      const encryptionChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          props.encryptionKey !== undefined
+          && !specifiedEquals(props.encryptionKey, ready.properties?.encryptionKey),
+        catch: (e) => e,
+      }))
       const dataGuardChanged = props.localDataGuardEnabled !== undefined
         && props.localDataGuardEnabled !== ready.properties?.localDataGuardEnabled
-      const failoverLimitChanged = props.localAdgAutoFailoverMaxDataLossLimitDuration !== undefined
-        && !specifiedEquals(
-          props.localAdgAutoFailoverMaxDataLossLimitDuration,
-          ready.properties?.localAdgAutoFailoverMaxDataLossLimitDuration,
-        )
+      const failoverLimitChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          props.localAdgAutoFailoverMaxDataLossLimitDuration !== undefined
+          && !specifiedEquals(
+            props.localAdgAutoFailoverMaxDataLossLimitDuration,
+            ready.properties?.localAdgAutoFailoverMaxDataLossLimitDuration,
+          ),
+        catch: (e) => e,
+      }))
 
       if (
         labelsChanged
@@ -660,14 +704,16 @@ export const AutonomousDatabaseProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (oracle
-        .deleteProjectsLocationsAutonomousDatabases({
-          name: output.name,
-        })
-        |> retryConflict(%))) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
-          default: throw e;
-        }
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsAutonomousDatabases({
+            name: output.name,
+          })
+          |> retryConflict(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -202,42 +202,70 @@ export const DeploymentsActuationProvider = (): infer _ =>
     stables: ["name", "actuationId", "deployment", "project", "location", "startTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousParent = (olds?.deployment ?? output?.deployment)
-        ? expandNamed(
-          olds?.deployment ?? output?.deployment ?? "",
-          env.project,
-          previousLocation,
-          "deployments",
-        )
+        ? try Effect.orDie(Effect.try({
+          try: () =>
+            expandNamed(
+              olds?.deployment ?? output?.deployment ?? "",
+              env.project,
+              previousLocation,
+              "deployments",
+            ),
+          catch: (e) => e,
+        }))
         : undefined
-      const nextParent = expandNamed(news.deployment, env.project, nextLocation, "deployments")
-      return replaceOnIdentity({
-        previousId: olds?.actuationId ?? output?.actuationId,
-        nextId: news.actuationId ?? olds?.actuationId ?? output?.actuationId,
-        previousLocation,
-        nextLocation,
-        previousParent,
-        nextParent,
-      })
+      const nextParent = try Effect.orDie(
+        Effect.try({
+          try: () => expandNamed(resolved.deployment, env.project, nextLocation, "deployments"),
+          catch: (e) => e,
+        }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.actuationId ?? output?.actuationId,
+            nextId: resolved.actuationId ?? olds?.actuationId ?? output?.actuationId,
+            previousLocation,
+            nextLocation,
+            previousParent,
+            nextParent,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const actuationId = try toActuationId(id, olds?.actuationId, output?.actuationId)
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const deployment = expandNamed(
-        olds?.deployment ?? output?.deployment ?? "",
-        env.project,
-        location,
-        "deployments",
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const deployment = try Effect.orDie(Effect.try({
+        try: () =>
+          expandNamed(
+            olds?.deployment ?? output?.deployment ?? "",
+            env.project,
+            location,
+            "deployments",
+          ),
+        catch: (e) => e,
+      }))
       const name = output?.name ?? resourceName(deployment, actuationId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
@@ -253,8 +281,12 @@ export const DeploymentsActuationProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const actuationId = try toActuationId(id, news.actuationId, output?.actuationId)
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const deployment = expandNamed(news.deployment, env.project, location, "deployments")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const deployment = try Effect.orDie(
+        Effect.try({ try: () => expandNamed(news.deployment, env.project, location, "deployments"), catch: (e) => e }),
+      )
       const name = resourceName(deployment, actuationId)
 
       let current = try getByName(output?.name ?? name)
@@ -271,7 +303,9 @@ export const DeploymentsActuationProvider = (): infer _ =>
             when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
             default: throw error;
           }
-          const fromOp = resourceNameFromOperation(created)
+          const fromOp = try Effect.orDie(
+            Effect.try({ try: () => resourceNameFromOperation(created), catch: (e) => e }),
+          )
           current = try waitUntilExists(getByName(fromOp ?? name), fromOp ?? name)
         } else {
           current = try waitUntilExists(getByName(name), name)
@@ -286,15 +320,17 @@ export const DeploymentsActuationProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (workloadmanager
-        .deleteProjectsLocationsDeploymentsActuations({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (workloadmanager
+          .deleteProjectsLocationsDeploymentsActuations({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

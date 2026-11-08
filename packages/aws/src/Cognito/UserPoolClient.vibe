@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cip from "@distilled.cloud/aws/cognito-identity-provider"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -290,24 +291,28 @@ export const UserPoolClientProvider = (): infer _ =>
       ) => props.clientName ?? (try createPhysicalName({ id, maxLength: 128 }))
 
       const describeClient = effect (userPoolId: string, clientId: string) =>
-        (try cip
-          .describeUserPoolClient({
-            UserPoolId: userPoolId,
-            ClientId: clientId,
-          })).UserPoolClient catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return (try cip
+            .describeUserPoolClient({
+              UserPoolId: userPoolId,
+              ClientId: clientId,
+            })).UserPoolClient
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
 
       /** Find a client of the pool by exact name (used when state was lost).
        * The physical name embeds app/stage/id, so a match is ours. */
       const findClientByName = effect (userPoolId: string, clientName: string) => {
-        const pages = (try (cip.listUserPoolClients
-          .pages({ UserPoolId: userPoolId, MaxResults: 60 })
-          |> Stream.runCollect(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: [] as cip.ListUserPoolClientsResponse[];
-            default: throw e;
-          }
+        const pages = (effect {
+          return (try (cip.listUserPoolClients
+            .pages({ UserPoolId: userPoolId, MaxResults: 60 })
+            |> Stream.runCollect(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: [] as cip.ListUserPoolClientsResponse[];
+          default: throw e;
+        }
         const match = Array.from(pages)
           .flatMap((page) => page.UserPoolClients ?? [])
           .find((client) => client.ClientName === clientName)
@@ -343,8 +348,9 @@ export const UserPoolClientProvider = (): infer _ =>
           return observed === undefined ? undefined : attributesOf(observed)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if ((olds?.generateSecret ?? false) !== (news?.generateSecret ?? false)) {
             return { action: "replace" } as const
           }
@@ -405,7 +411,7 @@ export const UserPoolClientProvider = (): infer _ =>
               UserPoolId: output.userPoolId,
               ClientId: output.clientId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

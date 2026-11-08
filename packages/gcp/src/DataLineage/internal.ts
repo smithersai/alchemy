@@ -31,7 +31,7 @@ export const lastSegment = (value: string) => {
 export const normalizeLocation = (location: string | undefined, fallback: string) =>
   lastSegment(location ?? fallback).toLowerCase();
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const parentOf = (name: string) => {
@@ -100,8 +100,10 @@ export const toPhysicalId = (
     );
   });
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

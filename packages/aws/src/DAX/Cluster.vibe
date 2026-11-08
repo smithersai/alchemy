@@ -225,7 +225,7 @@ export const ClusterProvider = (): infer _ =>
       const readCluster = effect (name: string) => {
         const response = dax
           .describeClusters({ ClusterNames: [name] }) catch effect (e) => match (e) {
-            when { _tag: "ClusterNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ClusterNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.Clusters?.[0]
@@ -307,8 +307,9 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterName", "clusterArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          const n = news ?? { iamRoleArn: "" }
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          const n = resolved ?? { iamRoleArn: "" }
           const o = olds ?? { iamRoleArn: "" }
           if ((try toName(id, o)) !== (try toName(id, n))) {
             return { action: "replace" } as const
@@ -349,7 +350,7 @@ export const ClusterProvider = (): infer _ =>
           const cluster = try readCluster(name)
           if (!cluster?.ClusterArn) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -364,7 +365,7 @@ export const ClusterProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
           if (observed === undefined) {
-            ;(try (dax
+            ;effect { return (try (dax
               .createCluster({
                 ClusterName: name,
                 NodeType: props.nodeType ?? DEFAULT_NODE_TYPE,
@@ -385,8 +386,8 @@ export const ClusterProvider = (): infer _ =>
                   Value,
                 })),
               })
-              |> retryIamRolePropagation(%))) catch effect (e) => match (e) {
-                when { _tag: "ClusterAlreadyExistsFault" }: try Effect.void;
+              |> retryIamRolePropagation(%))) } catch effect (e) => match (e) {
+                when { _tag: "ClusterAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -461,7 +462,7 @@ export const ClusterProvider = (): infer _ =>
           const arn = observed.ClusterArn
           if (arn) {
             const observedTags = try readDaxTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try dax.tagResource({ ResourceName: arn, Tags: upsert })
             }
@@ -484,17 +485,17 @@ export const ClusterProvider = (): infer _ =>
             return
           }
           if (settled.Status !== "deleting") {
-            ;(try (effect {
+            ;(effect { return (try (effect {
               return dax.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
-                when { _tag: "ClusterNotFoundFault" }: try Effect.void;
+                when { _tag: "ClusterNotFoundFault" }: (undefined as void);
                 default: throw e;
               }
             }
               |> Effect.retry(%, {
                 while: (e) => e._tag === "InvalidClusterStateFault",
                 schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
-              }))) catch effect (e) => match (e) {
-                when { _tag: "InvalidClusterStateFault" }: try Effect.void;
+              }))) }) catch effect (e) => match (e) {
+                when { _tag: "InvalidClusterStateFault" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -505,7 +506,7 @@ export const ClusterProvider = (): infer _ =>
           try (effect {
             return try effect {
               const cluster = try readCluster(name)
-              return (cluster === undefined ? try Effect.void : throw new DAXClusterNotReady({
+              return (cluster === undefined ? (undefined as void) : throw new DAXClusterNotReady({
                 message: `DAX cluster '${name}' still deleting (status: ${cluster.Status})`,
               }))
             }
@@ -531,7 +532,7 @@ export const ClusterProvider = (): infer _ =>
             clusters.filter(
               (cluster) => cluster.ClusterName !== undefined && cluster.ClusterArn !== undefined,
             ),
-            (cluster) => toAttrs(cluster),
+            effect (cluster) => try toAttrs(cluster),
             { concurrency: 4 },
           )
         },

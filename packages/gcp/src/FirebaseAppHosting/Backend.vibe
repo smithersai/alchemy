@@ -283,25 +283,40 @@ export const BackendProvider = (): infer _ =>
     stables: ["name", "backendId", "project", "location", "uid", "createTime", "servingLocality"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const previousServing = normalizeServingLocality(
-        olds?.servingLocality ?? output?.servingLocality,
-      )
-      const nextServing = normalizeServingLocality(
-        news.servingLocality ?? olds?.servingLocality ?? output?.servingLocality,
-      )
-      return replaceOnIdentity({
-        previousId: olds?.backendId ?? output?.backendId,
-        nextId: news.backendId ?? olds?.backendId ?? output?.backendId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (olds?.servingLocality ?? output?.servingLocality) !== undefined
-          && previousServing !== nextServing,
-      })
+      const previousServing = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeServingLocality(
+            olds?.servingLocality ?? output?.servingLocality,
+          ),
+        catch: (e) => e,
+      }))
+      const nextServing = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeServingLocality(
+            resolved.servingLocality ?? olds?.servingLocality ?? output?.servingLocality,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backendId ?? output?.backendId,
+            nextId: resolved.backendId ?? olds?.backendId ?? output?.backendId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (olds?.servingLocality ?? output?.servingLocality) !== undefined
+              && previousServing !== nextServing,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -313,12 +328,19 @@ export const BackendProvider = (): infer _ =>
         "backend",
         MAX_BACKEND_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, backendId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -336,15 +358,20 @@ export const BackendProvider = (): infer _ =>
         "backend",
         MAX_BACKEND_ID_LENGTH,
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, backendId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
-      const desiredServing = normalizeServingLocality(news.servingLocality)
-      const desiredServiceAccount = news.serviceAccount ?? defaultServiceAccount(env.project)
+      const desiredServing = try Effect.orDie(
+        Effect.try({ try: () => normalizeServingLocality(news.servingLocality), catch: (e) => e }),
+      )
+      const desiredServiceAccount = news.serviceAccount
+        ?? (try Effect.orDie(Effect.try({ try: () => defaultServiceAccount(env.project), catch: (e) => e })))
       const desiredLogsDisabled = news.requestLogsDisabled === true
 
       let current = try getByName(output?.name ?? name)
@@ -380,14 +407,23 @@ export const BackendProvider = (): infer _ =>
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, desiredAnnotations),
+            catch: (e) => e,
+          })))
         && "annotations",
         !sameText(current.displayName, news.displayName) && "displayName",
         !sameText(current.serviceAccount, desiredServiceAccount) && "serviceAccount",
         !sameText(current.appId, news.appId) && "appId",
         !sameText(current.environment, news.environment) && "environment",
         !sameBool(current.requestLogsDisabled, desiredLogsDisabled) && "requestLogsDisabled",
-        fingerprint(toCodebase(current.codebase)) !== fingerprint(news.codebase) && "codebase",
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toCodebase(current.codebase)), catch: (e) => e }),
+          )) !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.codebase), catch: (e) => e })))
+        && "codebase",
       ])
 
       if (mask.length > 0) {
@@ -414,16 +450,18 @@ export const BackendProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (firebaseapphosting
-        .deleteProjectsLocationsBackends({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (firebaseapphosting
+          .deleteProjectsLocationsBackends({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

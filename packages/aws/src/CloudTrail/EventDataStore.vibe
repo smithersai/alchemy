@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cloudtrail from "@distilled.cloud/aws/cloudtrail"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -229,14 +230,16 @@ export const EventDataStoreProvider = (): infer _ =>
       }
 
       const fetchObservedTags = effect (arn: string) =>
-        (try effect {
-          const r = try cloudtrail.listTags({ ResourceIdList: [arn] })
+        (effect {
+          return (try effect {
+            const r = try cloudtrail.listTags({ ResourceIdList: [arn] })
 
-          const tags: Record<string, string> = {}
-          for (const t of r.ResourceTagList?.[0]?.TagsList ?? []) {
-            tags[t.Key] = t.Value ?? ""
-          }
-          return tags
+            const tags: Record<string, string> = {}
+            for (const t of r.ResourceTagList?.[0]?.TagsList ?? []) {
+              tags[t.Key] = t.Value ?? ""
+            }
+            return tags
+          })
         }) catch () => ({}) as Record<string, string>
 
       // Look up a store by ARN, tolerating the typed not-found.
@@ -244,7 +247,7 @@ export const EventDataStoreProvider = (): infer _ =>
         cloudtrail
           .getEventDataStore({ EventDataStore: arn }) catch effect (e) => match (e) {
             when { _tag: "EventDataStoreNotFoundException" } or { _tag: "EventDataStoreARNInvalidException" }:
-              try Effect.undefined;
+              undefined;
             default: throw e;
           }
 
@@ -291,10 +294,12 @@ export const EventDataStoreProvider = (): infer _ =>
             status: store.Status ?? "ENABLED",
           }
           const tags = try fetchObservedTags(attrs.eventDataStoreArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
         diff: effect ({ news }) => {
-          if (!isResolved(news)) return undefined
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(news), catch: (e) => e })))) return undefined
           // Every prop (including the name) is mutable via
           // UpdateEventDataStore — the ARN is the stable identity, so no
           // prop change forces a replacement.
@@ -311,7 +316,7 @@ export const EventDataStoreProvider = (): infer _ =>
             ? try getByArn(output.eventDataStoreArn)
             : try effect {
               const s = try findByName(name)
-              return (s?.EventDataStoreArn ? try getByArn(s.EventDataStoreArn) : try Effect.undefined)
+              return (s?.EventDataStoreArn ? try getByArn(s.EventDataStoreArn) : undefined)
             }
 
           // A pending-deletion store still holds the name — restore it and
@@ -347,7 +352,7 @@ export const EventDataStoreProvider = (): infer _ =>
                   ...internalTags,
                 }).map(([Key, Value]) => ({ Key, Value })),
               }) catch effect (e) => match (e) {
-                when { _tag: "EventDataStoreAlreadyExistsException" }: try Effect.undefined;
+                when { _tag: "EventDataStoreAlreadyExistsException" }: undefined;
                 default: throw e;
               }
             if (created?.EventDataStoreArn) {
@@ -496,7 +501,7 @@ export const EventDataStoreProvider = (): infer _ =>
             }),
           ) catch effect (e) => match (e) {
             when { _tag: "EventDataStoreNotFoundException" } or { _tag: "EventDataStoreARNInvalidException" } or { _tag: "InactiveEventDataStoreException" }:
-              try Effect.void;
+              (undefined as void);
             default: throw e;
           }
         },

@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as bda from "@distilled.cloud/aws/bedrock-data-automation"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -12,8 +15,8 @@ import { readBdaTags, syncBdaTags, toBdaTagList, unredact } from "./internal.ts"
 // provider lifecycle op leaks its conditional return type into declaration
 // emit and widens the provider layer for every consumer of `AWS.providers()`.
 const repeatUntilLibraryGone = effect <E, R>(
-  self: bda.DataAutomationLibrary | undefined!E!R,
-): bda.DataAutomationLibrary | undefined!E!R =>
+  self: (bda.DataAutomationLibrary | undefined)!E!R,
+): (bda.DataAutomationLibrary | undefined)!E!R =>
   try Effect.repeat(self, {
     schedule: Schedule.fixed("3 seconds"),
     until: (library) => library === undefined,
@@ -105,7 +108,14 @@ export const DataAutomationLibrary = Resource<DataAutomationLibrary>(
  * Raised when a Data Automation library cannot be observed immediately after
  * a successful create — a race with a concurrent delete.
  */
-export error DataAutomationLibraryNotObservable { mutable libraryName: string; mutable message: string }
+export class DataAutomationLibraryNotObservable extends $MutableErrorBase("DataAutomationLibraryNotObservable")<{
+  libraryName: string
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DataAutomationLibraryNotObservable", true)
+  }
+}
 
 export const DataAutomationLibraryProvider = (): infer _ =>
   Provider.effect(
@@ -123,8 +133,10 @@ export const DataAutomationLibraryProvider = (): infer _ =>
       })
 
       const observeLibrary = effect (libraryArn: string) =>
-        (try bda.getDataAutomationLibrary({ libraryArn })).library catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try bda.getDataAutomationLibrary({ libraryArn })).library
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -161,11 +173,14 @@ export const DataAutomationLibraryProvider = (): infer _ =>
           if (found === undefined) return undefined
           const attrs = toAttributes(found)
           const tags = try readBdaTags(libraryArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (
@@ -193,19 +208,21 @@ export const DataAutomationLibraryProvider = (): infer _ =>
           //    re-observe by name. Create returns only arn + status, so
           //    re-observe for the full shape.
           if (live === undefined) {
-            const createdArn = (try bda
-              .createDataAutomationLibrary({
-                libraryName,
-                libraryDescription: news.libraryDescription,
-                encryptionConfiguration: news.encryptionConfiguration,
-                tags: toBdaTagList(desiredTags),
-              })).libraryArn catch effect (conflict) => match (conflict) {
-                when { _tag: "ConflictException" }: try effect {
-                  const arn = try findLibraryArn(libraryName)
-                  return arn === undefined ? throw conflict : arn
-                };
-                default: throw conflict;
-              }
+            const createdArn = (effect {
+              return (try bda
+                .createDataAutomationLibrary({
+                  libraryName,
+                  libraryDescription: news.libraryDescription,
+                  encryptionConfiguration: news.encryptionConfiguration,
+                  tags: try Effect.orDie(Effect.try({ try: () => toBdaTagList(desiredTags), catch: (e) => e })),
+                })).libraryArn
+            }) catch effect (conflict) => match (conflict) {
+              when { _tag: "ConflictException" }: try effect {
+                const arn = try findLibraryArn(libraryName)
+                return arn === undefined ? throw conflict : arn
+              };
+              default: throw conflict;
+            }
             live = createdArn === undefined ? undefined : try observeLibrary(createdArn)
           }
           if (live === undefined) {
@@ -217,7 +234,13 @@ export const DataAutomationLibraryProvider = (): infer _ =>
 
           // 3. SYNC — diff the OBSERVED description against the desired one;
           //    apply the idempotent update only on drift.
-          if (unredact(live.libraryDescription ?? "") !== (news.libraryDescription ?? "")) {
+          const currentLibrary = live
+          if (
+            (try Effect.orDie(Effect.try({
+              try: () => unredact(currentLibrary.libraryDescription ?? ""),
+              catch: (e) => e,
+            }))) !== (news.libraryDescription ?? "")
+          ) {
             try bda.updateDataAutomationLibrary({
               libraryArn: live.libraryArn,
               libraryDescription: news.libraryDescription ?? "",
@@ -235,7 +258,7 @@ export const DataAutomationLibraryProvider = (): infer _ =>
         delete: effect ({ output }) => {
           bda
             .deleteDataAutomationLibrary({ libraryArn: output.libraryArn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           // Deletion settles asynchronously (status ACTIVE → DELETING → gone)

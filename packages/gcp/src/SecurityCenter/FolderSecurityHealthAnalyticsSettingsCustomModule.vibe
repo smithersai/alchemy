@@ -177,11 +177,13 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string) =>
-  (Array.from(
-    try (scc.listFoldersSecurityHealthAnalyticsSettingsCustomModules.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityHealthAnalyticsCustomModules ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (scc.listFoldersSecurityHealthAnalyticsSettingsCustomModules.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityHealthAnalyticsCustomModules ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, id: string) => {
   const modules = try listAt(parent)
@@ -198,11 +200,19 @@ export const FolderSecurityHealthAnalyticsSettingsCustomModuleProvider = (): inf
     stables: ["name", "moduleId", "folder", "folderId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOn(
-        olds?.folder ?? output?.folder,
-        news.folder !== undefined ? folderParent(news.folder) : undefined,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const next = resolved.folder !== undefined ? folderParent(resolved.folder) : undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOn(
+            olds?.folder ?? output?.folder,
+            next,
+          ),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -210,20 +220,25 @@ export const FolderSecurityHealthAnalyticsSettingsCustomModuleProvider = (): inf
       const folder = try resolveFolder(olds?.folder ?? output?.folder, output?.folder)
       let existing = try getByName(output?.name ?? "")
       if (existing === undefined) {
-        existing = try findOwned(shaSettingsParent(folder), id)
+        existing = try findOwned(
+          try Effect.orDie(Effect.try({ try: () => shaSettingsParent(folder), catch: (e) => e })),
+          id,
+        )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, folder, env.project)
       return (try ownedByAlchemy(id, existing.customConfig?.description))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const folder = try tryResolveFolder()
       if (folder === undefined) return []
-      const modules = try listAt(shaSettingsParent(folder))
+      const modules = try listAt(
+        try Effect.orDie(Effect.try({ try: () => shaSettingsParent(folder), catch: (e) => e })),
+      )
       return modules
         .filter((module) => hasOwnershipMarker(module.customConfig?.description))
         .map((module) => toAttrs(module, folder, env.project))
@@ -232,7 +247,7 @@ export const FolderSecurityHealthAnalyticsSettingsCustomModuleProvider = (): inf
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const folder = try resolveFolder(news.folder, output?.folder)
-      const parent = shaSettingsParent(folder)
+      const parent = try Effect.orDie(Effect.try({ try: () => shaSettingsParent(folder), catch: (e) => e }))
       const ownership = try createInternalLabels(id)
       const displayName = try toShaDisplayName(id, news.displayName, output?.displayName)
       const customConfig = desiredCustomConfig(ownership, news.customConfig)
@@ -267,7 +282,8 @@ export const FolderSecurityHealthAnalyticsSettingsCustomModuleProvider = (): inf
       const currentName = current.name ?? ""
       const updateMask = updateMaskOf(
         !sameText(current.displayName, displayName) ? "displayName" : undefined,
-        fingerprint(current.customConfig) !== fingerprint(customConfig)
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.customConfig), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, customConfig), catch: (e) => e })))
           ? "customConfig"
           : undefined,
         !sameText(current.enablementState, enablementState) ? "enablementState" : undefined,

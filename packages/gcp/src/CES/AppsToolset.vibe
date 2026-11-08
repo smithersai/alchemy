@@ -200,28 +200,43 @@ export const AppsToolsetProvider = (): infer _ =>
     stables: ["name", "toolsetId", "app", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousKind = toolsetKind(olds ?? output ?? {})
-      const nextKind = toolsetKind(news)
-      return replaceOnIdentity({
-        previousId: olds?.toolsetId ?? output?.toolsetId,
-        nextId: news.toolsetId,
-        previousParent: olds?.app ?? output?.app,
-        nextParent: news.app,
-        extra: previousKind !== nextKind && previousKind !== "openApiToolset",
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousKind = try Effect.orDie(
+        Effect.try({ try: () => toolsetKind(olds ?? output ?? {}), catch: (e) => e }),
+      )
+      const nextKind = try Effect.orDie(Effect.try({ try: () => toolsetKind(resolved), catch: (e) => e }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.toolsetId ?? output?.toolsetId,
+            nextId: resolved.toolsetId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+            extra: previousKind !== nextKind && previousKind !== "openApiToolset",
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const app = olds?.app ? expandApp(olds.app, env.project, location) : output?.app
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
       const toolsetId = try toPhysicalId(id, olds?.toolsetId, output?.toolsetId)
       const name = output?.name ?? (app !== undefined ? resourceName(app, toolsetId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region, app)
-      return output !== undefined || olds?.toolsetId === undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds?.toolsetId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -235,18 +250,26 @@ export const AppsToolsetProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const app = expandApp(news.app, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
       const toolsetId = try toPhysicalId(id, news.toolsetId, output?.toolsetId)
       const name = output?.name ?? resourceName(app, toolsetId)
       const description = news.description
       const displayName = news.displayName ?? toolsetId
       const openApiToolset = openApiOf(news)
-      const kind = toolsetKind({
-        openApiToolset,
-        mcpToolset: news.mcpToolset,
-        connectorToolset: news.connectorToolset,
-      })
+      const kind = try Effect.orDie(Effect.try({
+        try: () =>
+          toolsetKind({
+            openApiToolset,
+            mcpToolset: news.mcpToolset,
+            connectorToolset: news.connectorToolset,
+          }),
+        catch: (e) => e,
+      }))
 
       let current = try getByName(name)
 
@@ -277,12 +300,23 @@ export const AppsToolsetProvider = (): infer _ =>
       const displayChanged = !sameText(current.displayName, displayName)
       const descriptionChanged = !sameText(current.description, description)
       const executionChanged = !sameText(current.executionType, news.executionType)
-      const fakeChanged = !sameJson(current.toolFakeConfig, news.toolFakeConfig)
+      const fakeChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.toolFakeConfig, news.toolFakeConfig), catch: (e) => e }),
+      ))
       const variantChanged = kind === "openApiToolset"
-        ? !sameJson(current.openApiToolset, openApiToolset)
+        ? !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.openApiToolset, openApiToolset), catch: (e) => e }),
+        ))
         : kind === "mcpToolset"
-        ? !sameJson(current.mcpToolset, news.mcpToolset)
-        : !sameJson(current.connectorToolset, news.connectorToolset)
+        ? !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.mcpToolset, news.mcpToolset), catch: (e) => e }),
+        ))
+        : !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.connectorToolset, news.connectorToolset),
+            catch: (e) => e,
+          }),
+        ))
 
       if (
         displayChanged
@@ -294,19 +328,23 @@ export const AppsToolsetProvider = (): infer _ =>
         current = try retryTransient(
           ces.patchProjectsLocationsAppsToolsets({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              descriptionChanged ? "description" : undefined,
-              executionChanged ? "execution_type" : undefined,
-              fakeChanged ? "tool_fake_config" : undefined,
-              variantChanged
-                ? kind === "openApiToolset"
-                  ? "open_api_toolset"
-                  : kind === "mcpToolset"
-                  ? "mcp_toolset"
-                  : "connector_toolset"
-                : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  executionChanged ? "execution_type" : undefined,
+                  fakeChanged ? "tool_fake_config" : undefined,
+                  variantChanged
+                    ? kind === "openApiToolset"
+                      ? "open_api_toolset"
+                      : kind === "mcpToolset"
+                      ? "mcp_toolset"
+                      : "connector_toolset"
+                    : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               displayName,
               description,

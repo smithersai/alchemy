@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -170,8 +171,10 @@ export const MemoryProvider = (): infer _ =>
         props.name ?? (try createAgentCoreName(id))
 
       const getMemoryOrUndefined = effect (memoryId: string) =>
-        (try control.getMemory({ memoryId })).memory catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try control.getMemory({ memoryId })).memory
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -185,7 +188,7 @@ export const MemoryProvider = (): infer _ =>
           effect (
             s,
           ) => (s.id === undefined || s.status === "DELETING"
-            ? try Effect.undefined
+            ? undefined
             : try getMemoryOrUndefined(s.id)),
           { concurrency: 5 },
         )
@@ -216,7 +219,7 @@ export const MemoryProvider = (): infer _ =>
           const hydrated = try Effect.forEach(
             summaries,
             effect (s) => (s.id === undefined || s.status === "DELETING"
-              ? try Effect.undefined
+              ? undefined
               : try getMemoryOrUndefined(s.id)),
             { concurrency: 5 },
           )
@@ -232,11 +235,14 @@ export const MemoryProvider = (): infer _ =>
           }
           const attrs = toAttributes(memory)
           const tags = try readAgentCoreTags(memory.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldProps = olds ?? ({} as MemoryProps)
           const oldName = try createName(id, oldProps)
           const newName = try createName(id, news ?? ({} as MemoryProps))
@@ -273,19 +279,21 @@ export const MemoryProvider = (): infer _ =>
 
           // 2. ENSURE — create if missing; tolerate the name-exists race.
           if (memory === undefined) {
-            const created = (try control
-              .createMemory({
-                name,
-                description: props.description,
-                eventExpiryDuration,
-                encryptionKeyArn: props.encryptionKeyArn,
-                memoryExecutionRoleArn: props.memoryExecutionRoleArn,
-                memoryStrategies: props.memoryStrategies,
-                tags: desiredTags,
-              })).memory catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try findByName(name);
-                default: throw e;
-              }
+            const created = (effect {
+              return (try control
+                .createMemory({
+                  name,
+                  description: props.description,
+                  eventExpiryDuration,
+                  encryptionKeyArn: props.encryptionKeyArn,
+                  memoryExecutionRoleArn: props.memoryExecutionRoleArn,
+                  memoryStrategies: props.memoryStrategies,
+                  tags: desiredTags,
+                })).memory
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try findByName(name);
+              default: throw e;
+            }
             memory = created ?? (try findByName(name))
           }
           if (memory === undefined) {
@@ -330,13 +338,17 @@ export const MemoryProvider = (): infer _ =>
         // ~30s. Wait until fully gone so an immediate re-create of the same
         // name cannot hit the lingering DELETING record.
         delete: effect ({ output }) => {
-          ;(try (control.deleteMemory({ memoryId: output.memoryId })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (control.deleteMemory({ memoryId: output.memoryId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           try (effect {
-            return ((try control.getMemory({ memoryId: output.memoryId })).memory.status as string) catch effect (
+            return (effect {
+              return ((try control.getMemory({ memoryId: output.memoryId })).memory.status as string)
+            }) catch effect (
               e,
             ) => match (e) { when { _tag: "ResourceNotFoundException" }: "GONE" as string; default: throw e; }
           }

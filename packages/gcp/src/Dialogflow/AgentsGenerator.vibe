@@ -224,21 +224,25 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsGenerators.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.generators ?? []))
-      |> Stream.filter(%, (generator) => hasOwnershipMarker(generator.displayName))
-      |> Stream.map(%, (generator) => toAttrs(generator, project, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsGenerators.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.generators ?? []))
+        |> Stream.filter(%, (generator) => hasOwnershipMarker(generator.displayName))
+        |> Stream.map(%, (generator) => toAttrs(generator, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsGenerators.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.generators ?? []))
-      |> Stream.filter(%, (generator) => generator.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsGenerators.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.generators ?? []))
+        |> Stream.filter(%, (generator) => generator.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const AgentsGeneratorProvider = (): infer _ =>
@@ -246,24 +250,31 @@ export const AgentsGeneratorProvider = (): infer _ =>
     stables: ["name", "generatorId", "agent", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
-      if (previousAgent !== undefined && news.agent !== previousAgent) {
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.generatorId ?? output?.generatorId
       if (
         previousId !== undefined
-        && news.generatorId !== undefined
-        && news.generatorId !== previousId
+        && resolved.generatorId !== undefined
+        && resolved.generatorId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousLocation = olds?.location ?? output?.location
       if (
-        previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousLocation !== undefined
+            && resolved.location !== undefined
+            && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location),
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -272,8 +283,12 @@ export const AgentsGeneratorProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
       const generatorId = try toResourceId(id, olds?.generatorId, output?.generatorId)
       const name = output?.name ?? (agent !== undefined ? resourceName(agent, generatorId) : "")
       let existing = try getByName(name)
@@ -281,12 +296,16 @@ export const AgentsGeneratorProvider = (): infer _ =>
         const ownership = try internalLabels(id)
         existing = try findByDisplayName(
           agent,
-          encodeOwnershipLine(ownership, olds?.displayName),
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, agent)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -301,12 +320,21 @@ export const AgentsGeneratorProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
-        const agent = expandAgent(news.agent, env.project, location)
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
         const generatorId = try toResourceId(id, news.generatorId, output?.generatorId)
         const name = output?.name ?? resourceName(agent, generatorId)
         const ownership = try internalLabels(id)
-        const displayName = encodeOwnershipLine(ownership, news.displayName)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
         const promptText = news.promptText ?? DEFAULT_PROMPT
         const body: dialogflow.GoogleCloudDialogflowCxV3Generator = {
           displayName,
@@ -341,21 +369,37 @@ export const AgentsGeneratorProvider = (): infer _ =>
         const currentName = current.name ?? name
         const displayChanged = (current.displayName ?? "") !== displayName
         const promptChanged = !sameText(current.promptText?.text, promptText)
-        const modelChanged = fingerprint(modelParameterOf(current.modelParameter)) !== fingerprint(news.modelParameter)
-        const placeholdersChanged = fingerprint(placeholdersOf(current.placeholders)) !== fingerprint(news.placeholders)
-        const llmChanged = fingerprint(llmSettingsOf(current.llmModelSettings)) !== fingerprint(news.llmModelSettings)
+        const value = modelParameterOf(current.modelParameter)
+        const modelChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.modelParameter), catch: (e) => e })))
+        const value2 = placeholdersOf(current.placeholders)
+        const placeholdersChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value2),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.placeholders), catch: (e) => e })))
+        const value3 = llmSettingsOf(current.llmModelSettings)
+        const llmChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value3),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.llmModelSettings), catch: (e) => e })))
 
         if (displayChanged || promptChanged || modelChanged || placeholdersChanged || llmChanged) {
           current = try dialogflow.patchProjectsLocationsAgentsGenerators({
             name: currentName,
             languageCode: news.languageCode,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              promptChanged ? "prompt_text" : undefined,
-              modelChanged ? "model_parameter" : undefined,
-              placeholdersChanged ? "placeholders" : undefined,
-              llmChanged ? "llm_model_settings" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  promptChanged ? "prompt_text" : undefined,
+                  modelChanged ? "model_parameter" : undefined,
+                  placeholdersChanged ? "placeholders" : undefined,
+                  llmChanged ? "llm_model_settings" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }

@@ -174,10 +174,20 @@ const isOwned = (image: vm.ImageImport): infer _ =>
 const ownedById = effect (id: string, image: vm.ImageImport) => {
   const disk = image.diskImageTargetDefaults
   const machine = image.machineImageTargetDefaults
-  if (disk && (try hasAlchemyLabels(id, tagRecord(disk.labels)))) {
+  if (
+    disk && (try hasAlchemyLabels(
+      id,
+      try Effect.orDie(Effect.try({ try: () => tagRecord(disk.labels), catch: (e) => e })),
+    ))
+  ) {
     return true
   }
-  if (machine && (try hasAlchemyLabels(id, tagRecord(machine.labels)))) {
+  if (
+    machine && (try hasAlchemyLabels(
+      id,
+      try Effect.orDie(Effect.try({ try: () => tagRecord(machine.labels), catch: (e) => e })),
+    ))
+  ) {
     return true
   }
   if (try ownedByAlchemy(id, disk?.description)) return true
@@ -204,26 +214,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (vm.listProjectsLocationsImageImports
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.imageImports ?? []))
-      |> Stream.filter(%, isOwned)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (vm.listProjectsLocationsImageImports
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.imageImports ?? []))
         |> Stream.filter(%, isOwned)
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.ImageImport[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (vm.listProjectsLocationsImageImports
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.imageImports ?? []))
+          |> Stream.filter(%, isOwned)
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.ImageImport[]; default: throw e; };
     default: throw e;
   }
 
@@ -232,26 +246,51 @@ export const ImageImportProvider = (): infer _ =>
     stables: ["name", "imageImportId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const extra = (news.cloudStorageUri !== undefined
+      const extra = (resolved.cloudStorageUri !== undefined
         && (olds?.cloudStorageUri ?? output?.cloudStorageUri) !== undefined
-        && news.cloudStorageUri !== (olds?.cloudStorageUri ?? output?.cloudStorageUri))
-        || fingerprint(news.encryption) !== fingerprint(olds?.encryption ?? output?.encryption)
-        || fingerprint(news.diskImageTargetDefaults)
-          !== fingerprint(olds?.diskImageTargetDefaults ?? output?.diskImageTargetDefaults)
-        || fingerprint(news.machineImageTargetDefaults)
-          !== fingerprint(olds?.machineImageTargetDefaults ?? output?.machineImageTargetDefaults)
-      return replaceOnIdentity({
-        previousId: olds?.imageImportId ?? output?.imageImportId,
-        nextId: news.imageImportId ?? olds?.imageImportId ?? output?.imageImportId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra,
-      })
+        && resolved.cloudStorageUri !== (olds?.cloudStorageUri ?? output?.cloudStorageUri))
+        || (try Effect.orDie(Effect.try({ try: () => fingerprint(resolved.encryption), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(olds?.encryption ?? output?.encryption),
+            catch: (e) => e,
+          })))
+        || (try Effect.orDie(
+            Effect.try({ try: () => fingerprint(resolved.diskImageTargetDefaults), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: () => fingerprint(olds?.diskImageTargetDefaults ?? output?.diskImageTargetDefaults),
+              catch: (e) => e,
+            }),
+          ))
+        || (try Effect.orDie(
+            Effect.try({ try: () => fingerprint(resolved.machineImageTargetDefaults), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: () => fingerprint(olds?.machineImageTargetDefaults ?? output?.machineImageTargetDefaults),
+              catch: (e) => e,
+            }),
+          ))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.imageImportId ?? output?.imageImportId,
+            nextId: resolved.imageImportId ?? olds?.imageImportId ?? output?.imageImportId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -262,12 +301,16 @@ export const ImageImportProvider = (): infer _ =>
         output?.imageImportId,
         "imageimport",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, imageImportId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedById(id, existing)) ? attrs : Unowned(attrs)
+      return (try ownedById(id, existing))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -284,7 +327,9 @@ export const ImageImportProvider = (): infer _ =>
         output?.imageImportId,
         "imageimport",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, imageImportId)
       const ownership = try createInternalLabels(id)
       const diskImageTargetDefaults = stampTarget(news.diskImageTargetDefaults, ownership)
@@ -322,12 +367,14 @@ export const ImageImportProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vm.deleteProjectsLocationsImageImports({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vm.deleteProjectsLocationsImageImports({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

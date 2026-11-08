@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cloudtrail from "@distilled.cloud/aws/cloudtrail"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -364,25 +365,31 @@ export const TrailProvider = (): infer _ =>
       }
 
       const fetchObservedTags = effect (trailArn: string) =>
-        (try effect {
-          const r = try cloudtrail.listTags({ ResourceIdList: [trailArn] })
+        (effect {
+          return (try effect {
+            const r = try cloudtrail.listTags({ ResourceIdList: [trailArn] })
 
-          const tags: Record<string, string> = {}
-          for (const t of r.ResourceTagList?.[0]?.TagsList ?? []) {
-            tags[t.Key] = t.Value ?? ""
-          }
-          return tags
+            const tags: Record<string, string> = {}
+            for (const t of r.ResourceTagList?.[0]?.TagsList ?? []) {
+              tags[t.Key] = t.Value ?? ""
+            }
+            return tags
+          })
         }) catch () => ({}) as Record<string, string>
 
       const readTrail = effect (name: string) =>
-        (try cloudtrail.getTrail({ Name: name })).Trail catch effect (e) => match (e) {
-          when { _tag: "TrailNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try cloudtrail.getTrail({ Name: name })).Trail
+        }) catch effect (e) => match (e) {
+          when { _tag: "TrailNotFoundException" }: undefined;
           default: throw e;
         }
 
       const toAttributes = effect (trail: cloudtrail.Trail) => {
         const name = trail.Name!
-        const isLogging = ((try cloudtrail.getTrailStatus({ Name: trail.TrailARN ?? name })).IsLogging ?? false) catch effect (e) => match (e) { when { _tag: "TrailNotFoundException" }: false; default: throw e; }
+        const isLogging = (effect {
+          return ((try cloudtrail.getTrailStatus({ Name: trail.TrailARN ?? name })).IsLogging ?? false)
+        }) catch effect (e) => match (e) { when { _tag: "TrailNotFoundException" }: false; default: throw e; }
         return {
           trailName: name,
           trailArn: trail.TrailARN!,
@@ -399,7 +406,7 @@ export const TrailProvider = (): infer _ =>
             .describeTrails({ includeShadowTrails: false })).trailList ?? []
           return try Effect.forEach(
             trails.filter((t) => t.Name !== undefined && t.TrailARN !== undefined),
-            (t) => toAttributes(t),
+            effect (t) => try toAttributes(t),
             { concurrency: 5 },
           )
         },
@@ -409,10 +416,13 @@ export const TrailProvider = (): infer _ =>
           if (trail === undefined) return undefined
           const attrs = try toAttributes(trail)
           const tags = try fetchObservedTags(attrs.trailArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createTrailName(id, olds ?? {})
           const newName = try createTrailName(id, news)
           if (oldName !== newName) {
@@ -455,7 +465,7 @@ export const TrailProvider = (): infer _ =>
                 }).map(([Key, Value]) => ({ Key, Value })),
               }),
             ) catch effect (e) => match (e) {
-              when { _tag: "TrailAlreadyExistsException" }: try Effect.void;
+              when { _tag: "TrailAlreadyExistsException" }: (undefined as void);
               default: throw e;
             }
             trail = try readTrail(name)
@@ -570,11 +580,13 @@ export const TrailProvider = (): infer _ =>
           // Insights; a trail with Insights disabled reads as [] (the typed
           // InsightNotEnabledException).
           if (news.insightSelectors !== undefined) {
-            const observedInsights = ((try cloudtrail
-              .getInsightSelectors({ TrailName: trailArn })).InsightSelectors ?? []) catch effect (e) => match (e) {
-                when { _tag: "InsightNotEnabledException" }: [] as cloudtrail.InsightSelector[];
-                default: throw e;
-              }
+            const observedInsights = (effect {
+              return ((try cloudtrail
+                .getInsightSelectors({ TrailName: trailArn })).InsightSelectors ?? [])
+            }) catch effect (e) => match (e) {
+              when { _tag: "InsightNotEnabledException" }: [] as cloudtrail.InsightSelector[];
+              default: throw e;
+            }
             const desiredInsights = news.insightSelectors.map((s) => ({
               InsightType: s.insightType,
             }))
@@ -630,8 +642,8 @@ export const TrailProvider = (): infer _ =>
         },
         delete: effect ({ output }) => {
           retryWhileConflict(cloudtrail.deleteTrail({ Name: output.trailArn })) catch effect (e) => match (e) {
-            when { _tag: "TrailNotFoundException" }: try Effect.void;
-            when { _tag: "CloudTrailARNInvalidException" }: try Effect.void;
+            when { _tag: "TrailNotFoundException" }: (undefined as void);
+            when { _tag: "CloudTrailARNInvalidException" }: (undefined as void);
             default: throw e;
           }
         },

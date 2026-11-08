@@ -384,7 +384,7 @@ const sameLogConfig = (
 const getByName = effect (project: string, name: string) =>
   compute
     .getBackendServices({ project, backendService: name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -408,14 +408,17 @@ export const BackendServiceProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.name ?? output?.name
-      const nextName = news.name ?? previousName
-      if (news.name !== undefined && previousName !== undefined && news.name !== previousName) {
+      const nextName = resolved.name ?? previousName
+      if (resolved.name !== undefined && previousName !== undefined && resolved.name !== previousName) {
         return { action: "replace" as const }
       }
       const previousScheme = olds?.loadBalancingScheme ?? output?.loadBalancingScheme ?? DEFAULT_SCHEME
-      const nextScheme = news.loadBalancingScheme ?? DEFAULT_SCHEME
+      const nextScheme = resolved.loadBalancingScheme ?? DEFAULT_SCHEME
       if (previousScheme !== nextScheme) {
         return {
           action: "replace" as const,
@@ -432,7 +435,9 @@ export const BackendServiceProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const parsed = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, parsed.labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, parsed.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -450,7 +455,7 @@ export const BackendServiceProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const name = try toName(id, news.name, output?.name)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredDescription = encodeDescription(news.description, desiredLabels)
@@ -472,39 +477,41 @@ export const BackendServiceProvider = (): infer _ =>
       let current = try getByName(env.project, name)
 
       if (current === undefined) {
-        const inserted = (try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertBackendServices({
-              project: env.project,
-              body: {
-                name,
-                description: desiredDescription,
-                protocol,
-                loadBalancingScheme,
-                timeoutSec,
-                portName: news.portName,
-                enableCDN,
-                sessionAffinity: news.sessionAffinity,
-                affinityCookieTtlSec: news.affinityCookieTtlSec,
-                healthChecks: (news.healthChecks?.length ?? 0) > 0 ? news.healthChecks : undefined,
-                backends: desiredBackends.length > 0 ? desiredBackends : undefined,
-                connectionDraining: news.connectionDrainingTimeoutSec !== undefined
-                  ? {
-                    drainingTimeoutSec: news.connectionDrainingTimeoutSec,
-                  }
-                  : undefined,
-                compressionMode: news.compressionMode,
-                customRequestHeaders: (news.customRequestHeaders?.length ?? 0) > 0
-                  ? news.customRequestHeaders
-                  : undefined,
-                customResponseHeaders: (news.customResponseHeaders?.length ?? 0) > 0
-                  ? news.customResponseHeaders
-                  : undefined,
-                logConfig: news.logConfig,
-              },
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const inserted = effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertBackendServices({
+                project: env.project,
+                body: {
+                  name,
+                  description: desiredDescription,
+                  protocol,
+                  loadBalancingScheme,
+                  timeoutSec,
+                  portName: news.portName,
+                  enableCDN,
+                  sessionAffinity: news.sessionAffinity,
+                  affinityCookieTtlSec: news.affinityCookieTtlSec,
+                  healthChecks: (news.healthChecks?.length ?? 0) > 0 ? news.healthChecks : undefined,
+                  backends: desiredBackends.length > 0 ? desiredBackends : undefined,
+                  connectionDraining: news.connectionDrainingTimeoutSec !== undefined
+                    ? {
+                      drainingTimeoutSec: news.connectionDrainingTimeoutSec,
+                    }
+                    : undefined,
+                  compressionMode: news.compressionMode,
+                  customRequestHeaders: (news.customRequestHeaders?.length ?? 0) > 0
+                    ? news.customRequestHeaders
+                    : undefined,
+                  customResponseHeaders: (news.customResponseHeaders?.length ?? 0) > 0
+                    ? news.customResponseHeaders
+                    : undefined,
+                  logConfig: news.logConfig,
+                },
+              }),
+          ))
+        } catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = inserted !== undefined
           ? try awaitResource(env.project, name)
           : try getByName(env.project, name)
@@ -599,13 +606,15 @@ export const BackendServiceProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      ;(try waitGlobalOperation(
-        env.project,
-        try compute
-          .deleteBackendServices({
-            project: env.project,
-            backendService: output.name,
-          }),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try waitGlobalOperation(
+          env.project,
+          try compute
+            .deleteBackendServices({
+              project: env.project,
+              backendService: output.name,
+            }),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

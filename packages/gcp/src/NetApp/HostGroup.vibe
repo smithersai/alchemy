@@ -187,23 +187,30 @@ export const HostGroupProvider = (): infer _ =>
     stables: ["name", "hostGroupId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.type ?? output?.type
       const previousOs = olds?.osType ?? output?.osType
-      const nextType = news.type ?? DEFAULT_TYPE
-      const nextOs = news.osType ?? DEFAULT_OS
-      return replaceOnIdentity({
-        previousId: olds?.hostGroupId ?? output?.hostGroupId,
-        nextId: news.hostGroupId ?? olds?.hostGroupId ?? output?.hostGroupId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (previousType !== undefined && nextType !== previousType)
-          || (previousOs !== undefined && nextOs !== previousOs),
-      })
+      const nextType = resolved.type ?? DEFAULT_TYPE
+      const nextOs = resolved.osType ?? DEFAULT_OS
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.hostGroupId ?? output?.hostGroupId,
+            nextId: resolved.hostGroupId ?? olds?.hostGroupId ?? output?.hostGroupId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (previousType !== undefined && nextType !== previousType)
+              || (previousOs !== undefined && nextOs !== previousOs),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -214,12 +221,19 @@ export const HostGroupProvider = (): infer _ =>
         output?.hostGroupId,
         "hostgroup",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, hostGroupId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -236,12 +250,14 @@ export const HostGroupProvider = (): infer _ =>
         output?.hostGroupId,
         "hostgroup",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, hostGroupId)
       const type = news.type ?? DEFAULT_TYPE
       const osType = news.osType ?? DEFAULT_OS
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -307,12 +323,14 @@ export const HostGroupProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (netapp.deleteProjectsLocationsHostGroups({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (netapp.deleteProjectsLocationsHostGroups({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

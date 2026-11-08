@@ -249,19 +249,22 @@ export const RowAccessPolicyProvider = (): infer _ =>
     stables: ["name", "policyId", "tableId", "datasetId", "project", "creationTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousPolicyId = olds?.policyId ?? output?.policyId
-      const nextPolicyId = news.policyId ?? previousPolicyId
-      const policyIdChanged = news.policyId !== undefined
+      const nextPolicyId = resolved.policyId ?? previousPolicyId
+      const policyIdChanged = resolved.policyId !== undefined
         && previousPolicyId !== undefined
-        && news.policyId !== previousPolicyId
+        && resolved.policyId !== previousPolicyId
 
       const previousDataset = olds?.datasetId ?? output?.datasetId
-      const nextDataset = datasetIdOf(news.datasetId)
+      const nextDataset = datasetIdOf(resolved.datasetId)
       const datasetChanged = previousDataset !== undefined && datasetIdOf(previousDataset) !== nextDataset
 
       const previousTable = olds?.tableId ?? output?.tableId
-      const nextTable = tableIdOf(news.tableId)
+      const nextTable = tableIdOf(resolved.tableId)
       const tableChanged = previousTable !== undefined && tableIdOf(previousTable) !== nextTable
 
       if (!policyIdChanged && !datasetChanged && !tableChanged) {
@@ -289,22 +292,26 @@ export const RowAccessPolicyProvider = (): infer _ =>
       const attrs = toAttrs(existing, env.project)
       // No labels: a generated id derives from this stack, stage, logical
       // id and instance; an explicit id is only ours when state has it.
-      return output !== undefined || olds?.policyId === undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds?.policyId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const datasets = (Array.from(
-        try (bigquery.listDatasets
-          .pages({
-            projectId: env.project,
-            maxResults: 1000,
-            all: true,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
-          |> Stream.filter(%, (dataset) => hasAlchemyDatasetLabels(dataset.labels))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      const datasets = (effect {
+        return (Array.from(
+          try (bigquery.listDatasets
+            .pages({
+              projectId: env.project,
+              maxResults: 1000,
+              all: true,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
+            |> Stream.filter(%, (dataset) => hasAlchemyDatasetLabels(dataset.labels))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" }: [] as bigquery.DatasetListDatasetsItem[];
         default: throw e;
       }
@@ -315,38 +322,42 @@ export const RowAccessPolicyProvider = (): infer _ =>
           if (datasetId === undefined) {
             return [] as ReturnType<typeof toAttrs>[]
           }
-          return ((try Effect.forEach(
-            Array.from(
-              try (bigquery.listTables
-                .pages({
-                  projectId: env.project,
-                  datasetId,
-                  maxResults: 1000,
-                })
-                |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tables ?? []))
-                |> Stream.filter(%, (table) => hasAlchemyDatasetLabels(table.labels))
-                |> Stream.map(%, (table) => table.tableReference?.tableId)
-                |> Stream.filter(%, (tableId): tableId is string => tableId !== undefined && tableId.length > 0)
-                |> Stream.runCollect(%)),
-            ),
-            effect (tableId) =>
-              (Array.from(
-                try (bigquery.listRowAccessPolicies
+          return (effect {
+            return ((try Effect.forEach(
+              Array.from(
+                try (bigquery.listTables
                   .pages({
                     projectId: env.project,
                     datasetId,
-                    tableId,
-                    pageSize: 1000,
+                    maxResults: 1000,
                   })
-                  |> Stream.flatMap(%, (page) => Stream.fromIterable(page.rowAccessPolicies ?? []))
-                  |> Stream.map(%, (policy) => toAttrs(policy, env.project))
+                  |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tables ?? []))
+                  |> Stream.filter(%, (table) => hasAlchemyDatasetLabels(table.labels))
+                  |> Stream.map(%, (table) => table.tableReference?.tableId)
+                  |> Stream.filter(%, (tableId): tableId is string => tableId !== undefined && tableId.length > 0)
                   |> Stream.runCollect(%)),
-              )) catch effect (e) => match (e) {
-                when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
-                default: throw e;
-              },
-            { concurrency: 4 },
-          )).flat()) catch effect (e) => match (e) {
+              ),
+              effect (tableId) =>
+                (effect {
+                  return (Array.from(
+                    try (bigquery.listRowAccessPolicies
+                      .pages({
+                        projectId: env.project,
+                        datasetId,
+                        tableId,
+                        pageSize: 1000,
+                      })
+                      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.rowAccessPolicies ?? []))
+                      |> Stream.map(%, (policy) => toAttrs(policy, env.project))
+                      |> Stream.runCollect(%)),
+                  ))
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
+                  default: throw e;
+                },
+              { concurrency: 4 },
+            )).flat())
+          }) catch effect (e) => match (e) {
             when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
             default: throw e;
           }

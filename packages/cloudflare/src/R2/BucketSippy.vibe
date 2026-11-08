@@ -225,20 +225,21 @@ export const BucketSippyProvider = (): infer _ =>
     stables: ["bucketName", "accountId", "jurisdiction"],
 
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
       // The bucket is the configuration's identity — moving Sippy to a
       // different bucket (or jurisdiction) is a replacement. Compare
       // only once both sides are concrete strings.
       if (
         typeof olds.bucketName === "string"
-        && typeof news.bucketName === "string"
-        && olds.bucketName !== news.bucketName
+        && typeof resolved_.bucketName === "string"
+        && olds.bucketName !== resolved_.bucketName
       ) {
         return { action: "replace" } as const
       }
       if (
         olds.bucketName !== undefined
-        && (olds.jurisdiction ?? "default") !== (news.jurisdiction ?? "default")
+        && (olds.jurisdiction ?? "default") !== (resolved_.jurisdiction ?? "default")
       ) {
         return { action: "replace" } as const
       }
@@ -254,8 +255,8 @@ export const BucketSippyProvider = (): infer _ =>
       if (bucketName === undefined) return undefined
       const jurisdiction = output?.jurisdiction ?? olds?.jurisdiction ?? "default"
 
-      const observed = (try r2.getBucketSippy({ accountId: acct, bucketName, jurisdiction })) catch effect (e) => match (e) {
-        when r2.NoSuchBucket: try Effect.undefined;
+      const observed = (effect { return (try r2.getBucketSippy({ accountId: acct, bucketName, jurisdiction })) }) catch effect (e) => match (e) {
+        when r2.NoSuchBucket: undefined;
         default: throw e;
       }
       // A bucket with Sippy never configured (or disabled) reads back as
@@ -266,7 +267,7 @@ export const BucketSippyProvider = (): infer _ =>
       // Sippy configs carry no ownership markers. With no prior output we
       // cannot prove we enabled it — brand it `Unowned` so takeover is
       // gated behind the adopt policy.
-      return output ? attrs : Unowned(attrs)
+      return output ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ news, output }) => {
@@ -305,7 +306,7 @@ export const BucketSippyProvider = (): infer _ =>
           accountId: output.accountId,
           bucketName: output.bucketName,
           jurisdiction: output.jurisdiction,
-        }) catch effect (e) => match (e) { when r2.NoSuchBucket: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when r2.NoSuchBucket: (undefined as void); default: throw e; }
     },
 
     // Sippy is a per-bucket singleton with no account-wide enumeration
@@ -324,12 +325,12 @@ export const BucketSippyProvider = (): infer _ =>
             return [] as BucketSippyAttributes[]
           }
           const jurisdiction = (bucket.jurisdiction ?? "default") as Bucket.Jurisdiction
-          return (try effect {
+          return (effect { return (try effect {
             const config = try r2.getBucketSippy({ accountId, bucketName, jurisdiction })
             return config.enabled === true
               ? [toAttributes(config, accountId, bucketName, jurisdiction)]
               : []
-          }) catch effect (e) => match (e) {
+          }) }) catch effect (e) => match (e) {
             when { _tag: "NoSuchBucket" } or { _tag: "InvalidRoute" } or { _tag: "Forbidden" }:
               [] as BucketSippyAttributes[];
             default: throw e;

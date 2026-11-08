@@ -77,8 +77,9 @@ export const AccessKeyProvider = (): infer _ =>
   Provider.succeed(AccessKey, {
     stables: ["accessKeyId"],
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return
-      if (olds.userName !== news.userName) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return
+      if (olds.userName !== resolved.userName) {
         return { action: "replace" } as const
       }
     },
@@ -114,10 +115,10 @@ export const AccessKeyProvider = (): infer _ =>
       // an existing key when we already have its id from a prior output.
       // Without it (first reconciliation), we go straight to create.
       const existing = output
-        ? ((try iam.listAccessKeys({ UserName: output.userName })).AccessKeyMetadata.find((entry) =>
+        ? (effect { return ((try iam.listAccessKeys({ UserName: output.userName })).AccessKeyMetadata.find((entry) =>
           entry.AccessKeyId === output.accessKeyId
-        )) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+        )) }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
         : undefined
@@ -177,7 +178,7 @@ export const AccessKeyProvider = (): infer _ =>
         .deleteAccessKey({
           UserName: output.userName,
           AccessKeyId: output.accessKeyId,
-        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: (undefined as void); default: throw e; }
     },
     // IAM is a global service. `listAccessKeys` requires a `UserName`, so we
     // enumerate every IAM user first (paginated) and then list the keys for
@@ -193,7 +194,7 @@ export const AccessKeyProvider = (): infer _ =>
       const perUser = try Effect.forEach(
         users,
         effect (user) =>
-          (Array.from(
+          (effect { return (Array.from(
             try (iam.listAccessKeys.pages({ UserName: user.UserName })
               |> Stream.runCollect(%)),
           ).flatMap((page) =>
@@ -213,7 +214,7 @@ export const AccessKeyProvider = (): infer _ =>
               lastUsedServiceName: undefined,
               lastUsedRegion: undefined,
             }))
-          )) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
+          )) }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
         { concurrency: 10 },
       )
       return perUser.flat()

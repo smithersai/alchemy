@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -112,7 +113,7 @@ export const RelayProvider = (): infer _ =>
       const getById = effect (relayId: string) =>
         mm
           .getRelay({ RelayId: relayId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -159,9 +160,9 @@ export const RelayProvider = (): infer _ =>
               )
                 .flatMap((page) => page.Relays ?? [])
                 .flatMap((r) => (r.RelayId !== undefined ? [r.RelayId] : [])),
-              (relayId) => getById(relayId),
+              effect (relayId) => try getById(relayId),
             )).flatMap((r) => (r === undefined ? [] : [r])),
-            (r) => toAttrs(r),
+            effect (r) => try toAttrs(r),
           ),
 
         read: effect ({ id, olds, output }) => {
@@ -170,7 +171,9 @@ export const RelayProvider = (): infer _ =>
           if (relay === undefined) return undefined
           const attrs = try toAttrs(relay)
           const tags = try readMailManagerTags(attrs.relayArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Every prop updates in place — no replacement triggers, so the
@@ -195,7 +198,7 @@ export const RelayProvider = (): infer _ =>
                 Authentication: news.authentication,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             relay = created !== undefined
@@ -234,11 +237,13 @@ export const RelayProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (mm.deleteRelay({ RelayId: output.relayId })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (mm.deleteRelay({ RelayId: output.relayId })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

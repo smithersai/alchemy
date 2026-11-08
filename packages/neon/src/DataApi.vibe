@@ -1,10 +1,11 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as Neon from "@distilled.cloud/neon"
 import { OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
 import type { Input } from "alchemy/Input"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
 import { authPlanScope, authRequest, authSettingsMatch, removedAuthSettings } from "./Auth.vibe"
 import { resolveBranchScope, type ResolvedBranchScope } from "./BranchScope.ts"
 import type { Providers } from "./Providers.vibe"
@@ -85,15 +86,19 @@ export interface DataApi extends
  */
 export const DataApi = Resource<DataApi>("Neon.DataApi")
 
-export error InvalidDataApiConfiguration {
-  mutable message: string
+export class InvalidDataApiConfiguration extends $MutableErrorBase("InvalidDataApiConfiguration")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "InvalidDataApiConfiguration", true)
+  }
 }
 
 const observe = effect (scope: { projectId: string; branchId: string; database: string }) =>
   Neon.getProjectBranchDataAPI({
     ...authRequest(scope),
     database_name: scope.database,
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const attributes = (
   scope: { projectId: string; branchId: string; database: string },
@@ -122,11 +127,11 @@ const validateDataApi = effect (
   ? throw new InvalidDataApiConfiguration({
     message: "External authentication requires jwksUrl",
   })
-  : try Effect.void)
+  : (undefined as void))
 
 const validateDataApiRemoval = effect (olds: DataApiProps | undefined, news: Input<DataApiProps>) => {
   const removed = removedAuthSettings(olds, news, [...immutable, "settings"])
-  return (removed.length === 0 ? try Effect.void : throw new InvalidDataApiConfiguration({
+  return (removed.length === 0 ? (undefined as void) : throw new InvalidDataApiConfiguration({
     message: `Cannot remove managed Data API settings: ${removed.join(", ")}; set explicit reset values instead`,
   }))
 }
@@ -155,7 +160,10 @@ export const DataApiProvider = (): infer _ =>
     stables: ["projectId", "branchId", "database"],
     diff: effect ({ olds, news, output }) => {
       try validateDataApiRemoval(olds, news)
-      if (isResolved(news)) try validateDataApi(news)
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ !== undefined) try validateDataApi(resolved_)
       const scope = try authPlanScope(news)
       if (
         output
@@ -163,15 +171,18 @@ export const DataApiProvider = (): infer _ =>
       ) {
         return { action: "replace", deleteFirst: true } as const
       }
-      if (!isResolved(news)) return
-      const resolved = scope ?? (try resolveBranchScope(news))
-      const database = try resolveDatabase(news, resolved)
+      const resolved__ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved__ === undefined) return
+      const resolved = scope ?? (try resolveBranchScope(resolved__))
+      const database = try resolveDatabase(resolved__, resolved)
       const previous = output ?? (try resolveBranchScope(olds))
       if (
         resolved.projectId !== previous.projectId
         || resolved.branchId !== previous.branchId
         || database !== (output?.database ?? (try resolveDatabase(olds, previous)))
-        || immutable.some((key) => news[key] !== olds[key])
+        || immutable.some((key) => resolved__[key] !== olds[key])
       ) {
         return { action: "replace", deleteFirst: true } as const
       }
@@ -179,7 +190,7 @@ export const DataApiProvider = (): infer _ =>
         const current = try observe({ ...resolved, database })
         if (
           !current
-          || (news.settings !== undefined && !authSettingsMatch(current.settings ?? {}, news.settings))
+          || (resolved__.settings !== undefined && !authSettingsMatch(current.settings ?? {}, resolved__.settings))
         ) {
           return { action: "update" } as const
         }
@@ -201,7 +212,7 @@ export const DataApiProvider = (): infer _ =>
       const current = try observe(scope)
       if (!current) return undefined
       const attrs = attributes(scope, current)
-      return output ? attrs : Unowned(attrs)
+      return output ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ news, output, olds }) => {
       try validateDataApiRemoval(olds, news)
@@ -270,7 +281,7 @@ export const DataApiProvider = (): infer _ =>
         Neon.deleteProjectBranchDataAPI({
           ...authRequest(output),
           database_name: output.database,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
     },
   })

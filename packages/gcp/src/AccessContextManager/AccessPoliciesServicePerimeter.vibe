@@ -23,7 +23,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.vibe"
+} from "./internal.ts"
 
 export type ServicePerimeterConfig = acm.ServicePerimeterConfig
 export type ServicePerimeterType = acm.ServicePerimeterPerimeterTypeEnum
@@ -192,7 +192,7 @@ const toAttrs = (perimeter: acm.ServicePerimeter): AccessPoliciesServicePerimete
 const getByName = effect (name: string) =>
   acm
     .getAccessPoliciesServicePerimeters({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -210,15 +210,19 @@ export const AccessPoliciesServicePerimeterProvider = (): infer _ =>
     stables: ["name", "servicePerimeterId", "policy", "perimeterType"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.servicePerimeterId ?? output?.servicePerimeterId
       const idChanged = previousId !== undefined
-        && news.servicePerimeterId !== undefined
-        && news.servicePerimeterId !== previousId
+        && resolved.servicePerimeterId !== undefined
+        && resolved.servicePerimeterId !== previousId
       const previousPolicy = olds?.policy ?? output?.policy
-      const policyChanged = previousPolicy !== undefined && policyNameOf(news.policy) !== policyNameOf(previousPolicy)
+      const policyChanged = previousPolicy !== undefined
+        && policyNameOf(resolved.policy) !== policyNameOf(previousPolicy)
       const previousType = typeOf(olds?.perimeterType ?? output?.perimeterType)
-      const nextType = typeOf(news.perimeterType ?? olds?.perimeterType ?? output?.perimeterType)
+      const nextType = typeOf(resolved.perimeterType ?? olds?.perimeterType ?? output?.perimeterType)
       const typeChanged = previousType !== nextType
       return replaceOnIdentity(idChanged || policyChanged || typeChanged)
     },
@@ -237,7 +241,7 @@ export const AccessPoliciesServicePerimeterProvider = (): infer _ =>
       const attrs = toAttrs(existing)
       return (try ownedByAlchemy(id, existing.description ?? existing.title))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -295,7 +299,7 @@ export const AccessPoliciesServicePerimeterProvider = (): infer _ =>
               status: news.status,
               spec: news.spec,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           // ALREADY_EXISTS (6): a concurrent create won the race.
           waitForOperation(created) catch effect (error) => match (error) {
@@ -313,8 +317,14 @@ export const AccessPoliciesServicePerimeterProvider = (): infer _ =>
       const titleChanged = (current.title ?? "") !== desiredTitle
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const dryRunChanged = (current.useExplicitDryRunSpec === true) !== desiredDryRun
-      const statusChanged = news.status !== undefined && !jsonEqual(current.status, news.status)
-      const specChanged = news.spec !== undefined && !jsonEqual(current.spec, news.spec)
+      const statusChanged = news.status !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: jsonEqual.bind(undefined, current.status, news.status), catch: (e) => e }),
+        ))
+      const specChanged = news.spec !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: jsonEqual.bind(undefined, current.spec, news.spec), catch: (e) => e }),
+        ))
 
       const updateMask = [
         titleChanged ? "title" : undefined,
@@ -352,7 +362,7 @@ export const AccessPoliciesServicePerimeterProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const operation = acm
         .deleteAccessPoliciesServicePerimeters({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

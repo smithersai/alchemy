@@ -13,8 +13,6 @@ import { deepEqual, isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -270,7 +268,7 @@ const isMissingCoupon = isMissingStripeResource
 
 const getById = effect (coupon: string) =>
   try (GetCoupon({ coupon })
-    |> Effect.catchIf(%, isMissingCoupon, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingCoupon, effect () => undefined))
 
 const listAllCoupons = effect () => {
   const coupons: StripeCoupon[] = []
@@ -296,7 +294,7 @@ const findByAlchemyId = effect (id: string) => {
   const coupons = try listAllCoupons()
   const matches: StripeCoupon[] = []
   for (const coupon of coupons) {
-    if (try hasAlchemyMetadata(id, tagRecord(coupon.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(coupon.metadata), catch: (e) => e })))) {
       matches.push(coupon)
     }
   }
@@ -393,10 +391,11 @@ export const CouponProvider = (): infer _ =>
     ],
 
     diff: effect ({ olds, news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (replaceOnCreateOnlyChange(olds, news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (replaceOnCreateOnlyChange(olds, resolved, output)) {
         const previousId = output?.id ?? olds?.couponId
-        const nextId = news.couponId ?? previousId
+        const nextId = resolved.couponId ?? previousId
         return {
           action: "replace" as const,
           deleteFirst: nextId !== undefined && nextId === previousId,
@@ -412,7 +411,7 @@ export const CouponProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -453,24 +452,24 @@ export const CouponProvider = (): infer _ =>
             : {}),
           metadata,
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-coupon-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
       if (current === undefined) {
         throw new CouponNotResolved({ couponId: news.couponId })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const nameChanged = news.name !== undefined && (current.name ?? undefined) !== news.name
       const observedCurrencyOptions = fromWireCurrencyOptions(current.currency_options)
-      const currencyOptionsChanged = news.currencyOptions !== undefined
+      const currencyOptionsChanged = try Effect.orDie(Effect.try({ try: () => news.currencyOptions !== undefined
         && !deepEqual(news.currencyOptions, observedCurrencyOptions, {
           stripNullish: true,
-        })
+        }), catch: (e) => e }))
 
       if (!nameChanged && !metadataChanged && !currencyOptionsChanged) {
         return toAttrs(current)
@@ -494,6 +493,6 @@ export const CouponProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       try (DeleteCoupon({ coupon: output.id })
-        |> Effect.catchIf(%, isMissingCoupon, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingCoupon, effect () => (undefined as void)))
     },
   })

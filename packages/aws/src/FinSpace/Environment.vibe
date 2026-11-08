@@ -148,7 +148,7 @@ const createEnvironmentName = effect (
 const fetchTags = effect (arn: string) => {
   const response = finspace
     .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -179,7 +179,7 @@ const isGone = (status: EnvironmentStatus | undefined): infer _ =>
 const readEnvironmentById = effect (environmentId: string) => {
   const response = finspace
     .getEnvironment({ environmentId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   const env = response?.environment
@@ -237,12 +237,12 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("20 seconds"), Schedule.recurs(120)]),
   })
 
-const waitForEnvironmentStatus = (environmentId: string, target: "CREATED" | "DELETED") =>
-  retryWhileNotReady(
+const waitForEnvironmentStatus = effect (environmentId: string, target: "CREATED" | "DELETED") =>
+  try retryWhileNotReady(
     effect {
       const response = finspace
         .getEnvironment({ environmentId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       const status = response?.environment?.status
@@ -268,7 +268,7 @@ export const EnvironmentProvider = (): infer _ =>
           const environments = try listAllEnvironments
           const hydrated = try Effect.forEach(
             environments.filter((env) => !isGone(env.status)),
-            (env) => toAttributes(env, env.environmentId ?? ""),
+            effect (env) => try toAttributes(env, env.environmentId ?? ""),
             { concurrency: 5 },
           )
           return hydrated
@@ -279,16 +279,17 @@ export const EnvironmentProvider = (): infer _ =>
             : try findEnvironmentByName(try createEnvironmentName(id, olds ?? {}))
           if (!env) return undefined
           const attrs = try toAttributes(env, output?.environmentId ?? "")
-          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // KMS key, superuser and data bundles are fixed at creation.
           if (
-            olds.kmsKeyId !== news.kmsKeyId
-            || JSON.stringify(olds.superuserParameters) !== JSON.stringify(news.superuserParameters)
-            || JSON.stringify(olds.dataBundles) !== JSON.stringify(news.dataBundles)
+            olds.kmsKeyId !== resolved.kmsKeyId
+            || JSON.stringify(olds.superuserParameters) !== JSON.stringify(resolved.superuserParameters)
+            || JSON.stringify(olds.dataBundles) !== JSON.stringify(resolved.dataBundles)
           ) {
             return { action: "replace" } as const
           }
@@ -358,7 +359,7 @@ export const EnvironmentProvider = (): infer _ =>
           // Sync tags — diff against observed cloud tags.
           const attrs = try toAttributes(env, environmentId)
           if (attrs.environmentArn) {
-            const { removed, upsert } = diffTags(attrs.tags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(attrs.tags, desiredTags), catch: (e) => e }))
             if (removed.length > 0) {
               try finspace.untagResource({
                 resourceArn: attrs.environmentArn,
@@ -386,7 +387,7 @@ export const EnvironmentProvider = (): infer _ =>
         delete: effect ({ output }) => {
           finspace
             .deleteEnvironment({ environmentId: output.environmentId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           // Deletion is irreversible once initiated; wait until the service

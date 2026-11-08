@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as r53r from "@distilled.cloud/aws/route53resolver"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -99,8 +100,8 @@ const retryAssociateRaces = effect <A, E extends { _tag: string }, R>(
  * @internal
  */
 const untilAssociationSettled = effect <E, R>(
-  self: r53r.ResolverRuleAssociation | undefined!E!R,
-): r53r.ResolverRuleAssociation | undefined!E!R =>
+  self: (r53r.ResolverRuleAssociation | undefined)!E!R,
+): (r53r.ResolverRuleAssociation | undefined)!E!R =>
   try (self
     |> Effect.repeat(%, {
       schedule: Schedule.fixed("3 seconds"),
@@ -118,8 +119,8 @@ const untilAssociationSettled = effect <E, R>(
  * @internal
  */
 const untilAssociationGone = effect <A, E, R>(
-  self: A | undefined!E!R,
-): A | undefined!E!R =>
+  self: (A | undefined)!E!R,
+): (A | undefined)!E!R =>
   try (self
     |> Effect.repeat(%, {
       schedule: Schedule.fixed("5 seconds"),
@@ -211,8 +212,9 @@ export const ResolverRuleAssociationProvider = (): infer _ =>
         },
         // Existence-only resource — every identifying property change
         // replaces the association.
-        diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             olds.resolverRuleId !== news.resolverRuleId
             || olds.vpcId !== news.vpcId
@@ -247,16 +249,18 @@ export const ResolverRuleAssociationProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          ;(try (retryDisassociateRaces(
-            r53r.disassociateResolverRule({
-              ResolverRuleId: output.resolverRuleId,
-              VPCId: output.vpcId,
-            }),
-          )
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (retryDisassociateRaces(
+              r53r.disassociateResolverRule({
+                ResolverRuleId: output.resolverRuleId,
+                VPCId: output.vpcId,
+              }),
+            )
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
           // Disassociation is asynchronous and the parent rule cannot be
           // deleted until the association has fully drained — wait
           // (bounded ~2 min) for it to disappear.

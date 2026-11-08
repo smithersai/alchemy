@@ -77,7 +77,7 @@ export const rfc1035 = (name: string, fallback = "apigw"): string => {
 export const locationParent = (project: string) =>
   `projects/${project}/locations/${DEFAULT_LOCATION}`;
 
-export const expandApi = (value: string, project: string) => {
+export const expandApi = /** @throws {never} */ (value: string, project: string) => {
   const trimmed = value.replace(/\/+$/, "");
   if (trimmed.includes("/apis/")) return trimmed;
   return `${locationParent(project)}/apis/${trimmed}`;
@@ -121,15 +121,18 @@ export const parseName = (name: string, collection: string) => {
   };
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

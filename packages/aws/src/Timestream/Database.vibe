@@ -114,14 +114,14 @@ const toTagRecord = (
 const readDatabase = effect (databaseName: string) => {
   const response = withWriteEndpoint(
     TSW.describeDatabase({ DatabaseName: databaseName }),
-  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
   if (!response?.Database) {
     return undefined
   }
   const database = response.Database
   const tagsResponse = withWriteEndpoint(
     TSW.listTagsForResource({ ResourceARN: database.Arn! }),
-  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
   if (!tagsResponse) {
     return undefined
   }
@@ -151,7 +151,7 @@ export const DatabaseProvider = (): infer _ =>
               TSW.listDatabases.pages({}).pipe(EffectStream.runCollect),
             ),
           ).flatMap((page) => (page.Databases ?? []).flatMap((db) => db.DatabaseName ? [db.DatabaseName] : []))
-          const hydrated = try Effect.forEach(names, (name) => readDatabase(name), {
+          const hydrated = try Effect.forEach(names, effect (name) => try readDatabase(name), {
             concurrency: 10,
           })
           return hydrated.filter((attrs): attrs is Database["Attributes"] => attrs !== undefined)
@@ -160,12 +160,13 @@ export const DatabaseProvider = (): infer _ =>
           const databaseName = output?.databaseName ?? (try createDatabaseName(id, olds ?? {}))
           const state = try readDatabase(databaseName)
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news = {}, olds = {} }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createDatabaseName(id, olds)
-          const newName = try createDatabaseName(id, news)
+          const newName = try createDatabaseName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
@@ -192,7 +193,7 @@ export const DatabaseProvider = (): infer _ =>
                   Value,
                 })),
               }),
-            ) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            ) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
             try session.note(`Creating database ${databaseName}...`)
             state = try readDatabase(databaseName)
             if (state === undefined) {
@@ -214,7 +215,7 @@ export const DatabaseProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try withWriteEndpoint(
               TSW.untagResource({
@@ -244,7 +245,7 @@ export const DatabaseProvider = (): infer _ =>
         },
         delete: effect ({ output }) => {
           withWriteEndpoint(TSW.deleteDatabase({ DatabaseName: output.databaseName })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

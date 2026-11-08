@@ -268,7 +268,10 @@ export const BackupProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousInstance = parseInstanceRef(
         olds?.sourceInstance ?? output?.sourceInstance ?? "",
@@ -276,32 +279,40 @@ export const BackupProvider = (): infer _ =>
         olds?.instanceLocation ?? output?.location ?? DEFAULT_ZONE,
       )
       const nextInstance = parseInstanceRef(
-        news.sourceInstance,
+        resolved.sourceInstance,
         env.project,
-        news.instanceLocation ?? olds?.instanceLocation ?? previousInstance.location,
+        resolved.instanceLocation ?? olds?.instanceLocation ?? previousInstance.location,
       )
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        regionOf(previousInstance.location),
-      )
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            regionOf(previousInstance.location),
+          ),
+        catch: (e) => e,
+      }))
       const nextLocation = backupLocationOf(
-        news.location,
+        resolved.location,
         olds?.location ?? output?.location,
         nextInstance.location,
       )
       const previousShare = olds?.sourceFileShare ?? output?.sourceFileShare ?? DEFAULT_SHARE_NAME
-      const nextShare = news.sourceFileShare ?? previousShare
+      const nextShare = resolved.sourceFileShare ?? previousShare
       const previousKey = olds?.kmsKey ?? output?.kmsKey ?? ""
-      const nextKey = news.kmsKey ?? previousKey
-      return replaceOnIdentity({
-        previousId: olds?.backupId ?? output?.backupId,
-        nextId: news.backupId ?? olds?.backupId ?? output?.backupId,
-        previousLocation,
-        nextLocation,
-        extra: previousInstance.instanceName !== nextInstance.instanceName
-          || previousShare !== nextShare
-          || previousKey !== nextKey,
-      })
+      const nextKey = resolved.kmsKey ?? previousKey
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backupId ?? output?.backupId,
+            nextId: resolved.backupId ?? olds?.backupId ?? output?.backupId,
+            previousLocation,
+            nextLocation,
+            extra: previousInstance.instanceName !== nextInstance.instanceName
+              || previousShare !== nextShare
+              || previousKey !== nextKey,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -317,7 +328,12 @@ export const BackupProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined || isPlaceholder(existing)) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -352,7 +368,7 @@ export const BackupProvider = (): infer _ =>
       const name = resourceName(env.project, location, backupId)
       const sourceFileShare = news.sourceFileShare ?? DEFAULT_SHARE_NAME
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -397,7 +413,9 @@ export const BackupProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         (current.description ?? "") !== (news.description ?? "") && "description",
@@ -429,12 +447,14 @@ export const BackupProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name || output.name.includes("//")) return
-      const operation = (try (file.deleteProjectsLocationsBackups({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("5 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (file.deleteProjectsLocationsBackups({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

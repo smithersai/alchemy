@@ -181,34 +181,47 @@ export const CurationProvider = (): infer _ =>
     stables: ["name", "curationId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.curationId ?? output?.curationId,
-        nextId: news.curationId ?? olds?.curationId ?? output?.curationId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: !sameJson(news.endpoint ?? olds?.endpoint, olds?.endpoint ?? output?.endpoint),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.curationId ?? output?.curationId,
+            nextId: resolved.curationId ?? olds?.curationId ?? output?.curationId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: !sameJson(resolved.endpoint ?? olds?.endpoint, olds?.endpoint ?? output?.endpoint),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const curationId = try toPhysicalId(id, olds?.curationId, output?.curationId)
       const name = output?.name ?? resourceName(env.project, location, curationId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const items = try listCurations(locationParent(env.project, env.region))
+      const items = try listCurations(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+      )
       return items
         .filter((item) => hasOwnershipMarker(item.description))
         .map((item) => toAttrs(item, env.project, env.region))
@@ -216,12 +229,18 @@ export const CurationProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const curationId = try toPhysicalId(id, news.curationId, output?.curationId)
       const name = output?.name ?? resourceName(env.project, location, curationId)
       const ownership = try createOwnership(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName ?? curationId
       const endpoint: apihub.GoogleCloudApihubV1Endpoint = {
         applicationIntegrationEndpointDetails: news.endpoint.applicationIntegrationEndpointDetails,
@@ -254,10 +273,14 @@ export const CurationProvider = (): infer _ =>
       if (displayChanged || descriptionChanged) {
         current = try apihub.patchProjectsLocationsCurations({
           name: currentName,
-          updateMask: updateMaskOf(
-            displayChanged ? "display_name" : undefined,
-            descriptionChanged ? "description" : undefined,
-          ),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              updateMaskOf(
+                displayChanged ? "display_name" : undefined,
+                descriptionChanged ? "description" : undefined,
+              ),
+            catch: (e) => e,
+          })),
           body: {
             name: currentName,
             displayName,

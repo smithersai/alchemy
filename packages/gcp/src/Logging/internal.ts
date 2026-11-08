@@ -96,13 +96,14 @@ export const scopeParent = (project: string, folderId: string | undefined) =>
     ? `folders/${lastSegment(folderId)}`
     : `projects/${project}`;
 
-export const locationParent = (parent: string, location: string) =>
+export const locationParent = /** @throws {never} */ (parent: string, location: string) =>
   `${parent}/locations/${location}`;
 
 export const jsonEqual = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const sorted = (values: readonly string[] | undefined) => [...(values ?? [])].slice().sort();
+export const sorted = /** @throws {never} */ (values: readonly string[] | undefined) =>
+  [...(values ?? [])].slice().sort();
 
 export const createOwnership = (id: string) => createInternalLabels(id);
 
@@ -235,12 +236,12 @@ export class OrganizationNotResolved extends Data.TaggedError(
 
 export const billingAccountIdOf = (value: string) => lastSegment(value);
 
-export const billingAccountParent = (billingAccountId: string) =>
+export const billingAccountParent = /** @throws {never} */ (billingAccountId: string) =>
   billingAccountId.startsWith("billingAccounts/")
     ? billingAccountId
     : `billingAccounts/${billingAccountId}`;
 
-export const folderParent = (folderId: string) =>
+export const folderParent = /** @throws {never} */ (folderId: string) =>
   folderId.startsWith("folders/") ? folderId : `folders/${folderId}`;
 
 export const organizationIdOf = (value: string) => lastSegment(value);

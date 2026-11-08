@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { isResolved, somePropsAreDifferent } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -271,19 +273,20 @@ export const VolumeProvider = (): infer _ =>
         ],
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (
-            somePropsAreDifferent(olds, news, [
+            try Effect.orDie(Effect.try({ try: () => somePropsAreDifferent(olds, resolved, [
               "availabilityZone",
               "encrypted",
               "kmsKeyId",
               "snapshotId",
-            ])
+            ]), catch: (e) => e }))
           ) {
             return { action: "replace" }
           }
           // Shrinking a volume is not supported in place — replace.
-          if (olds.size !== undefined && news.size !== undefined && news.size < olds.size) {
+          if (olds.size !== undefined && resolved.size !== undefined && resolved.size < olds.size) {
             return { action: "replace" }
           }
         },
@@ -313,8 +316,8 @@ export const VolumeProvider = (): infer _ =>
           //    returns the first volume, and a recreate after the volume was
           //    deleted sends a new token.
           if (volume === undefined) {
-            const create = (clientToken: string | undefined) =>
-              ec2.createVolume({
+            const create = effect (clientToken: string | undefined) =>
+              try ec2.createVolume({
                 AvailabilityZone: news.availabilityZone,
                 Size: news.size,
                 VolumeType: news.volumeType ?? "gp3",
@@ -328,7 +331,7 @@ export const VolumeProvider = (): infer _ =>
                 TagSpecifications: [
                   {
                     ResourceType: "volume",
-                    Tags: createTagsList(desiredTags),
+                    Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                   },
                 ],
                 DryRun: false,
@@ -384,7 +387,7 @@ export const VolumeProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (volume.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [volumeId],
@@ -422,16 +425,16 @@ export const VolumeProvider = (): infer _ =>
           try session.note(`Deleting volume: ${volumeId}`)
 
           try (effect {
-            return (try (ec2.deleteVolume({ VolumeId: volumeId, DryRun: false })
-              |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
-                when { _tag: "InvalidVolume.NotFound" }: try Effect.void;
+            return (effect { return (try (ec2.deleteVolume({ VolumeId: volumeId, DryRun: false })
+              |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
+                when { _tag: "InvalidVolume.NotFound" }: (undefined as void);
                 default: throw e;
               }
           }
             |> Effect.retry(%, {
               while: (e) => e._tag === "VolumeInUse",
               schedule: Schedule.max([Schedule.fixed(3000), Schedule.recurs(20)]).pipe(
-                Schedule.tap(({ attempt }) => session.note(`Waiting for volume to detach... (attempt ${attempt + 1})`)),
+                Schedule.tap(effect ({ attempt }) => try session.note(`Waiting for volume to detach... (attempt ${attempt + 1})`)),
               ),
             }))
 
@@ -464,23 +467,50 @@ const toVolumeAttributes = (
   }
 }
 
-error VolumeNotFound {
-  mutable volumeId: string
+class VolumeNotFound extends $MutableErrorBase("VolumeNotFound")<{
+
+   volumeId: string;
+}> {static {
+    $MutableErrorMatcher(this, "VolumeNotFound", true);
 }
 
-error VolumeFailed {
-  mutable volumeId: string
+
 }
 
-error VolumeNotReady {
-  mutable volumeId: string
-  mutable state: string
+class VolumeFailed extends $MutableErrorBase("VolumeFailed")<{
+
+   volumeId: string;
+}> {static {
+    $MutableErrorMatcher(this, "VolumeFailed", true);
 }
 
-error VolumeStillExists {
-  mutable volumeId: string
-  mutable state: string
-  mutable message: string
+
+}
+
+class VolumeNotReady extends $MutableErrorBase("VolumeNotReady")<{
+
+   volumeId: string;
+
+   state: string;
+}> {static {
+    $MutableErrorMatcher(this, "VolumeNotReady", true);
+}
+
+
+}
+
+class VolumeStillExists extends $MutableErrorBase("VolumeStillExists")<{
+
+   volumeId: string;
+
+   state: string;
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "VolumeStillExists", true);
+}
+
+
 }
 
 /**
@@ -509,7 +539,7 @@ const waitForVolumeAvailable = effect (volumeId: string, session?: ScopedPlanSta
       ]).pipe(
         Schedule.tap(effect ({ attempt }) => (session
           ? try session.note(`Waiting for volume to be available... (${(attempt + 1) * 2}s)`)
-          : try Effect.void)
+          : (undefined as void))
         ),
       ),
     }))
@@ -547,6 +577,6 @@ const waitForVolumeDeleted = effect (volumeId: string, session: ScopedPlanStatus
         // suite log hit the old 60s cap with the volume still present).
         Schedule.recurs(45),
       ]).pipe(
-        Schedule.tap(({ attempt }) => session.note(`Waiting for volume deletion... (${(attempt + 1) * 2}s)`)),
+        Schedule.tap(effect ({ attempt }) => try session.note(`Waiting for volume deletion... (${(attempt + 1) * 2}s)`)),
       ),
     }))

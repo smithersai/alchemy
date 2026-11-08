@@ -249,7 +249,7 @@ export const DeploymentGroupProvider = (): infer _ =>
             deploymentGroupName: groupName,
           }) catch effect (e) => match (e) {
             when { _tag: "DeploymentGroupDoesNotExistException" } or { _tag: "ApplicationDoesNotExistException" }:
-              try Effect.undefined;
+              undefined;
             default: throw e;
           }
         return response?.deploymentGroupInfo
@@ -258,7 +258,8 @@ export const DeploymentGroupProvider = (): infer _ =>
       const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
         const observed = codedeploy
           .listTagsForResource({ ResourceArn: arn }) catch () => undefined
-        const { removed, upsert } = diffTags(toTagRecord(observed?.Tags), desiredTags)
+        const oldTags = toTagRecord(observed?.Tags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try codedeploy.tagResource({ ResourceArn: arn, Tags: upsert })
         }
@@ -274,12 +275,13 @@ export const DeploymentGroupProvider = (): infer _ =>
         stables: ["deploymentGroupName", "deploymentGroupId", "applicationName"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // The parent application is immutable — replace on change.
-          if ((news?.applicationName ?? "") !== (olds?.applicationName ?? "")) {
+          if ((resolved?.applicationName ?? "") !== (olds?.applicationName ?? "")) {
             return { action: "replace" } as const
           }
         },
@@ -299,8 +301,8 @@ export const DeploymentGroupProvider = (): infer _ =>
             applicationName: group.applicationName ?? appName,
             serviceRoleArn: group.serviceRoleArn ?? "",
           }
-          const tags = (toTagRecord((try codedeploy.listTagsForResource({ ResourceArn: arn })).Tags)) catch () => ({})
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          const tags = (effect { return (toTagRecord((try codedeploy.listTagsForResource({ ResourceArn: arn })).Tags)) }) catch () => ({})
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -339,7 +341,7 @@ export const DeploymentGroupProvider = (): infer _ =>
                 })),
               }),
             ) catch effect (e) => match (e) {
-              when { _tag: "DeploymentGroupAlreadyExistsException" }: try Effect.undefined;
+              when { _tag: "DeploymentGroupAlreadyExistsException" }: undefined;
               default: throw e;
             }
             group = try getGroup(appName, name)

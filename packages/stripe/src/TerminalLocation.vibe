@@ -18,8 +18,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -357,7 +355,7 @@ const getById = effect (location: string) =>
   try (effect {
     return asLocation(try GetTerminalLocation({ location }))
   }
-    |> Effect.catchIf(%, isMissingLocation, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingLocation, effect () => undefined))
 
 const listAllLocations = effect () => {
   const locations: StripeTerminalLocation[] = []
@@ -383,7 +381,12 @@ const findByAlchemyId = effect (id: string) => {
   const locations = try listAllLocations()
   const matches: StripeTerminalLocation[] = []
   for (const location of locations) {
-    if (try hasAlchemyMetadata(id, tagRecord(location.metadata))) {
+    if (
+      try hasAlchemyMetadata(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(location.metadata), catch: (e) => e })),
+      )
+    ) {
       matches.push(location)
     }
   }
@@ -419,8 +422,11 @@ export const TerminalLocationProvider = (): infer _ =>
     stables: ["id", "livemode"],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
+      if (shouldReplace(resolved_, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -433,7 +439,12 @@ export const TerminalLocationProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -483,30 +494,55 @@ export const TerminalLocationProvider = (): infer _ =>
             : {}),
           ...(desiredPhone.length > 0 ? { phone: desiredPhone } : {}),
         })
-          |> withRequestOptions({
-            idempotencyKey: `alchemy-terminal-location-${instanceId}`,
-          })(%))
+          |> (try Effect.orDie(Effect.try({
+            try: () =>
+              withRequestOptions({
+                idempotencyKey: `alchemy-terminal-location-${instanceId}`,
+              }),
+            catch: (e) => e,
+          })))(%))
       }
 
       if (current === undefined) {
         throw new TerminalLocationNotResolved({ displayName })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }),
+      )
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = current.display_name !== displayName
-      const addressChanged = !deepEqual(fromObservedAddress(current.address), news.address, {
-        stripNullish: true,
-      })
+      const a = fromObservedAddress(current.address)
+      const addressChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          deepEqual(a, news.address, {
+            stripNullish: true,
+          }),
+        catch: (e) => e,
+      })))
       const addressKanaChanged = news.addressKana !== undefined
-        && !deepEqual(fromObservedJapanAddress(current.address_kana), news.addressKana, {
-          stripNullish: true,
-        })
+        && !(try Effect.orDie(
+          Effect.try({
+            try: () =>
+              deepEqual(fromObservedJapanAddress(current.address_kana), news.addressKana, {
+                stripNullish: true,
+              }),
+            catch: (e) => e,
+          }),
+        ))
       const addressKanjiChanged = news.addressKanji !== undefined
-        && !deepEqual(fromObservedJapanAddress(current.address_kanji), news.addressKanji, {
-          stripNullish: true,
-        })
+        && !(try Effect.orDie(
+          Effect.try({
+            try: () =>
+              deepEqual(fromObservedJapanAddress(current.address_kanji), news.addressKanji, {
+                stripNullish: true,
+              }),
+            catch: (e) => e,
+          }),
+        ))
       const phoneChanged = (current.phone ?? "") !== desiredPhone
       const configChanged = (current.configuration_overrides ?? "") !== desiredConfig
       const displayNameKanaChanged = (current.display_name_kana ?? "") !== desiredDisplayNameKana
@@ -558,6 +594,6 @@ export const TerminalLocationProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       try (DeleteTerminalLocation({ location: output.id })
-        |> Effect.catchIf(%, isMissingLocation, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingLocation, effect () => (undefined as void)))
     },
   })

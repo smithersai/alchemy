@@ -249,7 +249,7 @@ const getByName = effect (bucketName: string) =>
     }
 
 const emptyBucket = effect (bucketName: string) =>
-  (try Effect.forEach(
+  (effect { return (try Effect.forEach(
     try (storage.listObjects.items({ bucket: bucketName, versions: true, maxResults: 1000 })
       |> Stream.runCollect(%)),
     effect (object) => (object.name
@@ -261,10 +261,10 @@ const emptyBucket = effect (bucketName: string) =>
         }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       : try Effect.void),
     { concurrency: 8 },
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 const emptyFolders = effect (bucketName: string) =>
-  (try effect {
+  (effect { return (try effect {
     const chunk = try (storage.listFolders.items({ bucket: bucketName, pageSize: 1000 })
       |> Stream.runCollect(%))
 
@@ -282,10 +282,10 @@ const emptyFolders = effect (bucketName: string) =>
           },
       { concurrency: 1 },
     )
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 const emptyManagedFolders = effect (bucketName: string) =>
-  (try effect {
+  (effect { return (try effect {
     const chunk = try (storage.listManagedFolders.items({ bucket: bucketName, pageSize: 1000 })
       |> Stream.runCollect(%))
 
@@ -304,43 +304,44 @@ const emptyManagedFolders = effect (bucketName: string) =>
           }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; },
       { concurrency: 1 },
     )
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 export const BucketProvider = (): infer _ =>
   Provider.succeed(Bucket, {
     stables: ["bucketName", "location", "locationType", "projectNumber", "timeCreated", "selfLink"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       // Bucket names are immutable: a new name is a new bucket, and the
       // old one must be deleted rather than left behind.
       const recordedName = output?.bucketName ?? olds?.bucketName
       if (
-        news.bucketName !== undefined
+        resolved.bucketName !== undefined
         && recordedName !== undefined
-        && news.bucketName !== recordedName
+        && resolved.bucketName !== recordedName
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previous = olds?.location ?? output?.location
-      const next = news.location
+      const next = resolved.location
       if (
         previous !== undefined
         && next !== undefined
         && previous.toUpperCase() !== next.toUpperCase()
       ) {
         const previousName = olds?.bucketName ?? output?.bucketName
-        const nextName = news.bucketName ?? previousName
+        const nextName = resolved.bucketName ?? previousName
         return {
           action: "replace" as const,
           deleteFirst: nextName !== undefined && nextName === previousName,
         }
       }
       const previousHns = olds?.hierarchicalNamespace ?? output?.hierarchicalNamespace
-      const nextHns = news.hierarchicalNamespace === true
+      const nextHns = resolved.hierarchicalNamespace === true
       if (previousHns !== undefined && previousHns !== nextHns) {
         const previousName = olds?.bucketName ?? output?.bucketName
-        const nextName = news.bucketName ?? previousName
+        const nextName = resolved.bucketName ?? previousName
         return {
           action: "replace" as const,
           deleteFirst: nextName !== undefined && nextName === previousName,
@@ -354,7 +355,7 @@ export const BucketProvider = (): infer _ =>
       const existing = try getByName(bucketName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -377,7 +378,7 @@ export const BucketProvider = (): infer _ =>
       const uniformBucketLevelAccess = news.uniformBucketLevelAccess === true || hierarchicalNamespace
       const configureIam = news.uniformBucketLevelAccess !== undefined || hierarchicalNamespace
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredWebsite = toWebsite(news.website)
@@ -414,7 +415,7 @@ export const BucketProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const storageClassChanged = (current.storageClass ?? "STANDARD") !== storageClass
       const versioningChanged = (current.versioning?.enabled === true) !== versioning

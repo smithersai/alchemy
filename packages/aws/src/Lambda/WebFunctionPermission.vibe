@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as LambdaWeb from "@distilled.cloud/aws/lambda-web"
 import { deepEqual, isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -70,11 +72,25 @@ export interface WebFunctionPermission extends
 {}
 
 /** Invoke grants only mean something on an `IamAuth` endpoint. */
-export error WebFunctionEndpointNotIamAuth { mutable endpointArn: string; mutable message: string }
+export class WebFunctionEndpointNotIamAuth extends $MutableErrorBase("WebFunctionEndpointNotIamAuth")<{
+  endpointArn: string;
+  message: string;
+}> {static {
+    $MutableErrorMatcher(this, "WebFunctionEndpointNotIamAuth", true);
+} 
 
-export error WebFunctionPolicyInvalid {
-  mutable functionArn: string
-  mutable message: string
+}
+
+export class WebFunctionPolicyInvalid extends $MutableErrorBase("WebFunctionPolicyInvalid")<{
+
+   functionArn: string;
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "WebFunctionPolicyInvalid", true);
+}
+
+
 }
 
 const WebFunctionPermissionResource = Resource<WebFunctionPermission>(WebFunctionPermissionTypeId)
@@ -126,10 +142,10 @@ const resolvePermissionProps = effect (
  * @resource
  */
 export const WebFunctionPermission: typeof WebFunctionPermissionResource = Object.assign(
-  (
+  effect (
     id: string,
     props: WebFunctionPermissionProps | (WebFunctionPermissionProps!never!Providers),
-  ) => WebFunctionPermissionResource(id, resolvePermissionProps(props)),
+  ) => try WebFunctionPermissionResource(id, resolvePermissionProps(props)),
   WebFunctionPermissionResource,
 )
 
@@ -172,7 +188,7 @@ export const WebFunctionPermissionProvider = (): infer _ =>
 
       const getPolicy = effect (functionArn: string) => {
         const observed = LambdaWeb.getResourcePolicy({ resourceArn: functionArn }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
         if (observed === undefined) return undefined
@@ -188,16 +204,16 @@ export const WebFunctionPermissionProvider = (): infer _ =>
        * concurrently, and the first write to a function with no policy yet
        * has no `revisionId` to detect a conflict with.
        */
-      const locks = new Map<string, Semaphore>()
+      const locks = new Map<string, Semaphore.Semaphore>()
       const lockFor = effect (functionArn: string) =>
-        try Effect.sync(() => {
+        try effect {
           let lock = locks.get(functionArn)
           if (lock === undefined) {
             lock = Semaphore.makeUnsafe(1)
             locks.set(functionArn, lock)
           }
           return lock
-        })
+        }
 
       /**
        * Read-modify-write the function's single policy document, replacing
@@ -211,8 +227,8 @@ export const WebFunctionPermissionProvider = (): infer _ =>
         sid: string,
         statement: PolicyStatement | undefined,
       ) =>
-        try Effect.flatMap(lockFor(functionArn), (lock) =>
-          lock.withPermits(1)(writeStatement(functionArn, sid, statement)))
+        try Effect.flatMap(lockFor(functionArn), effect (lock) =>
+          try lock.withPermits(1)(writeStatement(functionArn, sid, statement)))
 
       const writeStatement = effect (
         functionArn: string,
@@ -225,7 +241,7 @@ export const WebFunctionPermissionProvider = (): infer _ =>
             s.Sid !== sid
           )
           const existing = current?.document.Statement?.find((s) => s.Sid === sid)
-          if (statement !== undefined && deepEqual(existing, statement)) return
+          if (statement !== undefined && (try Effect.orDie(Effect.try({ try: () => deepEqual(existing, statement), catch: (e) => e })))) return
           if (statement === undefined && existing === undefined) return
           const statements = statement === undefined ? others : [...others, statement]
           if (statements.length === 0) {
@@ -253,14 +269,15 @@ export const WebFunctionPermissionProvider = (): infer _ =>
       return {
         stables: ["functionArn", "statementId"],
         diff: effect ({ olds, news, output }) => {
-          if (!isResolved(news)) return
+          const resolved__ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved__ === undefined) return
           if (!output || !olds) return undefined
           // The policy lives on the function: a different function is a new
           // grant.
-          if (endpointOf(news).functionArn !== output.functionArn) {
+          if (endpointOf(resolved__).functionArn !== output.functionArn) {
             return { action: "replace" }
           }
-          if (deepEqual(olds, news)) return { action: "noop" }
+          if (try Effect.orDie(Effect.try({ try: () => deepEqual(olds, resolved__), catch: (e) => e }))) return { action: "noop" }
         },
         read: effect ({ id, olds, output }) => {
           const functionArn = output?.functionArn ?? (olds ? endpointOf(olds).functionArn : undefined)
@@ -273,7 +290,7 @@ export const WebFunctionPermissionProvider = (): infer _ =>
             functionArn,
             endpointArn: (statement.Resource as string) ?? output?.endpointArn ?? "",
             statementId: sid,
-            statement: plainJson(statement),
+            statement: try Effect.orDie(Effect.try({ try: () => plainJson(statement), catch: (e) => e })),
           }
         },
         reconcile: effect ({ id, news, output }) => {
@@ -289,17 +306,18 @@ export const WebFunctionPermissionProvider = (): infer _ =>
           try updateStatement(endpoint.functionArn, sid, statementFor(sid, news))
           const policy = try getPolicy(endpoint.functionArn)
           const statement = policy?.document.Statement?.find((s) => s.Sid === sid)
+          const value = statement ?? statementFor(sid, news)
           return {
             functionArn: endpoint.functionArn,
             endpointArn: endpoint.endpointArn,
             statementId: sid,
-            statement: plainJson(statement ?? statementFor(sid, news)),
+            statement: try Effect.orDie(Effect.try({ try: () => plainJson(value), catch: (e) => e })),
           }
         },
         delete: effect ({ output }) => {
           // A deleted function takes its policy with it.
           updateStatement(output.functionArn, output.statementId, undefined) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

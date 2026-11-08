@@ -292,22 +292,25 @@ export const LakesEntityProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const previousId = olds?.entityId ?? output?.entityId
-      const nextId = news.entityId ?? previousId
+      const nextId = resolved_.entityId ?? previousId
       const previousZone = olds?.zone ?? output?.zone
-      const nextZone = news.zone ?? previousZone
+      const nextZone = resolved_.zone ?? previousZone
       const previousType = (olds?.type ?? output?.type ?? DEFAULT_TYPE).toUpperCase()
-      const nextType = (news.type ?? previousType).toUpperCase()
+      const nextType = (resolved_.type ?? previousType).toUpperCase()
       const previousAsset = assetIdOf(olds?.asset ?? output?.asset ?? "")
-      const nextAsset = assetIdOf(news.asset)
+      const nextAsset = assetIdOf(resolved_.asset)
       const previousPath = olds?.dataPath ?? output?.dataPath ?? ""
-      const nextPath = news.dataPath
+      const nextPath = resolved_.dataPath
       const previousSystem = (olds?.system ?? output?.system ?? DEFAULT_SYSTEM).toUpperCase()
-      const nextSystem = (news.system ?? previousSystem).toUpperCase()
+      const nextSystem = (resolved_.system ?? previousSystem).toUpperCase()
       if (
-        replaceIfChanged(previousId, nextId)
-        || replaceIfChanged(previousZone, nextZone)
+        (try Effect.orDie(Effect.try({ try: () => replaceIfChanged(previousId, nextId), catch: (e) => e })))
+        || (try Effect.orDie(Effect.try({ try: () => replaceIfChanged(previousZone, nextZone), catch: (e) => e })))
         || previousType !== nextType
         || previousAsset !== nextAsset
         || previousPath !== nextPath
@@ -330,7 +333,9 @@ export const LakesEntityProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state the entity may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -385,8 +390,12 @@ export const LakesEntityProvider = (): infer _ =>
       const descriptionChanged = (current.description ?? "") !== (description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
       const patternChanged = (current.dataPathPattern ?? "") !== (news.dataPathPattern ?? "")
-      const formatChanged = fingerprint(current.format) !== fingerprint(format)
-      const schemaChanged = fingerprint(current.schema) !== fingerprint(schema)
+      const formatChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.format), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(format), catch: (e) => e })))
+      const schemaChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.schema), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(schema), catch: (e) => e })))
 
       if (
         descriptionChanged
@@ -419,19 +428,23 @@ export const LakesEntityProvider = (): infer _ =>
     delete: effect ({ output }) => {
       // Delete requires the current etag, which moves while partitions are
       // removed and discovery runs, so re-read it on every attempt.
-      ;(try (effect {
-        return try effect {
-          const existing = try getByName(output.name)
-          return (existing === undefined ? try Effect.void : try dataplex.deleteProjectsLocationsLakesZonesEntities({
-            name: output.name,
-            etag: existing.etag,
-          }))
+      ;(effect {
+        return (try (effect {
+          return try effect {
+            const existing = try getByName(output.name)
+            return (existing === undefined
+              ? try Effect.void
+              : try dataplex.deleteProjectsLocationsLakesZonesEntities({
+                name: output.name,
+                etag: existing.etag,
+              }))
+          }
         }
-      }
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 10,
-          schedule: Schedule.spaced("3 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 10,
+            schedule: Schedule.spaced("3 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
     },
   })

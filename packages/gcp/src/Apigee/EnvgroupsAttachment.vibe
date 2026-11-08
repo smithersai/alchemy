@@ -151,16 +151,24 @@ export const EnvgroupsAttachmentProvider = (): infer _ =>
     stables: ["name", "attachmentId", "envgroup", "environment", "organization", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousGroup = olds?.envgroup ?? output?.envgroup
       const previousEnv = olds?.environment ?? output?.environment
       const previousOrg = olds?.organization ?? output?.organization
-      const groupChanged = previousGroup !== undefined && envgroupIdOf(news.envgroup) !== envgroupIdOf(previousGroup)
+      const groupChanged = previousGroup !== undefined
+        && envgroupIdOf(resolved.envgroup) !== envgroupIdOf(previousGroup)
       const envChanged = previousEnv !== undefined
-        && environmentIdOf(news.environment) !== environmentIdOf(previousEnv)
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+        && environmentIdOf(resolved.environment) !== environmentIdOf(previousEnv)
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
       if (groupChanged || envChanged || orgChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -169,7 +177,12 @@ export const EnvgroupsAttachmentProvider = (): infer _ =>
 
     read: effect ({ olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const envgroup = olds?.envgroup ?? output?.envgroup
       const environment = olds?.environment ?? output?.environment
       if (envgroup === undefined || environment === undefined) return undefined
@@ -212,12 +225,16 @@ export const EnvgroupsAttachmentProvider = (): infer _ =>
               when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
               default: throw e;
             }
-          if (hasOwnershipMarker(environment?.description)) {
+          if (
+            try Effect.orDie(Effect.try({ try: () => hasOwnershipMarker(environment?.description), catch: (e) => e }))
+          ) {
             ownedEnvs.add(environmentId)
           }
         }
         for (const group of groups) {
-          const envgroupId = lastSegment(group.name ?? "")
+          const envgroupId = try Effect.orDie(
+            Effect.try({ try: () => lastSegment(group.name ?? ""), catch: (e) => e }),
+          )
           if (envgroupId.length === 0) continue
           const parent = `${organization}/envgroups/${envgroupId}`
           const attachments = try listAttachments(parent)
@@ -234,7 +251,9 @@ export const EnvgroupsAttachmentProvider = (): infer _ =>
 
     reconcile: effect ({ news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const envgroup = envgroupIdOf(news.envgroup)
       const environment = environmentIdOf(news.environment)
       const parent = parentOf(organization, envgroup)
@@ -255,7 +274,9 @@ export const EnvgroupsAttachmentProvider = (): infer _ =>
           }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (operation !== undefined) {
           const done = try waitForOperation(operation)
-          const createdName = stringField(done.response, "name")
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => stringField(done.response, "name"), catch: (e) => e }),
+          )
           if (createdName !== undefined) {
             current = try getByName(createdName)
           }

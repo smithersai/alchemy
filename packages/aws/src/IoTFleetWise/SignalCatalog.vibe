@@ -127,9 +127,9 @@ export const SignalCatalogProvider = (): infer _ =>
       ) => (props.signalCatalogName ? props.signalCatalogName : try createPhysicalName({ id, maxLength: 100 }))
 
       const readCatalog = effect (name: string) =>
-        (try (iotfleetwise.getSignalCatalog({ name })
-          |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect { return (try (iotfleetwise.getSignalCatalog({ name })
+          |> inFleetWiseRegion(%))) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -146,8 +146,9 @@ export const SignalCatalogProvider = (): infer _ =>
         stables: ["signalCatalogName", "signalCatalogArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds)) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
         },
@@ -161,7 +162,7 @@ export const SignalCatalogProvider = (): infer _ =>
             signalCatalogArn: found.arn,
           }
           const tags = try readFleetWiseTags(found.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -175,15 +176,15 @@ export const SignalCatalogProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate the AlreadyExists race.
           if (observed === undefined) {
-            ;(try (iotfleetwise
+            ;(effect { return (try (iotfleetwise
               .createSignalCatalog({
                 name,
                 description: news.description,
                 nodes: desiredNodes,
-                tags: toFleetWiseTagList(desiredTags),
+                tags: try Effect.orDie(Effect.try({ try: () => toFleetWiseTagList(desiredTags), catch: (e) => e })),
               })
-              |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
+              |> inFleetWiseRegion(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (undefined as void);
                 default: throw e;
               }
             observed = try (effect {
@@ -242,16 +243,16 @@ export const SignalCatalogProvider = (): infer _ =>
           // Idempotent: FleetWise deletes return success for missing
           // resources. Model manifests still detaching surface as
           // ConflictException — retry through the window (bounded).
-          ;(try (iotfleetwise.deleteSignalCatalog({ name: output.signalCatalogName })
+          ;(effect { return (try (iotfleetwise.deleteSignalCatalog({ name: output.signalCatalogName })
             |> inFleetWiseRegion(%)
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ConflictException" }: try Effect.void;
+            |> retryWhileConflict(%))) }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
               default: throw e;
             }
         },
 
-        list: () =>
-          iotfleetwise.listSignalCatalogs.items({}).pipe(
+        list: effect () =>
+          try iotfleetwise.listSignalCatalogs.items({}).pipe(
             Stream.runCollect,
             Effect.map((chunk) =>
               Array.from(chunk).flatMap((summary) =>

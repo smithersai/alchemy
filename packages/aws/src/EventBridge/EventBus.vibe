@@ -166,17 +166,18 @@ export const EventBusProvider = (): infer _ =>
       return {
         stables: ["eventBusName", "eventBusArn"],
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createEventBusName(id, olds)
-          const newName = try createEventBusName(id, news)
+          const newName = try createEventBusName(id, resolved)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
-          if ((olds.eventSourceName ?? "") !== (news.eventSourceName ?? "")) {
+          if ((olds.eventSourceName ?? "") !== (resolved.eventSourceName ?? "")) {
             return { action: "replace" } as const
           }
           const { region } = try AWSEnvironment.current
-          if ((olds.region ?? region) !== (news.region ?? region)) {
+          if ((olds.region ?? region) !== (resolved.region ?? region)) {
             return { action: "replace" } as const
           }
         },
@@ -189,7 +190,7 @@ export const EventBusProvider = (): infer _ =>
                 .describeEventBus({
                   Name: eventBusName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  when { _tag: "ResourceNotFoundException" }: undefined;
                   default: throw e;
                 }
 
@@ -205,7 +206,7 @@ export const EventBusProvider = (): infer _ =>
                 eventBusArn: described.Arn as EventBusArn,
                 description: described.Description,
               }
-              return (try hasAlchemyTags(id, Tags ?? [])) ? attrs : Unowned(attrs)
+              return (try hasAlchemyTags(id, Tags ?? [])) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
             },
           )
         },
@@ -261,7 +262,7 @@ export const EventBusProvider = (): infer _ =>
                 .describeEventBus({
                   Name: eventBusName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  when { _tag: "ResourceNotFoundException" }: undefined;
                   default: throw e;
                 }
 
@@ -281,7 +282,7 @@ export const EventBusProvider = (): infer _ =>
                     LogConfig: news.logConfig,
                     Tags: createTagsList(desiredTags),
                   }) catch effect (e) => match (e) {
-                    when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                    when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                     default: throw e;
                   }
 
@@ -289,7 +290,7 @@ export const EventBusProvider = (): infer _ =>
                   .describeEventBus({
                     Name: eventBusName,
                   }) catch effect (e) => match (e) {
-                    when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                    when { _tag: "ResourceNotFoundException" }: undefined;
                     default: throw e;
                   }
               }
@@ -320,7 +321,7 @@ export const EventBusProvider = (): infer _ =>
                   observedTags[tag.Key] = tag.Value
                 }
               }
-              const { removed, upsert } = diffTags(observedTags, desiredTags)
+              const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
 
               if (removed.length > 0) {
                 try eventbridge.untagResource({
@@ -356,7 +357,7 @@ export const EventBusProvider = (): infer _ =>
               // AWS-managed rules (`ManagedBy` set) are always swept; rules
               // created out-of-band by the user are only swept when
               // `forceDestroy` is enabled.
-              ;(try effect {
+              ;(effect { return (try effect {
                 let nextToken: string | undefined
                 do {
                   const page = try eventbridge.listRules({
@@ -383,8 +384,7 @@ export const EventBusProvider = (): infer _ =>
                           Ids: targetIds,
                           Force: true,
                         }) catch effect (e) => match (e) {
-                          when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: try Effect
-                            .void;
+                          when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: (undefined as void);
                           default: throw e;
                         }
                     }
@@ -394,21 +394,20 @@ export const EventBusProvider = (): infer _ =>
                         EventBusName: eventBusName,
                         Force: true,
                       }) catch effect (e) => match (e) {
-                        when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: try Effect
-                          .void;
+                        when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: (undefined as void);
                         default: throw e;
                       }
                   }
                   nextToken = page.NextToken
                 } while (nextToken)
-              }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              }) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               } // The sweep and EventBridge's own bookkeeping are eventually
                // consistent — a just-deleted rule can still count against the bus
               // for a few seconds. Retry the typed dependency violation on a
               // bounded schedule.
-              ;(try (eventbridge
+              ;(effect { return (try (eventbridge
                 .deleteEventBus({
                   Name: eventBusName,
                 })
@@ -416,8 +415,8 @@ export const EventBusProvider = (): infer _ =>
                   while: (e): boolean => e._tag === "EventBusHasRules",
                   schedule: Schedule.spaced("3 seconds"),
                   times: 10,
-                }))) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                }))) }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

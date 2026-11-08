@@ -133,20 +133,22 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   apigee
     .getOrganizationsInstancesNatAddresses({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
 const listByInstance = effect (parent: string) =>
-  (Array.from(
-    try (apigee.listOrganizationsInstancesNatAddresses
-      .pages({
-        parent,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.natAddresses ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (apigee.listOrganizationsInstancesNatAddresses
+        .pages({
+          parent,
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.natAddresses ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as apigee.GoogleCloudApigeeV1NatAddress[];
     default: throw e;
   }
@@ -175,19 +177,22 @@ export const InstancesNatAddressProvider = (): infer _ =>
     stables: ["name", "natAddressId", "instanceId", "organization"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.natAddressId ?? output?.natAddressId
       const previousInstance = olds?.instance ?? output?.instanceId
       const previousOrg = olds?.organization ?? output?.organization
       if (
         (previousId !== undefined
-          && news.natAddressId !== undefined
-          && news.natAddressId !== previousId)
+          && resolved.natAddressId !== undefined
+          && resolved.natAddressId !== previousId)
         || (previousInstance !== undefined
-          && instanceIdOf(news.instance) !== instanceIdOf(previousInstance))
+          && instanceIdOf(resolved.instance) !== instanceIdOf(previousInstance))
         || (previousOrg !== undefined
-          && news.organization !== undefined
-          && news.organization !== previousOrg)
+          && resolved.organization !== undefined
+          && resolved.organization !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -248,7 +253,7 @@ export const InstancesNatAddressProvider = (): infer _ =>
           .createOrganizationsInstancesNatAddresses({
             parent,
             body: { name: natAddressId },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
@@ -281,7 +286,7 @@ export const InstancesNatAddressProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const deleted = apigee
         .deleteOrganizationsInstancesNatAddresses({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
           default: throw e;
         }
       if (deleted !== undefined) {

@@ -638,27 +638,31 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKey = olds?.encryptionKey ?? output?.encryptionKey
       const previousZones = olds?.replicaZones ?? output?.replicaZones
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.workstationConfigId ?? output?.workstationConfigId,
-        nextId: news.workstationConfigId ?? olds?.workstationConfigId ?? output?.workstationConfigId,
+        nextId: resolved_.workstationConfigId ?? olds?.workstationConfigId ?? output?.workstationConfigId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved_.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         previousParent: olds?.workstationCluster ?? output?.workstationCluster,
-        nextParent: news.workstationCluster,
+        nextParent: resolved_.workstationCluster,
         extra: (previousKey?.kmsKey !== undefined
-          && news.encryptionKey?.kmsKey !== undefined
-          && previousKey.kmsKey !== news.encryptionKey.kmsKey)
+          && resolved_.encryptionKey?.kmsKey !== undefined
+          && previousKey.kmsKey !== resolved_.encryptionKey.kmsKey)
           || (previousZones !== undefined
-            && news.replicaZones !== undefined
-            && replicaKey(previousZones) !== replicaKey(news.replicaZones)),
-      })
+            && resolved_.replicaZones !== undefined
+            && replicaKey(previousZones) !== replicaKey(resolved_.replicaZones)),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -672,13 +676,25 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
         output?.workstationConfigId,
         "config",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const cluster = expandParent(parent ?? "", env.project, location, "workstationClusters")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const cluster = try Effect.orDie(
+        Effect.try({
+          try: () => expandParent(parent ?? "", env.project, location, "workstationClusters"),
+          catch: (e) => e,
+        }),
+      )
       const name = output?.name ?? resourceName(cluster, workstationConfigId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -695,19 +711,27 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
         output?.workstationConfigId,
         "config",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const cluster = expandParent(
-        news.workstationCluster,
-        env.project,
-        location,
-        "workstationClusters",
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const cluster = try Effect.orDie(Effect.try({
+        try: () =>
+          expandParent(
+            news.workstationCluster,
+            env.project,
+            location,
+            "workstationClusters",
+          ),
+        catch: (e) => e,
+      }))
       const name = resourceName(cluster, workstationConfigId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const desiredAnnotations = stringMap(news.annotations)
+      const desiredAnnotations = try Effect.orDie(
+        Effect.try({ try: () => stringMap(news.annotations), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -751,19 +775,34 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
-      const mask = fieldMask([
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const fields = [
         (upsert.length > 0 || removed.length > 0) && "labels",
         !sameText(current.displayName, news.displayName) && "displayName",
-        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, stringMap(current.annotations)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAnnotations), catch: (e) => e })))
         && "annotations",
         news.container !== undefined
-        && fingerprint(toContainer(current.container))
-          !== fingerprint(toContainer(news.container))
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toContainer(current.container)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toContainer(news.container)), catch: (e) => e }),
+          ))
         && "container",
         news.host !== undefined && !hostMatches(current.host, news.host) && "host",
         news.readinessChecks !== undefined
-        && fingerprint(current.readinessChecks) !== fingerprint(news.readinessChecks)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.readinessChecks), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.readinessChecks),
+            catch: (e) => e,
+          })))
         && "readinessChecks",
         news.idleTimeout !== undefined
         && !sameText(current.idleTimeout, news.idleTimeout)
@@ -772,12 +811,32 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
         && !sameText(current.runningTimeout, news.runningTimeout)
         && "runningTimeout",
         news.persistentDirectories !== undefined
-        && fingerprint(current.persistentDirectories?.map(toPersistent))
-          !== fingerprint(news.persistentDirectories.map(toPersistent))
+        && (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, current.persistentDirectories?.map(toPersistent)),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, news.persistentDirectories.map(toPersistent)),
+              catch: (e) => e,
+            }),
+          ))
         && "persistentDirectories",
         news.ephemeralDirectories !== undefined
-        && fingerprint(current.ephemeralDirectories?.map(toEphemeral))
-          !== fingerprint(news.ephemeralDirectories.map(toEphemeral))
+        && (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, current.ephemeralDirectories?.map(toEphemeral)),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, news.ephemeralDirectories.map(toEphemeral)),
+              catch: (e) => e,
+            }),
+          ))
         && "ephemeralDirectories",
         news.maxUsableWorkstations !== undefined
         && !sameNumber(current.maxUsableWorkstations, news.maxUsableWorkstations)
@@ -789,7 +848,11 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
         && !sameBool(current.disableTcpConnections, news.disableTcpConnections)
         && "disableTcpConnections",
         news.allowedPorts !== undefined
-        && fingerprint(current.allowedPorts) !== fingerprint(news.allowedPorts)
+        && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.allowedPorts), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.allowedPorts),
+            catch: (e) => e,
+          })))
         && "allowedPorts",
         news.grantWorkstationAdminRoleOnCreate !== undefined
         && !sameBool(
@@ -797,7 +860,8 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
           news.grantWorkstationAdminRoleOnCreate,
         )
         && "grantWorkstationAdminRoleOnCreate",
-      ])
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const operation = try (workstations
@@ -836,16 +900,18 @@ export const WorkstationClustersWorkstationConfigProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (workstations
-        .deleteProjectsLocationsWorkstationClustersWorkstationConfigs({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (workstations
+          .deleteProjectsLocationsWorkstationClustersWorkstationConfigs({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

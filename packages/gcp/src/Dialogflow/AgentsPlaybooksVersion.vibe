@@ -117,52 +117,61 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+const getByName = effect (name: string) => (name.length === 0 ? undefined : dialogflow
   .getProjectsLocationsAgentsPlaybooksVersions({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsPlaybooksVersions.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbookVersions ?? []))
-      |> Stream.filter(%, (version) => hasOwnershipMarker(version.description))
-      |> Stream.map(%, (version) => toAttrs(version, project, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsPlaybooksVersions.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbookVersions ?? []))
+        |> Stream.filter(%, (version) => hasOwnershipMarker(version.description))
+        |> Stream.map(%, (version) => toAttrs(version, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const listPlaybooks = effect (agent: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent: agent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent: agent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDescription = effect (parent: string, description: string) =>
-  (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsPlaybooksVersions.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbookVersions ?? []))
-      |> Stream.filter(%, (version) => version.description === description)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsPlaybooksVersions.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbookVersions ?? []))
+        |> Stream.filter(%, (version) => version.description === description)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 export const AgentsPlaybooksVersionProvider = (): infer _ =>
   Provider.succeed(AgentsPlaybooksVersion, {
     stables: ["name", "versionId", "playbook", "location", "project", "updateTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.playbook ?? output?.playbook
-      if (previousParent !== undefined && news.playbook !== previousParent) {
+      if (previousParent !== undefined && resolved.playbook !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.versionId ?? output?.versionId
       if (
         previousId !== undefined
-        && news.versionId !== undefined
-        && news.versionId !== previousId
+        && resolved.versionId !== undefined
+        && resolved.versionId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -181,12 +190,14 @@ export const AgentsPlaybooksVersionProvider = (): infer _ =>
         const ownership = try internalLabels(id)
         existing = try findByDescription(
           playbook,
-          encodeOwnership(ownership, olds?.description),
+          try Effect.orDie(Effect.try({ try: () => encodeOwnership(ownership, olds?.description), catch: (e) => e })),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, playbook)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -215,7 +226,9 @@ export const AgentsPlaybooksVersionProvider = (): infer _ =>
         const versionId = try toResourceId(id, news.versionId, output?.versionId)
         const name = output?.name ?? resourceName(playbook, versionId)
         const ownership = try internalLabels(id)
-        const description = encodeOwnership(ownership, news.description)
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
 
         let current = try getByName(output?.name ?? "")
         if (current === undefined) {
@@ -247,7 +260,7 @@ export const AgentsPlaybooksVersionProvider = (): infer _ =>
         dialogflow
           .deleteProjectsLocationsAgentsPlaybooksVersions({
             name: output.name,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
         |> retryQuota(%)),
   })

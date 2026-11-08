@@ -219,8 +219,8 @@ export const PipelineProvider = (): infer _ =>
       ) => (props.pipelineName ? props.pipelineName : try createPhysicalName({ id, maxLength: 28, lowercase: true }))
 
       const readPipeline = effect (name: string) =>
-        (try osis.getPipeline({ PipelineName: name })).Pipeline catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect { return (try osis.getPipeline({ PipelineName: name })).Pipeline }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -255,9 +255,10 @@ export const PipelineProvider = (): infer _ =>
         stables: ["pipelineName", "pipelineArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const o: Partial<PipelineProps> = olds ?? {}
-          const n: Partial<PipelineProps> = news ?? {}
+          const n: Partial<PipelineProps> = resolved ?? {}
           if ((try toName(id, o)) !== (try toName(id, n))) {
             return { action: "replace" } as const
           }
@@ -272,7 +273,7 @@ export const PipelineProvider = (): infer _ =>
           const pipeline = try readPipeline(name)
           if (pipeline === undefined) return undefined
           const attrs = try toAttrs(pipeline)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -313,7 +314,7 @@ export const PipelineProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -390,7 +391,7 @@ export const PipelineProvider = (): infer _ =>
           const arn = observed.PipelineArn
           if (arn) {
             const observedTags = try readPipelineTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try osis.tagResource({ Arn: arn, Tags: upsert })
             }
@@ -413,7 +414,7 @@ export const PipelineProvider = (): infer _ =>
             effect {
               return osis
                 .deletePipeline({ PipelineName: name }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },
@@ -436,8 +437,8 @@ export const PipelineProvider = (): infer _ =>
                 %,
                 Effect.forEach(
                   effect (name) =>
-                    (try osis.getPipeline({ PipelineName: name })).Pipeline catch effect (e) => match (e) {
-                      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                    (effect { return (try osis.getPipeline({ PipelineName: name })).Pipeline }) catch effect (e) => match (e) {
+                      when { _tag: "ResourceNotFoundException" }: undefined;
                       default: throw e;
                     },
                   { concurrency: 4 },
@@ -446,7 +447,7 @@ export const PipelineProvider = (): infer _ =>
           }
             |> Effect.flatMap(
               %,
-              Effect.forEach((pipeline) => toAttrs(pipeline), {
+              Effect.forEach(effect (pipeline) => try toAttrs(pipeline), {
                 concurrency: 4,
               }),
             )),

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cur from "@distilled.cloud/aws/cost-and-usage-report-service"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -246,7 +247,9 @@ export const ReportDefinitionProvider = (): infer _ =>
       }
 
       const readTags = effect (name: string) =>
-        (toTagRecord((try pin(cur.listTagsForResource({ ReportName: name }))).Tags)) catch effect (e) => match (e) {
+        (effect {
+          return (toTagRecord((try pin(cur.listTagsForResource({ ReportName: name }))).Tags))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -300,7 +303,9 @@ export const ReportDefinitionProvider = (): infer _ =>
       const syncTags = effect (name: string, desiredTags: Record<string, string>) => {
         // Diff against OBSERVED cloud tags — adoption may bring foreign tags.
         const observedTags = try readTags(name)
-        const { upsert, removed } = diffTags(observedTags, desiredTags)
+        const { upsert, removed } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+        )
         if (upsert.length > 0) {
           try pin(cur.tagResource({ ReportName: name, Tags: upsert }))
         }
@@ -327,10 +332,13 @@ export const ReportDefinitionProvider = (): infer _ =>
           if (!observed) return undefined
           const attrs = toAttributes(accountId, observed)
           const tags = try readTags(name)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+        diff: effect ({ id, olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -351,24 +359,26 @@ export const ReportDefinitionProvider = (): infer _ =>
           if (!observed) {
             // ENSURE — create; tolerate the duplicate-name race by converging
             // through modify instead.
-            ;(try (cur
-              .putReportDefinition({
-                ReportDefinition: desired,
-                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
-                  Key,
-                  Value,
-                })),
-              })
-              |> pin(%)
-              |> retryBucketVerification(%))) catch effect (e) => match (e) {
-                when { _tag: "DuplicateReportNameException" }: try pin(
-                  cur.modifyReportDefinition({
-                    ReportName: name,
-                    ReportDefinition: desired,
-                  }),
-                );
-                default: throw e;
-              }
+            ;(effect {
+              return (try (cur
+                .putReportDefinition({
+                  ReportDefinition: desired,
+                  Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                    Key,
+                    Value,
+                  })),
+                })
+                |> pin(%)
+                |> retryBucketVerification(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "DuplicateReportNameException" }: try pin(
+                cur.modifyReportDefinition({
+                  ReportName: name,
+                  ReportDefinition: desired,
+                }),
+              );
+              default: throw e;
+            }
           } else if (needsModify(observed, desired)) {
             // SYNC — apply the delta only; skip the API entirely on no-op.
             try (cur

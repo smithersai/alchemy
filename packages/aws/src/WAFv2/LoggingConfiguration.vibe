@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2"
 import * as wafv2 from "@distilled.cloud/aws/wafv2"
 import { deepEqual, isResolved } from "alchemy/Diff"
@@ -139,7 +140,7 @@ export const LoggingConfigurationProvider = (): infer _ =>
           effect {
             return wafv2
               .getLoggingConfiguration({ ResourceArn: resourceArn }) catch effect (e) => match (e) {
-                when { _tag: "WAFNonexistentItemException" }: try Effect.undefined;
+                when { _tag: "WAFNonexistentItemException" }: undefined;
                 default: throw e;
               }
           },
@@ -160,8 +161,9 @@ export const LoggingConfigurationProvider = (): infer _ =>
         // (the web ACL itself is the discoverable resource).
         list: effect () => [],
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.resourceArn !== news.resourceArn) {
             return { action: "replace" } as const
           }
@@ -189,19 +191,19 @@ export const LoggingConfigurationProvider = (): infer _ =>
           // call it when the observed configuration drifts from desired.
           const observed = try readConfig(news.resourceArn)
           const current = observed?.LoggingConfiguration
-          const drifted = !deepEqual(
-            {
-              LogDestinationConfigs: current?.LogDestinationConfigs ?? [],
-              RedactedFields: current?.RedactedFields,
-              LoggingFilter: current?.LoggingFilter,
-            },
-            {
-              LogDestinationConfigs: desired.LogDestinationConfigs,
-              RedactedFields: desired.RedactedFields,
-              LoggingFilter: desired.LoggingFilter,
-            },
-            { stripNullish: true },
-          )
+          const drifted = !(try Effect.orDie(Effect.try({
+            try: () =>
+              deepEqual({
+                LogDestinationConfigs: current?.LogDestinationConfigs ?? [],
+                RedactedFields: current?.RedactedFields,
+                LoggingFilter: current?.LoggingFilter,
+              }, {
+                LogDestinationConfigs: desired.LogDestinationConfigs,
+                RedactedFields: desired.RedactedFields,
+                LoggingFilter: desired.LoggingFilter,
+              }, { stripNullish: true }),
+            catch: (error) => error,
+          })))
           if (current === undefined || drifted) {
             try retryServiceLinkedRole(
               withWafScope(
@@ -228,7 +230,7 @@ export const LoggingConfigurationProvider = (): infer _ =>
                 .deleteLoggingConfiguration({
                   ResourceArn: output.resourceArn,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "WAFNonexistentItemException" }: try Effect.void;
+                  when { _tag: "WAFNonexistentItemException" }: (undefined as void);
                   default: throw e;
                 }
             },

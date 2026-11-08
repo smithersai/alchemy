@@ -1,14 +1,10 @@
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import * as DateTime from "effect/DateTime"
-import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
-import * as Formatter from "effect/Formatter"
 import * as Layer from "effect/Layer"
-import * as Option from "effect/Option"
-import * as Redacted from "effect/Redacted"
 import * as Schema from "effect/Schema"
 import type { DurableDeferred, WorkflowEngine } from "effect/workflow"
 import * as Aggregate from "./Aggregate.ts"
@@ -559,10 +555,18 @@ const describeStep = (s: Step): string => {
       return `${callName(s.tag, s.op)} → ${
         Exit.isSuccess(s.exit)
           ? summarize(s.exit.value)
-          : Option.match(Cause.findErrorOption(s.exit.cause), {
-            onSome: (error) => `fail ${summarize(error)}`,
-            onNone: () => "die",
-          })
+          : do {
+            const $optionSubject = Cause.findErrorOption(s.exit.cause)
+            const $optionHandlers: { onSome: (error: unknown) => string; onNone: () => string } = {
+              onSome: (error) => `fail ${summarize(error)}`,
+              onNone: () => "die",
+            }
+            const { onNone: $optionNone, onSome: $optionSome } = $optionHandlers
+            match ($optionSubject) {
+              when Option.Some(let $optionValue): $optionSome($optionValue);
+              default: $optionNone();
+            }
+          }
       }`
     case "Returned":
       return `${callName(s.tag, s.op)} → ${
@@ -729,8 +733,14 @@ interface StoryOptions<Policies, LE, LR, Systems> {
  * ```
  */
 // These throw programmer errors only, which stay defects: trusted with no failure classes.
-const makePlatform = trusted(InMemory.make, [])
-const refClass = trusted((ref: Aggregate.Ref): unknown => Aggregate.refClass(ref), [])
+const makePlatform_impl = (void trusted, InMemory.make),
+  makePlatform: typeof makePlatform_impl = function(...args) {
+    return makePlatform_impl.apply(void 0, args)
+  }
+const refClass_impl = (void trusted, (ref: Aggregate.Ref): unknown => Aggregate.refClass(ref)),
+  refClass: typeof refClass_impl = function(...args) {
+    return refClass_impl.apply(void 0, args)
+  }
 
 const make = <
   Name extends string,
@@ -746,10 +756,12 @@ const make = <
 ): infer _ =>
 <const S extends ReadonlyArray<Step>>(
   ...steps: S & Checked<S>
-): void!StoryFailure | LE!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine> =>
+): void!(StoryFailure | LE)!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine> =>
   effect {
     const clockState = { now: Date.parse("2026-01-01T00:00:00.000Z") }
-    const platform = makePlatform({ manual: true, now: (): number => clockState.now })
+    const platform = try Effect.orDie(
+      Effect.try({ try: () => makePlatform({ manual: true, now: (): number => clockState.now }), catch: (e) => e }),
+    )
     const calls: Array<PendingCall> = []
     const observed: Array<ObservedCall> = []
     const stubbed = new Set((options.stub ?? []).map((system) => system.systemName))
@@ -811,14 +823,20 @@ const make = <
     const policies = (
       options.layer ?? (Layer.empty as unknown as Layer.Layer<Policies, LE, LR>)
     ).pipe(Layer.provide(systems))
-    const hostedBy = trusted((layer: typeof policies): infer _ => domain.layer(layer), [])
-    const hosted = Layer.provide(hostedBy(policies), Layer.mergeAll(platform.layer, systems))
+    const hostedBy_impl = (void trusted, (layer: typeof policies): infer _ => domain.layer(layer)),
+      hostedBy: typeof hostedBy_impl = function(...args) {
+        return hostedBy_impl.apply(void 0, args)
+      }
+    const hosted = Layer.provide(
+      try Effect.orDie(Effect.try({ try: () => hostedBy(policies), catch: (e) => e })),
+      Layer.mergeAll(platform.layer, systems),
+    )
 
     // The aggregates the story touched, for the report's "events so far".
     const touched = new Map<string, Aggregate.Ref>()
 
     const run = effect {
-      const internals = try Model.Internals()
+      const internals = try Model.Internals
       const cursors = new Map<string, number>()
       // The step that committed each event, by `Aggregate/id#index`.
       const committedAt = new Map<string, number>()
@@ -939,10 +957,13 @@ const make = <
             break
           }
           case "When": {
-            const client = try (refClass(s.ref) as unknown as Context.Key<
+            const client = try ((try Effect.orDie(Effect.try({
+              try: () => refClass(s.ref),
+              catch: (e) => e,
+            }))) as unknown as Context.Key<
               never,
               Aggregate.ClientImpl
-            >)()
+            >)
             const sent = effect () => {
               provide provided {
                 return try client.send(s.ref, s.command, { commandId: s.commandId ?? `story:${step}` })
@@ -962,12 +983,21 @@ const make = <
             const stream = `${s.ref.aggregate}/${s.ref.id}`
             const events = try committed(s.ref)
             const from = cursors.get(stream) ?? 0
-            const actual = events
-              .slice(from, from + Math.max(s.events.length, 1))
-              .map((e) => e.event)
+            const actual = try Effect.orDie(Effect.try({
+              try: () =>
+                events
+                  .slice(from, from + Math.max(s.events.length, 1))
+                  .map((e) => e.event),
+              catch: (e) => e,
+            }))
             const expected = s.events.map(encodeInstance)
             // Decoded, so redacted fields stay redacted in the message.
-            const got = events.slice(from).map((e) => internals.kernel.decodeEvent(e.event))
+            const got = try Effect.orDie(
+              Effect.try({
+                try: () => events.slice(from).map((e) => internals.kernel.decodeEvent(e.event)),
+                catch: (e) => e,
+              }),
+            )
             const compared = {
               label: stream,
               expected: summarizeAll(s.events),
@@ -982,7 +1012,12 @@ const make = <
               }
               break
             }
-            if (!equal(actual.slice(0, expected.length), expected)) {
+            if (
+              !equal(
+                try Effect.orDie(Effect.try({ try: () => actual.slice(0, expected.length), catch: (e) => e })),
+                expected,
+              )
+            ) {
               throw fail(
                 `on ${stream}\n  expected ${show(s.events)}\n  actual   ${show(got)}`,
                 compared,
@@ -1025,10 +1060,13 @@ const make = <
             break
           }
           case "State": {
-            const client = try (refClass(s.ref) as unknown as Context.Key<
+            const client = try ((try Effect.orDie(Effect.try({
+              try: () => refClass(s.ref),
+              catch: (e) => e,
+            }))) as unknown as Context.Key<
               never,
               Aggregate.ClientImpl
-            >)()
+            >)
             const current = try client.state(s.ref)
             if (typeof s.expected === "function") {
               const assert = s.expected as (state: unknown) => void
@@ -1046,8 +1084,10 @@ const make = <
             const host = try (s.view as unknown as Context.Key<
               never,
               View.Host<unknown, Key.Any, unknown>
-            >)()
-            const current = try Effect.orDie(host.query(s.key))
+            >)
+            const current = try Effect.orDie(
+              try Effect.orDie(Effect.try({ try: () => host.query(s.key), catch: (e) => e })),
+            )
             if (s.expected === none) {
               if (Option.isSome(current)) {
                 throw fail(
@@ -1091,14 +1131,16 @@ const make = <
             const host = try (s.view as unknown as Context.Key<
               never,
               View.Host<unknown, Key.Any, unknown>
-            >)()
+            >)
             const { entries } = try host.list(s.key)
             if (typeof s.expected === "function") {
               const assert = s.expected as (entries: ReadonlyArray<unknown>) => void
               try Effect.try({ try: () => assert(entries), catch: (e) => fail(String(e)) })
             } else {
               const expected = s.expected as ReadonlyArray<unknown>
-              const events = entries.map((entry) => entry.event)
+              const events = try Effect.orDie(
+                Effect.try({ try: () => entries.map((entry) => entry.event), catch: (e) => e }),
+              )
               const ok = expected.length === events.length
                 && expected.every((e, i) => partial(e, events[i]))
               if (!ok) {
@@ -1112,12 +1154,17 @@ const make = <
             break
           }
           case "Streamed": {
-            const store = internals.streams.get(s.stream.streamName)!
+            const store = (try Effect.orDie(Effect.try({
+              try: () => internals.streams.get(s.stream.streamName),
+              catch: (e) => e,
+            })))!
             const key = Aggregate.targetId(s.key)
             const id = `${s.stream.streamName}/${key}`
             const entries = try store.list(key)
             const from = cursors.get(id) ?? 0
-            const actual = entries.slice(from).map((e) => e.event)
+            const actual = try Effect.orDie(
+              Effect.try({ try: () => entries.slice(from).map((e) => e.event), catch: (e) => e }),
+            )
             const expected = s.events.map(encodeInstance)
             if (s.events.length === 0) {
               if (actual.length > 0) {
@@ -1125,7 +1172,12 @@ const make = <
               }
               break
             }
-            if (!equal(actual.slice(0, expected.length), expected)) {
+            if (
+              !equal(
+                try Effect.orDie(Effect.try({ try: () => actual.slice(0, expected.length), catch: (e) => e })),
+                expected,
+              )
+            ) {
               throw fail(
                 `on ${id}\n  expected ${show(expected)}\n  actual   ${show(actual)}`,
               )
@@ -1174,7 +1226,7 @@ const make = <
             const client = try (s.saga as unknown as Context.Key<
               never,
               Saga.Client<unknown, unknown, unknown, unknown>
-            >)()
+            >)
             try client.get(s.key).signal(s.deferred as never, s.value)
             try settle(step)
             break
@@ -1183,8 +1235,8 @@ const make = <
             const client = try (s.saga as unknown as Context.Key<
               never,
               Saga.Client<unknown, unknown, unknown, unknown>
-            >)()
-            const run = client.get(s.key)
+            >)
+            const run = try Effect.orDie(Effect.try({ try: () => client.get(s.key), catch: (e) => e }))
             const actual = try run.status
             // `{ _tag: "Died" }` matches any defect.
             const compared = actual._tag === "Died" && !("defect" in s.expected)
@@ -1335,7 +1387,12 @@ const make = <
         if (events.length <= from) continue
         touched.set(stream, ref)
         // Decoded, so redacted fields stay redacted in the message.
-        const rest = events.slice(from).map((e) => internals.kernel.decodeEvent(e.event))
+        const rest = try Effect.orDie(
+          Effect.try({
+            try: () => events.slice(from).map((e) => internals.kernel.decodeEvent(e.event)),
+            catch: (e) => e,
+          }),
+        )
         const first = committedAt.get(`${stream}#${from}`)
         unasserted.push(
           `${stream}: ${summarizeAll(rest)}${first === undefined ? "" : ` (from step ${first})`}`,
@@ -1353,14 +1410,21 @@ const make = <
 
     // Turn a failed step into a failure that shows the whole story.
     const report = effect (failure: StepFailed) => {
-      const internals = try Model.Internals()
+      const internals = try Model.Internals
       const events: Record<string, ReadonlyArray<string>> = {}
       for (const [name, ref] of touched) {
-        const store = internals.aggregates.get(ref.aggregate)!
+        const store = (try Effect.orDie(Effect.try({
+          try: () => internals.aggregates.get(ref.aggregate),
+          catch: (e) => e,
+        })))!
         const stored = store.events ? try store.events(ref.id as string) : []
-        events[name] = stored.map(
-          (e) => (e.event as { readonly _tag: string })._tag,
-        )
+        events[name] = try Effect.orDie(Effect.try({
+          try: () =>
+            stored.map(
+              (e) => (e.event as { readonly _tag: string })._tag,
+            ),
+          catch: (e) => e,
+        }))
       }
       const reports = steps.map((s, index): StepReport => ({
         step: index + 1,
@@ -1384,12 +1448,12 @@ const make = <
     // `hosted` satisfies the Domain, the platform and the stubbed external systems; what
     // remains is whatever the policy Layers need from outside (`LR`'s rest).
     provide hosted, ExternalSystem.CallRecorder = recorder {
-      return run() catch effect (failure) => match (failure) {
+      return run catch effect (failure) => match (failure) {
         when StepFailed: try report(failure);
         default: throw failure;
       }
     }
-  } as void!StoryFailure | LE!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine>
+  } as void!(StoryFailure | LE)!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine>
 
 /**
  * Given / when / then specifications of a domain model, run against the real

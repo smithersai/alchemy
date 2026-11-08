@@ -368,11 +368,13 @@ export const CampaignProvider = (): infer _ =>
       ) => (props.campaignName ? props.campaignName : try createPhysicalName({ id, maxLength: 100 }))
 
       const readCampaign = effect (name: string) =>
-        (try (iotfleetwise.getCampaign({ name })
-          |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return (try (iotfleetwise.getCampaign({ name })
+            |> inFleetWiseRegion(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
 
       // Campaign provisioning is asynchronous (status CREATING). Bounded
       // wait until the service settles it into an actionable status.
@@ -411,8 +413,11 @@ export const CampaignProvider = (): infer _ =>
         stables: ["campaignName", "campaignArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds)) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
           // Only description and dataExtraDimensions are mutable; every
@@ -434,7 +439,17 @@ export const CampaignProvider = (): infer _ =>
             dataPartitions: props.dataPartitions,
             signalsToFetch: toWireSignalsToFetch(props.signalsToFetch),
           })
-          if (!stableEquals(createOnly(olds), createOnly(news))) {
+          const left = createOnly(olds)
+          const right = createOnly(resolved)
+          if (
+            !(try Effect.orDie(Effect.try({
+              try: () => (try Effect.orDie(Effect.try({
+                try: () => stableEquals(left, right),
+                catch: (e) => e,
+              }))),
+              catch: (e) => e,
+            })))
+          ) {
             return { action: "replace" } as const
           }
         },
@@ -445,7 +460,9 @@ export const CampaignProvider = (): infer _ =>
           if (found?.arn === undefined) return undefined
           const attrs = try toAttrs(found)
           const tags = try readFleetWiseTags(found.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -458,38 +475,46 @@ export const CampaignProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate the AlreadyExists race.
           if (observed === undefined) {
-            ;(try (iotfleetwise
-              .createCampaign({
-                name,
-                description: news.description,
-                signalCatalogArn: news.signalCatalogArn,
-                targetArn: news.targetArn,
-                collectionScheme: toWireCollectionScheme(news.collectionScheme),
-                signalsToCollect: toWireSignalsToCollect(news.signalsToCollect),
-                dataDestinationConfigs: news.dataDestinationConfigs,
-                startTime: news.startTime !== undefined ? new Date(news.startTime) : undefined,
-                expiryTime: news.expiryTime !== undefined ? new Date(news.expiryTime) : undefined,
-                postTriggerCollectionDuration: toWireSeconds(news.postTriggerCollectionDuration),
-                diagnosticsMode: news.diagnosticsMode,
-                spoolingMode: news.spoolingMode,
-                compression: news.compression,
-                dataExtraDimensions: news.dataExtraDimensions,
-                dataPartitions: news.dataPartitions,
-                signalsToFetch: toWireSignalsToFetch(news.signalsToFetch),
-                tags: toFleetWiseTagList(desiredTags),
-              })
-              |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            effect {
+              return (try (iotfleetwise
+                .createCampaign({
+                  name,
+                  description: news.description,
+                  signalCatalogArn: news.signalCatalogArn,
+                  targetArn: news.targetArn,
+                  collectionScheme: toWireCollectionScheme(news.collectionScheme),
+                  signalsToCollect: toWireSignalsToCollect(news.signalsToCollect),
+                  dataDestinationConfigs: news.dataDestinationConfigs,
+                  startTime: news.startTime !== undefined ? new Date(news.startTime) : undefined,
+                  expiryTime: news.expiryTime !== undefined ? new Date(news.expiryTime) : undefined,
+                  postTriggerCollectionDuration: try Effect.orDie(
+                    Effect.try({ try: () => toWireSeconds(news.postTriggerCollectionDuration), catch: (e) => e }),
+                  ),
+                  diagnosticsMode: news.diagnosticsMode,
+                  spoolingMode: news.spoolingMode,
+                  compression: news.compression,
+                  dataExtraDimensions: news.dataExtraDimensions,
+                  dataPartitions: news.dataPartitions,
+                  signalsToFetch: toWireSignalsToFetch(news.signalsToFetch),
+                  tags: try Effect.orDie(Effect.try({ try: () => toFleetWiseTagList(desiredTags), catch: (e) => e })),
+                })
+                |> inFleetWiseRegion(%)))
+            } catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
           }
           observed = try waitUntilSettled(name)
 
           // 3. Sync mutable aspects — description / dataExtraDimensions via
           //    the UPDATE action, applied only on an observed delta.
+          const currentCampaign = observed
           const descriptionChanged = news.description !== undefined && news.description !== observed.description
           const dimensionsChanged = news.dataExtraDimensions !== undefined
-            && !stableEquals(observed.dataExtraDimensions ?? [], news.dataExtraDimensions)
+            && !(try Effect.orDie(Effect.try({
+              try: () => stableEquals(currentCampaign.dataExtraDimensions ?? [], news.dataExtraDimensions),
+              catch: (e) => e,
+            })))
           if (descriptionChanged || dimensionsChanged) {
             try (iotfleetwise
               .updateCampaign({
@@ -521,15 +546,17 @@ export const CampaignProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Deleting a campaign suspends data collection and removes it
           // from vehicles; deleting a missing campaign is success.
-          ;(try (iotfleetwise.deleteCampaign({ name: output.campaignName })
-            |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (iotfleetwise.deleteCampaign({ name: output.campaignName })
+              |> inFleetWiseRegion(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
 
-        list: () =>
-          iotfleetwise.listCampaigns.items({}).pipe(
+        list: effect () =>
+          try iotfleetwise.listCampaigns.items({}).pipe(
             Stream.runCollect,
             Effect.map((chunk) =>
               Array.from(chunk).flatMap((summary) =>

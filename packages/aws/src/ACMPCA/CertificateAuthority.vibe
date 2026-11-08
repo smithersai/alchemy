@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as acmpca from "@distilled.cloud/aws/acm-pca"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -300,7 +302,13 @@ export const CertificateAuthority = Resource<CertificateAuthority>(
  * Internal signal used to poll a freshly created CA out of the
  * `CREATING` state on a bounded schedule.
  */
-error CertificateAuthorityStillCreating { mutable arn: string }
+class CertificateAuthorityStillCreating extends $MutableErrorBase("CertificateAuthorityStillCreating")<{
+  arn: string;
+}> {static {
+    $MutableErrorMatcher(this, "CertificateAuthorityStillCreating", true);
+} 
+
+}
 
 // Bounded retry helpers with explicit signatures. Inlining Effect.retry in
 // lifecycle ops leaks Retry.Return's conditional type into declaration emit
@@ -373,19 +381,19 @@ export const CertificateAuthorityProvider = (): infer _ =>
       // DELETED state is inside its restoration window — for lifecycle
       // purposes it is gone (we never restore automatically).
       const describeCa = effect (arn: string) =>
-        (try acmpca.describeCertificateAuthority({ CertificateAuthorityArn: arn })).CertificateAuthority catch effect (
+        (effect { return (try acmpca.describeCertificateAuthority({ CertificateAuthorityArn: arn })).CertificateAuthority }) catch effect (
           e,
-        ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+        ) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
       const listCaTags = effect (arn: string) => {
-        const tags = (Object.fromEntries(
+        const tags = (effect { return (Object.fromEntries(
           Array.from(
             try (acmpca.listTags.items({ CertificateAuthorityArn: arn })
               |> Stream.runCollect(%)),
           )
             .filter((t) => t.Value !== undefined)
             .map((t) => [t.Key, t.Value!] as const),
-        )) catch () => ({}) as Record<string, string>
+        )) }) catch () => ({}) as Record<string, string>
         return tags
       }
 
@@ -492,17 +500,18 @@ export const CertificateAuthorityProvider = (): infer _ =>
           }
           const attrs = toAttrs(ca.Arn, ca.Status)
           const tags = try listCaTags(ca.Arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
-          const immutableChanged = (news.type ?? "ROOT") !== (olds.type ?? "ROOT")
-            || (news.keyAlgorithm ?? "RSA_2048") !== (olds.keyAlgorithm ?? "RSA_2048")
-            || (news.signingAlgorithm ?? "SHA256WITHRSA")
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          const immutableChanged = (resolved.type ?? "ROOT") !== (olds.type ?? "ROOT")
+            || (resolved.keyAlgorithm ?? "RSA_2048") !== (olds.keyAlgorithm ?? "RSA_2048")
+            || (resolved.signingAlgorithm ?? "SHA256WITHRSA")
               !== (olds.signingAlgorithm ?? "SHA256WITHRSA")
-            || (news.usageMode ?? "GENERAL_PURPOSE") !== (olds.usageMode ?? "GENERAL_PURPOSE")
-            || news.keyStorageSecurityStandard !== olds.keyStorageSecurityStandard
-            || JSON.stringify(buildSubject(news.subject))
+            || (resolved.usageMode ?? "GENERAL_PURPOSE") !== (olds.usageMode ?? "GENERAL_PURPOSE")
+            || resolved.keyStorageSecurityStandard !== olds.keyStorageSecurityStandard
+            || JSON.stringify(buildSubject(resolved.subject))
               !== JSON.stringify(buildSubject(olds.subject))
           if (immutableChanged) {
             return { action: "replace" } as const
@@ -598,7 +607,7 @@ export const CertificateAuthorityProvider = (): infer _ =>
             ...news.tags,
             ...internalTags,
           }
-          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try acmpca.tagCertificateAuthority({
               CertificateAuthorityArn: arn,
@@ -625,13 +634,13 @@ export const CertificateAuthorityProvider = (): infer _ =>
           }
           // An ACTIVE CA must be DISABLED before it can be deleted.
           if (ca.Status === "ACTIVE") {
-            ;(try (acmpca
+            ;(effect { return (try (acmpca
               .updateCertificateAuthority({
                 CertificateAuthorityArn: arn,
                 Status: "DISABLED",
               })
-              |> retryWhileConcurrentlyModified(%))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              |> retryWhileConcurrentlyModified(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -641,15 +650,15 @@ export const CertificateAuthorityProvider = (): infer _ =>
           const canSetWindow = ca.Status === "PENDING_CERTIFICATE"
             || ca.Status === "DISABLED"
             || ca.Status === "ACTIVE" // just disabled above
-          ;(try (acmpca
+          ;(effect { return (try (acmpca
             .deleteCertificateAuthority({
               CertificateAuthorityArn: arn,
               PermanentDeletionTimeInDays: canSetWindow
-                ? (toWireDays(olds?.permanentDeletionTime) ?? 7)
+                ? ((try Effect.orDie(Effect.try({ try: () => toWireDays(olds?.permanentDeletionTime), catch: (e) => e }))) ?? 7)
                 : undefined,
             })
-            |> retryWhileConcurrentlyModified(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            |> retryWhileConcurrentlyModified(%))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           try session.note(`Deleted certificate authority ${arn}`)

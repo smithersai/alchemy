@@ -243,7 +243,7 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsNotebookRuntimeTemplates({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -286,22 +286,25 @@ export const NotebookRuntimeTemplateProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.notebookRuntimeTemplateId ?? output?.notebookRuntimeTemplateId
-      const nextId = news.notebookRuntimeTemplateId ?? previousId
+      const nextId = resolved.notebookRuntimeTemplateId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       const previousMachine = olds?.machineSpec?.machineType ?? output?.machineType
-      const nextMachine = desiredMachine(news.machineSpec).machineType
-      const typeChanged = (news.notebookRuntimeType ?? olds?.notebookRuntimeType)
+      const nextMachine = desiredMachine(resolved.machineSpec).machineType
+      const typeChanged = (resolved.notebookRuntimeType ?? olds?.notebookRuntimeType)
         !== (olds?.notebookRuntimeType ?? output?.notebookRuntimeType)
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
         || (previousMachine !== undefined && previousMachine !== nextMachine)
         || (olds?.notebookRuntimeType !== undefined && typeChanged)
         || (olds !== undefined
-          && ((news.description ?? "") !== (olds.description ?? "")
-            || JSON.stringify(news.labels ?? {}) !== JSON.stringify(olds.labels ?? {})))
+          && ((resolved.description ?? "") !== (olds.description ?? "")
+            || JSON.stringify(resolved.labels ?? {}) !== JSON.stringify(olds.labels ?? {})))
       if (!replace) return undefined
       return {
         action: "replace" as const,
@@ -321,7 +324,12 @@ export const NotebookRuntimeTemplateProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -350,7 +358,7 @@ export const NotebookRuntimeTemplateProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const name = resourceName(env.project, location, templateId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? templateId
@@ -378,11 +386,15 @@ export const NotebookRuntimeTemplateProvider = (): infer _ =>
               shieldedVmConfig: news.shieldedVmConfig,
               reservationAffinity: news.reservationAffinity,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
-        const createdName = resourceNameFromOperation(created ?? {}) ?? output?.name ?? name
+        const createdName = (try Effect.orDie(Effect.try({
+          try: () => resourceNameFromOperation(created ?? {}),
+          catch: (e) => e,
+        })))
+          ?? output?.name ?? name
         current = try waitUntilExists(createdName)
       }
 
@@ -422,7 +434,7 @@ export const NotebookRuntimeTemplateProvider = (): infer _ =>
       const operation = aiplatform
         .deleteProjectsLocationsNotebookRuntimeTemplates({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

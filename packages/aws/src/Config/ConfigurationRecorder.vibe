@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as config from "@distilled.cloud/aws/config-service"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -235,11 +236,13 @@ export const ConfigurationRecorderProvider = (): infer _ =>
       }
 
       const observedTags = effect (arn: string) =>
-        (Object.fromEntries(
-          ((try config.listTagsForResource({ ResourceArn: arn })).Tags ?? []).flatMap((
-            t,
-          ) => (t.Key !== undefined ? [[t.Key, t.Value ?? ""]] : [])),
-        )) catch effect (e) => match (e) {
+        (effect {
+          return (Object.fromEntries(
+            ((try config.listTagsForResource({ ResourceArn: arn })).Tags ?? []).flatMap((
+              t,
+            ) => (t.Key !== undefined ? [[t.Key, t.Value ?? ""]] : [])),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
@@ -263,10 +266,13 @@ export const ConfigurationRecorderProvider = (): infer _ =>
           if (recorder?.arn === undefined) return undefined
           const attrs = { recorderName: name, recorderArn: recorder.arn }
           const tags = try observedTags(recorder.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createRecorderName(id, olds ?? {})
           const newName = try createRecorderName(id, news)
           if (oldName !== newName) {
@@ -337,13 +343,15 @@ export const ConfigurationRecorderProvider = (): infer _ =>
           // 3c. SYNC RECORDING STATE — only when the user declared a desired
           //     state; diff against the OBSERVED status.
           if (news.recording !== undefined) {
-            const status = (((try config
-              .describeConfigurationRecorderStatus({
-                ConfigurationRecorderNames: [name],
-              })).ConfigurationRecordersStatus ?? []).at(0)?.recording ?? false) catch effect (e) => match (e) {
-                when { _tag: "NoSuchConfigurationRecorderException" }: false;
-                default: throw e;
-              }
+            const status = (effect {
+              return (((try config
+                .describeConfigurationRecorderStatus({
+                  ConfigurationRecorderNames: [name],
+                })).ConfigurationRecordersStatus ?? []).at(0)?.recording ?? false)
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchConfigurationRecorderException" }: false;
+              default: throw e;
+            }
             if (news.recording && !status) {
               try config.startConfigurationRecorder({
                 ConfigurationRecorderName: name,
@@ -365,14 +373,14 @@ export const ConfigurationRecorderProvider = (): infer _ =>
             .stopConfigurationRecorder({
               ConfigurationRecorderName: output.recorderName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchConfigurationRecorderException" }: try Effect.void;
+              when { _tag: "NoSuchConfigurationRecorderException" }: (undefined as void);
               default: throw e;
             }
           config
             .deleteConfigurationRecorder({
               ConfigurationRecorderName: output.recorderName,
             }) catch effect (e) => match (e) {
-              when { _tag: "NoSuchConfigurationRecorderException" }: try Effect.void;
+              when { _tag: "NoSuchConfigurationRecorderException" }: (undefined as void);
               default: throw e;
             }
         },

@@ -185,24 +185,41 @@ export const CustomerProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location ?? env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location ?? env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousOrg = olds?.organization ?? output?.organization
-      const nextOrg = news.organization
+      const nextOrg = resolved.organization
       return (
-        replaceOn(
-          toCustomerId(olds?.customerId ?? output?.customerId),
-          toCustomerId(news.customerId),
-        )
-          ?? replaceOn(
-            previousOrg !== undefined ? organizationParent(previousOrg) : undefined,
-            nextOrg !== undefined ? organizationParent(nextOrg) : undefined,
-          )
-          ?? replaceOn(previousLocation, nextLocation)
+        (try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(
+              toCustomerId(olds?.customerId ?? output?.customerId),
+              toCustomerId(resolved.customerId),
+            ),
+          catch: (e) => e,
+        })))
+          ?? (try Effect.orDie(Effect.try({
+            try: () =>
+              replaceOn(
+                previousOrg !== undefined ? organizationParent(previousOrg) : undefined,
+                nextOrg !== undefined ? organizationParent(nextOrg) : undefined,
+              ),
+            catch: (e) => e,
+          })))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousLocation, nextLocation), catch: (e) => e })))
       )
     },
 
@@ -212,20 +229,30 @@ export const CustomerProvider = (): infer _ =>
         olds?.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const customerId = try toCustomerResourceId(
         id,
         olds?.customerId ?? output?.customerId,
         output?.name,
       )
-      const name = output?.name ?? customerName(organization, location, customerId)
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => customerName(organization, location, customerId), catch: (e) => e }),
+        ))
       let existing = try getCustomer(name)
       if (existing === undefined) {
-        existing = try findOwnedCustomer(id, locationParent(organization, location))
+        existing = try findOwnedCustomer(
+          id,
+          try Effect.orDie(Effect.try({ try: () => locationParent(organization, location), catch: (e) => e })),
+        )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -233,13 +260,15 @@ export const CustomerProvider = (): infer _ =>
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
       const pages = try Effect.forEach(
-        listLocationParents(organization, env.region),
+        try Effect.orDie(Effect.try({ try: () => listLocationParents(organization, env.region), catch: (e) => e })),
         effect (parent) => try listCustomers(parent),
         { concurrency: 3 },
       )
       const byName = new Map<string, ReturnType<typeof toAttrs>>()
       for (const customer of pages.flat()) {
-        if (!hasOwnershipMarker(customer.displayName)) continue
+        if (
+          !(try Effect.orDie(Effect.try({ try: () => hasOwnershipMarker(customer.displayName), catch: (e) => e })))
+        ) continue
         const attrs = toAttrs(customer, organization, env.project)
         if (attrs.name.length > 0) byName.set(attrs.name, attrs)
       }
@@ -249,19 +278,30 @@ export const CustomerProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organization = try resolveOrganization(news.organization, output?.organization)
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
       const customerId = try toCustomerResourceId(
         id,
         news.customerId,
         output?.customerId ?? output?.name,
       )
-      const parent = locationParent(organization, location)
-      const name = customerName(organization, location, customerId)
-      const ownership = try ownershipLabels(id)
-      const displayName = encodeDisplayName(
-        ownership,
-        try toDisplayName(id, news.displayName, output?.displayName),
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(organization, location), catch: (e) => e }),
       )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => customerName(organization, location, customerId), catch: (e) => e }),
+      )
+      const ownership = try ownershipLabels(id)
+      const text = try toDisplayName(id, news.displayName, output?.displayName)
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeDisplayName(
+            ownership,
+            text,
+          ),
+        catch: (e) => e,
+      }))
 
       let current = try getCustomer(output?.name ?? name)
       if (current === undefined) {

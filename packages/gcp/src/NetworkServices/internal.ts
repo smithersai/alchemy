@@ -99,7 +99,7 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
@@ -152,14 +152,14 @@ export const canonicalizeLink = (value: string | undefined) => {
     .replace(/\/+$/, "");
 };
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) =>
   JSON.stringify([...(left ?? [])].map(canonicalizeLink).sort()) ===
   JSON.stringify([...(right ?? [])].map(canonicalizeLink).sort());
 
-export const sameNumberList = (
+export const sameNumberList = /** @throws {never} */ (
   left: readonly number[] | undefined,
   right: readonly number[] | undefined,
 ) => JSON.stringify([...(left ?? [])]) === JSON.stringify([...(right ?? [])]);
@@ -199,8 +199,9 @@ export const toNamedResource = (
   return resourceName(project, location, collection, lastSegment(trimmed));
 };
 
-export const changedFields = (pairs: ReadonlyArray<readonly [string, boolean]>) =>
-  pairs.filter(([, changed]) => changed).map(([field]) => field);
+export const changedFields = /** @throws {never} */ (
+  pairs: ReadonlyArray<readonly [string, boolean]>,
+) => pairs.filter(([, changed]) => changed).map(([field]) => field);
 
 /**
  * Wait for a Network Services long-running operation. Agent gateways and

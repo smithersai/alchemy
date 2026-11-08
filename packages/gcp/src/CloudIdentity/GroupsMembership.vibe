@@ -224,15 +224,18 @@ export const GroupsMembershipProvider = (): infer _ =>
     stables: ["name", "membershipId", "parent", "memberKeyId", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return replaceOnIdentity({
         previousId: olds?.memberKeyId ?? output?.memberKeyId,
-        nextId: news.memberKeyId,
+        nextId: resolved.memberKeyId,
         previousParent: olds?.parent ?? output?.parent,
-        nextParent: expandGroup(news.parent),
-        extra: news.memberKeyNamespace !== undefined
+        nextParent: expandGroup(resolved.parent),
+        extra: resolved.memberKeyNamespace !== undefined
           && output?.memberKeyNamespace !== undefined
-          && news.memberKeyNamespace !== output.memberKeyNamespace,
+          && resolved.memberKeyNamespace !== output.memberKeyNamespace,
       })
     },
 
@@ -247,7 +250,9 @@ export const GroupsMembershipProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, parent)
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -286,10 +291,10 @@ export const GroupsMembershipProvider = (): infer _ =>
               },
               roles,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           waitForOperation(created) catch effect (e) => match (e) {
-            when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: (undefined as void);
             default: throw e;
           }
           const createdName = resourceNameFromOperation(created)
@@ -336,7 +341,7 @@ export const GroupsMembershipProvider = (): infer _ =>
       if (output.name.length === 0) return
       const deleted = cloudidentity
         .deleteGroupsMemberships({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (deleted !== undefined) {

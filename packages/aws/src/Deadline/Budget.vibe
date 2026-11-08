@@ -207,7 +207,7 @@ const readBudgetById = effect (
 ) => {
   const described = deadline
     .getBudget({ farmId, budgetId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -233,10 +233,10 @@ const findBudgetByDisplayName = effect (
   displayName: string,
   arnOf: (path: string) => string,
 ) => {
-  const summaries = (Array.from(
+  const summaries = (effect { return (Array.from(
     try (deadline.listBudgets.items({ farmId })
       |> EffectStream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  )) }) catch effect (e) => match (e) {
     when { _tag: "ResourceNotFoundException" }: [] as deadline.BudgetSummary[];
     default: throw e;
   }
@@ -277,13 +277,14 @@ export const BudgetProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The parent farm and tracked queue are fixed at creation.
-          if (olds.farmId !== news.farmId || olds.queueId !== news.queueId) {
+          if (olds.farmId !== resolved.farmId || olds.queueId !== resolved.queueId) {
             return { action: "replace" } as const
           }
         },
@@ -345,14 +346,14 @@ export const BudgetProvider = (): infer _ =>
           // Deadline clamps a startTime in the past to the creation instant,
           // so a past desired startTime can never converge — only compare it
           // while it is still in the future.
-          const now = try Effect.sync(() => Date.now())
+          const now = Date.now()
           const desiredStart = desiredSchedule.fixed.startTime.getTime()
           const scheduleDrifted = (desiredStart > now && observedSchedule.startTime.getTime() !== desiredStart)
             || observedSchedule.endTime.getTime() !== desiredSchedule.fixed.endTime.getTime()
           const desiredStatus = news.status ?? described.status
           const needsUpdate = displayName !== described.displayName
             || (news.description !== undefined
-              && news.description !== (asPlain(described.description) ?? ""))
+              && news.description !== ((try Effect.orDie(Effect.try({ try: () => asPlain(described.description), catch: (e) => e }))) ?? ""))
             || desiredStatus !== described.status
             || news.approximateDollarLimit !== described.approximateDollarLimit
             || actionsToAdd.length > 0
@@ -393,7 +394,7 @@ export const BudgetProvider = (): infer _ =>
               farmId: output.farmId,
               budgetId: output.budgetId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

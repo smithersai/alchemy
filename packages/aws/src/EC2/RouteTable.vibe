@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import type * as EC2 from "@distilled.cloud/aws/ec2"
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -324,9 +326,10 @@ export const RouteTableProvider = (): infer _ =>
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           // VpcId change requires replacement
-          if (olds.vpcId !== news.vpcId) {
+          if (olds.vpcId !== resolved.vpcId) {
             return { action: "replace" }
           }
           // Tags can be updated in-place
@@ -344,9 +347,9 @@ export const RouteTableProvider = (): infer _ =>
               default: throw e;
             }).RouteTables?.[0]
           if (!routeTable?.RouteTableId) return undefined
-          const tags = tagListRecord(routeTable.Tags)
+          const tags = try Effect.orDie(Effect.try({ try: () => tagListRecord(routeTable.Tags), catch: (e) => e }))
           const attrs = { ...output, ownerId: routeTable.OwnerId, tags }
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -374,7 +377,7 @@ export const RouteTableProvider = (): infer _ =>
                 TagSpecifications: [
                   {
                     ResourceType: "route-table",
-                    Tags: createTagsList(desiredTags),
+                    Tags: try Effect.orDie(Effect.try({ try: () => createTagsList(desiredTags), catch: (e) => e })),
                   },
                 ],
                 DryRun: false,
@@ -394,7 +397,7 @@ export const RouteTableProvider = (): infer _ =>
           const currentTags = Object.fromEntries(
             (routeTable.Tags ?? []).map((t) => [t.Key!, t.Value!]),
           ) as Record<string, string>
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try ec2.deleteTags({
               Resources: [routeTableId],
@@ -450,7 +453,7 @@ export const RouteTableProvider = (): infer _ =>
             propagatingVgws: final.PropagatingVgws?.map((vgw) => ({
               gatewayId: vgw.GatewayId!,
             })),
-            tags: tagListRecord(final.Tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagListRecord(final.Tags), catch: (e) => e })),
           }
         },
 
@@ -461,13 +464,13 @@ export const RouteTableProvider = (): infer _ =>
 
           // 1. Attempt to delete route table
           try (effect {
-            return (try (ec2
+            return (effect { return (try (ec2
               .deleteRouteTable({
                 RouteTableId: routeTableId,
                 DryRun: false,
               })
-              |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
-                when { _tag: "InvalidRouteTableID.NotFound" }: try Effect.void;
+              |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
+                when { _tag: "InvalidRouteTableID.NotFound" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -475,8 +478,8 @@ export const RouteTableProvider = (): infer _ =>
               // DependencyViolation means there are still dependent resources
               while: (e) => e._tag === "DependencyViolation",
               schedule: Schedule.max([Schedule.fixed(3000), Schedule.recurs(10)]).pipe(
-                Schedule.tap(({ attempt }) =>
-                  session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
+                Schedule.tap(effect ({ attempt }) =>
+                  try session.note(`Waiting for dependencies to clear... (attempt ${attempt})`)
                 ),
               ),
             }))
@@ -516,8 +519,14 @@ const describeRouteTable = effect (routeTableId: string, _session?: ScopedPlanSt
       schedule: Schedule.max([Schedule.fixed(500), Schedule.recurs(10)]),
     }))
 
-error RouteTableNotVisible {
-  mutable routeTableId: string
+class RouteTableNotVisible extends $MutableErrorBase("RouteTableNotVisible")<{
+
+   routeTableId: string;
+}> {static {
+    $MutableErrorMatcher(this, "RouteTableNotVisible", true);
+}
+
+
 }
 
 /**
@@ -526,8 +535,8 @@ error RouteTableNotVisible {
 const waitForRouteTableDeleted = effect (routeTableId: string, session: ScopedPlanStatusSession) =>
   try Effect.retry(
     effect {
-      const result = (try (ec2.describeRouteTables({ RouteTableIds: [routeTableId] })
-        |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
+      const result = (effect { return (try (ec2.describeRouteTables({ RouteTableIds: [routeTableId] })
+        |> Effect.tapError(%, Effect.logDebug))) }) catch effect (e) => match (e) {
           when { _tag: "InvalidRouteTableID.NotFound" }: { RouteTables: [] };
           default: throw e;
         }
@@ -541,7 +550,7 @@ const waitForRouteTableDeleted = effect (routeTableId: string, session: ScopedPl
     },
     {
       schedule: Schedule.max([Schedule.fixed(2000), Schedule.recurs(10)]).pipe(
-        Schedule.tap(({ attempt }) => session.note(`Waiting for route table deletion... (${attempt * 2}s)`)),
+        Schedule.tap(effect ({ attempt }) => try session.note(`Waiting for route table deletion... (${attempt * 2}s)`)),
       ),
     },
   )

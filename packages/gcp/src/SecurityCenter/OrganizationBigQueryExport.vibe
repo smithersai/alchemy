@@ -170,13 +170,20 @@ export const OrganizationBigQueryExportProvider = (): infer _ =>
     stables: ["name", "exportId", "organization", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.exportId ?? output?.exportId, news.exportId)
-          ?? replaceOn(
-            olds?.organization ?? output?.organization,
-            news.organization !== undefined ? organizationParent(news.organization) : undefined,
-          )
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.exportId ?? output?.exportId, resolved.exportId)
+              ?? replaceOn(
+                olds?.organization ?? output?.organization,
+                resolved.organization !== undefined ? organizationParent(resolved.organization) : undefined,
+              ),
+          catch: (e) => e,
+        }))
       )
     },
 
@@ -191,21 +198,25 @@ export const OrganizationBigQueryExportProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      return (Array.from(
-        try (scc.listOrganizationsBigQueryExports
-          .pages({ parent: organization, pageSize: 100 })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.bigQueryExports ?? []))
-          |> Stream.filter(%, (exp) => hasOwnershipMarker(exp.description))
-          |> Stream.map(%, (exp) => toAttrs(exp, organization, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (scc.listOrganizationsBigQueryExports
+            .pages({ parent: organization, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.bigQueryExports ?? []))
+            |> Stream.filter(%, (exp) => hasOwnershipMarker(exp.description))
+            |> Stream.map(%, (exp) => toAttrs(exp, organization, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -214,7 +225,9 @@ export const OrganizationBigQueryExportProvider = (): infer _ =>
       const exportId = try toPhysicalId(id, news.exportId, output?.exportId)
       const name = resourceName(organization, exportId)
       const ownership = try createInternalLabels(id)
-      const description = encodeDescription(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const dataset = news.dataset
       const filter = news.filter
 

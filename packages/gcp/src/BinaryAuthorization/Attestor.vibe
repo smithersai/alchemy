@@ -183,26 +183,42 @@ export const AttestorProvider = (): infer _ =>
     stables: ["name", "attestorId", "project", "noteReference"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousNote = lastSegment(olds?.noteReference ?? output?.noteReference ?? "")
-      const nextNote = lastSegment(news.noteReference)
-      return replaceOnIdentity({
-        previousId: olds?.attestorId ?? output?.attestorId,
-        nextId: news.attestorId,
-        extra: previousNote.length > 0 && nextNote.length > 0 && previousNote !== nextNote,
-        deleteFirst: true,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousNote = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.noteReference ?? output?.noteReference ?? ""), catch: (e) => e }),
+      )
+      const nextNote = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(resolved.noteReference), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.attestorId ?? output?.attestorId,
+            nextId: resolved.attestorId,
+            extra: previousNote.length > 0 && nextNote.length > 0 && previousNote !== nextNote,
+            deleteFirst: true,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const attestorId = try toPhysicalId(id, olds?.attestorId, output?.attestorId, "attestor")
-      const name = output?.name ?? attestorName(env.project, attestorId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => attestorName(env.project, attestorId), catch: (e) => e })))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -216,13 +232,17 @@ export const AttestorProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const attestorId = try toPhysicalId(id, news.attestorId, output?.attestorId, "attestor")
-      const name = attestorName(env.project, attestorId)
+      const name = try Effect.orDie(Effect.try({ try: () => attestorName(env.project, attestorId), catch: (e) => e }))
       if (news.noteReference.trim().length === 0) {
         throw new NoteReferenceRequired({ attestorId })
       }
-      const desiredNote = expandNoteReference(news.noteReference, env.project)
+      const desiredNote = try Effect.orDie(
+        Effect.try({ try: () => expandNoteReference(news.noteReference, env.project), catch: (e) => e }),
+      )
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -243,10 +263,12 @@ export const AttestorProvider = (): infer _ =>
 
       const observedNote = current.userOwnedGrafeasNote?.noteReference ?? ""
       const descriptionChanged = !sameText(current.description, desiredDescription)
-      const keysChanged = !samePublicKeys(
-        current.userOwnedGrafeasNote?.publicKeys,
-        news.publicKeys,
-      )
+      const keysChanged = !(try Effect.orDie(
+        Effect.try({
+          try: samePublicKeys.bind(undefined, current.userOwnedGrafeasNote?.publicKeys, news.publicKeys),
+          catch: (e) => e,
+        }),
+      ))
 
       if (descriptionChanged || keysChanged) {
         current = try retryTransient(

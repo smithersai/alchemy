@@ -161,10 +161,12 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (try effect {
-  provide noRetryLayer {
-    return try datalabeling.getProjectsAnnotationSpecSets({ name })
-  }
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    provide noRetryLayer {
+      return try datalabeling.getProjectsAnnotationSpecSets({ name })
+    }
+  })
 }) catch effect (e) => match (e) {
   when { _tag: "NotFound" }: try Effect.undefined;
   when { _tag: "BadGateway" }: try Effect.undefined;
@@ -172,7 +174,9 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
 })
 
 const findByOwnership = effect (id: string, project: string) => {
-  const rows = try listAnnotationSpecSets(projectParent(project))
+  const rows = try listAnnotationSpecSets(
+    try Effect.orDie(Effect.try({ try: () => projectParent(project), catch: (e) => e })),
+  )
   return try findOwned(id, rows, (row) => row.description)
 }
 
@@ -181,35 +185,56 @@ export const AnnotationSpecSetProvider = (): infer _ =>
     stables: ["name", "annotationSpecSetId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const extra = (news.displayName !== undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const extra = (resolved.displayName !== undefined
         && output?.displayName !== undefined
-        && !sameText(news.displayName, output.displayName))
-        || (olds !== undefined && !sameText(news.description, output?.description))
-        || (output !== undefined && !sameJson(specsOf(news.annotationSpecs), output.annotationSpecs))
-      return replaceOnIdentity({
-        previousId: olds?.annotationSpecSetId ?? output?.annotationSpecSetId,
-        nextId: news.annotationSpecSetId,
-        extra,
-      })
+        && !sameText(resolved.displayName, output.displayName))
+        || (olds !== undefined && !sameText(resolved.description, output?.description))
+        || (output !== undefined
+          && !(try Effect.orDie(
+            Effect.try({
+              try: sameJson.bind(undefined, specsOf(resolved.annotationSpecs), output.annotationSpecs),
+              catch: (e) => e,
+            }),
+          )))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.annotationSpecSetId ?? output?.annotationSpecSetId,
+            nextId: resolved.annotationSpecSetId,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const annotationSpecSetId = olds?.annotationSpecSetId
         ?? output?.annotationSpecSetId
-        ?? (output?.name ? parseResourceName(output.name, "annotationSpecSets").id : "")
+        ?? (output?.name
+          ? (try Effect.orDie(
+            Effect.try({ try: () => parseResourceName(output.name, "annotationSpecSets"), catch: (e) => e }),
+          )).id
+          : "")
       const name = output?.name
         ?? (annotationSpecSetId.length > 0 ? resourceName(env.project, annotationSpecSetId) : "")
       const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const rows = try listAnnotationSpecSets(projectParent(env.project))
+      const rows = try listAnnotationSpecSets(
+        try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e })),
+      )
       return rows
         .filter((row) => hasOwnershipMarker(row.description))
         .map((row) => toAttrs(row, env.project))
@@ -222,7 +247,9 @@ export const AnnotationSpecSetProvider = (): infer _ =>
         ?? (annotationSpecSetId !== undefined ? resourceName(env.project, annotationSpecSetId) : "")
       const ownership = try createInternalLabels(id)
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const annotationSpecs = specsOf(news.annotationSpecs)
 
       let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
@@ -248,7 +275,8 @@ export const AnnotationSpecSetProvider = (): infer _ =>
 
       if (current === undefined) {
         throw new AnnotationSpecSetNotResolved({
-          resourceName: name || projectParent(env.project),
+          resourceName: name
+            || (try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e }))),
         })
       }
 

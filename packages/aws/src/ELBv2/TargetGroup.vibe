@@ -215,12 +215,13 @@ export const TargetGroupProvider = (): infer _ =>
       return {
         stables: ["targetGroupArn", "targetGroupName", "vpcId"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           if (
-            !deepEqual(
+            !(try Effect.orDie(Effect.try({ try: () => deepEqual(
               {
                 vpcId: olds.vpcId,
                 protocol: olds.protocol ?? "HTTP",
@@ -230,14 +231,14 @@ export const TargetGroupProvider = (): infer _ =>
                 ipAddressType: olds.ipAddressType,
               },
               {
-                vpcId: news.vpcId,
-                protocol: news.protocol ?? "HTTP",
-                protocolVersion: news.protocolVersion,
-                port: news.port,
-                targetType: news.targetType ?? "ip",
-                ipAddressType: news.ipAddressType,
+                vpcId: resolved.vpcId,
+                protocol: resolved.protocol ?? "HTTP",
+                protocolVersion: resolved.protocolVersion,
+                port: resolved.port,
+                targetType: resolved.targetType ?? "ip",
+                ipAddressType: resolved.ipAddressType,
               },
-            )
+            ), catch: (e) => e })))
           ) {
             return { action: "replace" } as const
           }
@@ -250,7 +251,7 @@ export const TargetGroupProvider = (): infer _ =>
             .describeTargetGroups({
               TargetGroupArns: [output.targetGroupArn],
             }) catch effect (e) => match (e) {
-              when { _tag: "TargetGroupNotFoundException" }: try Effect.undefined;
+              when { _tag: "TargetGroupNotFoundException" }: undefined;
               default: throw e;
             }
           const targetGroup = described?.TargetGroups?.[0]
@@ -265,7 +266,7 @@ export const TargetGroupProvider = (): infer _ =>
             return undefined
           }
           const tags = readElbTags(output.targetGroupArn) catch effect (e) => match (e) {
-            when { _tag: "TargetGroupNotFoundException" }: try Effect.undefined;
+            when { _tag: "TargetGroupNotFoundException" }: undefined;
             default: throw e;
           }
           if (tags === undefined) {
@@ -299,7 +300,7 @@ export const TargetGroupProvider = (): infer _ =>
             effect (tg) => {
               const tagDescriptions = elbv2
                 .describeTags({ ResourceArns: [tg.TargetGroupArn] }) catch effect (e) => match (e) {
-                  when { _tag: "TargetGroupNotFoundException" }: try Effect.undefined;
+                  when { _tag: "TargetGroupNotFoundException" }: undefined;
                   default: throw e;
                 }
               const tags = Object.fromEntries(
@@ -335,7 +336,7 @@ export const TargetGroupProvider = (): infer _ =>
             .describeTargetGroups({
               Names: [name],
             }) catch effect (e) => match (e) {
-              when { _tag: "TargetGroupNotFoundException" }: try Effect.undefined;
+              when { _tag: "TargetGroupNotFoundException" }: undefined;
               default: throw e;
             }
           let targetGroup = described?.TargetGroups?.[0]
@@ -358,8 +359,8 @@ export const TargetGroupProvider = (): infer _ =>
               HealthCheckPort: news.healthCheckPort,
               HealthCheckProtocol: news.healthCheckProtocol,
               HealthCheckEnabled: news.healthCheckEnabled,
-              HealthCheckIntervalSeconds: toSeconds(news.healthCheckInterval),
-              HealthCheckTimeoutSeconds: toSeconds(news.healthCheckTimeout),
+              HealthCheckIntervalSeconds: try Effect.orDie(Effect.try({ try: () => toSeconds(news.healthCheckInterval), catch: (e) => e })),
+              HealthCheckTimeoutSeconds: try Effect.orDie(Effect.try({ try: () => toSeconds(news.healthCheckTimeout), catch: (e) => e })),
               HealthyThresholdCount: news.healthyThresholdCount,
               UnhealthyThresholdCount: news.unhealthyThresholdCount,
               Matcher: news.matcher,
@@ -394,13 +395,13 @@ export const TargetGroupProvider = (): infer _ =>
             HealthCheckPort: news.healthCheckPort ?? observedHc.HealthCheckPort,
             HealthCheckProtocol: news.healthCheckProtocol ?? observedHc.HealthCheckProtocol,
             HealthCheckEnabled: news.healthCheckEnabled ?? observedHc.HealthCheckEnabled,
-            HealthCheckIntervalSeconds: toSeconds(news.healthCheckInterval) ?? observedHc.HealthCheckIntervalSeconds,
-            HealthCheckTimeoutSeconds: toSeconds(news.healthCheckTimeout) ?? observedHc.HealthCheckTimeoutSeconds,
+            HealthCheckIntervalSeconds: (try Effect.orDie(Effect.try({ try: () => toSeconds(news.healthCheckInterval), catch: (e) => e }))) ?? observedHc.HealthCheckIntervalSeconds,
+            HealthCheckTimeoutSeconds: (try Effect.orDie(Effect.try({ try: () => toSeconds(news.healthCheckTimeout), catch: (e) => e }))) ?? observedHc.HealthCheckTimeoutSeconds,
             HealthyThresholdCount: news.healthyThresholdCount ?? observedHc.HealthyThresholdCount,
             UnhealthyThresholdCount: news.unhealthyThresholdCount ?? observedHc.UnhealthyThresholdCount,
             Matcher: news.matcher ?? observedHc.Matcher,
           }
-          if (!deepEqual(observedHc, desiredHc)) {
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(observedHc, desiredHc), catch: (e) => e })))) {
             try elbv2.modifyTargetGroup({
               TargetGroupArn: targetGroupArn,
               ...desiredHc,
@@ -433,7 +434,7 @@ export const TargetGroupProvider = (): infer _ =>
               )
               .map((t) => [t.Key, t.Value]),
           )
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try elbv2.addTags({
               ResourceArns: [targetGroupArn],
@@ -465,15 +466,15 @@ export const TargetGroupProvider = (): infer _ =>
           // success). It only fails with ResourceInUseException while a
           // listener/rule still references it — retry briefly for the
           // eventual-consistency window after the dependents are removed.
-          ;(try (elbv2
+          ;(effect { return (try (elbv2
             .deleteTargetGroup({
               TargetGroupArn: output.targetGroupArn,
             })
             |> Effect.retry(%, {
               while: (e) => e._tag === "ResourceInUseException",
               schedule: Schedule.max([Schedule.spaced("3 seconds"), Schedule.recurs(8)]),
-            }))) catch effect (e) => match (e) {
-              when { _tag: "ResourceInUseException" }: try Effect.void;
+            }))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceInUseException" }: (undefined as void);
               default: throw e;
             }
         },

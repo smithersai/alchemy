@@ -127,8 +127,8 @@ export const GroupProvider = (): infer _ =>
       ) => (name ? name : try createPhysicalName({ id, lowercase: true, maxLength: 32, delimiter: "-" }))
 
       const observe = effect (org: string, name: string) =>
-        (try turso.getGroup({ organizationSlug: org, groupName: name })).group catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+        (effect { return (try turso.getGroup({ organizationSlug: org, groupName: name })).group }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
 
@@ -149,16 +149,17 @@ export const GroupProvider = (): infer _ =>
       return {
         stables: ["name", "uuid", "organization", "location"],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const name = output?.name ?? (try groupName(id, olds?.name))
-          if (news.name !== undefined && news.name !== name) {
+          if (resolved.name !== undefined && resolved.name !== name) {
             return { action: "replace" } as const
           }
-          if ((news.location ?? DEFAULT_LOCATION) !== (olds?.location ?? DEFAULT_LOCATION)) {
-            return { action: "replace", deleteFirst: news.name !== undefined } as const
+          if ((resolved.location ?? DEFAULT_LOCATION) !== (olds?.location ?? DEFAULT_LOCATION)) {
+            return { action: "replace", deleteFirst: resolved.name !== undefined } as const
           }
-          if (!deepEqual(news.extensions, olds?.extensions)) {
-            return { action: "replace", deleteFirst: news.name !== undefined } as const
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(resolved.extensions, olds?.extensions), catch: (e) => e })))) {
+            return { action: "replace", deleteFirst: resolved.name !== undefined } as const
           }
         },
         read: effect ({ id, olds, output, previous }) => {
@@ -173,7 +174,7 @@ export const GroupProvider = (): infer _ =>
           const ours = output !== undefined
             || olds?.name === undefined
             || (previous?.organization === org && previous.name === name)
-          return ours ? attrs : Unowned(attrs)
+          return ours ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, session }) => {
           const org = output?.organization ?? (try organization)
@@ -186,13 +187,13 @@ export const GroupProvider = (): infer _ =>
           // Ensure
           if (!group) {
             try session.note(`Creating group ${name}...`)
-            group = (try turso
+            group = (effect { return (try turso
               .createGroup({
                 organizationSlug: org,
                 name,
                 location,
                 extensions: news.extensions,
-              })).group catch effect (e) => match (e) {
+              })).group }) catch effect (e) => match (e) {
                 when { _tag: "Conflict" }: try observe(org, name);
                 default: throw e;
               }
@@ -249,7 +250,7 @@ export const GroupProvider = (): infer _ =>
         delete: effect ({ output }) => {
           turso
             .deleteGroup({ organizationSlug: output.organization, groupName: output.name }) catch effect (e) => match (e) {
-              when { _tag: "NotFound" }: try Effect.void;
+              when { _tag: "NotFound" }: (undefined as void);
               default: throw e;
             }
         },

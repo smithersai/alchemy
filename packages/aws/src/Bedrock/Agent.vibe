@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as bedrock from "@distilled.cloud/aws/bedrock-agent"
 import * as iam from "@distilled.cloud/aws/iam"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -246,11 +247,13 @@ export const AgentProvider = (): infer _ =>
       const createName = effect (id: string, props: AgentProps) =>
         props.agentName ?? (try createPhysicalName({ id, maxLength: 100 }))
 
-      const createRoleName = (id: string) => createPhysicalName({ id, maxLength: 64 })
+      const createRoleName = effect (id: string) => try createPhysicalName({ id, maxLength: 64 })
 
       const getAgentOrUndefined = effect (agentId: string) =>
-        (try bedrock.getAgent({ agentId })).agent catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try bedrock.getAgent({ agentId })).agent
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -263,7 +266,9 @@ export const AgentProvider = (): infer _ =>
       }
 
       const fetchObservedTags = effect (resourceArn: string) =>
-        (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>) catch effect (
+        (effect {
+          return (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>)
+        }) catch effect (
           e,
         ) => match (e) { when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>; default: throw e; }
 
@@ -271,8 +276,10 @@ export const AgentProvider = (): infer _ =>
       // and preparation both complete within seconds to ~1 minute.
       const waitForSettled = effect (agentId: string) =>
         try (effect {
-          return (try bedrock.getAgent({ agentId })).agent catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          return (effect {
+            return (try bedrock.getAgent({ agentId })).agent
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         }
@@ -330,7 +337,9 @@ export const AgentProvider = (): infer _ =>
               {
                 Effect: "Allow",
                 Action: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
-                Resource: bedrockModelArns(region, accountId, foundationModel),
+                Resource: try Effect.orDie(
+                  Effect.try({ try: () => bedrockModelArns(region, accountId, foundationModel), catch: (e) => e }),
+                ),
               },
             ],
           }),
@@ -375,11 +384,14 @@ export const AgentProvider = (): infer _ =>
             roleName: output?.roleName,
           }
           const tags = try fetchObservedTags(agent.agentArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? ({} as AgentProps))
           const newName = try createName(id, news ?? ({} as AgentProps))
           if (oldName !== newName) {
@@ -429,7 +441,9 @@ export const AgentProvider = (): infer _ =>
                 instruction: news.instruction,
                 description: news.description,
                 agentResourceRoleArn: roleArn,
-                idleSessionTTLInSeconds: toWireSeconds(news.idleSessionTTL),
+                idleSessionTTLInSeconds: try Effect.orDie(
+                  Effect.try({ try: () => toWireSeconds(news.idleSessionTTL), catch: (e) => e }),
+                ),
                 customerEncryptionKeyArn: news.customerEncryptionKeyArn,
                 guardrailConfiguration: news.guardrailConfiguration,
                 memoryConfiguration: toWireMemoryConfiguration(news.memoryConfiguration),
@@ -448,7 +462,9 @@ export const AgentProvider = (): infer _ =>
               instruction: news.instruction,
               description: news.description,
               agentResourceRoleArn: roleArn,
-              idleSessionTTLInSeconds: toWireSeconds(news.idleSessionTTL),
+              idleSessionTTLInSeconds: try Effect.orDie(
+                Effect.try({ try: () => toWireSeconds(news.idleSessionTTL), catch: (e) => e }),
+              ),
               customerEncryptionKeyArn: news.customerEncryptionKeyArn,
               guardrailConfiguration: news.guardrailConfiguration,
               memoryConfiguration: toWireMemoryConfiguration(news.memoryConfiguration),
@@ -500,7 +516,7 @@ export const AgentProvider = (): infer _ =>
               agentId: output.agentId,
               skipResourceInUseCheck: true,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
 
@@ -514,12 +530,12 @@ export const AgentProvider = (): infer _ =>
                 RoleName: roleName,
                 PolicyName: "BedrockAgentInvokeModel",
               }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
             iam
               .deleteRole({ RoleName: roleName }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                when { _tag: "NoSuchEntityException" }: (undefined as void);
                 default: throw e;
               }
           }

@@ -172,31 +172,47 @@ export const PrivateCloudsExternalAddressProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
-      return replaceOnIdentity({
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const input = {
         previousId: olds?.externalAddressId ?? output?.externalAddressId,
-        nextId: news.externalAddressId
-          ? rfc1035(news.externalAddressId, "address")
+        nextId: resolved.externalAddressId
+          ? rfc1035(resolved.externalAddressId, "address")
           : (olds?.externalAddressId ?? output?.externalAddressId),
         previousLocation,
         nextLocation: normalizeLocation(
-          news.location ?? locationFromName(news.privateCloud, previousLocation),
+          resolved.location
+            ?? (try Effect.orDie(
+              Effect.try({
+                try: locationFromName.bind(undefined, resolved.privateCloud, previousLocation),
+                catch: (e) => e,
+              }),
+            )),
           DEFAULT_ZONE,
         ),
         previousParent: olds?.privateCloud ?? output?.privateCloud,
-        nextParent: news.privateCloud,
-      })
+        nextParent: resolved.privateCloud,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
-        DEFAULT_ZONE,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location
+              ?? output?.location
+              ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentCloudName(
         env.project,
         location,
@@ -212,8 +228,12 @@ export const PrivateCloudsExternalAddressProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -246,10 +266,14 @@ export const PrivateCloudsExternalAddressProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
-        DEFAULT_ZONE,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentCloudName(env.project, location, news.privateCloud)
       const externalAddressId = try toPhysicalId(
         id,
@@ -259,25 +283,29 @@ export const PrivateCloudsExternalAddressProvider = (): infer _ =>
       )
       const name = resourceNameOf(parent, externalAddressId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsPrivateCloudsExternalAddresses({
-            parent,
-            externalAddressId,
-            body: {
-              internalIp: news.internalIp,
-              description: desiredDescription,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateCloudsExternalAddresses({
+              parent,
+              externalAddressId,
+              body: {
+                internalIp: news.internalIp,
+                description: desiredDescription,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -296,10 +324,14 @@ export const PrivateCloudsExternalAddressProvider = (): infer _ =>
 
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const ipChanged = (current.internalIp ?? "") !== news.internalIp
-      const updateMask = changedFields([
-        ["description", descriptionChanged],
-        ["internalIp", ipChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["description", descriptionChanged],
+            ["internalIp", ipChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try vmwareengine.patchProjectsLocationsPrivateCloudsExternalAddresses({
@@ -323,15 +355,17 @@ export const PrivateCloudsExternalAddressProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsPrivateCloudsExternalAddresses({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateCloudsExternalAddresses({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

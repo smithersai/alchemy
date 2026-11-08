@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as medialive from "@distilled.cloud/aws/medialive"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -53,8 +56,12 @@ const retryWhileRolePropagating = effect <A, E extends { readonly _tag: string }
  * Raised when a MediaLive channel lands in `CREATE_FAILED` or `UPDATE_FAILED`
  * instead of settling into `IDLE`.
  */
-export error MediaLiveChannelFailed {
-  mutable message: string
+export class MediaLiveChannelFailed extends $MutableErrorBase("MediaLiveChannelFailed")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "MediaLiveChannelFailed", true)
+  }
 }
 
 export interface ChannelProps {
@@ -209,7 +216,7 @@ export const ChannelProvider = (): infer _ =>
       const getChannel = effect (channelId: string) => {
         const channel = medialive
           .describeChannel({ ChannelId: channelId }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
         if (channel === undefined || isGone(channel.State)) return undefined
@@ -274,11 +281,14 @@ export const ChannelProvider = (): infer _ =>
             : try findByName(try createName(id, olds ?? {}))
           if (channel === undefined) return undefined
           const attrs = toAttrs(channel)
-          return (try hasAlchemyTags(id, toTagRecord(channel.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, toTagRecord(channel.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           // The channel class and VPC placement are fixed at creation.
           if ((olds.channelClass ?? "STANDARD") !== (news.channelClass ?? "STANDARD")) {
             return { action: "replace" } as const
@@ -390,30 +400,34 @@ export const ChannelProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           try (effect {
-            return (try (medialive.deleteChannel({ ChannelId: output.channelId })
-              |> retryWhileConflict(%))) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.void;
-                default: throw e;
-              }
+            return (effect {
+              return (try (medialive.deleteChannel({ ChannelId: output.channelId })
+                |> retryWhileConflict(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
           }
             |> Effect.asVoid(%)) // Deletion is async (DELETING → DELETED). Wait (bounded) so that
            // dependent Inputs/InputSecurityGroups can delete without long
           // conflict-retry loops; if the channel is still draining after the
           // window, deletion is initiated and irreversible — let downstream
           // retries absorb the tail.
-          ;(try (effect {
-            return try effect {
-              const channel = try medialive.describeChannel({ ChannelId: output.channelId })
-              return (channel.State === "DELETED" ? try Effect.void : throw new MediaLiveResourcePending({
-                message: `channel ${output.channelId} is still ${channel.State}`,
-              }))
+          ;(effect {
+            return (try (effect {
+              return try effect {
+                const channel = try medialive.describeChannel({ ChannelId: output.channelId })
+                return (channel.State === "DELETED" ? (undefined as void) : throw new MediaLiveResourcePending({
+                  message: `channel ${output.channelId} is still ${channel.State}`,
+                }))
+              }
             }
+              |> retryWhilePending(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: (undefined as void);
+            when { _tag: "MediaLiveResourcePending" }: (undefined as void);
+            default: throw e;
           }
-            |> retryWhilePending(%))) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.void;
-              when { _tag: "MediaLiveResourcePending" }: try Effect.void;
-              default: throw e;
-            }
         },
       })
     },

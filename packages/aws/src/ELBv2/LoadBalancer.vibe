@@ -188,9 +188,12 @@ export const LoadBalancerProvider = (): infer _ =>
           "vpcId",
         ],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
           const oldName = try toName(id, olds ?? {})
-          const newName = try toName(id, news ?? {})
+          const newName = try toName(id, resolved ?? {})
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
@@ -198,18 +201,22 @@ export const LoadBalancerProvider = (): infer _ =>
           // subnets, securityGroups and ipAddressType are mutated in place
           // during reconcile (setSubnets / setSecurityGroups / setIpAddressType).
           if (
-            !deepEqual(
-              {
-                scheme: olds.scheme ?? "internet-facing",
-                type: olds.type ?? "application",
-                customerOwnedIpv4Pool: olds.customerOwnedIpv4Pool,
-              },
-              {
-                scheme: news.scheme ?? "internet-facing",
-                type: news.type ?? "application",
-                customerOwnedIpv4Pool: news.customerOwnedIpv4Pool,
-              },
-            )
+            !(try Effect.orDie(Effect.try({
+              try: () =>
+                deepEqual(
+                  {
+                    scheme: olds.scheme ?? "internet-facing",
+                    type: olds.type ?? "application",
+                    customerOwnedIpv4Pool: olds.customerOwnedIpv4Pool,
+                  },
+                  {
+                    scheme: resolved.scheme ?? "internet-facing",
+                    type: resolved.type ?? "application",
+                    customerOwnedIpv4Pool: resolved.customerOwnedIpv4Pool,
+                  },
+                ),
+              catch: (e) => e,
+            })))
           ) {
             return { action: "replace" } as const
           }
@@ -222,7 +229,7 @@ export const LoadBalancerProvider = (): infer _ =>
             .describeLoadBalancers({
               LoadBalancerArns: [output.loadBalancerArn],
             }) catch effect (e) => match (e) {
-              when { _tag: "LoadBalancerNotFoundException" }: try Effect.undefined;
+              when { _tag: "LoadBalancerNotFoundException" }: undefined;
               default: throw e;
             }
           const loadBalancer = described?.LoadBalancers?.[0]
@@ -237,7 +244,7 @@ export const LoadBalancerProvider = (): infer _ =>
             return undefined
           }
           const tags = readElbTags(output.loadBalancerArn) catch effect (e) => match (e) {
-            when { _tag: "LoadBalancerNotFoundException" }: try Effect.undefined;
+            when { _tag: "LoadBalancerNotFoundException" }: undefined;
             default: throw e;
           }
           if (tags === undefined) {
@@ -331,7 +338,7 @@ export const LoadBalancerProvider = (): infer _ =>
             .describeLoadBalancers({
               Names: [name],
             }) catch effect (e) => match (e) {
-              when { _tag: "LoadBalancerNotFoundException" }: try Effect.undefined;
+              when { _tag: "LoadBalancerNotFoundException" }: undefined;
               default: throw e;
             }
           let loadBalancer = described?.LoadBalancers?.[0]
@@ -376,7 +383,14 @@ export const LoadBalancerProvider = (): infer _ =>
           const observedSubnets = loadBalancer.AvailabilityZones?.flatMap((z) => (z.SubnetId ? [z.SubnetId] : [])) ?? []
           if (news.subnets) {
             const desiredSubnets = news.subnets as string[]
-            if (!deepEqual([...observedSubnets].sort(), [...desiredSubnets].sort())) {
+            if (
+              !(try Effect.orDie(
+                Effect.try({
+                  try: () => deepEqual([...observedSubnets].sort(), [...desiredSubnets].sort()),
+                  catch: (e) => e,
+                }),
+              ))
+            ) {
               try elbv2.setSubnets({
                 LoadBalancerArn: loadBalancerArn,
                 Subnets: desiredSubnets,
@@ -394,7 +408,9 @@ export const LoadBalancerProvider = (): infer _ =>
             const observedSgs = loadBalancer.SecurityGroups ?? []
             const desiredSgs = news.securityGroups as string[]
             if (
-              !deepEqual([...observedSgs].sort(), [...desiredSgs].sort())
+              !(try Effect.orDie(
+                Effect.try({ try: () => deepEqual([...observedSgs].sort(), [...desiredSgs].sort()), catch: (e) => e }),
+              ))
               || news.enforceSecurityGroupInboundRulesOnPrivateLinkTraffic
             ) {
               try elbv2.setSecurityGroups({
@@ -440,7 +456,9 @@ export const LoadBalancerProvider = (): infer _ =>
               )
               .map((t) => [t.Key, t.Value]),
           )
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try elbv2.addTags({
               ResourceArns: [loadBalancerArn],
@@ -457,7 +475,7 @@ export const LoadBalancerProvider = (): infer _ =>
           // Re-read so subnets and security groups set above are reflected.
           const final = (elbv2
             .describeLoadBalancers({ LoadBalancerArns: [loadBalancerArn] }) catch effect (e) => match (e) {
-              when { _tag: "LoadBalancerNotFoundException" }: try Effect.undefined;
+              when { _tag: "LoadBalancerNotFoundException" }: undefined;
               default: throw e;
             })
             ?.LoadBalancers?.[0] ?? loadBalancer
@@ -482,32 +500,34 @@ export const LoadBalancerProvider = (): infer _ =>
             .deleteLoadBalancer({
               LoadBalancerArn: output.loadBalancerArn,
             }) catch effect (e) => match (e) {
-              when { _tag: "LoadBalancerNotFoundException" }: try Effect.void;
+              when { _tag: "LoadBalancerNotFoundException" }: (undefined as void);
               default: throw e;
             } // `deleteLoadBalancer` returns immediately, but the ALB's ENIs
            // linger for a minute or two afterwards and block deletion of any
           // subnet or security group they occupy. Wait until the balancer is
           // fully gone so downstream network resources tear down on the first
           // attempt instead of spinning on dependency-violation retries.
-          ;(try (effect {
-            return (try effect {
-              try elbv2
-                .describeLoadBalancers({
-                  LoadBalancerArns: [output.loadBalancerArn],
-                })
-              return throw new LoadBalancerStillDeleting()
-            }) catch effect (e) => match (e) {
-              when { _tag: "LoadBalancerNotFoundException" }: try Effect.void;
-              default: throw e;
+          ;(effect {
+            return (try (effect {
+              return (effect {
+                try elbv2
+                  .describeLoadBalancers({
+                    LoadBalancerArns: [output.loadBalancerArn],
+                  })
+                return throw new LoadBalancerStillDeleting()
+              }) catch effect (e) => match (e) {
+                when { _tag: "LoadBalancerNotFoundException" }: (undefined as void);
+                default: throw e;
+              }
             }
+              |> Effect.retry(%, {
+                while: (e) => e._tag === "LoadBalancerStillDeleting",
+                schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(48)]),
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "LoadBalancerStillDeleting" }: (undefined as void);
+            default: throw e;
           }
-            |> Effect.retry(%, {
-              while: (e) => e._tag === "LoadBalancerStillDeleting",
-              schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(48)]),
-            }))) catch effect (e) => match (e) {
-              when { _tag: "LoadBalancerStillDeleting" }: try Effect.void;
-              default: throw e;
-            }
         },
       }
     },

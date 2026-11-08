@@ -214,16 +214,17 @@ export const MembershipsFeatureProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const location = normalizeLocation(resolved.location ?? olds?.location ?? output?.location)
       return replaceOnIdentity({
         previousId: olds?.featureId ?? output?.featureId,
-        nextId: news.featureId ?? olds?.featureId ?? output?.featureId,
+        nextId: resolved.featureId ?? olds?.featureId ?? output?.featureId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location),
         nextLocation: location,
         previousParent: olds?.membership ?? output?.membership,
-        nextParent: membershipName(news.membership, env.project, location),
+        nextParent: membershipName(resolved.membership, env.project, location),
       })
     },
 
@@ -240,7 +241,7 @@ export const MembershipsFeatureProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -256,7 +257,7 @@ export const MembershipsFeatureProvider = (): infer _ =>
       const membership = membershipName(news.membership, env.project, location)
       const name = resourceName(membership, featureId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -287,7 +288,7 @@ export const MembershipsFeatureProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const specChanged = news.spec !== undefined && fingerprint(current.spec) !== fingerprint(news.spec)
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
@@ -311,7 +312,7 @@ export const MembershipsFeatureProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (gkehub
+      const operation = (effect { return (try (gkehub
         .deleteProjectsLocationsMembershipsFeatures({
           name: output.name,
         })
@@ -319,7 +320,7 @@ export const MembershipsFeatureProvider = (): infer _ =>
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): the feature was already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

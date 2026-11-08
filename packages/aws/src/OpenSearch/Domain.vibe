@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as opensearch from "@distilled.cloud/aws/opensearch"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -390,8 +391,10 @@ export const DomainProvider = (): infer _ =>
       ) => (props.domainName ? props.domainName : try createPhysicalName({ id, maxLength: 28, lowercase: true }))
 
       const readDomain = effect (name: string) =>
-        (try opensearch.describeDomain({ DomainName: name })).DomainStatus catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try opensearch.describeDomain({ DomainName: name })).DomainStatus
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -420,9 +423,12 @@ export const DomainProvider = (): infer _ =>
         stables: ["domainName", "domainArn", "domainId"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           const o: DomainProps = olds ?? {}
-          const n: DomainProps = news ?? {}
+          const n: DomainProps = resolved ?? {}
           if ((try toName(id, o)) !== (try toName(id, n))) {
             return { action: "replace" } as const
           }
@@ -449,7 +455,9 @@ export const DomainProvider = (): infer _ =>
           const domain = try readDomain(name)
           if (domain === undefined) return undefined
           const attrs = try toAttrs(domain)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -493,7 +501,7 @@ export const DomainProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -501,6 +509,7 @@ export const DomainProvider = (): infer _ =>
           // Provisioning and blue/green config changes both surface as
           // Processing=true; wait (bounded) so config updates do not fail.
           observed = try waitForActive(name)
+          const activeDomain = observed
 
           // 3. Sync — compute the update delta from OBSERVED state.
           const update: opensearch.UpdateDomainConfigRequest = {
@@ -509,12 +518,24 @@ export const DomainProvider = (): infer _ =>
           let mutated = false
 
           const desiredCluster = toClusterConfig(props.clusterConfig)
-          if (subsetDiffers(desiredCluster, observed.ClusterConfig)) {
+          if (
+            (try Effect.orDie(
+              Effect.try({
+                try: () => subsetDiffers(desiredCluster, activeDomain.ClusterConfig),
+                catch: (error) => error,
+              }),
+            ))
+          ) {
             update.ClusterConfig = desiredCluster
             mutated = true
           }
           const desiredEbs = toEbsOptions(props.ebsOptions)
-          if (subsetDiffers(desiredEbs, observed.EBSOptions)) {
+          if (
+            (try Effect.orDie(Effect.try({
+              try: () => subsetDiffers(desiredEbs, activeDomain.EBSOptions),
+              catch: (error) => error,
+            })))
+          ) {
             update.EBSOptions = desiredEbs
             mutated = true
           }
@@ -546,17 +567,26 @@ export const DomainProvider = (): infer _ =>
           const desiredVpc = toVpcOptions(props.vpcOptions)
           if (
             desiredVpc !== undefined
-            && subsetDiffers(desiredVpc, {
-              SubnetIds: observed.VPCOptions?.SubnetIds,
-              SecurityGroupIds: observed.VPCOptions?.SecurityGroupIds,
-            })
+            && (try Effect.orDie(Effect.try({
+              try: () =>
+                subsetDiffers(desiredVpc, {
+                  SubnetIds: activeDomain.VPCOptions?.SubnetIds,
+                  SecurityGroupIds: activeDomain.VPCOptions?.SecurityGroupIds,
+                }),
+              catch: (error) => error,
+            })))
           ) {
             update.VPCOptions = desiredVpc
             mutated = true
           }
           if (
             props.advancedOptions !== undefined
-            && subsetDiffers(props.advancedOptions, observed.AdvancedOptions)
+            && (try Effect.orDie(
+              Effect.try({
+                try: () => subsetDiffers(props.advancedOptions, activeDomain.AdvancedOptions),
+                catch: (error) => error,
+              }),
+            ))
           ) {
             update.AdvancedOptions = props.advancedOptions
             mutated = true
@@ -564,7 +594,12 @@ export const DomainProvider = (): infer _ =>
           const desiredEndpointOptions = toEndpointOptions(props.domainEndpointOptions)
           if (
             desiredEndpointOptions !== undefined
-            && subsetDiffers(desiredEndpointOptions, observed.DomainEndpointOptions)
+            && (try Effect.orDie(
+              Effect.try({
+                try: () => subsetDiffers(desiredEndpointOptions, activeDomain.DomainEndpointOptions),
+                catch: (error) => error,
+              }),
+            ))
           ) {
             update.DomainEndpointOptions = desiredEndpointOptions
             mutated = true
@@ -610,7 +645,9 @@ export const DomainProvider = (): infer _ =>
 
           // 3c. Sync tags — diff against OBSERVED cloud tags.
           const observedTags = try readDomainTags(observed.ARN)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try opensearch.addTags({ ARN: observed.ARN, TagList: upsert })
           }
@@ -633,7 +670,7 @@ export const DomainProvider = (): infer _ =>
           repeatUntilDomainState(readDomain(name), isDomainDeletable) catch () => undefined
           opensearch
             .deleteDomain({ DomainName: name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },
@@ -649,15 +686,17 @@ export const DomainProvider = (): infer _ =>
                 %,
                 Effect.forEach(
                   effect (name) =>
-                    (try opensearch.describeDomain({ DomainName: name })).DomainStatus catch effect (e) => match (e) {
-                      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                    (effect {
+                      return (try opensearch.describeDomain({ DomainName: name })).DomainStatus
+                    }) catch effect (e) => match (e) {
+                      when { _tag: "ResourceNotFoundException" }: undefined;
                       default: throw e;
                     },
                   { concurrency: 4 },
                 ),
               ))).filter((domain): domain is opensearch.DomainStatus => domain !== undefined)
           }
-            |> Effect.flatMap(%, Effect.forEach((domain) => toAttrs(domain), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (domain) => try toAttrs(domain), { concurrency: 4 }))),
       }
     },
   )

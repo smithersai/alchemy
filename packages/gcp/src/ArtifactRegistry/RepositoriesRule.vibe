@@ -217,45 +217,70 @@ export const RepositoriesRuleProvider = (): infer _ =>
     stables: ["name", "ruleId", "repository", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.ruleId ?? output?.ruleId
-      const nextId = news.ruleId ?? previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? locationFromRepository(news.repository, previousLocation),
-        env.region,
+      const nextId = resolved.ruleId ?? previousId
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
-      return replaceOnIdentity({
-        previousId,
-        nextId,
-        previousLocation,
-        nextLocation,
-        previousParent: olds?.repository ?? output?.repository,
-        nextParent: news.repository,
-      })
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? locationFromRepository(resolved.repository, previousLocation),
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId,
+            nextId,
+            previousLocation,
+            nextLocation,
+            previousParent: olds?.repository ?? output?.repository,
+            nextParent: resolved.repository,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? locationFromRepository(olds?.repository ?? output?.repository, env.region),
-        env.region,
-      )
-      const repository = expandRepository(
-        olds?.repository ?? output?.repository ?? "",
-        env.project,
-        location,
-      )
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location
+              ?? output?.location
+              ?? locationFromRepository(olds?.repository ?? output?.repository, env.region),
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandRepository(
+            olds?.repository ?? output?.repository ?? "",
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
       const ruleId = try toPhysicalId(id, olds?.ruleId, output?.ruleId, "rule")
       const name = output?.name ?? resourceNameOf(repository, ruleId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(existing.condition?.title)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.condition?.title), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -269,11 +294,17 @@ export const RepositoriesRuleProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? output?.location ?? locationFromRepository(news.repository, env.region),
-        env.region,
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location ?? locationFromRepository(news.repository, env.region),
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandRepository(news.repository, env.project, location), catch: (e) => e }),
       )
-      const repository = expandRepository(news.repository, env.project, location)
       const ruleId = try toPhysicalId(id, news.ruleId, output?.ruleId, "rule")
       const name = resourceNameOf(repository, ruleId)
       const ownership = try createInternalLabels(id)
@@ -307,13 +338,20 @@ export const RepositoriesRuleProvider = (): infer _ =>
       const actionChanged = normalizeAction(current.action ?? "") !== action
       const operationChanged = normalizeOperation(current.operation) !== operation
       const packageChanged = !sameText(current.packageId, packageId)
-      const conditionChanged = !sameJson(current.condition, condition)
-      const updateMask = fieldMask([
-        actionChanged && "action",
-        operationChanged && "operation",
-        packageChanged && "packageId",
-        conditionChanged && "condition",
-      ])
+      const conditionChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.condition, condition),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            actionChanged && "action",
+            operationChanged && "operation",
+            packageChanged && "packageId",
+            conditionChanged && "condition",
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try artifactregistry.patchProjectsLocationsRepositoriesRules({

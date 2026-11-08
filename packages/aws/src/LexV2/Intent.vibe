@@ -110,26 +110,27 @@ export const Intent = Resource<Intent>("AWS.LexV2.Intent")
 
 const createIntentName = effect (id: string, props: { intentName?: string | undefined }) => {
   if (props.intentName) return props.intentName
-  return toLexName(try createPhysicalName({ id, maxLength: 100 }))
+  const name = try createPhysicalName({ id, maxLength: 100 })
+  return try Effect.orDie(Effect.try({ try: () => toLexName(name), catch: (e) => e }))
 }
 
 const describeIntent = effect (botId: string, localeId: string, intentId: string) =>
   lexm
     .describeIntent({ botId, botVersion: "DRAFT", localeId, intentId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 
 /** Find an intent of the locale by exact name (used when state was lost). */
 const findIntentByName = effect (botId: string, localeId: string, intentName: string) => {
-  const pages = (try (lexm.listIntents
+  const pages = (effect { return (try (lexm.listIntents
     .pages({
       botId,
       botVersion: "DRAFT",
       localeId,
       filters: [{ name: "IntentName", values: [intentName], operator: "EQ" }],
     })
-    |> Stream.runCollect(%))) catch effect (e) => match (e) {
+    |> Stream.runCollect(%))) }) catch effect (e) => match (e) {
       when { _tag: "ResourceNotFoundException" }: [] as lexm.ListIntentsResponse[];
       default: throw e;
     }
@@ -176,8 +177,9 @@ export const IntentProvider = (): infer _ =>
         },
 
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
-          if (olds?.botId !== news.botId || olds?.localeId !== news.localeId) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if (olds?.botId !== resolved.botId || olds?.localeId !== resolved.localeId) {
             return { action: "replace" } as const
           }
         },
@@ -266,7 +268,7 @@ export const IntentProvider = (): infer _ =>
               intentId: output.intentId,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "PreconditionFailedException" }: try Effect.void;
+            when { _tag: "PreconditionFailedException" }: (undefined as void);
             default: throw e;
           }
         },

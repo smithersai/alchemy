@@ -240,22 +240,33 @@ export const ManagementServerProvider = (): infer _ =>
     stables: ["name", "managementServerId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.type ?? output?.type
-      const previousNetworks = fingerprint(olds?.networks ?? output?.networks)
-      const nextNetworks = news.networks === undefined ? previousNetworks : fingerprint(news.networks)
-      return replaceOnIdentity({
+      const previousNetworks = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(olds?.networks ?? output?.networks), catch: (e) => e }),
+      )
+      const nextNetworks = try Effect.orDie(
+        Effect.try({
+          try: () => resolved.networks === undefined ? previousNetworks : fingerprint(resolved.networks),
+          catch: (e) => e,
+        }),
+      )
+      const input = {
         previousId: olds?.managementServerId ?? output?.managementServerId,
-        nextId: news.managementServerId ?? olds?.managementServerId ?? output?.managementServerId,
+        nextId: resolved.managementServerId ?? olds?.managementServerId ?? output?.managementServerId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
-        extra: (previousType !== undefined && news.type !== undefined && previousType !== news.type)
+        extra: (previousType !== undefined && resolved.type !== undefined && previousType !== resolved.type)
           || previousNetworks !== nextNetworks,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -266,12 +277,19 @@ export const ManagementServerProvider = (): infer _ =>
         output?.managementServerId,
         "mgmtserver",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, managementServerId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -288,10 +306,12 @@ export const ManagementServerProvider = (): infer _ =>
         output?.managementServerId,
         "mgmtserver",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, managementServerId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const networks = toNetworks(env.project, news.networks)
@@ -334,13 +354,15 @@ export const ManagementServerProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (backupdr
-        .deleteProjectsLocationsManagementServers({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (backupdr
+          .deleteProjectsLocationsManagementServers({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

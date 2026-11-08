@@ -169,11 +169,19 @@ export const JobTriggerProvider = (): infer _ =>
     stables: ["name", "triggerId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previous = olds?.triggerId ?? output?.triggerId
-      return replaceOnIdentity(
-        previous !== undefined && news.triggerId !== undefined && news.triggerId !== previous,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const previous = olds?.triggerId ?? output?.triggerId
+      const changed = previous !== undefined && resolved.triggerId !== undefined && resolved.triggerId !== previous
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity(
+            changed,
+          ),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -183,7 +191,9 @@ export const JobTriggerProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -208,7 +218,9 @@ export const JobTriggerProvider = (): infer _ =>
       const triggerId = try toResourceId(id, news.triggerId, output?.triggerId)
       const name = resourceName(env.project, triggerId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const status = news.status ?? DEFAULT_STATUS
       const body: dlp.GooglePrivacyDlpV2JobTrigger = {
         displayName: news.displayName,
@@ -239,8 +251,13 @@ export const JobTriggerProvider = (): infer _ =>
       const displayChanged = !sameText(current.displayName, news.displayName)
       const descriptionChanged = (current.description ?? "") !== description
       const statusChanged = (current.status ?? "") !== status
-      const inspectChanged = !jsonEqual(current.inspectJob, news.inspectJob)
-      const triggersChanged = !jsonEqual(current.triggers, news.triggers)
+      const inspectChanged = !(try Effect.orDie(
+        Effect.try({ try: jsonEqual.bind(undefined, current.inspectJob, news.inspectJob), catch: (e) => e }),
+      ))
+      const triggersChanged = !(try Effect.orDie(Effect.try({
+        try: jsonEqual.bind(undefined, current.triggers, news.triggers),
+        catch: (e) => e,
+      })))
 
       if (
         displayChanged
@@ -253,13 +270,17 @@ export const JobTriggerProvider = (): infer _ =>
           name: current.name ?? name,
           body: {
             jobTrigger: body,
-            updateMask: updateMaskOf(
-              displayChanged ? "displayName" : undefined,
-              descriptionChanged ? "description" : undefined,
-              statusChanged ? "status" : undefined,
-              inspectChanged ? "inspectJob" : undefined,
-              triggersChanged ? "triggers" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "displayName" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  statusChanged ? "status" : undefined,
+                  inspectChanged ? "inspectJob" : undefined,
+                  triggersChanged ? "triggers" : undefined,
+                ),
+              catch: (e) => e,
+            })),
           },
         })
       }

@@ -226,7 +226,7 @@ const listLocation = effect (project: string, location: string) =>
     effect {
       return (try collectPages(
         dataproc.listProjectsLocationsBatches.pages({
-          parent: locationParent(project, location),
+          parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, location), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.batches,
@@ -241,15 +241,24 @@ export const BatchProvider = (): infer _ =>
     stables: ["name", "batchId", "project", "location", "uuid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.batchId ?? output?.batchId
-      const nextId = news.batchId ?? previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const nextId = resolved.batchId ?? previousId
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       if (
         (previousId !== undefined && nextId !== undefined && previousId !== nextId)
         || (output !== undefined && previousLocation !== nextLocation)
@@ -264,7 +273,9 @@ export const BatchProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const batchId = try toPhysicalId(
         id,
         olds?.batchId,
@@ -276,7 +287,12 @@ export const BatchProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, location)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -291,7 +307,9 @@ export const BatchProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const batchId = try toPhysicalId(
         id,
         news.batchId,
@@ -301,7 +319,7 @@ export const BatchProvider = (): infer _ =>
       )
       const name = resourceName(env.project, location, batchId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desired = desiredBody(news, desiredLabels)
@@ -331,12 +349,14 @@ export const BatchProvider = (): infer _ =>
     delete: effect ({ output }) => {
       if (!output.name) return
       try waitUntilTerminal(output.name)
-      ;(try (dataproc.deleteProjectsLocationsBatches({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
-          times: 8,
-          schedule: Schedule.spaced("5 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try (dataproc.deleteProjectsLocationsBatches({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(getByName(output.name), output.name)
     },
   })

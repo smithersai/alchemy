@@ -173,25 +173,37 @@ export const PlatformsPolicyProvider = (): infer _ =>
     stables: ["name", "policyId", "platform", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousId: olds?.policyId ?? output?.policyId,
-        nextId: news.policyId,
-        previousParent: olds?.platform ?? output?.platform,
-        nextParent: news.platform ?? output?.platform ?? DEFAULT_PLATFORM,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.policyId ?? output?.policyId,
+            nextId: resolved.policyId,
+            previousParent: olds?.platform ?? output?.platform,
+            nextParent: resolved.platform ?? output?.platform ?? DEFAULT_PLATFORM,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const policyId = try toPhysicalId(id, olds?.policyId, output?.policyId, "policy")
       const platform = olds?.platform ?? output?.platform ?? DEFAULT_PLATFORM
-      const name = output?.name ?? policyName(env.project, platform, policyId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => policyName(env.project, platform, policyId), catch: (e) => e })))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -206,10 +218,14 @@ export const PlatformsPolicyProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const policyId = try toPhysicalId(id, news.policyId, output?.policyId, "policy")
       const platform = news.platform ?? output?.platform ?? DEFAULT_PLATFORM
-      const name = policyName(env.project, platform, policyId)
+      const name = try Effect.orDie(
+        Effect.try({ try: () => policyName(env.project, platform, policyId), catch: (e) => e }),
+      )
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
-      const desiredGke = gkePolicyOf(news.gkePolicy)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const desiredGke = try Effect.orDie(Effect.try({ try: () => gkePolicyOf(news.gkePolicy), catch: (e) => e }))
 
       let current = try getByName(output?.name ?? name)
 
@@ -229,7 +245,9 @@ export const PlatformsPolicyProvider = (): infer _ =>
       }
 
       const descriptionChanged = !sameText(current.description, desiredDescription)
-      const gkeChanged = !sameJson(gkePolicyOf(current.gkePolicy), desiredGke)
+      const gkeChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, gkePolicyOf(current.gkePolicy), desiredGke), catch: (e) => e }),
+      ))
 
       if (descriptionChanged || gkeChanged) {
         current = try retryTransient(
@@ -249,11 +267,13 @@ export const PlatformsPolicyProvider = (): infer _ =>
           name: output.name,
           etag: output.etag,
         }) catch effect (e) =>
-          match (e) {
-            when { _tag: "Conflict" }: try binaryauthorization.deleteProjectsPlatformsPolicies({
-              name: output.name,
-            });
-            default: throw e;
-          } catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+          (effect {
+            return match (e) {
+              when { _tag: "Conflict" }: try binaryauthorization.deleteProjectsPlatformsPolicies({
+                name: output.name,
+              });
+              default: throw e;
+            }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
     },
   })

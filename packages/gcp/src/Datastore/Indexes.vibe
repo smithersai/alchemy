@@ -138,14 +138,17 @@ export const IndexProvider = (): infer _ =>
     stables: ["name", "indexId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return replaceOnIdentity({
         previousKind: olds?.kind ?? output?.kind ?? "",
-        nextKind: news.kind ?? output?.kind ?? "",
+        nextKind: resolved.kind ?? output?.kind ?? "",
         previousAncestor: normalizeEnum(olds?.ancestor ?? output?.ancestor, DEFAULT_ANCESTOR),
-        nextAncestor: normalizeEnum(news.ancestor, DEFAULT_ANCESTOR),
+        nextAncestor: normalizeEnum(resolved.ancestor, DEFAULT_ANCESTOR),
         previousProperties: propertiesKey(olds?.properties ?? output?.properties),
-        nextProperties: propertiesKey(news.properties),
+        nextProperties: propertiesKey(resolved.properties),
       })
     },
 
@@ -169,7 +172,9 @@ export const IndexProvider = (): infer _ =>
       if (found === undefined) return undefined
       const attrs = toAttrs(found, env.project)
       // A generated kind is unique to this stack, stage and id.
-      return kind === generatedKind ? attrs : Unowned(attrs)
+      return kind === generatedKind
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -200,7 +205,7 @@ export const IndexProvider = (): infer _ =>
           .createProjectsIndexes({
             projectId: env.project,
             body,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           let indexId = indexIdFromOperation(created)
           if (indexId === undefined && created.name !== undefined) {
@@ -235,19 +240,21 @@ export const IndexProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       if (output.indexId.length > 0) {
         waitUntilDeletable(env.project, output.indexId) catch effect (e) => match (e) {
-          when { _tag: "GCP.Datastore.IndexNotResolved" }: try Effect.void;
+          when { _tag: "GCP.Datastore.IndexNotResolved" }: (undefined as void);
           default: throw e;
         }
-        ;(try (datastore
-          .deleteProjectsIndexes({
-            projectId: env.project,
-            indexId: output.indexId,
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
-            times: 8,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        ;(effect {
+          return (try (datastore
+            .deleteProjectsIndexes({
+              projectId: env.project,
+              indexId: output.indexId,
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
+              times: 8,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
         try waitUntilGone(env.project, output.indexId)
       }
     },

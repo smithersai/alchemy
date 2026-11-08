@@ -3,8 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import type { Input } from "alchemy/Input"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { AccountID } from "../Environment.ts"
 import { plainJson } from "../internal/Observe.ts"
 import type { Providers } from "../Providers.ts"
@@ -296,8 +294,11 @@ export const ListenerProvider = (): infer _ =>
   Provider.succeed(Listener, {
     stables: ["listenerArn", "loadBalancerArn"],
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return
-      if (olds.loadBalancerArn !== news.loadBalancerArn) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if (olds.loadBalancerArn !== resolved.loadBalancerArn) {
         return { action: "replace" } as const
       }
     },
@@ -309,7 +310,7 @@ export const ListenerProvider = (): infer _ =>
         .describeListeners({
           ListenerArns: [output.listenerArn],
         }) catch effect (e) => match (e) {
-          when { _tag: "ListenerNotFoundException" }: try Effect.undefined;
+          when { _tag: "ListenerNotFoundException" }: undefined;
           default: throw e;
         }
       const listener = described?.Listeners?.[0]
@@ -351,20 +352,22 @@ export const ListenerProvider = (): infer _ =>
       const rows = try Effect.forEach(
         loadBalancerArns,
         effect (loadBalancerArn) =>
-          (Array.from(
-            try (elbv2.describeListeners.pages({ LoadBalancerArn: loadBalancerArn })
-              |> Stream.runCollect(%)),
-          ).flatMap((page) =>
-            (page.Listeners ?? [])
-              .filter((l): l is typeof l & { ListenerArn: string } => l.ListenerArn != null)
-              .map((listener) => ({
-                listenerArn: listener.ListenerArn as ListenerArn,
-                loadBalancerArn: listener.LoadBalancerArn as LoadBalancerArn,
-                targetGroupArn: defaultForwardTargetGroup(listener.DefaultActions),
-                port: listener.Port!,
-                protocol: listener.Protocol!,
-              }))
-          )) catch effect (e) => match (e) {
+          (effect {
+            return (Array.from(
+              try (elbv2.describeListeners.pages({ LoadBalancerArn: loadBalancerArn })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.Listeners ?? [])
+                .filter((l): l is typeof l & { ListenerArn: string } => l.ListenerArn != null)
+                .map((listener) => ({
+                  listenerArn: listener.ListenerArn as ListenerArn,
+                  loadBalancerArn: listener.LoadBalancerArn as LoadBalancerArn,
+                  targetGroupArn: defaultForwardTargetGroup(listener.DefaultActions),
+                  port: listener.Port!,
+                  protocol: listener.Protocol!,
+                }))
+            ))
+          }) catch effect (e) => match (e) {
             when { _tag: "LoadBalancerNotFoundException" }: [];
             when { _tag: "ListenerNotFoundException" }: [];
             default: throw e;
@@ -389,7 +392,7 @@ export const ListenerProvider = (): infer _ =>
           .describeListeners({
             ListenerArns: [output.listenerArn],
           }) catch effect (e) => match (e) {
-            when { _tag: "ListenerNotFoundException" }: try Effect.undefined;
+            when { _tag: "ListenerNotFoundException" }: undefined;
             default: throw e;
           }
         listener = described?.Listeners?.[0]
@@ -399,8 +402,8 @@ export const ListenerProvider = (): infer _ =>
           .describeListeners({
             LoadBalancerArn: loadBalancerArn,
           }) catch effect (e) => match (e) {
-            when { _tag: "LoadBalancerNotFoundException" }: try Effect.undefined;
-            when { _tag: "ListenerNotFoundException" }: try Effect.undefined;
+            when { _tag: "LoadBalancerNotFoundException" }: undefined;
+            when { _tag: "ListenerNotFoundException" }: undefined;
             default: throw e;
           }
         listener = listed?.Listeners?.find((l) => l.Port === news.port)
@@ -464,7 +467,7 @@ export const ListenerProvider = (): infer _ =>
         const desiredSni = new Set(certs.slice(1))
         const observedCerts = elbv2
           .describeListenerCertificates({ ListenerArn: listenerArn }) catch effect (e) => match (e) {
-            when { _tag: "ListenerNotFoundException" }: try Effect.undefined;
+            when { _tag: "ListenerNotFoundException" }: undefined;
             default: throw e;
           }
         const observedSni = (observedCerts?.Certificates ?? [])
@@ -505,7 +508,7 @@ export const ListenerProvider = (): infer _ =>
         .deleteListener({
           ListenerArn: output.listenerArn,
         }) catch effect (e) => match (e) {
-          when { _tag: "ListenerNotFoundException" }: try Effect.void;
+          when { _tag: "ListenerNotFoundException" }: (undefined as void);
           default: throw e;
         }
     },

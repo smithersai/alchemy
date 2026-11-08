@@ -13,8 +13,6 @@ import { deepEqual, isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -423,11 +421,11 @@ const getById = effect (card: string) =>
       return (live.status === "canceled" ? undefined : live)
     }
   }
-    |> Effect.catchIf(%, isMissingCard, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingCard, effect () => undefined))
 
 const getByIdAny = effect (card: string) =>
   try (GetIssuingCard({ card })
-    |> Effect.catchIf(%, isMissingCard, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissingCard, effect () => undefined))
 
 const listByStatus = effect (status: "active" | "inactive") => {
   const cards: StripeIssuingCard[] = []
@@ -469,7 +467,12 @@ const findByAlchemyId = effect (id: string) => {
   const cards = try listLiveCards()
   const matches: StripeIssuingCard[] = []
   for (const card of cards) {
-    if (try hasAlchemyMetadata(id, tagRecord(card.metadata))) {
+    if (
+      try hasAlchemyMetadata(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(card.metadata), catch: (e) => e })),
+      )
+    ) {
       matches.push(card)
     }
   }
@@ -541,8 +544,11 @@ export const IssuingCardProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -555,7 +561,12 @@ export const IssuingCardProvider = (): infer _ =>
       })
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -611,9 +622,13 @@ export const IssuingCardProvider = (): infer _ =>
             : {}),
           ...(spendingControls !== undefined ? { spending_controls: spendingControls } : {}),
         })
-          |> withRequestOptions({
-            idempotencyKey: `alchemy-issuing-card-${instanceId}`,
-          })(%))
+          |> (try Effect.orDie(Effect.try({
+            try: () =>
+              withRequestOptions({
+                idempotencyKey: `alchemy-issuing-card-${instanceId}`,
+              }),
+            catch: (e) => e,
+          })))(%))
       }
 
       if (current === undefined) {
@@ -623,16 +638,26 @@ export const IssuingCardProvider = (): infer _ =>
         })
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }),
+      )
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const statusChanged = current.status !== desiredStatus
       const personalizationChanged = news.personalizationDesign !== undefined
         && expandedId(current.personalization_design) !== news.personalizationDesign
       const spendingChanged = news.spendingControls !== undefined
-        && !deepEqual(news.spendingControls, toSpendingControls(current.spending_controls), {
-          stripNullish: true,
-        })
+        && !(try Effect.orDie(
+          Effect.try({
+            try: () =>
+              deepEqual(news.spendingControls, toSpendingControls(current.spending_controls), {
+                stripNullish: true,
+              }),
+            catch: (e) => e,
+          }),
+        ))
 
       if (!statusChanged && !personalizationChanged && !spendingChanged && !metadataChanged) {
         return toAttrs(current)
@@ -662,6 +687,6 @@ export const IssuingCardProvider = (): infer _ =>
         card: existing.id,
         status: "canceled",
       })
-        |> Effect.catchIf(%, isMissingCard, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissingCard, effect () => (undefined as void)))
     },
   })

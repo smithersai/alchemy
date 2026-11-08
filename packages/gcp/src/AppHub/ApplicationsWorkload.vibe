@@ -220,41 +220,56 @@ export const ApplicationsWorkloadProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousDiscovered = olds?.discoveredWorkload ?? output?.discoveredWorkload
-      return replaceOnIdentity({
-        previousId: olds?.workloadId ?? output?.workloadId,
-        nextId: news.workloadId ?? olds?.workloadId ?? output?.workloadId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.application ?? output?.application,
-        nextParent: news.application,
-        extra: previousDiscovered !== undefined
-          && news.discoveredWorkload !== undefined
-          && previousDiscovered !== news.discoveredWorkload
-          && !previousDiscovered.endsWith(`/${news.discoveredWorkload}`)
-          && !news.discoveredWorkload.endsWith(`/${previousDiscovered}`),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.workloadId ?? output?.workloadId,
+            nextId: resolved.workloadId ?? olds?.workloadId ?? output?.workloadId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.application ?? output?.application,
+            nextParent: resolved.application,
+            extra: previousDiscovered !== undefined
+              && resolved.discoveredWorkload !== undefined
+              && previousDiscovered !== resolved.discoveredWorkload
+              && !previousDiscovered.endsWith(`/${resolved.discoveredWorkload}`)
+              && !resolved.discoveredWorkload.endsWith(`/${previousDiscovered}`),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const workloadId = try toPhysicalId(id, olds?.workloadId, output?.workloadId, "workload")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const application = expandApplication(
-        olds?.application ?? output?.application ?? "",
-        env.project,
-        location,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const application = try Effect.orDie(Effect.try({
+        try: () =>
+          expandApplication(
+            olds?.application ?? output?.application ?? "",
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
       const name = output?.name ?? resourceName(application, workloadId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -266,14 +281,20 @@ export const ApplicationsWorkloadProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const workloadId = try toPhysicalId(id, news.workloadId, output?.workloadId, "workload")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const application = expandApplication(news.application, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const application = try Effect.orDie(
+        Effect.try({ try: () => expandApplication(news.application, env.project, location), catch: (e) => e }),
+      )
       const name = resourceName(application, workloadId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName ?? workloadId
       const discoveredWorkload = try resolveDiscoveredWorkload(
-        locationParent(env.project, location),
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e })),
         news.discoveredWorkload,
         env.project,
         location,
@@ -309,13 +330,16 @@ export const ApplicationsWorkloadProvider = (): infer _ =>
         (item) => item.state,
       )
 
-      const mask = fieldMask([
+      const fields = [
         !sameText(current.description, description) && "description",
         !sameText(current.displayName, displayName) && "displayName",
         news.attributes !== undefined
-        && !sameJson(current.attributes, news.attributes)
+        && !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.attributes, news.attributes), catch: (e) => e }),
+        ))
         && "attributes",
-      ])
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
 
       if (mask.length > 0) {
         const operation = try apphub.patchProjectsLocationsApplicationsWorkloads({
@@ -339,13 +363,15 @@ export const ApplicationsWorkloadProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apphub
-        .deleteProjectsLocationsApplicationsWorkloads({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apphub
+          .deleteProjectsLocationsApplicationsWorkloads({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

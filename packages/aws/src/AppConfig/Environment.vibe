@@ -113,15 +113,17 @@ export const EnvironmentProvider = (): infer _ =>
             ApplicationId: applicationId,
             EnvironmentId: environmentId,
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       const findByName = effect (applicationId: string, name: string) => {
-        const envs = (Array.from(
-          try (appconfig.listEnvironments.pages({ ApplicationId: applicationId })
-            |> Stream.runCollect(%)),
-        ).flatMap((page) => page.Items ?? [])) catch effect (e) => match (e) {
+        const envs = (effect {
+          return (Array.from(
+            try (appconfig.listEnvironments.pages({ ApplicationId: applicationId })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Items ?? []))
+        }) catch effect (e) => match (e) {
           when { _tag: "ResourceNotFoundException" }: [] as appconfig.Environment[];
           default: throw e;
         }
@@ -132,11 +134,14 @@ export const EnvironmentProvider = (): infer _ =>
         stables: ["environmentId", "environmentName", "applicationId", "environmentArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
-          if ((olds?.applicationId ?? undefined) !== news?.applicationId) {
+          if ((olds?.applicationId ?? undefined) !== resolved?.applicationId) {
             return { action: "replace" } as const
           }
         },
@@ -158,7 +163,9 @@ export const EnvironmentProvider = (): infer _ =>
             state: env.State ?? "",
           }
           const tags = try readAppConfigTags(arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -216,7 +223,7 @@ export const EnvironmentProvider = (): infer _ =>
               ApplicationId: output.applicationId,
               EnvironmentId: output.environmentId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },
@@ -240,10 +247,13 @@ export const EnvironmentProvider = (): infer _ =>
           }[] = []
           for (const app of apps) {
             if (app.Id === undefined) continue
-            const envs = (Array.from(
-              try (appconfig.listEnvironments.pages({ ApplicationId: app.Id })
-                |> Stream.runCollect(%)),
-            ).flatMap((page) => page.Items ?? [])) catch effect (e) => match (e) {
+            const applicationId = app.Id
+            const envs = (effect {
+              return (Array.from(
+                try (appconfig.listEnvironments.pages({ ApplicationId: applicationId })
+                  |> Stream.runCollect(%)),
+              ).flatMap((page) => page.Items ?? []))
+            }) catch effect (e) => match (e) {
               when { _tag: "ResourceNotFoundException" }: [] as appconfig.Environment[];
               default: throw e;
             }

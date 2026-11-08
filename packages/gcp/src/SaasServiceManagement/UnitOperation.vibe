@@ -319,7 +319,8 @@ export const UnitOperationProvider = (): infer _ =>
     stables: ["name", "unitOperationId", "project", "location", "unitId", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKind = operationKind({
         provision: olds?.provision ?? output?.provision,
@@ -327,15 +328,15 @@ export const UnitOperationProvider = (): infer _ =>
         deprovision: olds?.deprovision ?? output?.deprovision,
         flagUpdate: olds?.flagUpdate ?? output?.flagUpdate,
       })
-      const nextKind = operationKind(news) || previousKind
+      const nextKind = operationKind(resolved) || previousKind
       return replaceOnIdentity({
         previousId: olds?.unitOperationId ?? output?.unitOperationId,
-        nextId: news.unitOperationId ?? olds?.unitOperationId ?? output?.unitOperationId,
+        nextId: resolved.unitOperationId ?? olds?.unitOperationId ?? output?.unitOperationId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
         ),
-        extra: !sameRef(olds?.unit ?? output?.unit, news.unit)
+        extra: !sameRef(olds?.unit ?? output?.unit, resolved.unit)
           || (previousKind.length > 0 && nextKind.length > 0 && previousKind !== nextKind),
       })
     },
@@ -353,7 +354,7 @@ export const UnitOperationProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -373,7 +374,7 @@ export const UnitOperationProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location ?? env.region)
       const name = resourceName(env.project, location, COLLECTION, unitOperationId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const unit = expandName(news.unit, env.project, location, "units")
@@ -413,7 +414,7 @@ export const UnitOperationProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const annotationsChanged = annotations !== undefined
         && fingerprint(userAnnotations(current.annotations)) !== fingerprint(annotations)
@@ -446,12 +447,12 @@ export const UnitOperationProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (saasservicemgmt.deleteProjectsLocationsUnitOperations({ name: output.name })
+      ;(effect { return (try (saasservicemgmt.deleteProjectsLocationsUnitOperations({ name: output.name })
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(getByName(output.name), output.name)
     },
   })

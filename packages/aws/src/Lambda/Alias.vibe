@@ -198,9 +198,10 @@ export const AliasProvider = (): infer _ =>
       return {
         stables: ["aliasArn", "aliasName", "functionName"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const resolvedOlds = resolvedProps(olds)
-          const resolvedNews = resolvedProps(news)
+          const resolvedNews = resolvedProps(resolved)
           // An interrupted create persists the Version reference as missing
           // (see stripUnresolved); there is no old function to compare.
           if (resolvedOlds.version === undefined) return
@@ -226,7 +227,7 @@ export const AliasProvider = (): infer _ =>
             FunctionName: functionName,
             Name: aliasName,
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
           const attrs = alias ? snapshotAlias(functionName, alias, region) : undefined
@@ -249,13 +250,13 @@ export const AliasProvider = (): infer _ =>
           const aliases = try Effect.forEach(
             functionNames,
             effect (functionName) =>
-              (Array.from(
+              (effect { return (Array.from(
                 try (Lambda.listAliases.items({ FunctionName: functionName })
                   |> Stream.runCollect(%)),
               ).flatMap((alias) => {
                 const attrs = snapshotAlias(functionName, alias, region)
                 return attrs ? [attrs] : []
-              })) catch effect (e) => match (e) {
+              })) }) catch effect (e) => match (e) {
                 when { _tag: "ResourceNotFoundException" }: [] as Alias["Attributes"][];
                 default: throw e;
               },
@@ -275,7 +276,7 @@ export const AliasProvider = (): infer _ =>
               FunctionName: functionName,
               Name: aliasName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           }
@@ -300,7 +301,7 @@ export const AliasProvider = (): infer _ =>
             !alias
             || alias.FunctionVersion !== functionVersion
             || (alias.Description || undefined) !== resolvedNews.description
-            || !deepEqual(observedRoutingConfig, desiredRoutingConfig)
+            || !(try Effect.orDie(Effect.try({ try: () => deepEqual(observedRoutingConfig, desiredRoutingConfig), catch: (e) => e })))
           ) {
             alias = try retryOnAliasConflict(
               Lambda.updateAlias({
@@ -348,7 +349,7 @@ export const AliasProvider = (): infer _ =>
               Name: output.aliasName,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

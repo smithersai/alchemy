@@ -163,15 +163,22 @@ export const SpaceProvider = (): infer _ =>
     stables: ["name", "spaceId", "organization", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.spaceId ?? output?.spaceId
       const idChanged = previousId !== undefined
-        && news.spaceId !== undefined
-        && rfc1035(news.spaceId) !== previousId
+        && resolved.spaceId !== undefined
+        && rfc1035(resolved.spaceId) !== previousId
       const previousOrg = olds?.organization ?? output?.organization
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization, previousOrg) !== previousOrg
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization, previousOrg) !== previousOrg,
+        catch: (e) => e,
+      }))
       if (idChanged || orgChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -180,30 +187,38 @@ export const SpaceProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const org = orgIdOf(olds?.organization ?? output?.organization, env.project)
+      const org = try Effect.orDie(
+        Effect.try({ try: () => orgIdOf(olds?.organization ?? output?.organization, env.project), catch: (e) => e }),
+      )
       const spaceId = try toId(id, olds?.spaceId, output?.spaceId)
       const name = output?.name ?? resourceName(org, spaceId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, org)
-      const { labels } = parseOwnership(existing.displayName)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.displayName), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const org = env.project
-      return (Array.from(
-        try (apigee.listOrganizationsSpaces
-          .pages({
-            parent: orgParent(org),
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.spaces ?? []))
-          |> Stream.filter(%, (space) => hasOwnershipMarker(space.displayName))
-          |> Stream.map(%, (space) => toAttrs(space, org))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsSpaces
+            .pages({
+              parent: try Effect.orDie(Effect.try({ try: () => orgParent(org), catch: (e) => e })),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.spaces ?? []))
+            |> Stream.filter(%, (space) => hasOwnershipMarker(space.displayName))
+            |> Stream.map(%, (space) => toAttrs(space, org))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
         default: throw e;
       }
@@ -211,11 +226,15 @@ export const SpaceProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const org = orgIdOf(news.organization ?? output?.organization, env.project)
+      const org = try Effect.orDie(
+        Effect.try({ try: () => orgIdOf(news.organization ?? output?.organization, env.project), catch: (e) => e }),
+      )
       const spaceId = try toId(id, news.spaceId, output?.spaceId)
       const name = resourceName(org, spaceId)
       const ownership = try createInternalLabels(id)
-      const desiredDisplayName = encodeOwnership(ownership, news.displayName)
+      const desiredDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.displayName), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 

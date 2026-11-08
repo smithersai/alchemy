@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as schemas from "@distilled.cloud/aws/schemas"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -116,7 +117,7 @@ export const RegistryProvider = (): infer _ =>
       const describe = effect (registryName: string) =>
         schemas
           .describeRegistry({ RegistryName: registryName }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -147,11 +148,14 @@ export const RegistryProvider = (): infer _ =>
             registryName,
             registryArn: found.RegistryArn!,
           }
-          return (try hasAlchemyTags(id, found.Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, found.Tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -170,7 +174,10 @@ export const RegistryProvider = (): infer _ =>
               .createRegistry({
                 RegistryName: registryName,
                 Description: news.description,
-              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (undefined as void);
+                default: throw e;
+              }
             live = try schemas.describeRegistry({
               RegistryName: registryName,
             })
@@ -192,12 +199,14 @@ export const RegistryProvider = (): infer _ =>
             : typeof news.policy === "string"
             ? news.policy
             : stringifyPolicyDocument(news.policy)
-          const currentPolicy = (try effect {
-            const r = try schemas
-              .getResourcePolicy({ RegistryName: registryName })
-            return (r.Policy ? r.Policy : undefined)
+          const currentPolicy = (effect {
+            return (try effect {
+              const r = try schemas
+                .getResourcePolicy({ RegistryName: registryName })
+              return (r.Policy ? r.Policy : undefined)
+            })
           }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
           const policyDrifted = desiredPolicy === undefined || currentPolicy === undefined
@@ -207,7 +216,7 @@ export const RegistryProvider = (): infer _ =>
             if (desiredPolicy === undefined) {
               schemas
                 .deleteResourcePolicy({ RegistryName: registryName }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             } else {
@@ -233,7 +242,7 @@ export const RegistryProvider = (): infer _ =>
           if (force !== true) {
             schemas
               .deleteRegistry({ RegistryName }) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.void;
+                when { _tag: "NotFoundException" }: (undefined as void);
                 default: throw e;
               }
             return
@@ -249,31 +258,33 @@ export const RegistryProvider = (): infer _ =>
             )
             try Effect.forEach(
               childSchemas,
-              effect (schema) => (schema.SchemaName === undefined ? try Effect.void : schemas
+              effect (schema) => (schema.SchemaName === undefined ? (undefined as void) : schemas
                 .deleteSchema({
                   RegistryName,
                   SchemaName: schema.SchemaName,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }),
               { concurrency: 4, discard: true },
             )
             schemas
               .deleteResourcePolicy({ RegistryName }) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.void;
+                when { _tag: "NotFoundException" }: (undefined as void);
                 default: throw e;
               }
             try schemas.deleteRegistry({ RegistryName })
           }
-          ;(try (purgeAndDelete
-            |> Effect.retry(%, {
-              while: (e) =>
-                e._tag === "BadRequestException"
-                || e._tag === "InternalServerErrorException"
-                || e._tag === "ServiceUnavailableException",
-              schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
-            }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+          ;(effect {
+            return (try (purgeAndDelete
+              |> Effect.retry(%, {
+                while: (e) =>
+                  e._tag === "BadRequestException"
+                  || e._tag === "InternalServerErrorException"
+                  || e._tag === "ServiceUnavailableException",
+                schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+              })))
+          }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
         },
       })
     },

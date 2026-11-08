@@ -224,7 +224,7 @@ const sameCdnPolicy = (
 const getByName = effect (project: string, name: string) =>
   compute
     .getBackendBuckets({ project, backendBucket: name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -241,17 +241,20 @@ export const BackendBucketProvider = (): infer _ =>
     stables: ["name", "project", "selfLink", "creationTimestamp", "id"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.name ?? output?.name
-      if (news.name !== undefined && previousName !== undefined && news.name !== previousName) {
+      if (resolved.name !== undefined && previousName !== undefined && resolved.name !== previousName) {
         return { action: "replace" as const }
       }
       const previousScheme = olds?.loadBalancingScheme ?? output?.loadBalancingScheme
-      const nextScheme = news.loadBalancingScheme
+      const nextScheme = resolved.loadBalancingScheme
       if ((previousScheme ?? "") !== (nextScheme ?? "")) {
         return {
           action: "replace" as const,
-          deleteFirst: previousName !== undefined && (news.name === undefined || news.name === previousName),
+          deleteFirst: previousName !== undefined && (resolved.name === undefined || resolved.name === previousName),
         }
       }
       return undefined
@@ -264,7 +267,9 @@ export const BackendBucketProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const parsed = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, parsed.labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, parsed.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -289,23 +294,25 @@ export const BackendBucketProvider = (): infer _ =>
       let current = try getByName(env.project, name)
 
       if (current === undefined) {
-        const inserted = (try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertBackendBuckets({
-              project: env.project,
-              body: {
-                name,
-                bucketName: news.bucketName,
-                description: desiredDescription,
-                enableCdn,
-                compressionMode: news.compressionMode,
-                customResponseHeaders: desiredHeaders.length > 0 ? desiredHeaders : undefined,
-                loadBalancingScheme: news.loadBalancingScheme,
-                cdnPolicy: news.cdnPolicy,
-              },
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const inserted = (effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertBackendBuckets({
+                project: env.project,
+                body: {
+                  name,
+                  bucketName: news.bucketName,
+                  description: desiredDescription,
+                  enableCdn,
+                  compressionMode: news.compressionMode,
+                  customResponseHeaders: desiredHeaders.length > 0 ? desiredHeaders : undefined,
+                  loadBalancingScheme: news.loadBalancingScheme,
+                  cdnPolicy: news.cdnPolicy,
+                },
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (inserted !== undefined) {
           current = try awaitResource(env.project, name)
         } else {
@@ -362,13 +369,15 @@ export const BackendBucketProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      ;(try waitGlobalOperation(
-        env.project,
-        try compute
-          .deleteBackendBuckets({
-            project: env.project,
-            backendBucket: output.name,
-          }),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try waitGlobalOperation(
+          env.project,
+          try compute
+            .deleteBackendBuckets({
+              project: env.project,
+              backendBucket: output.name,
+            }),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

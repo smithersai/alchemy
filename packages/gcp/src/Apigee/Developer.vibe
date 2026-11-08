@@ -185,15 +185,22 @@ export const DeveloperProvider = (): infer _ =>
     stables: ["name", "email", "organization", "developerId", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousEmail = olds?.email ?? output?.email
       const previousOrg = olds?.organization ?? output?.organization
       const emailChanged = previousEmail !== undefined
-        && news.email !== undefined
-        && news.email.toLowerCase() !== previousEmail.toLowerCase()
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+        && resolved.email !== undefined
+        && resolved.email.toLowerCase() !== previousEmail.toLowerCase()
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
       if (emailChanged || orgChanged) {
         return {
           action: "replace" as const,
@@ -205,13 +212,23 @@ export const DeveloperProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const email = try toEmail(id, olds?.email, output?.email)
       const name = output?.name ?? resourceName(organization, email)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
-      return (try ownedBy(id, attributesToRecord(existing.attributes))) ? attrs : Unowned(attrs)
+      return (try ownedBy(
+          id,
+          try Effect.orDie(Effect.try({ try: () => attributesToRecord(existing.attributes), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -230,7 +247,9 @@ export const DeveloperProvider = (): infer _ =>
             default: throw e;
           }
         for (const developer of page.developer ?? []) {
-          const labels = attributesToRecord(developer.attributes)
+          const labels = try Effect.orDie(
+            Effect.try({ try: () => attributesToRecord(developer.attributes), catch: (e) => e }),
+          )
           if (Object.keys(labels).some((key) => key.startsWith("alchemy-"))) {
             rows.push(toAttrs(developer, organization))
           }
@@ -241,14 +260,19 @@ export const DeveloperProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const email = try toEmail(id, news.email, output?.email)
       const name = resourceName(organization, email)
       const firstName = news.firstName ?? "Alchemy"
       const lastName = news.lastName ?? "Developer"
-      const userName = news.userName ?? lastSegment(email.split("@")[0] ?? email)
+      const userName = news.userName
+        ?? (try Effect.orDie(Effect.try({ try: () => lastSegment(email.split("@")[0] ?? email), catch: (e) => e })))
       const ownership = try createOwnership(id)
-      const attributes = desiredAttributes(news.attributes, ownership)
+      const attributes = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.attributes, ownership), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -294,7 +318,9 @@ export const DeveloperProvider = (): infer _ =>
         || observed.userName !== desired.userName
         || observed.appFamily !== desired.appFamily
         || observed.accessType !== desired.accessType
-        || !sameRecord(observed.attributes, desired.attributes)
+        || !(try Effect.orDie(
+          Effect.try({ try: sameRecord.bind(undefined, observed.attributes, desired.attributes), catch: (e) => e }),
+        ))
 
       if (changed) {
         current = try apigee.updateOrganizationsDevelopers({

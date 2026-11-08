@@ -375,7 +375,7 @@ export const LocalClusterProvider = (): infer _ =>
       const inspectRegistry = effect (container: string) => {
         const result = try run(try DockerBin, ["container", "inspect", container])
         if (result.exitCode !== 0) return undefined
-        const [info] = JSON.parse(result.stdout) as RegistryInspect[]
+        const [info] = (try ((foreignSyntaxErrorClass: typeof SyntaxError) => Effect.catch(Effect.try({ try: () => JSON.parse(result.stdout), catch: (error) => error }), (error) => error instanceof foreignSyntaxErrorClass ? Effect.fail(error) : Effect.die(error)))(SyntaxError)) as RegistryInspect[]
         return info
       }
 
@@ -434,7 +434,7 @@ export const LocalClusterProvider = (): infer _ =>
           const configFile = path.join(dir, "kind.yaml")
           try fs.writeFileString(
             configFile,
-            JSON.stringify(kindClusterConfig(options.config), null, 2),
+            JSON.stringify(try Effect.orDie(Effect.try({ try: () => kindClusterConfig(options.config), catch: (e) => e })), null, 2),
           )
           kind([
             "create",
@@ -537,16 +537,17 @@ export const LocalClusterProvider = (): infer _ =>
         stables: ["name", "context", "kubeconfig", "registryContainer"],
         list: effect () => [] as LocalCluster["Attributes"][],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try clusterName(id, olds, output)
-          const newName = try clusterName(id, news, undefined)
+          const newName = try clusterName(id, resolved, undefined)
           if (
-            (news.name !== undefined && oldName !== newName)
-            || olds?.nodeImage !== news.nodeImage
-            || olds?.kubeconfig !== news.kubeconfig
-            || !deepEqual(kindConfigOf(olds ?? {}), kindConfigOf(news), {
+            (resolved.name !== undefined && oldName !== newName)
+            || olds?.nodeImage !== resolved.nodeImage
+            || olds?.kubeconfig !== resolved.kubeconfig
+            || !(try Effect.orDie(Effect.try({ try: () => deepEqual(kindConfigOf(olds ?? {}), kindConfigOf(resolved), {
               stripNullish: true,
-            })
+            }), catch: (e) => e })))
           ) {
             return { action: "replace", deleteFirst: true } as const
           }
@@ -565,7 +566,7 @@ export const LocalClusterProvider = (): infer _ =>
           // kind clusters carry no ownership marker; the registry container
           // we start next to them does. Anything else is foreign.
           const owned = try hasAlchemyTags(id, registryInfo?.Config?.Labels ?? undefined)
-          return owned ? attrs : Unowned(attrs)
+          return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, session }) => {
           const name = try clusterName(id, news, output)
@@ -574,7 +575,7 @@ export const LocalClusterProvider = (): infer _ =>
             name,
             nodeImage: news.nodeImage,
             kubeconfig: news.kubeconfig,
-            config: kindConfigOf(news),
+            config: try Effect.orDie(Effect.try({ try: () => kindConfigOf(news), catch: (e) => e })),
             session,
           })
           try ensureRegistry({ id, name, registryPort, session })

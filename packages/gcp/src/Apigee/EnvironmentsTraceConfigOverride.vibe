@@ -134,11 +134,13 @@ const getByName = effect (name: string) =>
   try missingToUndefined(apigee.getOrganizationsEnvironmentsTraceConfigOverrides({ name }))
 
 const listOverrides = effect (parent: string) =>
-  (Array.from(
-    try (apigee.listOrganizationsEnvironmentsTraceConfigOverrides.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.traceConfigOverrides ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (apigee.listOrganizationsEnvironmentsTraceConfigOverrides.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.traceConfigOverrides ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }:
       [] as apigee.GoogleCloudApigeeV1TraceConfigOverride[];
     default: throw e;
@@ -151,14 +153,17 @@ export const EnvironmentsTraceConfigOverrideProvider = (): infer _ =>
     stables: ["name", "traceConfigOverrideId", "organizationId", "environmentId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousOrg = olds?.organization ?? output?.organizationId
       const previousEnv = olds?.environment ?? output?.environmentId
       const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && organizationIdOf(news.organization, "") !== organizationIdOf(previousOrg, "")
+        && resolved.organization !== undefined
+        && organizationIdOf(resolved.organization, "") !== organizationIdOf(previousOrg, "")
       const envChanged = previousEnv !== undefined
-        && environmentIdOf(news.environment) !== environmentIdOf(previousEnv)
+        && environmentIdOf(resolved.environment) !== environmentIdOf(previousEnv)
       if (orgChanged || envChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -256,7 +261,7 @@ export const EnvironmentsTraceConfigOverrideProvider = (): infer _ =>
         .deleteOrganizationsEnvironmentsTraceConfigOverrides({
           name: output.name,
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

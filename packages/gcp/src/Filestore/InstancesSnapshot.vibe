@@ -250,7 +250,10 @@ export const InstancesSnapshotProvider = (): infer _ =>
     stables: ["name", "snapshotId", "instance", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previous = parseInstanceRef(
         olds?.instance ?? output?.instance ?? "",
@@ -258,18 +261,22 @@ export const InstancesSnapshotProvider = (): infer _ =>
         olds?.location ?? output?.location ?? DEFAULT_ZONE,
       )
       const next = parseInstanceRef(
-        news.instance,
+        resolved.instance,
         env.project,
-        news.location ?? olds?.location ?? output?.location ?? previous.location,
+        resolved.location ?? olds?.location ?? output?.location ?? previous.location,
       )
-      return replaceOnIdentity({
-        previousId: olds?.snapshotId ?? output?.snapshotId,
-        nextId: news.snapshotId ?? olds?.snapshotId ?? output?.snapshotId,
-        previousLocation: previous.location,
-        nextLocation: next.location,
-        previousParent: previous.instanceName,
-        nextParent: next.instanceName,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.snapshotId ?? output?.snapshotId,
+            nextId: resolved.snapshotId ?? olds?.snapshotId ?? output?.snapshotId,
+            previousLocation: previous.location,
+            nextLocation: next.location,
+            previousParent: previous.instanceName,
+            nextParent: next.instanceName,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -284,7 +291,12 @@ export const InstancesSnapshotProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined || isPlaceholder(existing)) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -305,7 +317,7 @@ export const InstancesSnapshotProvider = (): infer _ =>
       const snapshotId = try toPhysicalId(id, news.snapshotId, output?.snapshotId, "snapshot")
       const name = resourceName(instance.instanceName, snapshotId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -347,7 +359,9 @@ export const InstancesSnapshotProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         (current.description ?? "") !== (news.description ?? "") && "description",
@@ -379,13 +393,15 @@ export const InstancesSnapshotProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name || output.name.includes("//")) return
-      const operation = (try (file
-        .deleteProjectsLocationsInstancesSnapshots({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("5 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (file
+          .deleteProjectsLocationsInstancesSnapshots({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

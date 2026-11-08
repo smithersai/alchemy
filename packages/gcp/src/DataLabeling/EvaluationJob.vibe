@@ -229,10 +229,12 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (try effect {
-  provide noRetryLayer {
-    return try datalabeling.getProjectsEvaluationJobs({ name })
-  }
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    provide noRetryLayer {
+      return try datalabeling.getProjectsEvaluationJobs({ name })
+    }
+  })
 }) catch effect (e) => match (e) {
   when { _tag: "NotFound" }: try Effect.undefined;
   when { _tag: "BadGateway" }: try Effect.undefined;
@@ -240,7 +242,9 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
 })
 
 const findByOwnership = effect (id: string, project: string) => {
-  const rows = try listEvaluationJobs(projectParent(project))
+  const rows = try listEvaluationJobs(
+    try Effect.orDie(Effect.try({ try: () => projectParent(project), catch: (e) => e })),
+  )
   return try findOwned(id, rows, (row) => row.description)
 }
 
@@ -249,42 +253,63 @@ export const EvaluationJobProvider = (): infer _ =>
     stables: ["name", "evaluationJobId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const extra = (output?.annotationSpecSet !== undefined
-        && !sameText(news.annotationSpecSet, output.annotationSpecSet))
-        || (output?.modelVersion !== undefined && !sameText(news.modelVersion, output.modelVersion))
-        || (output?.schedule !== undefined && !sameText(news.schedule, output.schedule))
+        && !sameText(resolved.annotationSpecSet, output.annotationSpecSet))
+        || (output?.modelVersion !== undefined && !sameText(resolved.modelVersion, output.modelVersion))
+        || (output?.schedule !== undefined && !sameText(resolved.schedule, output.schedule))
         || (output !== undefined
-          && (news.labelMissingGroundTruth === true) !== output.labelMissingGroundTruth)
-        || (olds !== undefined && !sameText(news.description, output?.description))
+          && (resolved.labelMissingGroundTruth === true) !== output.labelMissingGroundTruth)
+        || (olds !== undefined && !sameText(resolved.description, output?.description))
         || (output !== undefined
-          && !sameJson(
-            configIdentity(news.evaluationJobConfig),
-            configIdentity(output.evaluationJobConfig),
-          ))
-      return replaceOnIdentity({
-        previousId: olds?.evaluationJobId ?? output?.evaluationJobId,
-        nextId: news.evaluationJobId,
-        extra,
-      })
+          && !(try Effect.orDie(
+            Effect.try({
+              try: sameJson.bind(
+                undefined,
+                configIdentity(resolved.evaluationJobConfig),
+                configIdentity(output.evaluationJobConfig),
+              ),
+              catch: (e) => e,
+            }),
+          )))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.evaluationJobId ?? output?.evaluationJobId,
+            nextId: resolved.evaluationJobId,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const evaluationJobId = olds?.evaluationJobId
         ?? output?.evaluationJobId
-        ?? (output?.name ? parseResourceName(output.name, "evaluationJobs").id : "")
+        ?? (output?.name
+          ? (try Effect.orDie(
+            Effect.try({ try: () => parseResourceName(output.name, "evaluationJobs"), catch: (e) => e }),
+          )).id
+          : "")
       const name = output?.name
         ?? (evaluationJobId.length > 0 ? resourceName(env.project, evaluationJobId) : "")
       const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const rows = try listEvaluationJobs(projectParent(env.project))
+      const rows = try listEvaluationJobs(
+        try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e })),
+      )
       return rows
         .filter((row) => hasOwnershipMarker(row.description))
         .map((row) => toAttrs(row, env.project))
@@ -296,11 +321,15 @@ export const EvaluationJobProvider = (): infer _ =>
       const name = output?.name
         ?? (evaluationJobId !== undefined ? resourceName(env.project, evaluationJobId) : "")
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(
-        ownership,
-        news.description,
-        MAX_EVALUATION_DESCRIPTION_LENGTH,
-      )
+      const description = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnership(
+            ownership,
+            news.description,
+            MAX_EVALUATION_DESCRIPTION_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
       const labelMissingGroundTruth = news.labelMissingGroundTruth === true
       const desiredPaused = news.paused === true
 
@@ -330,17 +359,22 @@ export const EvaluationJobProvider = (): infer _ =>
 
       if (current === undefined) {
         throw new EvaluationJobNotResolved({
-          resourceName: name || projectParent(env.project),
+          resourceName: name
+            || (try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e }))),
         })
       }
 
       const currentName = current.name ?? name
       const observedConfig = current.evaluationJobConfig
       const desiredConfig = news.evaluationJobConfig
-      const instructionChanged = !sameText(
-        observedConfig?.humanAnnotationConfig?.instruction,
-        desiredConfig.humanAnnotationConfig?.instruction,
-      )
+      const instructionChanged = !(try Effect.orDie(Effect.try({
+        try: () =>
+          sameText(
+            observedConfig?.humanAnnotationConfig?.instruction,
+            desiredConfig.humanAnnotationConfig?.instruction,
+          ),
+        catch: (e) => e,
+      })))
       const exampleCountChanged =
         (observedConfig?.exampleCount ?? undefined) !== (desiredConfig.exampleCount ?? undefined)
       const sampleChanged = (observedConfig?.exampleSamplePercentage ?? undefined)
@@ -350,13 +384,17 @@ export const EvaluationJobProvider = (): infer _ =>
         current = try retryTransient(
           datalabeling.patchProjectsEvaluationJobs({
             name: currentName,
-            updateMask: updateMaskOf(
-              instructionChanged
-                ? "evaluationJobConfig.humanAnnotationConfig.instruction"
-                : undefined,
-              exampleCountChanged ? "evaluationJobConfig.exampleCount" : undefined,
-              sampleChanged ? "evaluationJobConfig.exampleSamplePercentage" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  instructionChanged
+                    ? "evaluationJobConfig.humanAnnotationConfig.instruction"
+                    : undefined,
+                  exampleCountChanged ? "evaluationJobConfig.exampleCount" : undefined,
+                  sampleChanged ? "evaluationJobConfig.exampleSamplePercentage" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               evaluationJobConfig: {
                 humanAnnotationConfig: desiredConfig.humanAnnotationConfig,

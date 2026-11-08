@@ -61,13 +61,17 @@ export const toDpcName = (parent: string, value: string) => {
   return `${customer}/dpcs/${lastSegment(trimmed)}`;
 };
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameBoolean = (left: boolean | undefined, right: boolean | undefined) =>
-  left === right;
+export const sameBoolean = /** @throws {never} */ (
+  left: boolean | undefined,
+  right: boolean | undefined,
+) => left === right;
 
-export const updateMaskOf = (...fields: Array<string | undefined>) =>
+export const updateMaskOf = /** @throws {never} */ (...fields: Array<string | undefined>) =>
   fields.filter((field): field is string => field !== undefined).join(",");
 
 export const replaceOnIdentity = (input: {

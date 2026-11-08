@@ -193,33 +193,38 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string, agent: string) =>
-  (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsSessionsEntityTypes.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sessionEntityTypes ?? []))
-      |> Stream.filter(%, (entityType) =>
-        (entityType.entities ?? []).some((entity) => hasOwnershipMarker(entity.value)))
-      |> Stream.map(%, (entityType) =>
-        toAttrs(entityType, project, agent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsSessionsEntityTypes.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sessionEntityTypes ?? []))
+        |> Stream.filter(%, (entityType) =>
+          (entityType.entities ?? []).some((entity) => hasOwnershipMarker(entity.value)))
+        |> Stream.map(%, (entityType) =>
+          toAttrs(entityType, project, agent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const AgentsSessionsEntityTypeProvider = (): infer _ =>
   Provider.succeed(AgentsSessionsEntityType, {
     stables: ["name", "entityTypeId", "sessionId", "agent", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
-      if (previousAgent !== undefined && news.agent !== previousAgent) {
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousSession = olds?.sessionId ?? output?.sessionId
-      const nextSession = news.sessionId ?? DEFAULT_SESSION
+      const nextSession = resolved.sessionId ?? DEFAULT_SESSION
       if (previousSession !== undefined && previousSession !== nextSession) {
         return { action: "replace" as const, deleteFirst: true }
       }
       const previousType = olds?.entityTypeId ?? output?.entityTypeId
-      const nextType = news.entityTypeId ?? DEFAULT_ENTITY_TYPE
+      const nextType = resolved.entityTypeId ?? DEFAULT_ENTITY_TYPE
       if (previousType !== undefined && previousType !== nextType) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -228,15 +233,21 @@ export const AgentsSessionsEntityTypeProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location)
-      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
       const sessionId = olds?.sessionId ?? output?.sessionId ?? DEFAULT_SESSION
       const entityTypeId = olds?.entityTypeId ?? output?.entityTypeId ?? DEFAULT_ENTITY_TYPE
       const name = output?.name ?? (agent !== undefined ? resourceName(agent, sessionId, entityTypeId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, agent)
-      return (try ownedByAlchemy(id, ownershipText(existing.entities))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, ownershipText(existing.entities)))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -253,12 +264,23 @@ export const AgentsSessionsEntityTypeProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
-        const agent = expandAgent(news.agent, env.project, location)
-        const sessionId = news.sessionId ?? output?.sessionId ?? DEFAULT_SESSION
-        const entityTypeId = lastSegment(
-          news.entityTypeId ?? output?.entityTypeId ?? DEFAULT_ENTITY_TYPE,
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
         )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
+        const sessionId = news.sessionId ?? output?.sessionId ?? DEFAULT_SESSION
+        const entityTypeId = try Effect.orDie(Effect.try({
+          try: () =>
+            lastSegment(
+              news.entityTypeId ?? output?.entityTypeId ?? DEFAULT_ENTITY_TYPE,
+            ),
+          catch: (e) => e,
+        }))
         const parent = sessionParent(agent, sessionId)
         const name = resourceName(agent, sessionId, entityTypeId)
         const ownership = try internalLabels(id)
@@ -287,7 +309,9 @@ export const AgentsSessionsEntityTypeProvider = (): infer _ =>
 
         const currentName = current.name ?? name
         const modeChanged = (current.entityOverrideMode ?? DEFAULT_MODE) !== entityOverrideMode
-        const entitiesChanged = fingerprint(current.entities) !== fingerprint(entities)
+        const entitiesChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.entities), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({ try: () => fingerprint(entities), catch: (e) => e })))
 
         if (modeChanged || entitiesChanged) {
           current =

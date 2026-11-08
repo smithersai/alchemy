@@ -17,7 +17,7 @@ export {
   type HashPartOptions,
   type HashPartResult,
 } from "./Hasher.ts";
-export { HashError, HASH_ROUTE } from "./Protocol.vibe";
+export { HashError, HASH_ROUTE } from "./Protocol.ts";
 export { HasherLambda } from "./Lambda.ts";
 export { default as HasherFunction } from "./LambdaFunction.ts";
 export {

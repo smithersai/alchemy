@@ -109,8 +109,9 @@ export const PolicyAttachmentProvider = (): infer _ =>
       return {
         stables: ["policyId", "targetId"],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
-          if (olds?.policyId !== news.policyId || olds?.targetId !== news.targetId) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          if (olds?.policyId !== resolved.policyId || olds?.targetId !== resolved.targetId) {
             return { action: "replace" } as const
           }
         },
@@ -136,13 +137,13 @@ export const PolicyAttachmentProvider = (): infer _ =>
         // AccessDeniedException / AWSOrganizationsNotInUseException, which we
         // degrade to [].
         list: effect () =>
-          (try effect {
+          (effect { return (try effect {
             const perType = try Effect.forEach(
               POLICY_TYPES,
               effect (Filter) => {
                 const policies = try retryOrganizations(
                   collectPages(
-                    (NextToken) => organizations.listPolicies({ Filter, NextToken }),
+                    effect (NextToken) => try organizations.listPolicies({ Filter, NextToken }),
                     (page) => page.Policies,
                   ),
                 )
@@ -151,7 +152,7 @@ export const PolicyAttachmentProvider = (): infer _ =>
                   .filter((id): id is string => id != null)
                 const perPolicy = try Effect.forEach(
                   policyIds,
-                  (policyId) => listAttachmentsForPolicy(policyId),
+                  effect (policyId) => try listAttachmentsForPolicy(policyId),
                   { concurrency: 10 },
                 )
                 return perPolicy.flat()
@@ -159,7 +160,7 @@ export const PolicyAttachmentProvider = (): infer _ =>
               { concurrency: 10 },
             )
             return perType.flat()
-          }) catch effect (e) => match (e) {
+          }) }) catch effect (e) => match (e) {
             when { _tag: "AccessDeniedException" }: [] as PolicyAttachment["Attributes"][];
             when { _tag: "AWSOrganizationsNotInUseException" }: [] as PolicyAttachment["Attributes"][];
             default: throw e;
@@ -181,7 +182,7 @@ export const PolicyAttachmentProvider = (): infer _ =>
                     PolicyId: news.policyId,
                     TargetId: news.targetId,
                   }) catch effect (e) => match (e) {
-                    when { _tag: "DuplicatePolicyAttachmentException" }: try Effect.void;
+                    when { _tag: "DuplicatePolicyAttachmentException" }: (undefined as void);
                     default: throw e;
                   }
               },
@@ -205,9 +206,9 @@ export const PolicyAttachmentProvider = (): infer _ =>
                   PolicyId: output.policyId,
                   TargetId: output.targetId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "PolicyNotAttachedException" }: try Effect.void;
-                  when { _tag: "PolicyNotFoundException" }: try Effect.void;
-                  when { _tag: "TargetNotFoundException" }: try Effect.void;
+                  when { _tag: "PolicyNotAttachedException" }: (undefined as void);
+                  when { _tag: "PolicyNotFoundException" }: (undefined as void);
+                  when { _tag: "TargetNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },
@@ -237,9 +238,9 @@ const POLICY_TYPES = [
 ] as const satisfies readonly organizations.PolicyType[]
 
 const listAttachmentsForPolicy = effect (policyId: string) =>
-  ((try retryOrganizations(
+  (effect { return ((try retryOrganizations(
     collectPages(
-      (NextToken) => organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
+      effect (NextToken) => try organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
       (page) => page.Targets,
     ),
   ))
@@ -259,7 +260,7 @@ const listAttachmentsForPolicy = effect (policyId: string) =>
           targetName: target.Name,
           targetType: target.Type,
         }) satisfies PolicyAttachment["Attributes"],
-    )) catch effect (e) => match (e) {
+    )) }) catch effect (e) => match (e) {
       when { _tag: "PolicyNotFoundException" }: [] as PolicyAttachment["Attributes"][];
       default: throw e;
     }
@@ -267,7 +268,7 @@ const listAttachmentsForPolicy = effect (policyId: string) =>
 const readAttachment = effect ({ policyId, targetId }: PolicyAttachmentProps) => {
   const targets = try retryOrganizations(
     collectPages(
-      (NextToken) => organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
+      effect (NextToken) => try organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
       (page) => page.Targets,
     ),
   )

@@ -321,7 +321,7 @@ const toAttrs = (listing: analyticshub.Listing, project: string): infer _ => {
 
 const getByName = effect (name: string) => {
   if (name.length === 0) return undefined
-  const parsed = parseResourceName(name, "listings")
+  const parsed = try Effect.orDie(Effect.try({ try: () => parseResourceName(name, "listings"), catch: (e) => e }))
   const items = try listListings(parsed.parent)
   return items.find(effect (item) => (item.name ?? "") === name)
 }
@@ -334,34 +334,44 @@ export const DataExchangesListingProvider = (): infer _ =>
     stables: ["name", "listingId", "dataExchange", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const nextSource = sourceIdentity(
-        desiredBigQuery(news.bigqueryDataset, env.project),
-        desiredPubSub(news.pubsubTopic, env.project),
+        desiredBigQuery(resolved.bigqueryDataset, env.project),
+        desiredPubSub(resolved.pubsubTopic, env.project),
       )
       const previousSource = sourceIdentity(
         olds?.bigqueryDataset ?? output?.bigqueryDataset,
         olds?.pubsubTopic ?? output?.pubsubTopic,
       )
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.listingId ?? output?.listingId,
-        nextId: news.listingId,
+        nextId: resolved.listingId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.dataExchange ?? output?.dataExchange,
-        nextParent: parentExchange(news.dataExchange, env.project, location),
+        nextParent: parentExchange(resolved.dataExchange, env.project, location),
         extra: previousSource.length > 1 && nextSource.length > 1 && previousSource !== nextSource,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const listingId = try toPhysicalId(id, olds?.listingId, output?.listingId)
       const dataExchange = olds?.dataExchange !== undefined
         ? parentExchange(olds.dataExchange, env.project, location)
@@ -370,13 +380,18 @@ export const DataExchangesListingProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedById(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedById(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const exchanges = try listExchangesInProject(env.project, env.region)
-      const listings = try listChildResources(namedOf(exchanges), listListings)
+      const listings = try listChildResources(
+        try Effect.orDie(Effect.try({ try: () => namedOf(exchanges), catch: (e) => e })),
+        listListings,
+      )
       return listings
         .filter((item) => hasOwnershipMarker(item.description))
         .map((item) => toAttrs(item, env.project))
@@ -384,13 +399,19 @@ export const DataExchangesListingProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const dataExchange = parentExchange(news.dataExchange, env.project, location)
       const listingId = try toPhysicalId(id, news.listingId, output?.listingId)
       const name = output?.name ?? resourceName(dataExchange, listingId)
       const ownership = try ownershipLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
-      const displayName = displayNameOf(news.displayName, listingId)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => displayNameOf(news.displayName, listingId), catch: (e) => e }),
+      )
       const bigqueryDataset = desiredBigQuery(news.bigqueryDataset, env.project)
       const pubsubTopic = desiredPubSub(news.pubsubTopic, env.project)
       const body: analyticshub.Listing = {
@@ -464,21 +485,30 @@ export const DataExchangesListingProvider = (): infer _ =>
       const contactChanged = !sameText(current.primaryContact, news.primaryContact)
       const requestChanged = !sameText(current.requestAccess, news.requestAccess)
       const iconChanged = !sameText(current.icon, news.icon)
-      const dataProviderChanged = news.dataProvider !== undefined && !sameJson(current.dataProvider, news.dataProvider)
-      const publisherChanged = news.publisher !== undefined && !sameJson(current.publisher, news.publisher)
-      const categoriesChanged = news.categories !== undefined && !sameJson(current.categories, news.categories)
+      const dataProviderChanged = news.dataProvider !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.dataProvider, news.dataProvider), catch: (e) => e }),
+        ))
+      const publisherChanged = news.publisher !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.publisher, news.publisher), catch: (e) => e }),
+        ))
+      const categoriesChanged = news.categories !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.categories, news.categories), catch: (e) => e }),
+        ))
       const discoveryChanged = news.discoveryType !== undefined && !sameText(current.discoveryType, news.discoveryType)
       const restrictedChanged = news.restrictedExportConfig !== undefined
-        && !sameJson(
-          {
+        && !(try Effect.orDie(Effect.try({
+          try: sameJson.bind(undefined, {
             enabled: current.restrictedExportConfig?.enabled,
             restrictQueryResult: current.restrictedExportConfig?.restrictQueryResult,
-          },
-          {
+          }, {
             enabled: news.restrictedExportConfig.enabled,
             restrictQueryResult: news.restrictedExportConfig.restrictQueryResult,
-          },
-        )
+          }),
+          catch: (e) => e,
+        })))
       const storedChanged = news.storedProcedureConfig !== undefined
         && !sameBool(current.storedProcedureConfig?.enabled, news.storedProcedureConfig.enabled)
       const emailChanged = news.logLinkedDatasetQueryUserEmail !== undefined
@@ -486,16 +516,41 @@ export const DataExchangesListingProvider = (): infer _ =>
       const metadataChanged = news.allowOnlyMetadataSharing !== undefined
         && !sameBool(current.allowOnlyMetadataSharing, news.allowOnlyMetadataSharing)
       const selectedChanged = bigqueryDataset?.selectedResources !== undefined
-        && !sameJson(current.bigqueryDataset?.selectedResources, bigqueryDataset.selectedResources)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(
+              undefined,
+              current.bigqueryDataset?.selectedResources,
+              bigqueryDataset.selectedResources,
+            ),
+            catch: (e) => e,
+          }),
+        ))
       const replicaChanged = bigqueryDataset?.replicaLocations !== undefined
-        && !sameJson(current.bigqueryDataset?.replicaLocations, bigqueryDataset.replicaLocations)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.bigqueryDataset?.replicaLocations, bigqueryDataset.replicaLocations),
+            catch: (e) => e,
+          }),
+        ))
       const restrictedPolicyChanged = bigqueryDataset?.restrictedExportPolicy !== undefined
-        && !sameJson(
-          current.bigqueryDataset?.restrictedExportPolicy,
-          bigqueryDataset.restrictedExportPolicy,
-        )
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(
+              undefined,
+              current.bigqueryDataset?.restrictedExportPolicy,
+              bigqueryDataset.restrictedExportPolicy,
+            ),
+            catch: (e) => e,
+          }),
+        ))
       const affinityChanged = pubsubTopic?.dataAffinityRegions !== undefined
-        && !sameJson(current.pubsubTopic?.dataAffinityRegions, pubsubTopic.dataAffinityRegions)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.pubsubTopic?.dataAffinityRegions, pubsubTopic.dataAffinityRegions),
+            catch: (e) => e,
+          }),
+        ))
 
       if (
         displayChanged
@@ -520,26 +575,30 @@ export const DataExchangesListingProvider = (): infer _ =>
         current = try retryTransient(
           analyticshub.patchProjectsLocationsDataExchangesListings({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "displayName" : undefined,
-              descriptionChanged ? "description" : undefined,
-              documentationChanged ? "documentation" : undefined,
-              contactChanged ? "primaryContact" : undefined,
-              requestChanged ? "requestAccess" : undefined,
-              iconChanged ? "icon" : undefined,
-              dataProviderChanged ? "dataProvider" : undefined,
-              publisherChanged ? "publisher" : undefined,
-              categoriesChanged ? "categories" : undefined,
-              discoveryChanged ? "discoveryType" : undefined,
-              restrictedChanged ? "restrictedExportConfig" : undefined,
-              storedChanged ? "storedProcedureConfig" : undefined,
-              emailChanged ? "logLinkedDatasetQueryUserEmail" : undefined,
-              metadataChanged ? "allowOnlyMetadataSharing" : undefined,
-              selectedChanged ? "bigqueryDataset.selectedResources" : undefined,
-              replicaChanged ? "bigqueryDataset.replicaLocations" : undefined,
-              restrictedPolicyChanged ? "bigqueryDataset.restrictedExportPolicy" : undefined,
-              affinityChanged ? "pubsubTopic.dataAffinityRegions" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "displayName" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  documentationChanged ? "documentation" : undefined,
+                  contactChanged ? "primaryContact" : undefined,
+                  requestChanged ? "requestAccess" : undefined,
+                  iconChanged ? "icon" : undefined,
+                  dataProviderChanged ? "dataProvider" : undefined,
+                  publisherChanged ? "publisher" : undefined,
+                  categoriesChanged ? "categories" : undefined,
+                  discoveryChanged ? "discoveryType" : undefined,
+                  restrictedChanged ? "restrictedExportConfig" : undefined,
+                  storedChanged ? "storedProcedureConfig" : undefined,
+                  emailChanged ? "logLinkedDatasetQueryUserEmail" : undefined,
+                  metadataChanged ? "allowOnlyMetadataSharing" : undefined,
+                  selectedChanged ? "bigqueryDataset.selectedResources" : undefined,
+                  replicaChanged ? "bigqueryDataset.replicaLocations" : undefined,
+                  restrictedPolicyChanged ? "bigqueryDataset.restrictedExportPolicy" : undefined,
+                  affinityChanged ? "pubsubTopic.dataAffinityRegions" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { name: currentName, ...body },
           }),
         )

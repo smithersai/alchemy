@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as medialive from "@distilled.cloud/aws/medialive"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -179,7 +180,7 @@ export const InputProvider = (): infer _ =>
       const getInput = effect (inputId: string) => {
         const input = medialive
           .describeInput({ InputId: inputId }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
         if (input === undefined || isGone(input.State)) return undefined
@@ -237,11 +238,14 @@ export const InputProvider = (): infer _ =>
             : try findByName(try createName(id, olds ?? {}))
           if (input === undefined) return undefined
           const attrs = toAttrs(input)
-          return (try hasAlchemyTags(id, toTagRecord(input.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, toTagRecord(input.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           // The input type is immutable.
           if (olds.type !== news.type) return { action: "replace" } as const
           // VPC placement is fixed at creation.
@@ -343,11 +347,13 @@ export const InputProvider = (): infer _ =>
           // An input attached to a still-deleting channel transiently
           // rejects deletion; deletion itself is async (DELETING → DELETED),
           // which `read` treats as gone.
-          ;(try (medialive.deleteInput({ InputId: output.inputId })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (medialive.deleteInput({ InputId: output.inputId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

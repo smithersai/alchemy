@@ -184,35 +184,48 @@ export const DependencyProvider = (): infer _ =>
     stables: ["name", "dependencyId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.dependencyId ?? output?.dependencyId,
-        nextId: news.dependencyId ?? olds?.dependencyId ?? output?.dependencyId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: !sameJson(news.consumer ?? olds?.consumer, olds?.consumer ?? output?.consumer)
-          || !sameJson(news.supplier ?? olds?.supplier, olds?.supplier ?? output?.supplier),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.dependencyId ?? output?.dependencyId,
+            nextId: resolved.dependencyId ?? olds?.dependencyId ?? output?.dependencyId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: !sameJson(resolved.consumer ?? olds?.consumer, olds?.consumer ?? output?.consumer)
+              || !sameJson(resolved.supplier ?? olds?.supplier, olds?.supplier ?? output?.supplier),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const dependencyId = try toPhysicalId(id, olds?.dependencyId, output?.dependencyId)
       const name = output?.name ?? resourceName(env.project, location, dependencyId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const items = try listDependencies(locationParent(env.project, env.region))
+      const items = try listDependencies(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+      )
       return items
         .filter((item) => hasOwnershipMarker(item.description))
         .map((item) => toAttrs(item, env.project, env.region))
@@ -220,12 +233,18 @@ export const DependencyProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const parent = locationParent(env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
       const dependencyId = try toPhysicalId(id, news.dependencyId, output?.dependencyId)
       const name = output?.name ?? resourceName(env.project, location, dependencyId)
       const ownership = try createOwnership(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const consumer = entityOf(news.consumer)
       const supplier = entityOf(news.supplier)
 
@@ -256,7 +275,7 @@ export const DependencyProvider = (): infer _ =>
       if (descriptionChanged) {
         current = try apihub.patchProjectsLocationsDependencies({
           name: currentName,
-          updateMask: updateMaskOf("description"),
+          updateMask: try Effect.orDie(Effect.try({ try: () => updateMaskOf("description"), catch: (e) => e })),
           body: {
             name: currentName,
             description,

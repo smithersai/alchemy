@@ -165,26 +165,31 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (try effect {
-  const instance = try integrations.getProjectsLocationsSfdcInstances({ name })
-  return (isDeleted(instance) ? undefined : instance)
-}) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+const getByName = effect (name: string) => (name.length === 0 ? undefined : (effect {
+  return (try effect {
+    const instance = try integrations.getProjectsLocationsSfdcInstances({ name })
+    return (isDeleted(instance) ? undefined : instance)
+  })
+}) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; })
 
 export const SfdcInstanceProvider = (): infer _ =>
   Provider.succeed(SfdcInstance, {
     stables: ["name", "sfdcInstanceId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.sfdcInstanceId ?? output?.sfdcInstanceId
       const idChanged = previousId !== undefined
-        && news.sfdcInstanceId !== undefined
-        && news.sfdcInstanceId !== previousId
+        && resolved.sfdcInstanceId !== undefined
+        && resolved.sfdcInstanceId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(news.location, env.region)
+        && resolved.location !== undefined
+        && normalizeLocation(resolved.location, env.region)
           !== normalizeLocation(previousLocation, env.region)
       return replaceOnIdentity(idChanged || locationChanged)
     },
@@ -204,7 +209,9 @@ export const SfdcInstanceProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -281,7 +288,7 @@ export const SfdcInstanceProvider = (): infer _ =>
     delete: effect ({ output }) => {
       integrations
         .deleteProjectsLocationsSfdcInstances({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

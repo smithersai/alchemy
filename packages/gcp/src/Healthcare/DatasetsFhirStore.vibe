@@ -189,31 +189,37 @@ export const DatasetsFhirStoreProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousVersion = olds?.version ?? output?.version
-      const nextVersion = news.version ?? DEFAULT_VERSION
+      const nextVersion = resolved.version ?? DEFAULT_VERSION
       const extra = (previousVersion !== undefined && previousVersion !== nextVersion)
         || ((olds?.disableReferentialIntegrity ?? output?.disableReferentialIntegrity) === true)
-          !== (news.disableReferentialIntegrity === true)
+          !== (resolved.disableReferentialIntegrity === true)
         || ((olds?.disableResourceVersioning ?? output?.disableResourceVersioning) === true)
-          !== (news.disableResourceVersioning === true)
-      return replaceOnIdentity({
+          !== (resolved.disableResourceVersioning === true)
+      const input = {
         previousId: olds?.fhirStoreId ?? output?.fhirStoreId,
-        nextId: news.fhirStoreId,
+        nextId: resolved.fhirStoreId,
         previousParent: olds?.dataset ?? output?.dataset,
         nextParent: datasetOf(
-          news.dataset,
+          resolved.dataset,
           env.project,
-          normalizeLocation(news.location ?? output?.location, env.region),
+          normalizeLocation(resolved.location ?? output?.location, env.region),
         ),
         extra,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const fhirStoreId = try toPhysicalId(id, olds?.fhirStoreId, output?.fhirStoreId)
       const dataset = olds?.dataset !== undefined
         ? datasetOf(olds.dataset, env.project, location)
@@ -222,7 +228,12 @@ export const DatasetsFhirStoreProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -242,13 +253,15 @@ export const DatasetsFhirStoreProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const dataset = datasetOf(news.dataset, env.project, location)
       const fhirStoreId = try toPhysicalId(id, news.fhirStoreId, output?.fhirStoreId)
       const name = output?.name ?? resourceName(dataset, fhirStoreId)
       const version = news.version ?? DEFAULT_VERSION
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -278,7 +291,9 @@ export const DatasetsFhirStoreProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const updateCreateChanged = (current.enableUpdateCreate === true) !== (news.enableUpdateCreate === true)
       const searchChanged = (current.defaultSearchHandlingStrict === true)
@@ -288,11 +303,15 @@ export const DatasetsFhirStoreProvider = (): infer _ =>
         current = try retryTransient(
           healthcare.patchProjectsLocationsDatasetsFhirStores({
             name: currentName,
-            updateMask: updateMaskOf(
-              labelsChanged ? "labels" : undefined,
-              updateCreateChanged ? "enableUpdateCreate" : undefined,
-              searchChanged ? "defaultSearchHandlingStrict" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  labelsChanged ? "labels" : undefined,
+                  updateCreateChanged ? "enableUpdateCreate" : undefined,
+                  searchChanged ? "defaultSearchHandlingStrict" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               labels: desiredLabels,
               enableUpdateCreate: news.enableUpdateCreate,

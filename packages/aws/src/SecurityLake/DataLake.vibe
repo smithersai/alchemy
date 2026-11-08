@@ -250,7 +250,7 @@ const observeDataLakes = effect {
 // rejects listDataLakes with AccessDeniedException — that means "no data
 // lake", not a failure.
 const observeDataLakesIfOnboarded = effect {
-  return (try observeDataLakes) catch effect (e) => match (e) {
+  return (effect { return (try observeDataLakes) }) catch effect (e) => match (e) {
     when { _tag: "AccessDeniedException" } or { _tag: "UnauthorizedException" }: [] as securitylake.DataLakeResource[];
     default: throw e;
   }
@@ -294,7 +294,7 @@ export const DataLakeProvider = (): infer _ =>
           if (lakes.length === 0) return undefined
           const attrs = buildAttrs(lakes, region)
           const tags = try readSecurityLakeTags(attrs.dataLakeArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         // The data lake is an account-wide singleton spanning Regions.
@@ -366,7 +366,7 @@ export const DataLakeProvider = (): infer _ =>
 
           // 3d. SYNC tags — diff against OBSERVED cloud tags.
           const observedTags = try readSecurityLakeTags(attrs.dataLakeArn)
-          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try securitylake.tagResource({
               resourceArn: attrs.dataLakeArn,
@@ -389,9 +389,9 @@ export const DataLakeProvider = (): infer _ =>
         // behavior); only log collection and the lake configuration go away.
         delete: effect ({ output }) => {
           if (output.regions.length === 0) return
-          ;(try (securitylake.deleteDataLake({ regions: output.regions })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+          ;(effect { return (try (securitylake.deleteDataLake({ regions: output.regions })
+            |> retryWhileConflict(%))) }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

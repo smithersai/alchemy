@@ -175,7 +175,7 @@ const readQueueById = effect (
 ) => {
   const described = deadline
     .getQueue({ farmId, queueId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -201,10 +201,10 @@ const findQueueByDisplayName = effect (
   displayName: string,
   arnOf: (path: string) => string,
 ) => {
-  const summaries = (Array.from(
+  const summaries = (effect { return (Array.from(
     try (deadline.listQueues.items({ farmId })
       |> EffectStream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  )) }) catch effect (e) => match (e) {
     when { _tag: "ResourceNotFoundException" }: [] as deadline.QueueSummary[];
     default: throw e;
   }
@@ -254,13 +254,14 @@ export const QueueProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The parent farm is fixed at creation.
-          if (olds.farmId !== news.farmId) {
+          if (olds.farmId !== resolved.farmId) {
             return { action: "replace" } as const
           }
         },
@@ -317,7 +318,7 @@ export const QueueProvider = (): infer _ =>
           )
           const needsUpdate = displayName !== described.displayName
             || (news.description !== undefined
-              && news.description !== (asPlain(described.description) ?? ""))
+              && news.description !== ((try Effect.orDie(Effect.try({ try: () => asPlain(described.description), catch: (e) => e }))) ?? ""))
             || (news.defaultBudgetAction !== undefined
               && news.defaultBudgetAction !== described.defaultBudgetAction)
             || (news.roleArn !== undefined && news.roleArn !== described.roleArn)
@@ -368,7 +369,7 @@ export const QueueProvider = (): infer _ =>
               queueId: output.queueId,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
           // Queue deletion is asynchronous; wait until it is gone so the
@@ -377,14 +378,14 @@ export const QueueProvider = (): infer _ =>
             effect {
               const described = deadline
                 .getQueue({ farmId: output.farmId, queueId: output.queueId }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  when { _tag: "ResourceNotFoundException" }: undefined;
                   default: throw e;
                 }
               if (described !== undefined) {
                 throw new QueueStillExists({ queueId: output.queueId })
               }
             },
-          ) catch effect (e) => match (e) { when { _tag: "QueueStillExists" }: try Effect.void; default: throw e; }
+          ) catch effect (e) => match (e) { when { _tag: "QueueStillExists" }: (undefined as void); default: throw e; }
           // Deadline auto-creates /aws/deadline/{farmId}/{queueId} for the
           // queue's job/session logs and deleteQueue does NOT remove it —
           // reap it so a deleted queue leaves no orphaned log group.

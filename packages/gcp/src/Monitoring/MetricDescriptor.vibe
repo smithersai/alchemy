@@ -328,16 +328,18 @@ const waitUntilSynced = effect (name: string, desired: { displayName?: string; d
     }))
 
 const listCustom = effect (project: string) =>
-  (Array.from(
-    try (monitoring.listProjectsMetricDescriptors
-      .pages({
-        name: parentOf(project),
-        pageSize: 1000,
-        filter: `metric.type = starts_with("${CUSTOM_PREFIX}")`,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.metricDescriptors ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as monitoring.MetricDescriptor[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (monitoring.listProjectsMetricDescriptors
+        .pages({
+          name: try Effect.orDie(Effect.try({ try: () => parentOf(project), catch: (e) => e })),
+          pageSize: 1000,
+          filter: `metric.type = starts_with("${CUSTOM_PREFIX}")`,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.metricDescriptors ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as monitoring.MetricDescriptor[]; default: throw e; }
 
 const listOwned = effect (project: string) => {
   const descriptors = try listCustom(project)
@@ -349,7 +351,12 @@ const listOwned = effect (project: string) => {
 const findOwned = effect (project: string, id: string) => {
   const descriptors = try listCustom(project)
   for (const descriptor of descriptors) {
-    if (try hasAlchemyLabels(id, parseMarker(descriptor.description).labels)) {
+    if (
+      try hasAlchemyLabels(
+        id,
+        (try Effect.orDie(Effect.try({ try: () => parseMarker(descriptor.description), catch: (e) => e }))).labels,
+      )
+    ) {
       return descriptor
     }
   }
@@ -369,21 +376,24 @@ export const MetricDescriptorProvider = (): infer _ =>
     stables: ["name", "type", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousType = olds?.type ?? output?.type
-      const typeChanged = news.type !== undefined
+      const typeChanged = resolved.type !== undefined
         && previousType !== undefined
-        && qualifyType(news.type) !== previousType
+        && qualifyType(resolved.type) !== previousType
 
       const previousKind = (olds?.metricKind ?? output?.metricKind)?.toUpperCase()
-      const nextKind = news.metricKind?.toUpperCase()
+      const nextKind = resolved.metricKind?.toUpperCase()
       const kindChanged = nextKind !== undefined && previousKind !== undefined && nextKind !== previousKind
 
       const previousValue = (olds?.valueType ?? output?.valueType)?.toUpperCase()
-      const nextValue = news.valueType?.toUpperCase()
+      const nextValue = resolved.valueType?.toUpperCase()
       const valueChanged = nextValue !== undefined && previousValue !== undefined && nextValue !== previousValue
 
-      const removed = labelsRemoved(output?.labels ?? [], news.labels)
+      const removed = labelsRemoved(output?.labels ?? [], resolved.labels)
 
       if (!typeChanged && !kindChanged && !valueChanged && !removed) {
         return undefined
@@ -399,9 +409,12 @@ export const MetricDescriptorProvider = (): infer _ =>
       const existing = try observe(env.project, id, output?.name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, parseMarker(existing.description).labels))
+      return (try hasAlchemyLabels(
+          id,
+          (try Effect.orDie(Effect.try({ try: () => parseMarker(existing.description), catch: (e) => e }))).labels,
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -414,7 +427,9 @@ export const MetricDescriptorProvider = (): infer _ =>
       const type = try toType(id, news.type, output?.type)
       const name = resourceName(env.project, type)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const desiredKind = (news.metricKind ?? DEFAULT_METRIC_KIND).toUpperCase()
       const desiredValue = (news.valueType ?? DEFAULT_VALUE_TYPE).toUpperCase()
       const desiredUnit = news.unit ?? DEFAULT_UNIT
@@ -444,9 +459,19 @@ export const MetricDescriptorProvider = (): infer _ =>
         || (current.valueType ?? "").toUpperCase() !== desiredValue
         || (news.launchStage !== undefined && (current.launchStage ?? "") !== news.launchStage)
         || (news.metadata !== undefined
-          && !jsonEqual(toMetadata(current.metadata) ?? null, news.metadata))
+          && !(try Effect.orDie(
+            Effect.try({
+              try: jsonEqual.bind(undefined, toMetadata(current.metadata) ?? null, news.metadata),
+              catch: (e) => e,
+            }),
+          )))
         || (news.labels !== undefined
-          && !jsonEqual(canonLabels(observedLabels), canonLabels(news.labels)))
+          && !(try Effect.orDie(
+            Effect.try({
+              try: jsonEqual.bind(undefined, canonLabels(observedLabels), canonLabels(news.labels)),
+              catch: (e) => e,
+            }),
+          )))
 
       if (needsUpdate) {
         current = (try upsert()) ?? current

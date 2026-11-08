@@ -3,9 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { retryWhileConflict } from "./internal.vibe"
 
@@ -163,7 +160,7 @@ export const CustomLogSourceProvider = (): infer _ =>
           // listLogSources — that means "no source", not a failure.
           const observed = findByName(sourceName, sourceVersion) catch effect (e) => match (e) {
             when { _tag: "AccessDeniedException" } or { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }:
-              try Effect.undefined;
+              undefined;
             default: throw e;
           }
           if (observed === undefined) return undefined
@@ -182,23 +179,25 @@ export const CustomLogSourceProvider = (): infer _ =>
         },
 
         list: effect () =>
-          (try effect {
-            const entries = try (securitylake.listLogSources.items({})
-              |> Stream.map(%, (entry) => entry.sources ?? [])
-              |> Stream.flattenIterable(%)
-              |> Stream.runCollect(%))
+          (effect {
+            return (try effect {
+              const entries = try (securitylake.listLogSources.items({})
+                |> Stream.map(%, (entry) => entry.sources ?? [])
+                |> Stream.flattenIterable(%)
+                |> Stream.runCollect(%))
 
-            const seen = new Set<string>()
-            const attrs: ReturnType<typeof buildAttrs>[] = []
-            for (const entry of entries) {
-              const source = entry.customLogSource
-              if (source?.sourceName === undefined) continue
-              const key = `${source.sourceName}@${source.sourceVersion ?? ""}`
-              if (seen.has(key)) continue
-              seen.add(key)
-              attrs.push(buildAttrs(source))
-            }
-            return attrs
+              const seen = new Set<string>()
+              const attrs: ReturnType<typeof buildAttrs>[] = []
+              for (const entry of entries) {
+                const source = entry.customLogSource
+                if (source?.sourceName === undefined) continue
+                const key = `${source.sourceName}@${source.sourceVersion ?? ""}`
+                if (seen.has(key)) continue
+                seen.add(key)
+                attrs.push(buildAttrs(source))
+              }
+              return attrs
+            })
           }) catch effect (e) => match (e) {
             when { _tag: "AccessDeniedException" } or { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }:
               [];
@@ -207,13 +206,16 @@ export const CustomLogSourceProvider = (): infer _ =>
 
         // There is no UpdateCustomLogSource — every property is create-only.
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
-          const changed = news.sourceName !== olds.sourceName
-            || news.sourceVersion !== olds.sourceVersion
-            || JSON.stringify(news.eventClasses ?? []) !== JSON.stringify(olds.eventClasses ?? [])
-            || news.crawlerConfiguration.roleArn !== olds.crawlerConfiguration.roleArn
-            || news.providerIdentity.principal !== olds.providerIdentity.principal
-            || news.providerIdentity.externalId !== olds.providerIdentity.externalId
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const changed = resolved.sourceName !== olds.sourceName
+            || resolved.sourceVersion !== olds.sourceVersion
+            || JSON.stringify(resolved.eventClasses ?? []) !== JSON.stringify(olds.eventClasses ?? [])
+            || resolved.crawlerConfiguration.roleArn !== olds.crawlerConfiguration.roleArn
+            || resolved.providerIdentity.principal !== olds.providerIdentity.principal
+            || resolved.providerIdentity.externalId !== olds.providerIdentity.externalId
           if (changed) return { action: "replace" } as const
         },
 
@@ -227,19 +229,21 @@ export const CustomLogSourceProvider = (): infer _ =>
           // concurrent create won the race; fall through to observation.
           let attrs = output
           if (observed === undefined) {
-            const created = (try securitylake
-              .createCustomLogSource({
-                sourceName,
-                sourceVersion: news.sourceVersion,
-                eventClasses: news.eventClasses,
-                configuration: {
-                  crawlerConfiguration: news.crawlerConfiguration,
-                  providerIdentity: news.providerIdentity,
-                },
-              })).source catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try securitylake
+                .createCustomLogSource({
+                  sourceName,
+                  sourceVersion: news.sourceVersion,
+                  eventClasses: news.eventClasses,
+                  configuration: {
+                    crawlerConfiguration: news.crawlerConfiguration,
+                    providerIdentity: news.providerIdentity,
+                  },
+                })).source
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             if (created !== undefined) {
               attrs = buildAttrs(created)
             }
@@ -262,16 +266,18 @@ export const CustomLogSourceProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (securitylake
-            .deleteCustomLogSource({
-              sourceName: output.sourceName,
-              sourceVersion: output.sourceVersion,
-            })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "AccessDeniedException" } or { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }:
-                try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (securitylake
+              .deleteCustomLogSource({
+                sourceName: output.sourceName,
+                sourceVersion: output.sourceVersion,
+              })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "AccessDeniedException" } or { _tag: "ResourceNotFoundException" } or { _tag: "UnauthorizedException" }:
+              (undefined as void);
+            default: throw e;
+          }
         },
       }
     },

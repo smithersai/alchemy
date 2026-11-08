@@ -139,12 +139,12 @@ export const RemoteImageProvider = (): infer _ =>
       const inspectImage = effect (ref: string, context: string | undefined) =>
         try (docker.image
           .inspect(ref, context)
-          |> Effect.catchIf(%, isMissingImageError, effect () => try Effect.undefined))
+          |> Effect.catchIf(%, isMissingImageError, effect () => undefined))
 
       return RemoteImage.Provider.of({
         list: effect () => [],
         read: effect ({ olds, output }) => {
-          const context = dockerContextName(olds.context)
+          const context = try Effect.orDie(Effect.try({ try: () => dockerContextName(olds.context), catch: (e) => e }))
           const ref = output?.imageRef ?? targetImageRef(olds)
           return try effect {
             const image = try inspectImage(ref, context)
@@ -162,17 +162,18 @@ export const RemoteImageProvider = (): infer _ =>
           }
         },
         diff: effect ({ output, news, olds }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           if (
-            dockerContextName(olds.context) !== dockerContextName(news.context)
+            (try Effect.orDie(Effect.try({ try: () => dockerContextName(olds.context), catch: (e) => e }))) !== (try Effect.orDie(Effect.try({ try: () => dockerContextName(resolved.context), catch: (e) => e })))
             || !output
-            || news.alwaysPull !== false
-            || output.imageRef !== targetImageRef(news)
+            || resolved.alwaysPull !== false
+            || output.imageRef !== targetImageRef(resolved)
           ) {
             return { action: "update" }
           }
-          const source = try inspectImage(remoteImageRef(news), dockerContextName(news.context))
-          const target = try inspectImage(targetImageRef(news), dockerContextName(news.context))
+          const source = try inspectImage(remoteImageRef(resolved), try Effect.orDie(Effect.try({ try: () => dockerContextName(resolved.context), catch: (e) => e })))
+          const target = try inspectImage(targetImageRef(resolved), try Effect.orDie(Effect.try({ try: () => dockerContextName(resolved.context), catch: (e) => e })))
           if (
             !source
             || !target
@@ -183,7 +184,7 @@ export const RemoteImageProvider = (): infer _ =>
           }
         },
         reconcile: effect ({ news, session }) => {
-          const context = dockerContextName(news.context)
+          const context = try Effect.orDie(Effect.try({ try: () => dockerContextName(news.context), catch: (e) => e }))
           const sourceRef = remoteImageRef(news)
           let source: Docker.Image | undefined
           if (news.alwaysPull === false) {
@@ -235,7 +236,7 @@ export const RemoteImageProvider = (): infer _ =>
 /** The reference the image is pulled from. */
 const remoteImageRef = (props: RemoteImageProps): string => `${props.name}:${props.tag ?? "latest"}`
 
-const isMissingImageError = (error: PlatformError): boolean =>
+const isMissingImageError = (error: PlatformError.PlatformError): boolean =>
   error.reason._tag === "NotFound"
   && /no such image|image not known|image not found/i.test(error.reason.description ?? "")
 

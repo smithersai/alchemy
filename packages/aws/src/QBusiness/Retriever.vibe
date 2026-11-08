@@ -137,7 +137,7 @@ const createDisplayName = effect (
 const fetchTags = effect (arn: string) => {
   const response = qbusiness
     .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
@@ -151,7 +151,7 @@ interface RetrieverState {
 const readRetrieverById = effect (applicationId: string, retrieverId: string) => {
   const described = qbusiness
     .getRetriever({ applicationId, retrieverId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -173,10 +173,10 @@ const readRetrieverById = effect (applicationId: string, retrieverId: string) =>
 }
 
 const findRetrieverByName = effect (applicationId: string, displayName: string) => {
-  const summaries = (Array.from(
+  const summaries = (effect { return (Array.from(
     try (qbusiness.listRetrievers.pages({ applicationId })
       |> EffectStream.runCollect(%)),
-  ).flatMap((page) => page.retrievers ?? [])) catch effect (e) => match (e) {
+  ).flatMap((page) => page.retrievers ?? [])) }) catch effect (e) => match (e) {
     when { _tag: "ResourceNotFoundException" }: [] as qbusiness.Retriever[];
     default: throw e;
   }
@@ -215,12 +215,12 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
     schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(60)]),
   })
 
-const waitForRetrieverActive = (applicationId: string, retrieverId: string) =>
-  retryWhileNotReady(
+const waitForRetrieverActive = effect (applicationId: string, retrieverId: string) =>
+  try retryWhileNotReady(
     effect {
       const described = qbusiness
         .getRetriever({ applicationId, retrieverId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (described?.status === "ACTIVE") return
@@ -250,13 +250,14 @@ export const RetrieverProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The parent application and retriever type are fixed at creation.
-          if (olds.applicationId !== news.applicationId || olds.type !== news.type) {
+          if (olds.applicationId !== resolved.applicationId || olds.type !== resolved.type) {
             return { action: "replace" } as const
           }
         },
@@ -328,7 +329,7 @@ export const RetrieverProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.attrs.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try qbusiness.untagResource({
               resourceARN: state.attrs.retrieverArn,
@@ -361,7 +362,7 @@ export const RetrieverProvider = (): infer _ =>
               applicationId: output.applicationId,
               retrieverId: output.retrieverId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

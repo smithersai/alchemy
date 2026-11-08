@@ -359,7 +359,7 @@ export const EnvironmentProvider = (): infer _ =>
       const readEnvironment = effect (name: string) => {
         const response = mwaa
           .getEnvironment({ Name: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.Environment
@@ -434,8 +434,9 @@ export const EnvironmentProvider = (): infer _ =>
         stables: ["environmentName", "arn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          const n = news
+          const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved_ === undefined) return undefined
+          const n = resolved_
           const o = olds
           if (n === undefined || o === undefined) return undefined
           if ((try toName(id, o)) !== (try toName(id, n))) {
@@ -458,7 +459,7 @@ export const EnvironmentProvider = (): infer _ =>
           const env = try readEnvironment(name)
           if (!env?.Arn) return undefined
           const attrs = try toAttrs(env)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -644,7 +645,7 @@ export const EnvironmentProvider = (): infer _ =>
           const arn = observed.Arn
           if (arn) {
             const observedTags = try readTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try mwaa.tagResource({
                 ResourceArn: arn,
@@ -669,7 +670,7 @@ export const EnvironmentProvider = (): infer _ =>
           if (existing.Status !== "DELETING") {
             mwaa
               .deleteEnvironment({ Name: name }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -707,14 +708,14 @@ export const EnvironmentProvider = (): infer _ =>
             }
               |> Effect.flatMap(
                 %,
-                Effect.forEach((name) => readEnvironment(name), {
+                Effect.forEach(effect (name) => try readEnvironment(name), {
                   concurrency: 4,
                 }),
               ))).filter(
                 (env): env is mwaa.Environment => env !== undefined && env.Name !== undefined && !!env.Arn,
               )
           }
-            |> Effect.flatMap(%, Effect.forEach((env) => toAttrs(env), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (env) => try toAttrs(env), { concurrency: 4 }))),
       }
     },
   )

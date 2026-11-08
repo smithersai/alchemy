@@ -121,12 +121,14 @@ const getByName = effect (name: string) =>
     }
 
 const mapIsOwned = effect (parent: string) =>
-  (try effect {
-    try apigee
-      .getOrganizationsApisKeyvaluemapsEntries({
-        name: `${parent}/entries/${OWNERSHIP_KEY}`,
-      })
-    return true
+  (effect {
+    return (try effect {
+      try apigee
+        .getOrganizationsApisKeyvaluemapsEntries({
+          name: `${parent}/entries/${OWNERSHIP_KEY}`,
+        })
+      return true
+    })
   }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: false;
     default: throw e;
@@ -137,18 +139,27 @@ export const ApisKeyvaluemapsEntryProvider = (): infer _ =>
     stables: ["name", "entryId", "mapId", "apiId", "organizationId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.entryId ?? output?.entryId
-      const previousMap = olds?.map ? lastSegment(olds.map) : output?.mapId
-      const previousApi = olds?.api ? lastSegment(olds.api) : output?.apiId
+      const previousMap = olds?.map
+        ? try Effect.orDie(Effect.try({ try: () => lastSegment(olds.map), catch: (e) => e }))
+        : output?.mapId
+      const previousApi = olds?.api
+        ? try Effect.orDie(Effect.try({ try: () => lastSegment(olds.api), catch: (e) => e }))
+        : output?.apiId
       const previousOrg = olds?.organizationId ?? output?.organizationId
       if (
-        (previousId !== undefined && news.entryId !== undefined && news.entryId !== previousId)
-        || (previousMap !== undefined && lastSegment(news.map) !== previousMap)
-        || (previousApi !== undefined && lastSegment(news.api) !== previousApi)
+        (previousId !== undefined && resolved.entryId !== undefined && resolved.entryId !== previousId)
+        || (previousMap !== undefined
+          && (try Effect.orDie(Effect.try({ try: () => lastSegment(resolved.map), catch: (e) => e }))) !== previousMap)
+        || (previousApi !== undefined
+          && (try Effect.orDie(Effect.try({ try: () => lastSegment(resolved.api), catch: (e) => e }))) !== previousApi)
         || (previousOrg !== undefined
-          && news.organizationId !== undefined
-          && news.organizationId !== previousOrg)
+          && resolved.organizationId !== undefined
+          && resolved.organizationId !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -158,8 +169,12 @@ export const ApisKeyvaluemapsEntryProvider = (): infer _ =>
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const organizationId = olds?.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
-      const apiId = lastSegment(olds?.api ?? output?.apiId ?? "")
-      const mapId = lastSegment(olds?.map ?? output?.mapId ?? "")
+      const apiId = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.api ?? output?.apiId ?? ""), catch: (e) => e }),
+      )
+      const mapId = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.map ?? output?.mapId ?? ""), catch: (e) => e }),
+      )
       if (apiId.length === 0 || mapId.length === 0) return undefined
       const entryId = try toPhysicalId(id, olds?.entryId, output?.entryId, MAX_NAME_LENGTH)
       const name = output?.name ?? resourceName(organizationId, apiId, mapId, entryId)
@@ -167,7 +182,7 @@ export const ApisKeyvaluemapsEntryProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, organizationId, apiId, mapId, name)
       const owned = try mapIsOwned(mapName(organizationId, apiId, mapId))
-      return owned ? attrs : Unowned(attrs)
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -190,28 +205,30 @@ export const ApisKeyvaluemapsEntryProvider = (): infer _ =>
         if (apiId.length === 0) continue
         const parent = mapName(organizationId, apiId, apiId)
         if (!(try mapIsOwned(parent))) continue
-        const entries = (Array.from(
-          try (apigee.listOrganizationsApisKeyvaluemapsEntries
-            .pages({
-              parent,
-              pageSize: 100,
-            })
-            |> Stream.flatMap(%, (item) => Stream.fromIterable(item.keyValueEntries ?? []))
-            |> Stream.filter(%, (entry) => lastSegment(entry.name ?? "") !== OWNERSHIP_KEY)
-            |> Stream.map(%, (entry) => {
-              const name = entry.name
-                ?? resourceName(organizationId, apiId, apiId, lastSegment(entry.name ?? ""))
-              return toAttrs(
-                entry,
-                env.project,
-                organizationId,
-                apiId,
-                apiId,
-                name.includes("/") ? name : resourceName(organizationId, apiId, apiId, name),
-              )
-            })
-            |> Stream.runCollect(%)),
-        )) catch effect (e) => match (e) {
+        const entries = (effect {
+          return (Array.from(
+            try (apigee.listOrganizationsApisKeyvaluemapsEntries
+              .pages({
+                parent,
+                pageSize: 100,
+              })
+              |> Stream.flatMap(%, (item) => Stream.fromIterable(item.keyValueEntries ?? []))
+              |> Stream.filter(%, (entry) => lastSegment(entry.name ?? "") !== OWNERSHIP_KEY)
+              |> Stream.map(%, (entry) => {
+                const name = entry.name
+                  ?? resourceName(organizationId, apiId, apiId, lastSegment(entry.name ?? ""))
+                return toAttrs(
+                  entry,
+                  env.project,
+                  organizationId,
+                  apiId,
+                  apiId,
+                  name.includes("/") ? name : resourceName(organizationId, apiId, apiId, name),
+                )
+              })
+              |> Stream.runCollect(%)),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
           default: throw e;
         }
@@ -223,8 +240,8 @@ export const ApisKeyvaluemapsEntryProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organizationId = news.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
-      const apiId = lastSegment(news.api)
-      const mapId = lastSegment(news.map)
+      const apiId = try Effect.orDie(Effect.try({ try: () => lastSegment(news.api), catch: (e) => e }))
+      const mapId = try Effect.orDie(Effect.try({ try: () => lastSegment(news.map), catch: (e) => e }))
       const entryId = try toPhysicalId(id, news.entryId, output?.entryId, MAX_NAME_LENGTH)
       const name = resourceName(organizationId, apiId, mapId, entryId)
       const parent = mapName(organizationId, apiId, mapId)

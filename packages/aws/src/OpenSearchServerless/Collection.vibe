@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -188,7 +189,9 @@ export const CollectionProvider = (): infer _ =>
           (try aoss
             .listTagsForResource({ resourceArn: arn })).tags,
         )
-        const { upsert, removed } = diffTags(observed, desired)
+        const { upsert, removed } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }),
+        )
         if (upsert.length > 0) {
           try aoss.tagResource({
             resourceArn: arn,
@@ -224,17 +227,21 @@ export const CollectionProvider = (): infer _ =>
             return undefined
           }
           const attrs = toAttributes(detail)
-          const tags = (try aoss.listTagsForResource({ resourceArn: detail.arn })).tags catch () => undefined
+          const collectionArn = detail.arn
+          const tags = effect {
+            return ((try aoss.listTagsForResource({ resourceArn: collectionArn })).tags)
+          } catch () => undefined
           return (try hasAlchemyTags(
               id,
               (tags ?? []).map((t) => ({ Key: t.key, Value: t.value })),
             ))
             ? attrs
-            : Unowned(attrs)
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) {
@@ -257,23 +264,29 @@ export const CollectionProvider = (): infer _ =>
 
           // 2. ENSURE — create if missing; wait for ACTIVE (async provisioning)
           if (detail === undefined) {
-            const created = (try aoss
-              .createCollection({
-                name,
-                type,
-                description: news.description,
-                standbyReplicas: news.standbyReplicas,
-                deletionProtection: news.deletionProtection,
-                tags: recordToTagList(desiredTags),
-              })).createCollectionDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try aoss
+                .createCollection({
+                  name,
+                  type,
+                  description: news.description,
+                  standbyReplicas: news.standbyReplicas,
+                  deletionProtection: news.deletionProtection,
+                  tags: recordToTagList(desiredTags),
+                })).createCollectionDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             const collectionId = created?.id ?? (try observeByName(name))?.id
             if (collectionId === undefined) {
-              throw aoss.ResourceNotFoundException.make({
-                message: `collection ${name} not visible after create`,
-              })
+              throw try Effect.orDie(Effect.try({
+                try: () =>
+                  aoss.ResourceNotFoundException.make({
+                    message: `collection ${name} not visible after create`,
+                  }),
+                catch: (e) => e,
+              }))
             }
             try session.note(`creating collection ${name} (async)...`)
             detail = try awaitCollectionActive(collectionId)
@@ -302,7 +315,7 @@ export const CollectionProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           retryWhileConflict(aoss.deleteCollection({ id: output.collectionId })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

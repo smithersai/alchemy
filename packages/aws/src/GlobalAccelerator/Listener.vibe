@@ -2,8 +2,6 @@ import * as ga from "@distilled.cloud/aws/global-accelerator"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { retryUntilListenerDeletable, withGaRegion } from "./common.vibe"
 
@@ -120,8 +118,10 @@ const toAttributes = (l: ga.Listener, listenerArn: string): infer _ => ({
 })
 
 const describeListener = effect (listenerArn: string) =>
-  (try withGaRegion(ga.describeListener({ ListenerArn: listenerArn }))).Listener catch effect (e) => match (e) {
-    when { _tag: "ListenerNotFoundException" }: try Effect.undefined;
+  (effect {
+    return (try withGaRegion(ga.describeListener({ ListenerArn: listenerArn }))).Listener
+  }) catch effect (e) => match (e) {
+    when { _tag: "ListenerNotFoundException" }: undefined;
     default: throw e;
   }
 
@@ -133,11 +133,13 @@ const findListener = effect (
 ) => {
   if (!acceleratorArn || !portRanges) return undefined
   const desired = normalizeRanges(portRanges)
-  const listeners = (Array.from(
-    try withGaRegion(
-      ga.listListeners.items({ AcceleratorArn: acceleratorArn }).pipe(Stream.runCollect),
-    ),
-  )) catch effect (e) => match (e) {
+  const listeners = (effect {
+    return (Array.from(
+      try withGaRegion(
+        ga.listListeners.items({ AcceleratorArn: acceleratorArn }).pipe(Stream.runCollect),
+      ),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "AcceleratorNotFoundException" }: [] as ga.Listener[];
     default: throw e;
   }
@@ -160,8 +162,11 @@ export const ListenerProvider = (): infer _ =>
       return toAttributes(found, found.ListenerArn)
     },
     diff: effect ({ news, olds }) => {
-      if (!isResolved(news)) return undefined
-      if (news.acceleratorArn !== olds.acceleratorArn) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (resolved.acceleratorArn !== olds.acceleratorArn) {
         return { action: "replace" } as const
       }
       // portRanges / protocol / clientAffinity update in place.
@@ -223,11 +228,13 @@ export const ListenerProvider = (): infer _ =>
       return toAttributes(live ?? {}, listenerArn)
     },
     delete: effect ({ output }) => {
-      ;(try (ga.deleteListener({ ListenerArn: output.listenerArn })
-        |> withGaRegion(%)
-        |> retryUntilListenerDeletable(%))) catch effect (e) => match (e) {
-          when { _tag: "ListenerNotFoundException" }: try Effect.void;
-          default: throw e;
-        }
+      ;(effect {
+        return (try (ga.deleteListener({ ListenerArn: output.listenerArn })
+          |> withGaRegion(%)
+          |> retryUntilListenerDeletable(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "ListenerNotFoundException" }: (undefined as void);
+        default: throw e;
+      }
     },
   })

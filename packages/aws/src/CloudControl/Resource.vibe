@@ -99,11 +99,11 @@ error ResourceRequestFailed {
 }
 
 /** Unwrap distilled's sensitive-string decoding to a plain string. */
-const plain = (value: string | Redacted<string> | undefined): string | undefined =>
+const plain = (value: string | Redacted.Redacted<string> | undefined): string | undefined =>
   value === undefined || typeof value === "string" ? value : Redacted.value(value)
 
 const parseProperties = (
-  properties: string | Redacted<string> | undefined,
+  properties: string | Redacted.Redacted<string> | undefined,
 ): Record<string, unknown> => {
   const raw = plain(properties)
   if (raw === undefined) return {}
@@ -151,18 +151,21 @@ const buildPatch = (
  *
  * @see https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ssm-document.html
  */
-const resourcePatch = (
+const resourcePatch = effect (
   typeName: string,
   observed: Record<string, unknown>,
   desired: Record<string, unknown>,
-): infer _ => {
+) => {
   if (typeName !== "AWS::SSM::Document") return buildPatch(observed, desired)
   const { UpdateMethod, ...document } = desired
-  const normalizeDocument = (value: Record<string, unknown>): infer _ =>
+  const normalizeDocument = effect (value: Record<string, unknown>) =>
     value.DocumentFormat === "JSON" && typeof value.Content === "string"
-      ? { ...value, Content: JSON.parse(value.Content) }
+      ? {
+        ...value,
+        Content: try Effect.orDie(Effect.try({ try: () => JSON.parse(value.Content as string), catch: (e) => e })),
+      }
       : value
-  const patch = buildPatch(normalizeDocument(observed), normalizeDocument(document))
+  const patch = buildPatch(try normalizeDocument(observed), try normalizeDocument(document))
   return patch.length > 0 && UpdateMethod !== undefined
     ? [...patch, ...buildPatch(observed, { UpdateMethod })]
     : patch
@@ -214,16 +217,21 @@ export const CloudControlResourceProvider = (): infer _ =>
 
       /** Read live resource properties; a missing resource reads as absent. */
       const getResource = effect (typeName: string, identifier: string) =>
-        (try cloudcontrol.getResource({ TypeName: typeName, Identifier: identifier })).ResourceDescription catch effect (
+        (effect {
+          return (try cloudcontrol.getResource({ TypeName: typeName, Identifier: identifier })).ResourceDescription
+        }) catch effect (
           e,
-        ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+        ) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
       return {
         stables: ["typeName", "identifier"],
 
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((olds?.typeName ?? undefined) !== (news?.typeName ?? undefined)) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((olds?.typeName ?? undefined) !== (resolved?.typeName ?? undefined)) {
             return { action: "replace" } as const
           }
         },
@@ -261,7 +269,7 @@ export const CloudControlResourceProvider = (): infer _ =>
           } else {
             // 3. Sync — patch only the drifted user-specified keys.
             identifier = description.Identifier!
-            const patch = resourcePatch(
+            const patch = try resourcePatch(
               typeName,
               parseProperties(description.Properties),
               news.desiredState,
@@ -289,14 +297,16 @@ export const CloudControlResourceProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          const deleted = (try cloudcontrol
-            .deleteResource({
-              TypeName: output.typeName,
-              Identifier: output.identifier,
-            })).ProgressEvent catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          const deleted = (effect {
+            return (try cloudcontrol
+              .deleteResource({
+                TypeName: output.typeName,
+                Identifier: output.identifier,
+              })).ProgressEvent
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
           if (deleted?.RequestToken !== undefined) {
             waitForRequest(deleted.RequestToken, output.typeName) catch effect (e) => match (e) {
               when { _tag: "ResourceRequestFailed" }: try (e.errorCode === "NotFound" ? Effect.void : throw e);

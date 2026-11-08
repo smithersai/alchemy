@@ -69,7 +69,7 @@ export const fingerprintOf = (name: string | undefined, fingerprint?: string) =>
   return parts[1] ?? "";
 };
 
-export const resourceName = (user: string, fingerprint: string) =>
+export const resourceName = /** @throws {never} */ (user: string, fingerprint: string) =>
   `${toUserParent(user)}/sshPublicKeys/${fingerprint}`;
 
 const emptyList = <A>() => Effect.succeed([] as A[]);

@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
 import * as mediaconnect from "@distilled.cloud/aws/mediaconnect"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -21,8 +23,14 @@ export error MediaConnectFlowUnexpectedResponse {
  * Every flow output managed by alchemy must carry a `Name` so the reconciler
  * can converge outputs by identity across updates.
  */
-export error FlowOutputNameMissing {
-  mutable message: string
+export class FlowOutputNameMissing extends $MutableErrorBase("FlowOutputNameMissing")<{
+
+   message: string;
+}> {static {
+    $MutableErrorMatcher(this, "FlowOutputNameMissing", true);
+}
+
+
 }
 
 export interface FlowProps {
@@ -180,7 +188,7 @@ export const FlowProvider = (): infer _ =>
       const readFlow = effect (flowArn: string) => {
         const response = mediaconnect
           .describeFlow({ FlowArn: flowArn }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
         return response?.Flow
@@ -202,7 +210,7 @@ export const FlowProvider = (): infer _ =>
       const readFlowTags = effect (flowArn: string) => {
         const response = mediaconnect
           .listTagsForResource({ ResourceArn: flowArn }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
         const tags: Record<string, string> = {}
@@ -243,7 +251,7 @@ export const FlowProvider = (): infer _ =>
         try (effect {
           return try effect {
             const flow = try readFlow(flowArn)
-            return (flow === undefined ? try Effect.void : throw new MediaConnectFlowNotReady({
+            return (flow === undefined ? (undefined as void) : throw new MediaConnectFlowNotReady({
               message: `MediaConnect flow '${flowArn}' still exists (status: ${flow.Status})`,
             }))
           }
@@ -287,17 +295,18 @@ export const FlowProvider = (): infer _ =>
         stables: ["flowName", "flowArn", "availabilityZone"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           const oldName = try toName(id, { flowName: olds?.flowName })
-          const newName = try toName(id, { flowName: news?.flowName })
+          const newName = try toName(id, { flowName: resolved?.flowName })
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
           // The Availability Zone is create-only.
           if (
-            news?.availabilityZone !== undefined
+            resolved?.availabilityZone !== undefined
             && olds?.availabilityZone !== undefined
-            && news.availabilityZone !== olds.availabilityZone
+            && resolved.availabilityZone !== olds.availabilityZone
           ) {
             return { action: "replace" } as const
           }
@@ -310,7 +319,7 @@ export const FlowProvider = (): infer _ =>
           const flow = try readFlow(arn)
           if (flow === undefined) return undefined
           const attrs = try toAttrs(flow)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -449,7 +458,7 @@ export const FlowProvider = (): infer _ =>
                   FlowArn: arn,
                   OutputArn: existing.OutputArn,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
               outputsMutated = true
@@ -523,7 +532,7 @@ export const FlowProvider = (): infer _ =>
 
           // 3c. Sync tags — diff against OBSERVED cloud tags.
           const observedTags = try readFlowTags(arn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try mediaconnect.tagResource({
               ResourceArn: arn,
@@ -548,12 +557,12 @@ export const FlowProvider = (): infer _ =>
           // A flow must be stopped before it can be deleted. Alchemy never
           // starts flows, but the flow may have been started out-of-band.
           if (observed.Status === "ACTIVE" || observed.Status === "STARTING") {
-            ;(try (mediaconnect.stopFlow({ FlowArn: arn })
+            ;(effect { return (try (mediaconnect.stopFlow({ FlowArn: arn })
               |> Effect.retry(%, {
                 while: (e) => e._tag === "BadRequestException",
                 schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(12)]),
-              }))) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.void;
+              }))) }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -561,12 +570,12 @@ export const FlowProvider = (): infer _ =>
           // then delete. A flow already DELETING (or gone) is success.
           const settled = waitUntilSettled(arn) catch () => undefined
           if (settled !== undefined) {
-            ;(try (mediaconnect.deleteFlow({ FlowArn: arn })
+            ;(effect { return (try (mediaconnect.deleteFlow({ FlowArn: arn })
               |> Effect.retry(%, {
                 while: (e) => e._tag === "BadRequestException",
                 schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(12)]),
-              }))) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.void;
+              }))) }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -579,12 +588,12 @@ export const FlowProvider = (): infer _ =>
           for (const flow of listed) {
             if (flow.FlowArn !== undefined) arns.push(flow.FlowArn)
           }
-          const flows = try Effect.forEach(arns, (arn) => readFlow(arn), {
+          const flows = try Effect.forEach(arns, effect (arn) => try readFlow(arn), {
             concurrency: 4,
           })
           return try Effect.forEach(
             flows.filter((flow): flow is DescribedFlow => flow !== undefined),
-            (flow) => toAttrs(flow),
+            effect (flow) => try toAttrs(flow),
             { concurrency: 4 },
           )
         },

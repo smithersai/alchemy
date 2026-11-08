@@ -276,27 +276,37 @@ export const AppConnectionProvider = (): infer _ =>
     stables: ["name", "appConnectionId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.type ?? output?.type ?? DEFAULT_CONNECTION_TYPE
-      const nextType = news.type ?? previousType
-      const previousGateway = lastSegment(
-        olds?.gateway?.appGateway ?? output?.gateway?.appGateway ?? "",
+      const nextType = resolved.type ?? previousType
+      const previousGateway = try Effect.orDie(Effect.try({
+        try: () =>
+          lastSegment(
+            olds?.gateway?.appGateway ?? output?.gateway?.appGateway ?? "",
+          ),
+        catch: (e) => e,
+      }))
+      const nextGateway = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(resolved.gateway?.appGateway ?? ""), catch: (e) => e }),
       )
-      const nextGateway = lastSegment(news.gateway?.appGateway ?? "")
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.appConnectionId ?? output?.appConnectionId,
-        nextId: news.appConnectionId
-          ? rfc1035(news.appConnectionId, "appconnection")
+        nextId: resolved.appConnectionId
+          ? rfc1035(resolved.appConnectionId, "appconnection")
           : (olds?.appConnectionId ?? output?.appConnectionId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         extra: previousType !== nextType
           || (previousGateway.length > 0 && nextGateway.length > 0 && previousGateway !== nextGateway),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -307,12 +317,19 @@ export const AppConnectionProvider = (): infer _ =>
         output?.appConnectionId,
         "appconnection",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, appConnectionId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -329,10 +346,12 @@ export const AppConnectionProvider = (): infer _ =>
         output?.appConnectionId,
         "appconnection",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, appConnectionId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const type = news.type ?? DEFAULT_CONNECTION_TYPE
@@ -367,8 +386,11 @@ export const AppConnectionProvider = (): infer _ =>
         if (created !== undefined) {
           try waitForOperation(created)
         }
-        current = try waitUntilReady(getByName(name), name, (item) =>
-          item.state === undefined ? undefined : `${item.state}`)
+        current = try waitUntilReady(
+          getByName(name),
+          name,
+          (item) => item.state === undefined ? undefined : `${item.state}`,
+        )
       }
 
       if (current === undefined) {
@@ -377,7 +399,13 @@ export const AppConnectionProvider = (): infer _ =>
 
       const observedLabels = tagRecord(current.labels)
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
-      const endpointChanged = fingerprint(current.applicationEndpoint) !== fingerprint(applicationEndpoint)
+      const endpointChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, current.applicationEndpoint),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, applicationEndpoint),
+        catch: (e) => e,
+      })))
       const connectorsChanged = !sameStringList(current.connectors, connectors)
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
@@ -405,14 +433,15 @@ export const AppConnectionProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (beyondcorp
-        .deleteProjectsLocationsAppConnections({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) =>
-            error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (beyondcorp
+          .deleteProjectsLocationsAppConnections({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

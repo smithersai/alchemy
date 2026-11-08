@@ -3,7 +3,6 @@ import { OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
 import { authPlanScope, authRequest, InvalidManagedAuth } from "./Auth.vibe"
 import type { Providers } from "./Providers.vibe"
 
@@ -54,9 +53,9 @@ export interface AuthTrustedDomain extends
 export const AuthTrustedDomain = Resource<AuthTrustedDomain>("Neon.AuthTrustedDomain")
 
 const observe = effect (scope: { projectId: string; branchId: string }, domain: string) =>
-  ((try Neon.listBranchNeonAuthTrustedDomains(authRequest(scope))).domains.some(
+  (effect { return ((try Neon.listBranchNeonAuthTrustedDomains(authRequest(scope))).domains.some(
     (item) => item.domain === domain && item.auth_provider === "better_auth",
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
 
 export const AuthTrustedDomainProvider = (): infer _ =>
   Provider.succeed(AuthTrustedDomain, {
@@ -73,15 +72,16 @@ export const AuthTrustedDomainProvider = (): infer _ =>
       ) {
         return { action: "replace" } as const
       }
-      if (!isResolved(news)) return
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return
       if (
-        news.auth.projectId !== olds.auth.projectId
-        || news.auth.branchId !== olds.auth.branchId
-        || news.domain !== olds.domain
+        resolved.auth.projectId !== olds.auth.projectId
+        || resolved.auth.branchId !== olds.auth.branchId
+        || resolved.domain !== olds.domain
       ) {
         return { action: "replace" } as const
       }
-      if (!(try observe(news.auth, news.domain))) return { action: "update" } as const
+      if (!(try observe(resolved.auth, resolved.domain))) return { action: "update" } as const
     },
     read: effect ({ olds, output }) => {
       if (!output && (!olds?.auth?.projectId || !olds.auth.branchId || !olds.domain)) {
@@ -95,7 +95,7 @@ export const AuthTrustedDomainProvider = (): infer _ =>
         branchId: scope.branchId,
         domain,
       }
-      return output ? attrs : Unowned(attrs)
+      return output ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
     reconcile: effect ({ news, output }) => {
       if (
@@ -146,7 +146,7 @@ export const AuthTrustedDomainProvider = (): infer _ =>
           ...authRequest(output),
           auth_provider: "better_auth",
           domains: [{ domain: output.domain }],
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
     },
   })

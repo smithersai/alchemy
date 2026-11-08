@@ -3,8 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 import type { Providers } from "../Providers.ts"
 
 /**
@@ -157,38 +155,43 @@ export const TableProvider = (): infer _ =>
         return undefined
       }
       const name = output?.name ?? (try createTableName(id, olds ?? {}))
-      return (try effect {
-        const t = try s3tables.getTable({ tableBucketARN: tableBucketArn, namespace, name })
-        return ({
-          tableArn: t.tableARN,
-          name: t.name,
-          namespace: t.namespace[0] ?? namespace,
-          tableBucketArn,
-          versionToken: t.versionToken,
-          metadataLocation: t.metadataLocation,
-          warehouseLocation: t.warehouseLocation,
-          format: t.format,
-          type: t.type,
-          createdAt: t.createdAt,
+      return (effect {
+        return (try effect {
+          const t = try s3tables.getTable({ tableBucketARN: tableBucketArn, namespace, name })
+          return ({
+            tableArn: t.tableARN,
+            name: t.name,
+            namespace: t.namespace[0] ?? namespace,
+            tableBucketArn,
+            versionToken: t.versionToken,
+            metadataLocation: t.metadataLocation,
+            warehouseLocation: t.warehouseLocation,
+            format: t.format,
+            type: t.type,
+            createdAt: t.createdAt,
+          })
         })
-      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
     },
     diff: effect ({ id, news, olds }) => {
-      if (!isResolved(news)) return
-      if (news.tableBucket !== olds?.tableBucket || news.namespace !== olds?.namespace) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if (resolved.tableBucket !== olds?.tableBucket || resolved.namespace !== olds?.namespace) {
         return { action: "replace" } as const
       }
       const oldName = try createTableName(id, olds ?? {})
-      const newName = try createTableName(id, news)
+      const newName = try createTableName(id, resolved)
       if (oldName !== newName) {
         return { action: "replace" } as const
       }
-      if ((news.format ?? "ICEBERG") !== (olds?.format ?? "ICEBERG")) {
+      if ((resolved.format ?? "ICEBERG") !== (olds?.format ?? "ICEBERG")) {
         return { action: "replace" } as const
       }
       // Schema is fixed at create time; schema evolution is out of band.
       const oldSchema = JSON.stringify(olds?.schema ?? null)
-      const newSchema = JSON.stringify(news.schema ?? null)
+      const newSchema = JSON.stringify(resolved.schema ?? null)
       if (oldSchema !== newSchema) {
         return { action: "replace" } as const
       }
@@ -200,26 +203,30 @@ export const TableProvider = (): infer _ =>
 
       // Observe — read live state; the table may have been deleted
       // out-of-band even if `output` cached its ARN.
-      let table = (try s3tables
-        .getTable({ tableBucketARN: tableBucketArn, namespace, name })) catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
-          default: throw e;
-        }
+      let table = (effect {
+        return (try s3tables
+          .getTable({ tableBucketARN: tableBucketArn, namespace, name }))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFoundException" }: undefined;
+        default: throw e;
+      }
 
       // Ensure — create if missing, tolerating a concurrent create.
       if (table === undefined) {
-        ;(try (s3tables
-          .createTable({
-            tableBucketARN: tableBucketArn,
-            namespace,
-            name,
-            format: news.format ?? "ICEBERG",
-            metadata: buildMetadata(news),
-          })
-          |> Effect.asVoid(%))) catch effect (e) => match (e) {
-            when { _tag: "ConflictException" }: try Effect.void;
-            default: throw e;
-          }
+        ;(effect {
+          return (try (s3tables
+            .createTable({
+              tableBucketARN: tableBucketArn,
+              namespace,
+              name,
+              format: news.format ?? "ICEBERG",
+              metadata: buildMetadata(news),
+            })
+            |> Effect.asVoid(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ConflictException" }: (undefined as void);
+          default: throw e;
+        }
         // Eventual consistency: getTable can briefly 404 a table that
         // createTable just returned.
         table = try (s3tables.getTable({ tableBucketARN: tableBucketArn, namespace, name })
@@ -252,6 +259,6 @@ export const TableProvider = (): infer _ =>
           tableBucketARN: output.tableBucketArn,
           namespace: output.namespace,
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
     },
   })

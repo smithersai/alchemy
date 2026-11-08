@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as backup from "@distilled.cloud/aws/backup"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -146,7 +147,7 @@ export const BackupVaultProvider = (): infer _ =>
           // hides existence behind a 403. Treat both as "absent".
           const found = backup
             .describeBackupVault({ BackupVaultName: name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: undefined;
               default: throw e;
             }
           if (!found?.BackupVaultArn) return undefined
@@ -154,14 +155,17 @@ export const BackupVaultProvider = (): infer _ =>
             backupVaultName: name,
             backupVaultArn: found.BackupVaultArn,
           }
-          const tags = ((try backup.listTags({ ResourceArn: found.BackupVaultArn })).Tags ?? {}) catch () =>
-            ({}) as Record<string, string | undefined>
+          const backupVaultArn = found.BackupVaultArn
+          const tags = (effect {
+            return ((try backup.listTags({ ResourceArn: backupVaultArn })).Tags ?? {})
+          }) catch () => ({}) as Record<string, string | undefined>
           return (try hasAlchemyTags(id, tags as Record<string, string>))
             ? attrs
-            : Unowned(attrs)
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news = {}, olds = {} }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput = {}, olds = {} }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -177,7 +181,7 @@ export const BackupVaultProvider = (): infer _ =>
           // A missing vault surfaces as AccessDeniedException (see read()).
           let live = backup
             .describeBackupVault({ BackupVaultName: name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: undefined;
               default: throw e;
             }
 
@@ -199,12 +203,14 @@ export const BackupVaultProvider = (): infer _ =>
           // canonicalized documents so a re-deploy of an equivalent policy
           // (key order, whitespace) is a no-op.
           const desiredPolicy = toPolicyString(news.accessPolicy)
-          const currentPolicy = (try effect {
-            const r = try backup
-              .getBackupVaultAccessPolicy({ BackupVaultName: name })
-            return (r.Policy ? r.Policy : undefined)
+          const currentPolicy = (effect {
+            return (try effect {
+              const r = try backup
+                .getBackupVaultAccessPolicy({ BackupVaultName: name })
+              return (r.Policy ? r.Policy : undefined)
+            })
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
           const policyDrifted = desiredPolicy === undefined || currentPolicy === undefined
@@ -214,7 +220,7 @@ export const BackupVaultProvider = (): infer _ =>
             if (desiredPolicy === undefined) {
               backup
                 .deleteBackupVaultAccessPolicy({ BackupVaultName: name }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             } else {
@@ -226,8 +232,9 @@ export const BackupVaultProvider = (): infer _ =>
           }
 
           // SYNC tags — diff against observed cloud tags.
-          const currentTags = ((try backup.listTags({ ResourceArn: backupVaultArn })).Tags ?? {}) catch () =>
-            ({}) as Record<string, string | undefined>
+          const currentTags = (effect {
+            return ((try backup.listTags({ ResourceArn: backupVaultArn })).Tags ?? {})
+          }) catch () => ({}) as Record<string, string | undefined>
           const { upsert, removed } = diffTags(currentTags as Record<string, string>, {
             ...news.tags,
             ...internalTags,
@@ -253,11 +260,13 @@ export const BackupVaultProvider = (): infer _ =>
           // remaining recovery points first. Each delete tolerates the point
           // already being gone or being in a state that can't be deleted
           // right now (EXPIRED/continuous points settle on their own).
-          const recoveryPoints = (Array.from(
-            try (backup.listRecoveryPointsByBackupVault
-              .pages({ BackupVaultName: output.backupVaultName })
-              |> Stream.runCollect(%)),
-          ).flatMap((page) => page.RecoveryPoints ?? [])) catch effect (e) => match (e) {
+          const recoveryPoints = (effect {
+            return (Array.from(
+              try (backup.listRecoveryPointsByBackupVault
+                .pages({ BackupVaultName: output.backupVaultName })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.RecoveryPoints ?? []))
+          }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: [];
             default: throw e;
           }
@@ -269,18 +278,18 @@ export const BackupVaultProvider = (): infer _ =>
                   BackupVaultName: output.backupVaultName,
                   RecoveryPointArn: rp.RecoveryPointArn,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidResourceStateException" }: try Effect
-                    .void;
+                  when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidResourceStateException" }:
+                    (undefined as void);
                   default: throw e;
                 }
-              : try Effect.void),
+              : (undefined as void)),
             { discard: true },
           )
           // A missing vault deletes as AccessDeniedException, not
           // ResourceNotFoundException — both mean "already gone" here.
           try (effect {
             return backup.deleteBackupVault({ BackupVaultName: output.backupVaultName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: (undefined as void);
               default: throw e;
             }
           }

@@ -15,7 +15,7 @@ import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Providers } from "../Providers.ts";
 import { compileProgram, SfnCompileError } from "./Asl/compile.ts";
-import type { SfnEffect } from "./Asl/Program.vibe";
+import type { SfnEffect } from "./Asl/Program.ts";
 
 /**
  * The workflow type. `STANDARD` workflows are durable (up to one year),

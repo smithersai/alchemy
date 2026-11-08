@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as ce from "@distilled.cloud/aws/cost-explorer"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -108,8 +109,10 @@ export const AnomalyMonitorProvider = (): infer _ =>
 
       // Observe by ARN — the typed miss tag is UnknownMonitorException.
       const getByArn = effect (monitorArn: string) =>
-        (try pinCe(ce.getAnomalyMonitors({ MonitorArnList: [monitorArn] }))).AnomalyMonitors[0] catch effect (e) => match (e) {
-          when { _tag: "UnknownMonitorException" }: try Effect.undefined;
+        (effect {
+          return (try pinCe(ce.getAnomalyMonitors({ MonitorArnList: [monitorArn] }))).AnomalyMonitors[0]
+        }) catch effect (e) => match (e) {
+          when { _tag: "UnknownMonitorException" }: undefined;
           default: throw e;
         }
 
@@ -156,10 +159,13 @@ export const AnomalyMonitorProvider = (): infer _ =>
             : try findByName(try createName(id, olds ?? {}))
           if (live?.MonitorArn === undefined) return undefined
           const attrs = try toAttrs(live)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
+        diff: effect ({ olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return
+          const news = _newsInput as typeof olds
           const prior: Partial<AnomalyMonitorProps> = olds ?? {}
           if (prior.monitorType === undefined) return
           // Only the name is mutable via UpdateAnomalyMonitor — the type,
@@ -210,7 +216,10 @@ export const AnomalyMonitorProvider = (): infer _ =>
                   MonitorDimension: news.monitorDimension,
                   MonitorSpecification: news.monitorSpecification,
                 },
-                ResourceTags: toResourceTags(desiredTags),
+                ResourceTags: (try Effect.orDie(Effect.try({
+                  try: () => toResourceTags(desiredTags),
+                  catch: (e) => e,
+                }))),
               }),
             ) catch effect (error) => match (error) {
               when { _tag: "AnomalyMonitorAlreadyExists" }: try effect {
@@ -243,7 +252,7 @@ export const AnomalyMonitorProvider = (): infer _ =>
         },
         delete: effect ({ output }) => {
           pinCe(ce.deleteAnomalyMonitor({ MonitorArn: output.monitorArn })) catch effect (e) => match (e) {
-            when { _tag: "UnknownMonitorException" }: try Effect.void;
+            when { _tag: "UnknownMonitorException" }: (undefined as void);
             default: throw e;
           }
         },

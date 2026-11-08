@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as quicksight from "@distilled.cloud/aws/quicksight"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -131,7 +132,7 @@ export const AnalysisProvider = (): infer _ =>
       const readAnalysis = effect (accountId: string, analysisId: string) => {
         const response = quicksight
           .describeAnalysis({ AwsAccountId: accountId, AnalysisId: analysisId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         const analysis = response?.Analysis
@@ -141,8 +142,8 @@ export const AnalysisProvider = (): infer _ =>
         return analysis
       }
 
-      const settle = (accountId: string, analysisId: string) =>
-        waitForSettled(
+      const settle = effect (accountId: string, analysisId: string) =>
+        try waitForSettled(
           analysisId,
           effect {
             return try effect {
@@ -162,8 +163,9 @@ export const AnalysisProvider = (): infer _ =>
       return Analysis.Provider.of({
         stables: ["analysisId", "arn"],
 
-        diff: effect ({ id, olds = {}, news }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, olds = {}, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if ((try toId(id, olds)) !== (try toId(id, news))) {
             return { action: "replace" } as const
           }
@@ -176,7 +178,9 @@ export const AnalysisProvider = (): infer _ =>
           if (analysis === undefined) return undefined
           const attrs = toAttrs(analysis)
           const tags = try readQuickSightTags(attrs.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -202,7 +206,7 @@ export const AnalysisProvider = (): infer _ =>
                 ThemeArn: news.themeArn,
                 Tags: toWireTags(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceExistsException" }: try Effect.void;
+                when { _tag: "ResourceExistsException" }: (undefined as void);
                 default: throw e;
               }
           } else {
@@ -240,7 +244,7 @@ export const AnalysisProvider = (): infer _ =>
               AnalysisId: output.analysisId,
               ForceDeleteWithoutRecovery: olds?.forceDeleteWithoutRecovery ?? true,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

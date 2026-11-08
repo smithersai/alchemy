@@ -2,9 +2,7 @@ import * as iam from "@distilled.cloud/aws/iam"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { unwrapRedactedString } from "./common.vibe"
 
@@ -67,8 +65,11 @@ export const LoginProfileProvider = (): infer _ =>
   Provider.succeed(LoginProfile, {
     stables: ["userName"],
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return
-      if (olds.userName !== news.userName) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if (olds.userName !== resolved.userName) {
         return { action: "replace" } as const
       }
     },
@@ -80,7 +81,7 @@ export const LoginProfileProvider = (): infer _ =>
         .getLoginProfile({
           UserName: output.userName,
         }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
       if (!response?.LoginProfile) {
@@ -96,7 +97,7 @@ export const LoginProfileProvider = (): infer _ =>
       // Observe — read the live login profile (or absence) for the user.
       const observed = iam
         .getLoginProfile({ UserName: news.userName }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
 
@@ -145,7 +146,10 @@ export const LoginProfileProvider = (): infer _ =>
       iam
         .deleteLoginProfile({
           UserName: output.userName,
-        }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: (undefined as void);
+          default: throw e;
+        }
     },
     // There is no list-login-profiles API: a login profile is a per-user
     // singleton. Enumerate every IAM user (paginated), then probe each with
@@ -160,15 +164,17 @@ export const LoginProfileProvider = (): infer _ =>
       const profiles = try Effect.forEach(
         users,
         effect (user) =>
-          (try effect {
-            const response = try iam.getLoginProfile({ UserName: user.UserName })
-            return ({
-              userName: response.LoginProfile.UserName,
-              createDate: response.LoginProfile.CreateDate,
-              passwordResetRequired: response.LoginProfile.PasswordResetRequired,
+          (effect {
+            return (try effect {
+              const response = try iam.getLoginProfile({ UserName: user.UserName })
+              return ({
+                userName: response.LoginProfile.UserName,
+                createDate: response.LoginProfile.CreateDate,
+                passwordResetRequired: response.LoginProfile.PasswordResetRequired,
+              })
             })
           }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+            when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           },
         { concurrency: 10 },

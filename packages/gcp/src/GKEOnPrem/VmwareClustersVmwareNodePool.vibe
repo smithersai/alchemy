@@ -262,21 +262,25 @@ export const VmwareClustersVmwareNodePoolProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.vmwareNodePoolId ?? output?.vmwareNodePoolId,
-        nextId: news.vmwareNodePoolId
-          ? rfc1035(news.vmwareNodePoolId, "vmwarenodepool", VMWARE_NAME_LENGTH)
+        nextId: resolved.vmwareNodePoolId
+          ? rfc1035(resolved.vmwareNodePoolId, "vmwarenodepool", VMWARE_NAME_LENGTH)
           : (olds?.vmwareNodePoolId ?? output?.vmwareNodePoolId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         previousParent: olds?.vmwareCluster ?? output?.vmwareCluster,
-        nextParent: news.vmwareCluster,
-      })
+        nextParent: resolved.vmwareCluster,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -288,21 +292,33 @@ export const VmwareClustersVmwareNodePoolProvider = (): infer _ =>
         "vmwarenodepool",
         VMWARE_NAME_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const cluster = expandParent(
-        olds?.vmwareCluster ?? output?.vmwareCluster ?? "",
-        env.project,
-        location,
-        PARENT_COLLECTION,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const cluster = try Effect.orDie(Effect.try({
+        try: () =>
+          expandParent(
+            olds?.vmwareCluster ?? output?.vmwareCluster ?? "",
+            env.project,
+            location,
+            PARENT_COLLECTION,
+          ),
+        catch: (e) => e,
+      }))
       const name = output?.name ?? resourceName(cluster, vmwareNodePoolId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const fromName = parseOwnership(existing.displayName).labels
-      const owned = (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+      const fromName = (try Effect.orDie(Effect.try({
+        try: () => parseOwnership(existing.displayName),
+        catch: (e) => e,
+      }))).labels
+      const owned = (try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e })),
+      ))
         || (try hasAlchemyLabels(id, fromName))
-      return owned ? attrs : Unowned(attrs)
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -320,12 +336,23 @@ export const VmwareClustersVmwareNodePoolProvider = (): infer _ =>
         "vmwarenodepool",
         VMWARE_NAME_LENGTH,
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const cluster = expandParent(news.vmwareCluster, env.project, location, PARENT_COLLECTION)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const cluster = try Effect.orDie(
+        Effect.try({
+          try: () => expandParent(news.vmwareCluster, env.project, location, PARENT_COLLECTION),
+          catch: (e) => e,
+        }),
+      )
       const name = resourceName(cluster, vmwareNodePoolId)
       const ownership = try createInternalLabels(id)
-      const annotations = desiredAnnotations(ownership, news.labels, news.annotations)
-      const displayName = encodeOwnership(ownership, news.displayName)
+      const annotations = try Effect.orDie(
+        Effect.try({ try: () => desiredAnnotations(ownership, news.labels, news.annotations), catch: (e) => e }),
+      )
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.displayName), catch: (e) => e }),
+      )
       const body: gkeonprem.VmwareNodePool = {
         config: news.config,
         displayName,
@@ -354,11 +381,21 @@ export const VmwareClustersVmwareNodePoolProvider = (): infer _ =>
       }
 
       const mask = fieldMask([
-        differs(current.annotations, annotations) && "annotations",
+        (try Effect.orDie(
+          Effect.try({ try: differs.bind(undefined, current.annotations, annotations), catch: (e) => e }),
+        )) && "annotations",
         !sameText(parseOwnership(current.displayName).text, news.displayName) && "displayName",
-        differs(current.config, news.config) && "config",
-        differs(current.onPremVersion, news.onPremVersion) && "onPremVersion",
-        differs(current.nodePoolAutoscaling, news.nodePoolAutoscaling) && "nodePoolAutoscaling",
+        (try Effect.orDie(Effect.try({ try: differs.bind(undefined, current.config, news.config), catch: (e) => e })))
+        && "config",
+        (try Effect.orDie(
+          Effect.try({ try: differs.bind(undefined, current.onPremVersion, news.onPremVersion), catch: (e) => e }),
+        )) && "onPremVersion",
+        (try Effect.orDie(
+          Effect.try({
+            try: differs.bind(undefined, current.nodePoolAutoscaling, news.nodePoolAutoscaling),
+            catch: (e) => e,
+          }),
+        )) && "nodePoolAutoscaling",
       ])
 
       if (mask.length > 0) {
@@ -381,17 +418,19 @@ export const VmwareClustersVmwareNodePoolProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (gkeonprem
-        .deleteProjectsLocationsVmwareClustersVmwareNodePools({
-          name: output.name,
-          allowMissing: true,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (gkeonprem
+          .deleteProjectsLocationsVmwareClustersVmwareNodePools({
+            name: output.name,
+            allowMissing: true,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

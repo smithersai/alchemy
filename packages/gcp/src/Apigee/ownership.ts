@@ -3,7 +3,7 @@ import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Lab
 
 export { createInternalLabels, hasAlchemyLabels };
 
-export const lastSegment = (value: string) => {
+export const lastSegment = /** @throws {never} */ (value: string) => {
   const trimmed = value.replace(/\/+$/, "");
   const parts = trimmed.split("/");
   return parts[parts.length - 1] || trimmed;
@@ -12,7 +12,7 @@ export const lastSegment = (value: string) => {
 export const orgIdOf = (value: string | undefined, project?: string) =>
   lastSegment(value ?? project ?? "");
 
-export const orgParent = (org: string) =>
+export const orgParent = /** @throws {never} */ (org: string) =>
   org.startsWith("organizations/") ? org : `organizations/${org}`;
 
 export const xmlEscape = (value: string) =>

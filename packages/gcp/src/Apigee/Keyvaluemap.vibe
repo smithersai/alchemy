@@ -104,7 +104,7 @@ const toAttrs = (map: apigee.GoogleCloudApigeeV1KeyValueMap, organization: strin
 const getByName = effect (name: string) =>
   apigee
     .getOrganizationsKeyvaluemaps({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -113,7 +113,7 @@ const getOwnershipEntry = effect (mapName: string) =>
     .getOrganizationsKeyvaluemapsEntries({
       name: `${mapName}/entries/${OWNERSHIP_ENTRY}`,
     }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -135,14 +135,17 @@ export const KeyvaluemapProvider = (): infer _ =>
     stables: ["name", "mapId", "organization"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.mapId ?? output?.mapId
       const previousOrg = olds?.organization ?? output?.organization
       if (
-        (previousId !== undefined && news.mapId !== undefined && news.mapId !== previousId)
+        (previousId !== undefined && resolved.mapId !== undefined && resolved.mapId !== previousId)
         || (previousOrg !== undefined
-          && news.organization !== undefined
-          && news.organization !== previousOrg)
+          && resolved.organization !== undefined
+          && resolved.organization !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -158,8 +161,10 @@ export const KeyvaluemapProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
       const entry = try getOwnershipEntry(attrs.name)
-      const { labels } = parseOwnership(entry?.value)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(entry?.value), catch: (e) => e }))
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -179,7 +184,9 @@ export const KeyvaluemapProvider = (): infer _ =>
       const mapId = try toResourceId(id, news.mapId, output?.mapId, MAX_NAME_LENGTH)
       const name = resourceName(organization, mapId)
       const ownership = try createInternalLabels(id)
-      const marker = encodeOwnership(ownership, undefined)
+      const marker = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, undefined), catch: (e) => e }),
+      )
       const desiredMasked = news.maskedValues === true
 
       let current = try getByName(output?.name ?? name)
@@ -221,7 +228,7 @@ export const KeyvaluemapProvider = (): infer _ =>
     delete: effect ({ output }) => {
       apigee
         .deleteOrganizationsKeyvaluemaps({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

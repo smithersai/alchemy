@@ -35,7 +35,9 @@ export const WriteBucketHttp = Layer.effect(
   ),
 );
 
-/** Build the write half of the HTTP-backed {@link ReadWrite} client. */
+/** Build the write half of the HTTP-backed {@link ReadWrite} client.
+ * @throws {never}
+ */
 export const makeWriteR2HttpClient = (
   auth: R2Auth,
   bucketName: Effect.Effect<string>,

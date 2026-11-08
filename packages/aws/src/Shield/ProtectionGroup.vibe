@@ -127,8 +127,8 @@ export interface ProtectionGroup extends
 export const ProtectionGroup = Resource<ProtectionGroup>("AWS.Shield.ProtectionGroup")
 
 const observeGroup = effect (protectionGroupId: string) =>
-  (try shield.describeProtectionGroup({ ProtectionGroupId: protectionGroupId })).ProtectionGroup catch effect (e) => match (e) {
-    when { _tag: "ResourceNotFoundException" } or { _tag: "SubscriptionNotFound" }: try Effect.undefined;
+  (effect { return (try shield.describeProtectionGroup({ ProtectionGroupId: protectionGroupId })).ProtectionGroup }) catch effect (e) => match (e) {
+    when { _tag: "ResourceNotFoundException" } or { _tag: "SubscriptionNotFound" }: undefined;
     default: throw e;
   }
 
@@ -138,7 +138,7 @@ const toTagRecord = (tags: shield.Tag[] | undefined): Record<string, string> =>
   )
 
 const readGroupTags = effect (protectionGroupArn: string) =>
-  (toTagRecord((try shield.listTagsForResource({ ResourceARN: protectionGroupArn })).Tags)) catch () => ({})
+  (effect { return (toTagRecord((try shield.listTagsForResource({ ResourceARN: protectionGroupArn })).Tags)) }) catch () => ({})
 
 const buildAttrs = (group: shield.ProtectionGroup, tags: Record<string, string>): infer _ => ({
   protectionGroupId: group.ProtectionGroupId,
@@ -167,7 +167,7 @@ export const ProtectionGroupProvider = (): infer _ =>
         desiredTags: Record<string, string>,
       ) => {
         const observedTags = try readGroupTags(protectionGroupArn)
-        const { upsert, removed } = diffTags(observedTags, desiredTags)
+        const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try shield.tagResource({
             ResourceARN: protectionGroupArn,
@@ -186,9 +186,10 @@ export const ProtectionGroupProvider = (): infer _ =>
         stables: ["protectionGroupId", "protectionGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
-          if ((try toGroupId(id, olds)) !== (try toGroupId(id, news))) {
+          if ((try toGroupId(id, olds)) !== (try toGroupId(id, resolved))) {
             return { action: "replace" } as const
           }
         },
@@ -199,7 +200,7 @@ export const ProtectionGroupProvider = (): infer _ =>
           if (!group?.ProtectionGroupArn) return undefined
           const tags = try readGroupTags(group.ProtectionGroupArn)
           const attrs = buildAttrs(group, tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, session }) => {
@@ -224,7 +225,7 @@ export const ProtectionGroupProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
             group = try observeGroup(groupId)
@@ -263,10 +264,10 @@ export const ProtectionGroupProvider = (): infer _ =>
         // Enumerate every protection group in the account. Without a Shield
         // Advanced subscription the account cannot have any groups.
         list: effect () => {
-          const groups = (Array.from(
+          const groups = (effect { return (Array.from(
             try (shield.listProtectionGroups.pages({})
               |> Stream.runCollect(%)),
-          ).flatMap((page) => page.ProtectionGroups ?? [])) catch effect (e) => match (e) {
+          ).flatMap((page) => page.ProtectionGroups ?? [])) }) catch effect (e) => match (e) {
             when { _tag: "SubscriptionNotFound" }: [];
             default: throw e;
           }
@@ -285,7 +286,7 @@ export const ProtectionGroupProvider = (): infer _ =>
             .deleteProtectionGroup({
               ProtectionGroupId: output.protectionGroupId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" } or { _tag: "SubscriptionNotFound" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" } or { _tag: "SubscriptionNotFound" }: (undefined as void);
               default: throw e;
             }
         },

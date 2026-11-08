@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as re2 from "@distilled.cloud/aws/resource-explorer-2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -119,8 +120,10 @@ export class ViewUnobservable extends Data.TaggedError("ResourceExplorerViewUnob
  * is not there for you".
  */
 const getViewSafe = effect (viewArn: string) =>
-  (try re2.getView({ ViewArn: viewArn })) catch effect (e) => match (e) {
-    when { _tag: "UnauthorizedException" } or { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+  (effect {
+    return (try re2.getView({ ViewArn: viewArn }))
+  }) catch effect (e) => match (e) {
+    when { _tag: "UnauthorizedException" } or { _tag: "ResourceNotFoundException" }: undefined;
     default: throw e;
   }
 
@@ -219,11 +222,14 @@ export const ViewProvider = (): infer _ =>
           if (!found?.View?.ViewArn) return undefined
           const attrs = toAttrs(found.View, found.View.ViewName ?? arn.split("/")[1]!)
           const tags = toTagRecord(found.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createViewName(id, olds ?? {})
           const newName = try createViewName(id, news)
           if (oldName !== newName) {
@@ -256,19 +262,21 @@ export const ViewProvider = (): infer _ =>
           //    tolerates a duplicate-name Conflict as a race (observe the
           //    winner and converge below).
           if (!found?.View) {
-            found = (try effect {
-              const r = try retryWhileIndexProvisioning(
-                re2.createView({
-                  ViewName: name,
-                  Filters: desiredFilter !== undefined ? { FilterString: desiredFilter } : undefined,
-                  IncludedProperties: desiredProperties.map((Name) => ({
-                    Name,
-                  })),
-                  Scope: news.scope,
-                  Tags: desiredTags,
-                }),
-              )
-              return r.View && { View: r.View, Tags: desiredTags }
+            found = (effect {
+              return (try effect {
+                const r = try retryWhileIndexProvisioning(
+                  re2.createView({
+                    ViewName: name,
+                    Filters: desiredFilter !== undefined ? { FilterString: desiredFilter } : undefined,
+                    IncludedProperties: desiredProperties.map((Name) => ({
+                      Name,
+                    })),
+                    Scope: news.scope,
+                    Tags: desiredTags,
+                  }),
+                )
+                return r.View && { View: r.View, Tags: desiredTags }
+              })
             }) catch effect (e) => match (e) {
               when { _tag: "ConflictException" }: try effect {
                 const arn = try findViewArnByName(name)
@@ -328,7 +336,7 @@ export const ViewProvider = (): infer _ =>
           // views) or ResourceNotFoundException.
           try (effect {
             return re2.deleteView({ ViewArn: output.viewArn }) catch effect (e) => match (e) {
-              when { _tag: "UnauthorizedException" } or { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "UnauthorizedException" } or { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           }

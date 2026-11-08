@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as glue from "@distilled.cloud/aws/glue"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -7,8 +8,6 @@ import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
 import { toWireMinutes } from "alchemy/Util/Duration"
 import type * as Duration from "effect/Duration"
-import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import { AWSEnvironment } from "../Environment.ts"
 import type { Providers } from "../Providers.ts"
 import { fetchObservedTags, jobArn, reapGlueLogStreams, retryWhileRoleNotAssumable, syncTags } from "./internal.ts"
@@ -189,8 +188,10 @@ export const JobProvider = (): infer _ =>
         props.jobName ?? (try createPhysicalName({ id, maxLength: 255 }))
 
       const observe = effect (name: string) =>
-        (try glue.getJob({ JobName: name })).Job catch effect (e) => match (e) {
-          when glue.EntityNotFoundException: try Effect.undefined;
+        (effect {
+          return (try glue.getJob({ JobName: name })).Job
+        }) catch effect (e) => match (e) {
+          when glue.EntityNotFoundException: undefined;
           default: throw e;
         }
 
@@ -241,18 +242,22 @@ export const JobProvider = (): infer _ =>
           const name = output?.jobName ?? (try createName(id, olds ?? {}))
           const job = try observe(name)
           if (job?.Name === undefined) return undefined
-          const arn = jobArn(region, accountId, job.Name)
+          const jobName2 = job.Name
+          const arn = try Effect.orDie(Effect.try({ try: () => jobArn(region, accountId, jobName2), catch: (e) => e }))
           const attrs = {
             jobName: job.Name,
             jobArn: arn,
             role: job.Role ?? "",
           }
           const tags = try fetchObservedTags(arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -264,7 +269,7 @@ export const JobProvider = (): infer _ =>
           const name = output?.jobName ?? (try createName(id, news))
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...news.tags, ...internalTags }
-          const arn = jobArn(region, accountId, name)
+          const arn = try Effect.orDie(Effect.try({ try: () => jobArn(region, accountId, name), catch: (e) => e }))
 
           // 1. OBSERVE
           let job = try observe(name)
@@ -277,7 +282,7 @@ export const JobProvider = (): infer _ =>
                 ...buildDefinition(news),
                 Tags: desiredTags,
               }),
-            ) catch effect (e) => match (e) { when glue.AlreadyExistsException: try Effect.void; default: throw e; }
+            ) catch effect (e) => match (e) { when glue.AlreadyExistsException: (undefined as void); default: throw e; }
           } else {
             // UpdateJob replaces the full JobUpdate (Name is not part of it).
             try retryWhileRoleNotAssumable(
@@ -309,12 +314,14 @@ export const JobProvider = (): infer _ =>
           // drops the run history, so enumerate our runs and reap their
           // streams first (never the shared groups themselves).
           const job = try observe(output.jobName)
-          const runIds = (Array.from(
-            try (glue.getJobRuns.items({ JobName: output.jobName })
-              |> Stream.map(%, (run) => run.Id)
-              |> Stream.filter(%, (runId): runId is string => runId !== undefined)
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) { when glue.EntityNotFoundException: [] as string[]; default: throw e; }
+          const runIds = (effect {
+            return (Array.from(
+              try (glue.getJobRuns.items({ JobName: output.jobName })
+                |> Stream.map(%, (run) => run.Id)
+                |> Stream.filter(%, (runId): runId is string => runId !== undefined)
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) { when glue.EntityNotFoundException: [] as string[]; default: throw e; }
           if (runIds.length > 0) {
             const continuousLogGroup = job?.DefaultArguments?.["--continuous-log-logGroup"]
             try reapGlueLogStreams(

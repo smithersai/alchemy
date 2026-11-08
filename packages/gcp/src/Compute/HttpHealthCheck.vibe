@@ -284,7 +284,7 @@ const needsUpdate = (current: compute.HttpHealthCheck, desired: compute.HttpHeal
 const getByName = effect (project: string, httpHealthCheck: string) =>
   compute
     .getHttpHealthChecks({ project, httpHealthCheck }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -307,9 +307,12 @@ export const HttpHealthCheckProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousName = olds?.httpHealthCheckName ?? output?.httpHealthCheckName
-      const nextName = news.httpHealthCheckName
+      const nextName = resolved.httpHealthCheckName
       if (previousName !== undefined && nextName !== undefined && previousName !== nextName) {
         return { action: "replace" as const }
       }
@@ -327,7 +330,9 @@ export const HttpHealthCheckProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -357,14 +362,16 @@ export const HttpHealthCheckProvider = (): infer _ =>
       let current = try getByName(env.project, httpHealthCheckName)
 
       if (current === undefined) {
-        ;(try waitGlobalOperation(
-          env.project,
-          try compute
-            .insertHttpHealthChecks({
-              project: env.project,
-              body: desired,
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertHttpHealthChecks({
+                project: env.project,
+                body: desired,
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try awaitResource(env.project, httpHealthCheckName)
       }
 
@@ -395,19 +402,21 @@ export const HttpHealthCheckProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
-      const operation = (try (compute
-        .deleteHttpHealthChecks({
-          project: env.project,
-          httpHealthCheck: output.httpHealthCheckName,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          schedule: Schedule.spaced("2 seconds"),
-          times: 8,
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (compute
+          .deleteHttpHealthChecks({
+            project: env.project,
+            httpHealthCheck: output.httpHealthCheckName,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            schedule: Schedule.spaced("2 seconds"),
+            times: 8,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitGlobalOperation(env.project, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

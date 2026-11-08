@@ -86,8 +86,9 @@ export const ScheduleGroupProvider = (): infer _ =>
       return {
         stables: ["scheduleGroupArn", "scheduleGroupName"],
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds)) !== (try toName(id, news as ScheduleGroupProps))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, resolved as ScheduleGroupProps))) {
             return { action: "replace" } as const
           }
         },
@@ -97,7 +98,7 @@ export const ScheduleGroupProvider = (): infer _ =>
             .getScheduleGroup({
               Name: scheduleGroupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -114,7 +115,7 @@ export const ScheduleGroupProvider = (): infer _ =>
             scheduleGroupArn: described.Arn,
             scheduleGroupName: described.Name,
             state: described.State,
-            tags: tagRecord(Tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(Tags), catch: (e) => e })),
           }
         },
         reconcile: effect ({ id, news, output, session }) => {
@@ -125,7 +126,7 @@ export const ScheduleGroupProvider = (): infer _ =>
           // Observe — fetch live group; gracefully handle missing.
           let observed = scheduler
             .getScheduleGroup({ Name: scheduleGroupName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -156,7 +157,7 @@ export const ScheduleGroupProvider = (): infer _ =>
               }
             observed = scheduler
               .getScheduleGroup({ Name: scheduleGroupName }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
           }
@@ -179,7 +180,7 @@ export const ScheduleGroupProvider = (): infer _ =>
           const observedTags = Object.fromEntries(
             (observedTagsResp.Tags ?? []).map((t) => [t.Key, t.Value]),
           )
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
 
           if (removed.length > 0) {
             try scheduler.untagResource({
@@ -225,7 +226,7 @@ export const ScheduleGroupProvider = (): infer _ =>
           const rows = try Effect.forEach(
             summaries,
             effect (summary) =>
-              (try effect {
+              (effect { return (try effect {
                 const described = try scheduler.getScheduleGroup({ Name: summary.Name })
                 return described.Arn && described.Name
                   ? {
@@ -234,8 +235,8 @@ export const ScheduleGroupProvider = (): infer _ =>
                     state: described.State,
                   }
                   : undefined
-              }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              }) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               },
             { concurrency: 10 },
@@ -250,7 +251,7 @@ export const ScheduleGroupProvider = (): infer _ =>
             .deleteScheduleGroup({
               Name: output.scheduleGroupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

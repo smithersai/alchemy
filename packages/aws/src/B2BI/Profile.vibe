@@ -5,9 +5,6 @@ import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Redacted from "effect/Redacted"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { readB2biTags, syncB2biTags, toWireTags } from "./internal.vibe"
 
@@ -125,21 +122,24 @@ export const ProfileProvider = (): infer _ =>
           return (head._tag === "Some"
             ? b2bi
               .getProfile({ profileId: head.value.profileId }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
-            : try Effect.undefined)
+            : undefined)
         }
 
       return {
         stables: ["profileId", "profileArn"],
 
         diff: effect ({ olds = {}, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           // logging has no member on updateProfile — it is immutable after
           // create, so a change forces a replacement. Delete-first: profiles
           // are recovered by name (findByName) and capped at 5 per account.
-          if ((olds.logging ?? "ENABLED") !== (news.logging ?? "ENABLED")) {
+          if ((olds.logging ?? "ENABLED") !== (resolved.logging ?? "ENABLED")) {
             return { action: "replace", deleteFirst: true } as const
           }
         },
@@ -148,14 +148,16 @@ export const ProfileProvider = (): infer _ =>
           const found = output?.profileId
             ? b2bi
               .getProfile({ profileId: output.profileId }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             : try findByName(olds?.name ?? "")
           if (found === undefined) return undefined
           const attrs = toAttrs(found)
           const tags = try readB2biTags(attrs.profileArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -166,7 +168,7 @@ export const ProfileProvider = (): infer _ =>
           let live = output?.profileId
             ? b2bi
               .getProfile({ profileId: output.profileId }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
             : try findByName(news.name)
@@ -214,7 +216,7 @@ export const ProfileProvider = (): infer _ =>
         delete: effect ({ output }) => {
           b2bi
             .deleteProfile({ profileId: output.profileId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           // B2BI auto-creates /aws/vendedlogs/b2bi/profile/{profileId} when
@@ -224,7 +226,7 @@ export const ProfileProvider = (): infer _ =>
           const logGroupName = output.logGroupName ?? `/aws/vendedlogs/b2bi/profile/${output.profileId}`
           logs
             .deleteLogGroup({ logGroupName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           // NOTE: profile creation also auto-creates the shared account-level
@@ -240,8 +242,10 @@ export const ProfileProvider = (): infer _ =>
           Array.from(
             try (b2bi.listProfiles.items({})
               |> Stream.mapEffect(%, effect (s) =>
-                (toAttrs(try b2bi.getProfile({ profileId: s.profileId }))) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                (effect {
+                  return (toAttrs(try b2bi.getProfile({ profileId: s.profileId })))
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: undefined;
                   default: throw e;
                 })
               |> Stream.filter(%, (item) => item !== undefined)

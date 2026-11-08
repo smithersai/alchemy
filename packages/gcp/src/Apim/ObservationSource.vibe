@@ -160,26 +160,43 @@ export const ObservationSourceProvider = (): infer _ =>
     stables: ["name", "observationSourceId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location ?? env.region,
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location ?? env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previous = try Effect.orDie(Effect.try({
+        try: () =>
+          expandGclb(
+            olds?.gclbObservationSource ?? output?.gclbObservationSource,
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
+      const desired = try Effect.orDie(
+        Effect.try({ try: () => expandGclb(resolved.gclbObservationSource, env.project, location), catch: (e) => e }),
       )
-      const previous = expandGclb(
-        olds?.gclbObservationSource ?? output?.gclbObservationSource,
-        env.project,
-        location,
-      )
-      const desired = expandGclb(news.gclbObservationSource, env.project, location)
-      return replaceOnIdentity({
-        previousId: olds?.observationSourceId ?? output?.observationSourceId,
-        nextId: news.observationSourceId ?? olds?.observationSourceId ?? output?.observationSourceId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
-        nextLocation: location,
-        extra: previous !== undefined && !sameJson(previous, desired),
-        // MVP: one source per region, so replace must delete first.
-        deleteFirst: true,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.observationSourceId ?? output?.observationSourceId,
+            nextId: resolved.observationSourceId ?? olds?.observationSourceId ?? output?.observationSourceId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: location,
+            extra: previous !== undefined && !sameJson(previous, desired),
+            // MVP: one source per region, so replace must delete first.
+            deleteFirst: true,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -190,17 +207,28 @@ export const ObservationSourceProvider = (): infer _ =>
         output?.observationSourceId,
         "src",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, observationSourceId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceName(env.project, location, COLLECTION, observationSourceId),
+            catch: (e) => e,
+          }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(location, existing, env.project)
       // No labels/description. Generated `alch-` ids are owned; an
       // explicit id that already exists is Unowned unless we persisted it.
-      if (output !== undefined || hasAlchemyId(attrs.observationSourceId)) {
+      if (
+        output !== undefined
+        || (try Effect.orDie(Effect.try({ try: () => hasAlchemyId(attrs.observationSourceId), catch: (e) => e })))
+      ) {
         return attrs
       }
-      return Unowned(attrs)
+      return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -217,9 +245,18 @@ export const ObservationSourceProvider = (): infer _ =>
         output?.observationSourceId,
         "src",
       )
-      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
-      const name = resourceName(env.project, location, COLLECTION, observationSourceId)
-      const gclbObservationSource = expandGclb(news.gclbObservationSource, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({
+          try: () => resourceName(env.project, location, COLLECTION, observationSourceId),
+          catch: (e) => e,
+        }),
+      )
+      const gclbObservationSource = try Effect.orDie(
+        Effect.try({ try: () => expandGclb(news.gclbObservationSource, env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -253,13 +290,15 @@ export const ObservationSourceProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apim
-        .deleteProjectsLocationsObservationSources({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (apim
+          .deleteProjectsLocationsObservationSources({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

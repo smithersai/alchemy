@@ -288,8 +288,8 @@ const putIntegrationRequest = (
   integrationTarget: integration.integrationTarget,
 })
 
-const putMethod = (news: Input.ResolveProps<MethodProps>) =>
-  ag.putMethod({
+const putMethod = effect (news: Input.ResolveProps<MethodProps>) =>
+  try ag.putMethod({
     restApiId: news.restApiId as string,
     resourceId: news.resourceId as string,
     httpMethod: news.httpMethod,
@@ -311,7 +311,7 @@ const deleteIntegrationSafe = effect (
       restApiId: p.restApiId,
       resourceId: p.resourceId,
       httpMethod: p.httpMethod,
-    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
 
 const deleteMethodSafe = effect (
   p: { restApiId: string; resourceId: string; httpMethod: string },
@@ -321,7 +321,7 @@ const deleteMethodSafe = effect (
       restApiId: p.restApiId,
       resourceId: p.resourceId,
       httpMethod: p.httpMethod,
-    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
 
 const readMethodSnapshot = effect (
   p: { restApiId: string; resourceId: string; httpMethod: string },
@@ -331,7 +331,7 @@ const readMethodSnapshot = effect (
       restApiId: p.restApiId,
       resourceId: p.resourceId,
       httpMethod: p.httpMethod,
-    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
   if (!method?.httpMethod) return undefined
 
   const integ = ag
@@ -339,7 +339,7 @@ const readMethodSnapshot = effect (
       restApiId: p.restApiId,
       resourceId: p.resourceId,
       httpMethod: p.httpMethod,
-    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
 
   const integration: MethodIntegrationProps | undefined = integ?.type
     ? {
@@ -388,8 +388,11 @@ export const MethodProvider = (): infer _ =>
       return {
         stables: ["restApiId", "resourceId", "httpMethod"] as const,
         diff: effect ({ news: newsIn, olds }) => {
-          if (!isResolved(newsIn)) return
-          const news = newsIn as Input.ResolveProps<MethodProps>
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          const news = resolved as Input.ResolveProps<MethodProps>
           if (
             news.restApiId !== olds.restApiId
             || news.resourceId !== olds.resourceId
@@ -441,8 +444,8 @@ export const MethodProvider = (): infer _ =>
 
               const snaps = try Effect.forEach(
                 keys,
-                (key) =>
-                  readMethodSnapshot({
+                effect (key) =>
+                  try readMethodSnapshot({
                     restApiId: api.id,
                     resourceId: key.resourceId,
                     httpMethod: key.httpMethod,
@@ -460,10 +463,13 @@ export const MethodProvider = (): infer _ =>
           return perApi.flat()
         },
         reconcile: effect ({ news: newsIn, output, session }) => {
-          if (!isResolved(newsIn)) {
+          const resolved_ = try Effect.orDie(
+            Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }),
+          )
+          if (resolved_ === undefined) {
             return try Effect.die("Method props were not resolved")
           }
-          const news = newsIn as Input.ResolveProps<MethodProps>
+          const news = resolved_ as Input.ResolveProps<MethodProps>
           const authType = news.authorizationType ?? "NONE"
           // Methods are keyed by (restApiId, resourceId, httpMethod). All
           // three are stable across the resource's lifetime, so we read
@@ -486,12 +492,22 @@ export const MethodProvider = (): infer _ =>
           // patched in place by `updateMethod`, so on a "recreate-needed"
           // diff we drop the existing method and re-put. This is also the
           // path used on first reconcile when nothing exists.
-          const needsRecreate = observed !== undefined
-            && (news.operationName !== observed.operationName
-              || !deepEqual(news.requestParameters, observed.requestParameters)
-              || !deepEqual(news.requestModels, observed.requestModels)
-              || news.requestValidatorId !== observed.requestValidatorId
-              || !deepEqual(news.authorizationScopes, observed.authorizationScopes))
+          const previousMethod = observed
+          const needsRecreate = previousMethod !== undefined
+            && (news.operationName !== previousMethod.operationName
+              || !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(news.requestParameters, previousMethod.requestParameters),
+                catch: (error) => error,
+              })))
+              || !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(news.requestModels, previousMethod.requestModels),
+                catch: (error) => error,
+              })))
+              || news.requestValidatorId !== previousMethod.requestValidatorId
+              || !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(news.authorizationScopes, previousMethod.authorizationScopes),
+                catch: (error) => error,
+              }))))
 
           if (observed === undefined || needsRecreate) {
             if (needsRecreate) {
@@ -566,11 +582,19 @@ export const MethodProvider = (): infer _ =>
           // Sync integration — putIntegration is an upsert; deleteIntegration
           // tolerates missing integrations. Normalize the desired timeout to
           // wire milliseconds so it compares against the observed snapshot.
-          const desiredIntegration = news.integration && {
-            ...news.integration,
-            timeout: toWireMillis(news.integration.timeout),
-          }
-          if (!deepEqual(desiredIntegration, observed.integration)) {
+          const desiredIntegration = try Effect.orDie(Effect.try({
+            try: () =>
+              news.integration && {
+                ...news.integration,
+                timeout: toWireMillis(news.integration.timeout),
+              },
+            catch: (e) => e,
+          }))
+          if (
+            !(try Effect.orDie(
+              Effect.try({ try: () => deepEqual(desiredIntegration, observed.integration), catch: (e) => e }),
+            ))
+          ) {
             if (news.integration) {
               try ag.putIntegration(
                 putIntegrationRequest(restApiId, resourceId, httpMethod, news.integration),

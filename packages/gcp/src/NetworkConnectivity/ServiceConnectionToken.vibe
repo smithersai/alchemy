@@ -158,19 +158,36 @@ export const ServiceConnectionTokenProvider = (): infer _ =>
     stables: ["name", "serviceConnectionTokenId", "project", "location", "network", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.serviceConnectionTokenId ?? output?.serviceConnectionTokenId
-      const nextId = news.serviceConnectionTokenId
-        ? rfc1035(news.serviceConnectionTokenId, "service-connection-token")
-        : previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.serviceConnectionTokenId
+            ? rfc1035(resolved.serviceConnectionTokenId, "service-connection-token")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
-      const previousNetwork = lastSegment(canonicalizeLink(olds?.network ?? output?.network))
-      const nextNetwork = lastSegment(canonicalizeLink(news.network))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousNetwork = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(canonicalizeLink(olds?.network ?? output?.network)), catch: (e) => e }),
+      )
+      const nextNetwork = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(canonicalizeLink(resolved.network)), catch: (e) => e }),
+      )
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -189,19 +206,26 @@ export const ServiceConnectionTokenProvider = (): infer _ =>
         output?.serviceConnectionTokenId,
         "service-connection-token",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, serviceConnectionTokenId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networkconnectivity.listProjectsLocationsServiceConnectionTokens.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.serviceConnectionTokens,
@@ -219,32 +243,38 @@ export const ServiceConnectionTokenProvider = (): infer _ =>
         output?.serviceConnectionTokenId,
         "service-connection-token",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, serviceConnectionTokenId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const network = toNetworkResource(env.project, news.network)
+      const network = try Effect.orDie(
+        Effect.try({ try: () => toNetworkResource(env.project, news.network), catch: (e) => e }),
+      )
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkconnectivity
-          .createProjectsLocationsServiceConnectionTokens({
-            parent: parentOf(env.project, location),
-            serviceConnectionTokenId,
-            body: {
-              network,
-              description: news.description,
-              labels: desiredLabels,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkconnectivity
+            .createProjectsLocationsServiceConnectionTokens({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              serviceConnectionTokenId,
+              body: {
+                network,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -259,16 +289,18 @@ export const ServiceConnectionTokenProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkconnectivity
-        .deleteProjectsLocationsServiceConnectionTokens({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkconnectivity
+          .deleteProjectsLocationsServiceConnectionTokens({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

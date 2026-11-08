@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as profiles from "@distilled.cloud/aws/route53profiles"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -101,8 +102,8 @@ const retryDeleteConflict = effect <A, E extends { _tag: string }, R>(
  * @internal
  */
 const untilProfileSettled = effect <E, R>(
-  self: profiles.Profile | undefined!E!R,
-): profiles.Profile | undefined!E!R =>
+  self: (profiles.Profile | undefined)!E!R,
+): (profiles.Profile | undefined)!E!R =>
   try (self
     |> Effect.repeat(%, {
       schedule: Schedule.fixed("2 seconds"),
@@ -122,15 +123,17 @@ export const ProfileProvider = (): infer _ =>
       // A deleted Profile lingers in `DELETING`/`DELETED` and is still
       // returned by `GetProfile` — those states count as missing.
       const observe = effect (profileId: string) =>
-        (try effect {
-          const r = try profiles.getProfile({ ProfileId: profileId })
-          return r.Profile === undefined
-              || r.Profile.Status === "DELETING"
-              || r.Profile.Status === "DELETED"
-            ? undefined
-            : r.Profile
+        (effect {
+          return (try effect {
+            const r = try profiles.getProfile({ ProfileId: profileId })
+            return r.Profile === undefined
+                || r.Profile.Status === "DELETING"
+                || r.Profile.Status === "DELETED"
+              ? undefined
+              : r.Profile
+          })
         }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -141,14 +144,16 @@ export const ProfileProvider = (): infer _ =>
         ).find((summary) => summary.Name === name)
 
       const readTags = effect (profileArn: string) =>
-        (try effect {
-          const r = try profiles.listTagsForResource({ ResourceArn: profileArn })
+        (effect {
+          return (try effect {
+            const r = try profiles.listTagsForResource({ ResourceArn: profileArn })
 
-          const tags: Record<string, string> = {}
-          for (const [key, value] of Object.entries(r.Tags)) {
-            if (value !== undefined) tags[key] = value
-          }
-          return tags
+            const tags: Record<string, string> = {}
+            for (const [key, value] of Object.entries(r.Tags)) {
+              if (value !== undefined) tags[key] = value
+            }
+            return tags
+          })
         }) catch () => ({}) as Record<string, string>
 
       const syncTags = effect (
@@ -159,10 +164,14 @@ export const ProfileProvider = (): infer _ =>
         const internalTags = try createInternalTags(id)
         // Diff against OBSERVED cloud tags so adoption converges.
         const currentTags = try readTags(profileArn)
-        const { upsert, removed } = diffTags(currentTags, {
-          ...userTags,
-          ...internalTags,
-        })
+        const { upsert, removed } = try Effect.orDie(Effect.try({
+          try: () =>
+            diffTags(currentTags, {
+              ...userTags,
+              ...internalTags,
+            }),
+          catch: (e) => e,
+        }))
         if (upsert.length > 0) {
           try profiles.tagResource({
             ResourceArn: profileArn,
@@ -207,10 +216,13 @@ export const ProfileProvider = (): infer _ =>
             profileName: live.Name!,
           }
           const tags = try readTags(live.Arn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           // Profiles have no update API for the name.
@@ -256,11 +268,13 @@ export const ProfileProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // VPC disassociations drain asynchronously; DeleteProfile conflicts
           // until they finish, so retry on a bounded schedule.
-          ;(try (retryDeleteConflict(profiles.deleteProfile({ ProfileId: output.profileId }))
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (retryDeleteConflict(profiles.deleteProfile({ ProfileId: output.profileId }))
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

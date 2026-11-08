@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -172,7 +173,7 @@ export const RuntimeProvider = (): infer _ =>
       const getRuntimeOrUndefined = effect (agentRuntimeId: string) =>
         control
           .getAgentRuntime({ agentRuntimeId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -210,7 +211,7 @@ export const RuntimeProvider = (): infer _ =>
           const summaries = Array.from(pages).flatMap((page) => page.agentRuntimes ?? [])
           const hydrated = try Effect.forEach(
             summaries,
-            (s) => getRuntimeOrUndefined(s.agentRuntimeId),
+            effect (s) => try getRuntimeOrUndefined(s.agentRuntimeId),
             { concurrency: 5 },
           )
           return hydrated.filter((r) => r !== undefined).map(toAttributes)
@@ -225,11 +226,14 @@ export const RuntimeProvider = (): infer _ =>
           }
           const attrs = toAttributes(runtime)
           const tags = try readAgentCoreTags(runtime.agentRuntimeArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? ({} as RuntimeProps))
           const newName = try createName(id, news ?? ({} as RuntimeProps))
           if (oldName !== newName) {
@@ -260,25 +264,27 @@ export const RuntimeProvider = (): infer _ =>
           // assumable; ride out the transient ValidationException and the
           // name-exists conflict race.
           if (runtime === undefined) {
-            const created = (try (control
-              .createAgentRuntime({
-                agentRuntimeName: name,
-                description: props.description,
-                agentRuntimeArtifact: props.agentRuntimeArtifact,
-                roleArn: props.roleArn,
-                networkConfiguration,
-                protocolConfiguration: props.protocolConfiguration,
-                authorizerConfiguration: props.authorizerConfiguration,
-                requestHeaderConfiguration: props.requestHeaderConfiguration,
-                lifecycleConfiguration: props.lifecycleConfiguration,
-                environmentVariables: props.environmentVariables,
-                platformVersion: props.platformVersion,
-                tags: desiredTags,
-              })
-              |> retryWhileValidation(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try (control
+                .createAgentRuntime({
+                  agentRuntimeName: name,
+                  description: props.description,
+                  agentRuntimeArtifact: props.agentRuntimeArtifact,
+                  roleArn: props.roleArn,
+                  networkConfiguration,
+                  protocolConfiguration: props.protocolConfiguration,
+                  authorizerConfiguration: props.authorizerConfiguration,
+                  requestHeaderConfiguration: props.requestHeaderConfiguration,
+                  lifecycleConfiguration: props.lifecycleConfiguration,
+                  environmentVariables: props.environmentVariables,
+                  platformVersion: props.platformVersion,
+                  tags: desiredTags,
+                })
+                |> retryWhileValidation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
             runtime = created === undefined
               ? try findByName(name)
               : try getRuntimeOrUndefined(created.agentRuntimeId)
@@ -345,13 +351,20 @@ export const RuntimeProvider = (): infer _ =>
         // A runtime with live endpoints rejects deletion with a
         // ConflictException until they are gone.
         delete: effect ({ output }) => {
-          ;(try (control.deleteAgentRuntime({ agentRuntimeId: output.agentRuntimeId })
-            |> retryWhileConflict(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          ;(effect {
+            return (try (control.deleteAgentRuntime({ agentRuntimeId: output.agentRuntimeId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+          try (effect {
+            return (effect {
+              return ((try control.getAgentRuntime({ agentRuntimeId: output.agentRuntimeId })).status as string)
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: "GONE" as string;
               default: throw e;
             }
-          try (effect {
-            return ((try control.getAgentRuntime({ agentRuntimeId: output.agentRuntimeId })).status as string) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: "GONE" as string; default: throw e; }
           }
             |> Effect.repeat(%, {
               schedule: Schedule.fixed("5 seconds"),

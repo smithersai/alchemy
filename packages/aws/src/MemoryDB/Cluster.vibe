@@ -224,7 +224,7 @@ export const ClusterProvider = (): infer _ =>
       const readCluster = effect (name: string) => {
         const response = memorydb
           .describeClusters({ ClusterName: name }) catch effect (e) => match (e) {
-            when { _tag: "ClusterNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ClusterNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.Clusters?.[0]
@@ -303,8 +303,9 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterName", "clusterArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          const n = news ?? { aclName: "" }
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          const n = resolved ?? { aclName: "" }
           const o = olds ?? { aclName: "" }
           if ((try toName(id, o)) !== (try toName(id, n))) {
             return { action: "replace" } as const
@@ -342,7 +343,7 @@ export const ClusterProvider = (): infer _ =>
           const cluster = try readCluster(name)
           if (!cluster?.ARN) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -351,7 +352,7 @@ export const ClusterProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...internalTags, ...props.tags }
           // The wire field is whole days.
-          const snapshotRetentionDays = toWireDays(props.snapshotRetentionLimit)
+          const snapshotRetentionDays = try Effect.orDie(Effect.try({ try: () => toWireDays(props.snapshotRetentionLimit), catch: (e) => e }))
 
           // 1. Observe — cloud state is authoritative.
           let observed = try readCluster(name)
@@ -387,7 +388,7 @@ export const ClusterProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ClusterAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "ClusterAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -472,7 +473,7 @@ export const ClusterProvider = (): infer _ =>
           const arn = observed.ARN
           if (arn) {
             const observedTags = try readMemoryDbTags(arn)
-            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
             if (upsert.length > 0) {
               try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
             }
@@ -498,17 +499,17 @@ export const ClusterProvider = (): infer _ =>
             return
           }
           if (settled.Status !== "deleting") {
-            ;(try (effect {
+            ;(effect { return (try (effect {
               return memorydb.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
-                when { _tag: "ClusterNotFoundFault" }: try Effect.void;
+                when { _tag: "ClusterNotFoundFault" }: (undefined as void);
                 default: throw e;
               }
             }
               |> Effect.retry(%, {
                 while: (e) => e._tag === "InvalidClusterStateFault",
                 schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
-              }))) catch effect (e) => match (e) {
-                when { _tag: "InvalidClusterStateFault" }: try Effect.void;
+              }))) }) catch effect (e) => match (e) {
+                when { _tag: "InvalidClusterStateFault" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -520,7 +521,7 @@ export const ClusterProvider = (): infer _ =>
           try (effect {
             return try effect {
               const cluster = try readCluster(name)
-              return (cluster === undefined ? try Effect.void : throw new MemoryDBClusterNotReady({
+              return (cluster === undefined ? (undefined as void) : throw new MemoryDBClusterNotReady({
                 message: `MemoryDB cluster '${name}' still deleting (status: ${cluster.Status})`,
               }))
             }
@@ -541,7 +542,7 @@ export const ClusterProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((cluster) => toAttrs(cluster), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (cluster) => try toAttrs(cluster), { concurrency: 4 }))),
       }
     },
   )

@@ -4,9 +4,6 @@ import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Predicate from "effect/Predicate"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 const TypeId = "Cloudflare.Organization.Organization" as const
@@ -199,10 +196,12 @@ export const OrganizationProvider = (): infer _ =>
     // rejects with the typed `Forbidden` error, which `list()` tolerates
     // (returns `[]`) so account-wide enumeration / `nuke` never blows up.
     list: effect () =>
-      (Array.from(
-        try (organizations.listOrganizations.pages({})
-          |> Stream.runCollect(%)),
-      ).flatMap((page) => (page.result ?? []).map(toAttributes))) catch effect (e) => match (e) {
+      (effect {
+        return (Array.from(
+          try (organizations.listOrganizations.pages({})
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => (page.result ?? []).map(toAttributes)))
+      }) catch effect (e) => match (e) {
         when { _tag: "Forbidden" }: [];
         default: throw e;
       },
@@ -210,11 +209,14 @@ export const OrganizationProvider = (): infer _ =>
     diff: effect ({ olds, news, output }) => {
       // `news` may still carry unresolved plan-time expressions — defer
       // to the engine's default update logic until everything is concrete.
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       // Re-parenting is not supported in place — hierarchy moves are
       // gated by `accountMobility`/flags, so a parent change replaces.
       const oldParent = output?.parent?.id ?? (olds?.parent as string | undefined)
-      const newParent = news.parent
+      const newParent = resolved_.parent
       // `parent` is Input<string>; only compare once both are concrete.
       if (
         (oldParent === undefined) !== (newParent === undefined)
@@ -240,7 +242,9 @@ export const OrganizationProvider = (): infer _ =>
       const name = try createOrganizationName(id, olds?.name)
       const parent = olds?.parent as string | undefined
       const match = try findByName(name, parent)
-      return match ? Unowned(toAttributes(match)) : undefined
+      return match
+        ? (try Effect.orDie(Effect.try({ try: () => Unowned(toAttributes(match)), catch: (e) => e })))
+        : undefined
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -293,7 +297,7 @@ export const OrganizationProvider = (): infer _ =>
       // violation, so it propagates. Already-gone is success.
       organizations
         .deleteOrganization({ organizationId: output.organizationId }) catch effect (e) => match (e) {
-          when { _tag: "OrganizationNotFound" }: try Effect.void;
+          when { _tag: "OrganizationNotFound" }: (undefined as void);
           default: throw e;
         }
     },
@@ -306,8 +310,10 @@ type ObservedOrganization = organizations.GetOrganizationResponse
  * HTTP 404) to `undefined`.
  */
 const getOrganization = effect (organizationId: string) =>
-  (try organizations.getOrganization({ organizationId })) catch effect (e) => match (e) {
-    when { _tag: "OrganizationNotFound" }: try Effect.undefined;
+  (effect {
+    return (try organizations.getOrganization({ organizationId }))
+  }) catch effect (e) => match (e) {
+    when { _tag: "OrganizationNotFound" }: undefined;
     default: throw e;
   }
 

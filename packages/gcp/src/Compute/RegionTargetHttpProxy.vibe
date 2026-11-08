@@ -224,7 +224,7 @@ const toAttrs = (proxy: compute.TargetHttpProxy, project: string): infer _ => {
 const getByName = effect (project: string, region: string, targetHttpProxy: string) =>
   compute
     .getRegionTargetHttpProxies({ project, region, targetHttpProxy }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -263,15 +263,18 @@ export const RegionTargetHttpProxyProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.targetHttpProxyName ?? output?.targetHttpProxyName
-      const nextName = news.targetHttpProxyName ?? previousName
+      const nextName = resolved.targetHttpProxyName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? output?.region, env.region)
       const regionChanged = previousRegion !== nextRegion
-      if (nameChanged || regionChanged || immutableChanged(news, olds, output)) {
+      if (nameChanged || regionChanged || immutableChanged(resolved, olds, output)) {
         return {
           action: "replace" as const,
           deleteFirst: !regionChanged,
@@ -292,7 +295,9 @@ export const RegionTargetHttpProxyProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -340,19 +345,21 @@ export const RegionTargetHttpProxyProvider = (): infer _ =>
         if (news.httpKeepAliveTimeoutSec !== undefined) {
           body.httpKeepAliveTimeoutSec = news.httpKeepAliveTimeoutSec
         }
-        ;(try waitRegionOperation(
-          env.project,
-          region,
-          try compute
-            .insertRegionTargetHttpProxies({
-              project: env.project,
-              region,
-              body,
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        ;(effect {
+          return (try waitRegionOperation(
+            env.project,
+            region,
+            try compute
+              .insertRegionTargetHttpProxies({
+                project: env.project,
+                region,
+                body,
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         current = try getByName(env.project, region, targetHttpProxyName)
       }
 
@@ -395,10 +402,10 @@ export const RegionTargetHttpProxyProvider = (): infer _ =>
           project: env.project,
           region,
           targetHttpProxy: output.targetHttpProxyName,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         waitRegionOperation(env.project, region, operation) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

@@ -121,22 +121,22 @@ export const AccessLogSubscriptionProvider = (): infer _ =>
       const observe = effect (id: string) =>
         vpclattice
           .getAccessLogSubscription({ accessLogSubscriptionIdentifier: id }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
       // A resource can hold at most one subscription per destination type;
       // recover the existing one for our destination's type.
       const findByDestinationType = effect (resourceIdentifier: string, desiredDestinationArn: string) =>
-        (Array.from(
+        (effect { return (Array.from(
           try (vpclattice.listAccessLogSubscriptions.pages({ resourceIdentifier })
             |> Stream.runCollect(%)),
         )
           .flatMap((page) => page.items ?? [])
           .find(
             (s) => destinationType(s.destinationArn) === destinationType(desiredDestinationArn),
-          )) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          )) }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -144,7 +144,7 @@ export const AccessLogSubscriptionProvider = (): infer _ =>
         const listed = try vpclattice.listTagsForResource({
           resourceArn: arn,
         })
-        const { removed, upsert } = diffTags(tagRecord(listed.tags), desiredTags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(tagRecord(listed.tags), desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try vpclattice.tagResource({
             resourceArn: arn,
@@ -167,10 +167,11 @@ export const AccessLogSubscriptionProvider = (): infer _ =>
           "resourceArn",
         ],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (
-            olds?.resourceIdentifier !== news.resourceIdentifier
-            || (olds?.serviceNetworkLogType ?? undefined) !== news.serviceNetworkLogType
+            olds?.resourceIdentifier !== resolved.resourceIdentifier
+            || (olds?.serviceNetworkLogType ?? undefined) !== resolved.serviceNetworkLogType
           ) {
             return { action: "replace" } as const
           }
@@ -178,7 +179,7 @@ export const AccessLogSubscriptionProvider = (): infer _ =>
           // destination service (CloudWatch/Firehose/S3).
           if (
             olds !== undefined
-            && destinationType(olds.destinationArn) !== destinationType(news.destinationArn)
+            && destinationType(olds.destinationArn) !== destinationType(resolved.destinationArn)
           ) {
             return { action: "replace" } as const
           }
@@ -199,9 +200,9 @@ export const AccessLogSubscriptionProvider = (): infer _ =>
             resourceId: subscription.resourceId,
             resourceArn: subscription.resourceArn,
             destinationArn: subscription.destinationArn,
-            tags: tagRecord(listed.tags),
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(listed.tags), catch: (e) => e })),
           }
-          return (try hasAlchemyTags(id, listed.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, listed.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, session }) => {
           const internalTags = try createInternalTags(id)
@@ -281,7 +282,7 @@ export const AccessLogSubscriptionProvider = (): infer _ =>
               accessLogSubscriptionIdentifier: output.accessLogSubscriptionId,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

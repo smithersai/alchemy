@@ -172,25 +172,38 @@ export const AppsDeploymentProvider = (): infer _ =>
     stables: ["name", "deploymentId", "app", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousId: olds?.deploymentId ?? output?.deploymentId,
-        nextId: news.deploymentId,
-        previousParent: olds?.app ?? output?.app,
-        nextParent: news.app,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.deploymentId ?? output?.deploymentId,
+            nextId: resolved.deploymentId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const app = olds?.app ? expandApp(olds.app, env.project, location) : output?.app
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
       const deploymentId = try toPhysicalId(id, olds?.deploymentId, output?.deploymentId)
       const name = output?.name ?? (app !== undefined ? resourceName(app, deploymentId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region, app)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -204,12 +217,18 @@ export const AppsDeploymentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const app = expandApp(news.app, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
       const deploymentId = try toPhysicalId(id, news.deploymentId, output?.deploymentId)
       const name = output?.name ?? resourceName(app, deploymentId)
       const ownership = try createInternalLabels(id)
-      const displayName = encodeOwnershipLine(ownership, news.displayName)
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
       const channelProfile = news.channelProfile ?? DEFAULT_CHANNEL_PROFILE
       const appVersion = news.appVersion
 
@@ -237,20 +256,31 @@ export const AppsDeploymentProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       const displayChanged = !sameText(current.displayName, displayName)
-      const channelChanged = !sameJson(current.channelProfile, channelProfile)
+      const channelChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.channelProfile, channelProfile), catch: (e) => e }),
+      ))
       const versionChanged = !sameText(current.appVersion, appVersion)
-      const experimentChanged = !sameJson(current.experimentConfig, news.experimentConfig)
+      const experimentChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.experimentConfig, news.experimentConfig),
+          catch: (e) => e,
+        }),
+      ))
 
       if (displayChanged || channelChanged || versionChanged || experimentChanged) {
         current = try retryTransient(
           ces.patchProjectsLocationsAppsDeployments({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              channelChanged ? "channel_profile" : undefined,
-              versionChanged ? "app_version" : undefined,
-              experimentChanged ? "experiment_config" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  channelChanged ? "channel_profile" : undefined,
+                  versionChanged ? "app_version" : undefined,
+                  experimentChanged ? "experiment_config" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               displayName,
               channelProfile,

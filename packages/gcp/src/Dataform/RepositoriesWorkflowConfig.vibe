@@ -219,35 +219,54 @@ export const RepositoriesWorkflowConfigProvider = (): infer _ =>
     stables: ["name", "workflowConfigId", "repository", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      return replaceOnIdentity({
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
         previousId: olds?.workflowConfigId ?? output?.workflowConfigId,
-        nextId: news.workflowConfigId ?? olds?.workflowConfigId ?? output?.workflowConfigId,
+        nextId: resolved.workflowConfigId ?? olds?.workflowConfigId ?? output?.workflowConfigId,
         previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
+        nextLocation: resolved.location ?? olds?.location ?? output?.location,
         previousParent: olds?.repository ?? output?.repository,
-        nextParent: expandRepository(news.repository, env.project, location),
-        extra: news.invocationConfig !== undefined
+        nextParent: expandRepository(resolved.repository, env.project, location),
+        extra: resolved.invocationConfig !== undefined
           && olds?.invocationConfig !== undefined
-          && !sameJson(olds.invocationConfig, news.invocationConfig),
-      })
+          && !(try Effect.orDie(
+            Effect.try({
+              try: sameJson.bind(undefined, olds.invocationConfig, resolved.invocationConfig),
+              catch: (e) => e,
+            }),
+          )),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const repository = expandRepository(
-        olds?.repository
-          ?? output?.repository
-          ?? parseResourceName(output?.name ?? "", "workflowConfigs", env.region).parent,
-        env.project,
-        location,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandRepository(
+            olds?.repository
+              ?? output?.repository
+              ?? parseResourceName(output?.name ?? "", "workflowConfigs", env.region).parent,
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
       const workflowConfigId = try toPhysicalId(
         id,
         olds?.workflowConfigId,
@@ -262,23 +281,30 @@ export const RepositoriesWorkflowConfigProvider = (): infer _ =>
           when { _tag: "NotFound" }: try Effect.undefined;
           default: throw e;
         }
-      if (parent === undefined) return Unowned(attrs)
-      return hasAlchemyLabelMap(parent.labels) ? attrs : Unowned(attrs)
+      if (parent === undefined) return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try Effect.orDie(Effect.try({ try: () => hasAlchemyLabelMap(parent.labels), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const configs = try forEachOwnedRepository(env.project, env.region, effect (repo) =>
-        try listWorkflowConfigs(repo.name ?? ""))
-      return configs.map((item) =>
-        toAttrs(item, env.project, env.region)
+      const configs = try forEachOwnedRepository(
+        env.project,
+        env.region,
+        effect (repo) => try listWorkflowConfigs(repo.name ?? ""),
       )
+      return configs.map((item) => toAttrs(item, env.project, env.region))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const repository = expandRepository(news.repository, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandRepository(news.repository, env.project, location), catch: (e) => e }),
+      )
       const workflowConfigId = try toPhysicalId(
         id,
         news.workflowConfigId,
@@ -327,12 +353,16 @@ export const RepositoriesWorkflowConfigProvider = (): infer _ =>
         current = try retryTransient(
           dataform.patchProjectsLocationsRepositoriesWorkflowConfigs({
             name: currentName,
-            updateMask: updateMaskOf(
-              releaseChanged ? "releaseConfig" : undefined,
-              cronChanged ? "cronSchedule" : undefined,
-              zoneChanged ? "timeZone" : undefined,
-              disabledChanged ? "disabled" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  releaseChanged ? "releaseConfig" : undefined,
+                  cronChanged ? "cronSchedule" : undefined,
+                  zoneChanged ? "timeZone" : undefined,
+                  disabledChanged ? "disabled" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               releaseConfig: resolvedRelease,
               cronSchedule: news.cronSchedule,

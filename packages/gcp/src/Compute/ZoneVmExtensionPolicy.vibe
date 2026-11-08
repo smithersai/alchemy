@@ -258,7 +258,7 @@ const toAttrs = (
 const getByName = effect (project: string, zone: string, vmExtensionPolicy: string) =>
   compute
     .getZoneVmExtensionPolicies({ project, zone, vmExtensionPolicy }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -284,7 +284,7 @@ const waitPolicyGone = effect (project: string, zone: string, vmExtensionPolicyN
   try (effect {
     return try effect {
       const policy = try getByName(project, zone, vmExtensionPolicyName)
-      return (policy === undefined ? try Effect.void : throw new ZoneVmExtensionPolicyStillExists({
+      return (policy === undefined ? (undefined as void) : throw new ZoneVmExtensionPolicyStillExists({
         vmExtensionPolicyName,
         status: policy.state ?? "UNKNOWN",
       }))
@@ -308,14 +308,17 @@ export const ZoneVmExtensionPolicyProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
 
       const previousName = olds?.vmExtensionPolicyName ?? output?.vmExtensionPolicyName
-      const nextName = news.vmExtensionPolicyName ?? previousName
+      const nextName = resolved.vmExtensionPolicyName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
 
       const previousZone = normalizeZone(olds?.zone ?? output?.zone)
-      const nextZone = normalizeZone(news.zone ?? output?.zone)
+      const nextZone = normalizeZone(resolved.zone ?? output?.zone)
 
       if (nameChanged || previousZone !== nextZone) {
         return {
@@ -338,7 +341,9 @@ export const ZoneVmExtensionPolicyProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, zone)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -355,18 +360,20 @@ export const ZoneVmExtensionPolicyProvider = (): infer _ =>
       const pages = try Effect.forEach(
         zones,
         effect (zone) =>
-          (Array.from(
-            try (compute.listZoneVmExtensionPolicies
-              .items({
-                project: env.project,
-                zone: zone.name!,
-                maxResults: 500,
-                returnPartialSuccess: true,
-              })
-              |> Stream.filter(%, (policy) => hasOwnershipMarker(policy.description))
-              |> Stream.map(%, (policy) => toAttrs(policy, env.project, zone.name!))
-              |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+          (effect {
+            return (Array.from(
+              try (compute.listZoneVmExtensionPolicies
+                .items({
+                  project: env.project,
+                  zone: zone.name!,
+                  maxResults: 500,
+                  returnPartialSuccess: true,
+                })
+                |> Stream.filter(%, (policy) => hasOwnershipMarker(policy.description))
+                |> Stream.map(%, (policy) => toAttrs(policy, env.project, zone.name!))
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
         { concurrency: 8 },
       )
       return pages.flat()
@@ -395,7 +402,7 @@ export const ZoneVmExtensionPolicyProvider = (): infer _ =>
             project: env.project,
             zone,
             body: desired,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (inserted !== undefined) {
           try waitZoneOperation(env.project, zone, inserted, {
             ignore: ["RESOURCE_ALREADY_EXISTS"],
@@ -454,7 +461,7 @@ export const ZoneVmExtensionPolicyProvider = (): infer _ =>
             project,
             zone,
             vmExtensionPolicy: output.vmExtensionPolicyName,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",

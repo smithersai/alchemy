@@ -40,9 +40,11 @@ export type FlyHostRuntimeContext = HostRuntimeContext;
  * Container runtime context for Fly hosts. It also serves the program's RPC
  * methods to bound callers (see {@link serveFlyRpc}) and boots the HTTP
  * server for a program that exposes methods but no `fetch`.
+ * @throws {never}
  */
 export const createFlyHostRuntimeContext =
   (type: string) =>
+  /** @throws {never} */
   (id: string): HostRuntimeContext => {
     const base = createContainerRuntimeContext(type)(id);
     const serveBase = base.serve;

@@ -264,9 +264,11 @@ export const mountCloudSqlInstances = <T extends CloudSqlTemplate>(
  * import) so module-scope code sees it.
  */
 export const makeGcpBootstrap =
+  /** @throws {never} */
   (module: "CloudRun" | "CloudRunJob", handler: string) =>
-  (importPath: string): string =>
-    `
+    /** @throws {never} */
+    (importPath: string): string =>
+      `
 import { bootstrap } from "@alchemy.run/gcp/Bootstrap/${module}";
 
 globalThis.__ALCHEMY_RUNTIME__ = true;

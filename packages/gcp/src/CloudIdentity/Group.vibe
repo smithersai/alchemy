@@ -209,18 +209,21 @@ export const GroupProvider = (): infer _ =>
     stables: ["name", "groupId", "parent", "groupKeyId", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      const nextParent = news.parent !== undefined ? normalizeCustomer(news.parent) : previousParent
+      const nextParent = resolved.parent !== undefined ? normalizeCustomer(resolved.parent) : previousParent
       const previousKey = olds?.groupKeyId ?? output?.groupKeyId
       return replaceOnIdentity({
         previousId: previousKey,
-        nextId: news.groupKeyId,
+        nextId: resolved.groupKeyId,
         previousParent,
         nextParent,
-        extra: news.groupKeyNamespace !== undefined
+        extra: resolved.groupKeyNamespace !== undefined
           && output?.groupKeyNamespace !== undefined
-          && news.groupKeyNamespace !== output.groupKeyNamespace,
+          && resolved.groupKeyNamespace !== output.groupKeyNamespace,
       })
     },
 
@@ -241,7 +244,9 @@ export const GroupProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
       // State or the generated group key proves ownership.
-      return output !== undefined || olds?.groupKeyId === undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds?.groupKeyId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -281,10 +286,10 @@ export const GroupProvider = (): infer _ =>
           .createGroups({
             initialGroupConfig: news.initialGroupConfig ?? "EMPTY",
             body: desired,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           waitForOperation(created) catch effect (e) => match (e) {
-            when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: (undefined as void);
             default: throw e;
           }
           const createdName = resourceNameFromOperation(created)
@@ -342,7 +347,7 @@ export const GroupProvider = (): infer _ =>
           },
         })
         waitForOperation(patched) catch effect (e) => match (e) {
-          when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+          when { _tag: "GCP.CloudIdentity.OperationPending" }: (undefined as void);
           default: throw e;
         }
         current = (try getGroup(name)) ?? current
@@ -355,7 +360,7 @@ export const GroupProvider = (): infer _ =>
       if (output.name.length === 0) return
       const deleted = cloudidentity
         .deleteGroups({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (deleted !== undefined) {

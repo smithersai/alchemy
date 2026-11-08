@@ -107,35 +107,40 @@ const toAttrs = (current: bigqueryreservation.ReservationGroup, project: string)
 const getByName = effect (name: string) =>
   bigqueryreservation
     .getProjectsLocationsReservationGroups({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listOwnedAt = effect (project: string, location: string) =>
-  (Array.from(
-    try (bigqueryreservation.listProjectsLocationsReservationGroups
-      .pages({
-        parent: parentOf(project, location),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.reservationGroups ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(lastSegment(item.name ?? "")))
-      |> Stream.map(%, (item) => toAttrs(item, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (bigqueryreservation.listProjectsLocationsReservationGroups
+        .pages({
+          parent: parentOf(project, location),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.reservationGroups ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(lastSegment(item.name ?? "")))
+        |> Stream.map(%, (item) => toAttrs(item, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const ReservationGroupProvider = (): infer _ =>
   Provider.succeed(ReservationGroup, {
     stables: ["name", "reservationGroupId", "project", "location"],
 
     diff: effect ({ id, news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousId = olds?.reservationGroupId ?? output?.reservationGroupId
-      const nextId = try toResourceId(id, news.reservationGroupId, previousId)
+      const nextId = try toResourceId(id, resolved.reservationGroupId, previousId)
       const previousLocation = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location ?? env.region)
 
       const replace = (previousId !== undefined && nextId !== previousId) || previousLocation !== nextLocation
 
@@ -158,7 +163,9 @@ export const ReservationGroupProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, lastSegment(existing.name ?? ""))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, lastSegment(existing.name ?? "")))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -208,7 +215,7 @@ export const ReservationGroupProvider = (): infer _ =>
     delete: effect ({ output }) => {
       bigqueryreservation
         .deleteProjectsLocationsReservationGroups({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

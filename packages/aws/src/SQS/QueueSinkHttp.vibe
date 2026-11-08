@@ -1,7 +1,7 @@
+import * as Effect from "effect/Effect"
 import type * as sqs from "@distilled.cloud/aws/sqs"
 import * as Output from "alchemy/Output"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import type { Queue } from "./Queue.vibe"
@@ -48,13 +48,15 @@ export const QueueSinkHttp = Layer.effect(
         })
       }
       const sendBatch = try sendMessageBatch(queue)
-      return makeBatchedSink<QueueSinkEntry, sqs.SendMessageBatchResult, sqs.SendMessageBatchError>(
-        {
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<QueueSinkEntry, sqs.SendMessageBatchResult, sqs.SendMessageBatchError>
+        >[0] = {
           maxRecords: 10,
           maxBytes: 262_144,
           sizeOf: (entry): infer _ => encoder.encode(entry.MessageBody).length,
-          send: (batch) =>
-            sendBatch({
+          send: effect (batch) =>
+            try sendBatch({
               Entries: batch.map((entry, index) => ({
                 ...entry,
                 Id: `${index}`,
@@ -65,8 +67,15 @@ export const QueueSinkHttp = Layer.effect(
           unprocessed: (out, batch): infer _ => selectFailed(out.Failed, batch, false),
           // SenderFault=true failures are permanent — drop and surface.
           rejected: (out, batch): infer _ => selectFailed(out.Failed, batch, true),
-        },
-      )
+        }
+        return try Effect.orDie(
+          Effect.try({
+            try: () =>
+              makeBatchedSink<QueueSinkEntry, sqs.SendMessageBatchResult, sqs.SendMessageBatchError>(sinkOptions),
+            catch: (error) => error,
+          }),
+        )
+      })
     }
   },
 )

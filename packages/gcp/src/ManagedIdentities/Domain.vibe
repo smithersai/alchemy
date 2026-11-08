@@ -209,21 +209,33 @@ export const DomainProvider = (): infer _ =>
     stables: ["name", "domainName", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const previousName = domainNameOf(
-        olds?.domainName ?? output?.domainName ?? output?.name ?? "",
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const nextName = domainNameOf(
-        news.domainName ?? olds?.domainName ?? output?.domainName ?? "",
-      )
+      if (resolved === undefined) return undefined
+      const previousName = try Effect.orDie(Effect.try({
+        try: () =>
+          domainNameOf(
+            olds?.domainName ?? output?.domainName ?? output?.name ?? "",
+          ),
+        catch: (e) => e,
+      }))
+      const nextName = try Effect.orDie(Effect.try({
+        try: () =>
+          domainNameOf(
+            resolved.domainName ?? olds?.domainName ?? output?.domainName ?? "",
+          ),
+        catch: (e) => e,
+      }))
       const previousRange = olds?.reservedIpRange ?? output?.reservedIpRange
       const previousAdmin = adminOf(olds?.admin ?? output?.admin)
-      return replaceOnIdentity({
+      const input = {
         previousId: previousName.length > 0 ? previousName : undefined,
         nextId: nextName.length > 0 ? nextName : undefined,
-        extra: (previousRange !== undefined && news.reservedIpRange !== previousRange)
-          || (news.admin !== undefined && adminOf(news.admin) !== previousAdmin),
-      })
+        extra: (previousRange !== undefined && resolved.reservedIpRange !== previousRange)
+          || (resolved.admin !== undefined && adminOf(resolved.admin) !== previousAdmin),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -233,7 +245,12 @@ export const DomainProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -247,7 +264,7 @@ export const DomainProvider = (): infer _ =>
       const domainName = try toDomainName(id, news.domainName, output?.domainName)
       const name = resourceName(env.project, domainName)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const locations = locationsOf(news.locations ?? output?.locations, env.region)
@@ -329,13 +346,15 @@ export const DomainProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name) return
-      const operation = (try (managedidentities
-        .deleteProjectsLocationsGlobalDomains({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("5 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (managedidentities
+          .deleteProjectsLocationsGlobalDomains({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

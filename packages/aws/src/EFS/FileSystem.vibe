@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as efs from "@distilled.cloud/aws/efs"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -263,7 +266,7 @@ const efsTagsToRecord = (tags: readonly efs.Tag[] | undefined): Record<string, s
  */
 const retryUntilFileSystemAvailable = effect <E extends { _tag: string }, R>(
   self: efs.FileSystemDescription!E!R,
-): efs.FileSystemDescription!E | FileSystemNotAvailable!R =>
+): efs.FileSystemDescription!(E | FileSystemNotAvailable)!R =>
   try Effect.retry(
     Effect.flatMap(self, effect (fs) => (fs.LifeCycleState === "available" ? fs : throw new FileSystemNotAvailable({
       fileSystemId: fs.FileSystemId,
@@ -305,9 +308,14 @@ const retryWhileFileSystemUpdating = effect <A, E extends { _tag: string }, R>(
  * Internal marker error used to drive the bounded wait for a file system to
  * reach the `available` lifecycle state.
  */
-export error FileSystemNotAvailable {
-  mutable fileSystemId: string
-  mutable state: string
+export class FileSystemNotAvailable extends $MutableErrorBase("FileSystemNotAvailable")<{
+  fileSystemId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "FileSystemNotAvailable", true)
+  }
 }
 
 const toWireLifecyclePolicies = (
@@ -344,14 +352,18 @@ export const FileSystemProvider = (): infer _ =>
       }
 
       const findByToken = effect (token: string) =>
-        ((try efs.describeFileSystems({ CreationToken: token })).FileSystems?.[0]) catch effect (e) => match (e) {
-          when { _tag: "FileSystemNotFound" }: try Effect.undefined;
+        (effect {
+          return ((try efs.describeFileSystems({ CreationToken: token })).FileSystems?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "FileSystemNotFound" }: undefined;
           default: throw e;
         }
 
       const findById = effect (fileSystemId: string) =>
-        ((try efs.describeFileSystems({ FileSystemId: fileSystemId })).FileSystems?.[0]) catch effect (e) => match (e) {
-          when { _tag: "FileSystemNotFound" }: try Effect.undefined;
+        (effect {
+          return ((try efs.describeFileSystems({ FileSystemId: fileSystemId })).FileSystems?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "FileSystemNotFound" }: undefined;
           default: throw e;
         }
 
@@ -380,11 +392,14 @@ export const FileSystemProvider = (): infer _ =>
             fileSystemId: fs.FileSystemId,
             fileSystemArn: fs.FileSystemArn ?? (try fileSystemArnOf(fs.FileSystemId)),
           }
-          return (try hasAlchemyTags(id, efsTagsToRecord(fs.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, efsTagsToRecord(fs.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ news = {}, olds = {} }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput = {}, olds = {} }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const replaced = (news.performanceMode ?? "generalPurpose")
               !== (olds.performanceMode ?? "generalPurpose")
             || (news.encrypted ?? true) !== (olds.encrypted ?? true)
@@ -482,11 +497,13 @@ export const FileSystemProvider = (): infer _ =>
           //     DISABLING) counts as its target state. When the prop is
           //     omitted the AWS default is left alone.
           if (news.backup !== undefined) {
-            const observedBackupStatus = ((try efs
-              .describeBackupPolicy({ FileSystemId: fileSystemId })).BackupPolicy?.Status) catch effect (e) => match (e) {
-                when { _tag: "PolicyNotFound" }: try Effect.undefined;
-                default: throw e;
-              }
+            const observedBackupStatus = (effect {
+              return ((try efs
+                .describeBackupPolicy({ FileSystemId: fileSystemId })).BackupPolicy?.Status)
+            }) catch effect (e) => match (e) {
+              when { _tag: "PolicyNotFound" }: undefined;
+              default: throw e;
+            }
             const observedBackup = observedBackupStatus === "ENABLED" || observedBackupStatus === "ENABLING"
             if (observedBackup !== news.backup) {
               try retryWhileFileSystemUpdating(
@@ -519,11 +536,13 @@ export const FileSystemProvider = (): infer _ =>
           //     the desired one after canonicalization (sorted keys, no
           //     whitespace) so a re-deploy of an equivalent document is a
           //     no-op API-wise.
-          const observedPolicy = (try efs
-            .describeFileSystemPolicy({ FileSystemId: fileSystemId })).Policy catch effect (e) => match (e) {
-              when { _tag: "PolicyNotFound" }: try Effect.undefined;
-              default: throw e;
-            }
+          const observedPolicy = (effect {
+            return (try efs
+              .describeFileSystemPolicy({ FileSystemId: fileSystemId })).Policy
+          }) catch effect (e) => match (e) {
+            when { _tag: "PolicyNotFound" }: undefined;
+            default: throw e;
+          }
           const desiredPolicy = news.policy === undefined
             ? undefined
             : typeof news.policy === "string"
@@ -578,7 +597,7 @@ export const FileSystemProvider = (): infer _ =>
         delete: effect ({ output }) => {
           retryWhileFileSystemInUse(
             efs.deleteFileSystem({ FileSystemId: output.fileSystemId }),
-          ) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: try Effect.void; default: throw e; }
+          ) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: (undefined as void); default: throw e; }
         },
       })
     },

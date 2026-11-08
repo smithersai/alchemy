@@ -210,7 +210,7 @@ const toAttrs = (current: bigqueryreservation.CapacityCommitment, project: strin
 const getByName = effect (name: string) =>
   bigqueryreservation
     .getProjectsLocationsCapacityCommitments({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -223,17 +223,19 @@ const waitUntilSettled = effect (name: string) =>
     }))
 
 const listOwnedAt = effect (project: string, location: string) =>
-  (Array.from(
-    try (bigqueryreservation.listProjectsLocationsCapacityCommitments
-      .pages({
-        parent: parentOf(project, location),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.capacityCommitments ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(lastSegment(item.name ?? "")))
-      |> Stream.map(%, (item) => toAttrs(item, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (bigqueryreservation.listProjectsLocationsCapacityCommitments
+        .pages({
+          parent: parentOf(project, location),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.capacityCommitments ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(lastSegment(item.name ?? "")))
+        |> Stream.map(%, (item) => toAttrs(item, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const toBody = (
   news: CapacityCommitmentProps,
@@ -264,19 +266,22 @@ export const CapacityCommitmentProvider = (): infer _ =>
     ],
 
     diff: effect ({ id, news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousId = olds?.capacityCommitmentId ?? output?.capacityCommitmentId
-      const nextId = try toResourceId(id, news.capacityCommitmentId, previousId)
+      const nextId = try toResourceId(id, resolved.capacityCommitmentId, previousId)
       const previousLocation = normalizeLocation(olds?.location ?? output?.location ?? env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location ?? env.region)
       const previousEdition = normalizeEdition(olds?.edition ?? output?.edition)
-      const nextEdition = normalizeEdition(news.edition ?? previousEdition)
+      const nextEdition = normalizeEdition(resolved.edition ?? previousEdition)
       const previousAuxiliary = olds?.multiRegionAuxiliary ?? output?.multiRegionAuxiliary ?? false
-      const nextAuxiliary = news.multiRegionAuxiliary ?? previousAuxiliary
+      const nextAuxiliary = resolved.multiRegionAuxiliary ?? previousAuxiliary
       const previousSlots = olds?.slotCount ?? output?.slotCount
-      const nextSlots = news.slotCount ?? previousSlots
+      const nextSlots = resolved.slotCount ?? previousSlots
 
       const replace = (previousId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -303,7 +308,9 @@ export const CapacityCommitmentProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, lastSegment(existing.name ?? ""))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, lastSegment(existing.name ?? "")))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -378,15 +385,17 @@ export const CapacityCommitmentProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (bigqueryreservation
-        .deleteProjectsLocationsCapacityCommitments({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: stillCommitted,
-          times: 8,
-          schedule: Schedule.spaced("8 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      ;(effect {
+        return (try (bigqueryreservation
+          .deleteProjectsLocationsCapacityCommitments({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: stillCommitted,
+            times: 8,
+            schedule: Schedule.spaced("8 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

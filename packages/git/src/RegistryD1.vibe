@@ -86,7 +86,11 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
       // the backends can never drift apart.
       const ready = effect {
         return try (Effect.suspend(effect () =>
-          try Effect.forEach(REGISTRY_DDL, effect (statement) => try d1("schema", db.prepare(statement).run()))
+          try Effect.forEach(REGISTRY_DDL, effect (statement) =>
+            try d1(
+              "schema",
+              (try Effect.orDie(Effect.try({ try: () => db.prepare(statement), catch: (e) => e }))).run(),
+            ))
         )
           |> Effect.asVoid(%)
           |> Effect.cached(%))
@@ -114,26 +118,30 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           // (a soft-deleted row still does, until purge frees it).
           const inserted = try d1(
             "createRepo",
-            db
-              .prepare(
-                `INSERT INTO repos
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(
+                    `INSERT INTO repos
                    (owner, name, repo_id, description, is_public, fork_of, fork_count, created_at, deleted_at)
                  SELECT ?, ?, ?, ?, ?, ?, 0, ?, NULL
                   WHERE NOT EXISTS (
                     SELECT 1 FROM repos WHERE owner = ? AND name = ?
                   )`,
-              )
-              .bind(
-                owner,
-                name,
-                repoId,
-                input.description ?? null,
-                input.public === true ? 1 : 0,
-                input.forkOf ?? null,
-                createdAt,
-                owner,
-                name,
-              )
+                  )
+                  .bind(
+                    owner,
+                    name,
+                    repoId,
+                    input.description ?? null,
+                    input.public === true ? 1 : 0,
+                    input.forkOf ?? null,
+                    createdAt,
+                    owner,
+                    name,
+                  ),
+              catch: (e) => e,
+            })))
               .run(),
           )
           if ((inserted.meta?.changes ?? 0) === 0) {
@@ -146,10 +154,13 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
             // cannot strand a purge.
             try d1(
               "recordFork",
-              db
-                .prepare(`UPDATE repos SET fork_count = fork_count + 1 WHERE repo_id = ?`)
-                .bind(input.forkOf)
-                .run(),
+              (try Effect.orDie(Effect.try({
+                try: () =>
+                  db
+                    .prepare(`UPDATE repos SET fork_count = fork_count + 1 WHERE repo_id = ?`)
+                    .bind(input.forkOf),
+                catch: (e) => e,
+              }))).run(),
             )
           }
           return {
@@ -175,18 +186,30 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           // would race a re-create against the purge.
           const row = try d1(
             "resolve",
-            db
-              .prepare(`SELECT * FROM repos WHERE owner = ? AND name = ?`)
-              .bind(owner.toLowerCase(), name.toLowerCase())
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(`SELECT * FROM repos WHERE owner = ? AND name = ?`)
+                  .bind(owner.toLowerCase(), name.toLowerCase()),
+              catch: (e) => e,
+            })))
               .first<RegistryRepoRow>(),
           )
-          return row === null ? undefined : toEntry(row)
+          return row === null ? undefined : try Effect.orDie(Effect.try({
+            try: () => toEntry(row),
+            catch: (e) => e,
+          }))
         },
 
         list: effect (input: ListReposInput) => {
           try schema
           const limit = Math.max(1, Math.min(input.limit ?? DEFAULT_LIST_LIMIT, 100))
-          const after = input.cursor === undefined ? undefined : decodeCursor(input.cursor)
+          const after = try Effect.orDie(
+            Effect.try({
+              try: () => input.cursor === undefined ? undefined : decodeCursor(input.cursor),
+              catch: (e) => e,
+            }),
+          )
           const conditions: Array<string> = ["deleted_at IS NULL"]
           const bindings: Array<string | number> = []
           if (input.publicOnly === true) {
@@ -202,12 +225,16 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           }
           const page = try d1(
             "list",
-            db
-              .prepare(
-                `SELECT * FROM repos WHERE ${conditions.join(" AND ")}
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(
+                    `SELECT * FROM repos WHERE ${conditions.join(" AND ")}
                   ORDER BY owner, name LIMIT ?`,
-              )
-              .bind(...bindings, limit + 1)
+                  )
+                  .bind(...bindings, limit + 1),
+              catch: (e) => e,
+            })))
               .all<RegistryRepoRow>(),
           )
           const all = rows(page)
@@ -216,7 +243,9 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           const last = items[items.length - 1]
           return {
             items: items.map(toEntry),
-            nextCursor: hasMore && last !== undefined ? encodeCursor(last.owner, last.name) : null,
+            nextCursor: hasMore && last !== undefined
+              ? try Effect.orDie(Effect.try({ try: () => encodeCursor(last.owner, last.name), catch: (e) => e }))
+              : null,
             hasMore,
           } satisfies ListReposResult
         },
@@ -228,16 +257,24 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           if (delta !== 0) {
             try d1(
               "bumpForkCount",
-              db
-                .prepare(`UPDATE repos SET fork_count = MAX(0, fork_count + ?) WHERE repo_id = ?`)
-                .bind(delta, repoId)
+              (try Effect.orDie(Effect.try({
+                try: () =>
+                  db
+                    .prepare(`UPDATE repos SET fork_count = MAX(0, fork_count + ?) WHERE repo_id = ?`)
+                    .bind(delta, repoId),
+                catch: (e) => e,
+              })))
                 .run(),
             )
             const row = try d1(
               "bumpForkCount read",
-              db
-                .prepare(`SELECT fork_count FROM repos WHERE repo_id = ?`)
-                .bind(repoId)
+              (try Effect.orDie(Effect.try({
+                try: () =>
+                  db
+                    .prepare(`SELECT fork_count FROM repos WHERE repo_id = ?`)
+                    .bind(repoId),
+                catch: (e) => e,
+              })))
                 .first<{ fork_count: number }>(),
             )
             return row?.fork_count ?? 0
@@ -247,9 +284,13 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           // parent's own row is removed (matching the DO exactly).
           const row = try d1(
             "forkCount",
-            db
-              .prepare(`SELECT COUNT(*) AS n FROM repos WHERE fork_of = ?`)
-              .bind(repoId)
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(`SELECT COUNT(*) AS n FROM repos WHERE fork_of = ?`)
+                  .bind(repoId),
+              catch: (e) => e,
+            })))
               .first<{ n: number }>(),
           )
           return row?.n ?? 0
@@ -259,9 +300,13 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           try schema
           try d1(
             "markDeleted",
-            db
-              .prepare(`UPDATE repos SET deleted_at = ? WHERE repo_id = ? AND deleted_at IS NULL`)
-              .bind(Date.now(), repoId)
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(`UPDATE repos SET deleted_at = ? WHERE repo_id = ? AND deleted_at IS NULL`)
+                  .bind(Date.now(), repoId),
+              catch: (e) => e,
+            })))
               .run(),
           )
         },
@@ -270,18 +315,22 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           try schema
           try d1(
             "updateSummary",
-            db
-              .prepare(
-                `UPDATE repos SET default_branch = ?, read_only = ?, is_public = ?, status = ?
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(
+                    `UPDATE repos SET default_branch = ?, read_only = ?, is_public = ?, status = ?
                   WHERE repo_id = ?`,
-              )
-              .bind(
-                summary.defaultBranch,
-                summary.readOnly ? 1 : 0,
-                summary.public ? 1 : 0,
-                summary.status,
-                repoId,
-              )
+                  )
+                  .bind(
+                    summary.defaultBranch,
+                    summary.readOnly ? 1 : 0,
+                    summary.public ? 1 : 0,
+                    summary.status,
+                    repoId,
+                  ),
+              catch: (e) => e,
+            })))
               .run(),
           )
         },
@@ -290,9 +339,13 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           try schema
           const row = try d1(
             "removeRow read",
-            db
-              .prepare(`SELECT * FROM repos WHERE repo_id = ?`)
-              .bind(repoId)
+            (try Effect.orDie(Effect.try({
+              try: () =>
+                db
+                  .prepare(`SELECT * FROM repos WHERE repo_id = ?`)
+                  .bind(repoId),
+              catch: (e) => e,
+            })))
               .first<RegistryRepoRow>(),
           )
           if (row === null) {
@@ -301,16 +354,25 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
           // One batch: the row goes and the fork parent is decremented
           // together, or neither happens.
           const statements = [
-            db.prepare(`DELETE FROM repos WHERE repo_id = ?`).bind(repoId),
-            ...(row.fork_of !== null
-              ? [
-                db
-                  .prepare(
-                    `UPDATE repos SET fork_count = MAX(0, fork_count - 1) WHERE repo_id = ?`,
-                  )
-                  .bind(row.fork_of),
-              ]
-              : []),
+            try Effect.orDie(
+              Effect.try({
+                try: () => db.prepare(`DELETE FROM repos WHERE repo_id = ?`).bind(repoId),
+                catch: (e) => e,
+              }),
+            ),
+            ...(try Effect.orDie(Effect.try({
+              try: () =>
+                row.fork_of !== null
+                  ? [
+                    db
+                      .prepare(
+                        `UPDATE repos SET fork_count = MAX(0, fork_count - 1) WHERE repo_id = ?`,
+                      )
+                      .bind(row.fork_of),
+                  ]
+                  : [],
+              catch: (e) => e,
+            }))),
           ]
           try d1("removeRow", db.batch(statements))
         },

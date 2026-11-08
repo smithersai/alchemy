@@ -1,17 +1,16 @@
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { diffTags, tagRecord } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * Read the observed tags for any Mail Manager resource ARN. Tag reads are
  * best-effort — a race with deletion (or a missing-tags edge) degrades to an
  * empty record rather than failing the lifecycle operation.
  */
-export const readMailManagerTags = (arn: string) =>
+export const readMailManagerTags = effect (arn: string) =>
   mm.listTagsForResource({ ResourceArn: arn })
   |> Effect.map(%, (r) => tagRecord(r.Tags ?? []))
-  |> Effect.orElseSucceed(%, () => ({}))
+  |> try Effect.orElseSucceed(%, () => ({}))
 
 /**
  * Converge the tags on a Mail Manager resource to `desired`, diffing against
@@ -22,7 +21,7 @@ export const syncMailManagerTags = effect (
   desired: Record<string, string>,
 ) => {
   const current = try readMailManagerTags(arn)
-  const { upsert, removed } = diffTags(current, desired)
+  const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(current, desired), catch: (e) => e }))
   if (upsert.length > 0) {
     try mm.tagResource({ ResourceArn: arn, Tags: upsert })
   }
@@ -36,10 +35,10 @@ export const syncMailManagerTags = effect (
  * deleting an ingress point that is still PROVISIONING. Explicitly typed so
  * `Retry.Return`'s conditional type never leaks into declaration emit.
  */
-export const retryWhileMailManagerConflict = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileMailManagerConflict = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ConflictException",
     schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(10)]),
   })
@@ -48,12 +47,12 @@ export const retryWhileMailManagerConflict = <A, E extends { readonly _tag: stri
  * Repeat a poll until `done` holds (bounded). Explicitly typed for the same
  * declaration-emit reason as above.
  */
-export const repeatUntilMailManagerStable = <A, E, R>(
+export const repeatUntilMailManagerStable = effect <A, E, R>(
   self: A!E!R,
   done: (a: A) => boolean,
   times = 24,
 ): A!E!R =>
-  Effect.repeat(self, {
+  try Effect.repeat(self, {
     schedule: Schedule.spaced("5 seconds"),
     until: done,
     times,

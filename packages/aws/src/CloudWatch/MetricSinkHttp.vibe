@@ -1,6 +1,6 @@
+import * as Effect from "effect/Effect"
 import type * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import { MetricSink, type MetricSinkDatum, type MetricSinkProps } from "./MetricSink.vibe"
@@ -35,21 +35,34 @@ export const MetricSinkHttp = Layer.effect(
         })
       }
       const put = try putMetricData()
-      return makeBatchedSink<
-        MetricSinkDatum,
-        cloudwatch.PutMetricDataResponse,
-        cloudwatch.PutMetricDataError
-      >({
-        maxRecords: 1000,
-        maxBytes: MAX_BYTES,
-        sizeOf: (datum): infer _ => encoder.encode(JSON.stringify(datum)).length,
-        send: (batch) =>
-          put({
-            Namespace: props.Namespace,
-            MetricData: [...batch],
-          }),
-        // PutMetricData is all-or-nothing — no per-datum partial failures to
-        // extract, so there is no `unprocessed`/`rejected` handling here.
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<
+            MetricSinkDatum,
+            cloudwatch.PutMetricDataResponse,
+            cloudwatch.PutMetricDataError
+          >
+        >[0] = {
+          maxRecords: 1000,
+          maxBytes: MAX_BYTES,
+          sizeOf: (datum): infer _ => encoder.encode(JSON.stringify(datum)).length,
+          send: effect (batch) =>
+            try put({
+              Namespace: props.Namespace,
+              MetricData: [...batch],
+            }),
+          // PutMetricData is all-or-nothing — no per-datum partial failures to
+          // extract, so there is no `unprocessed`/`rejected` handling here.
+        }
+        return try Effect.orDie(Effect.try({
+          try: () =>
+            makeBatchedSink<
+              MetricSinkDatum,
+              cloudwatch.PutMetricDataResponse,
+              cloudwatch.PutMetricDataError
+            >(sinkOptions),
+          catch: (error) => error,
+        }))
       })
     }
   },

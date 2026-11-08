@@ -216,25 +216,32 @@ export const EnvironmentProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.environmentId ?? output?.environmentId
       const previousOrg = olds?.organization ?? output?.organization
       const previousType = olds?.type ?? output?.type
       const previousProxy = olds?.apiProxyType ?? output?.apiProxyType
       const previousDeploy = olds?.deploymentType ?? output?.deploymentType
       const idChanged = previousId !== undefined
-        && news.environmentId !== undefined
-        && news.environmentId !== previousId
-      const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
-      const typeChanged = previousType !== undefined && news.type !== undefined && news.type !== previousType
+        && resolved.environmentId !== undefined
+        && resolved.environmentId !== previousId
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
+      const typeChanged = previousType !== undefined && resolved.type !== undefined && resolved.type !== previousType
       const proxyChanged = previousProxy !== undefined
-        && news.apiProxyType !== undefined
-        && news.apiProxyType !== previousProxy
+        && resolved.apiProxyType !== undefined
+        && resolved.apiProxyType !== previousProxy
       const deployChanged = previousDeploy !== undefined
-        && news.deploymentType !== undefined
-        && news.deploymentType !== previousDeploy
+        && resolved.deploymentType !== undefined
+        && resolved.deploymentType !== previousDeploy
       if (idChanged || orgChanged || typeChanged || proxyChanged || deployChanged) {
         return {
           action: "replace" as const,
@@ -246,7 +253,12 @@ export const EnvironmentProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
       const environmentId = try letterPrefixedId(
         id,
         olds?.environmentId,
@@ -257,8 +269,12 @@ export const EnvironmentProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
-      const { labels } = parseDescription(existing.description)
-      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -272,7 +288,13 @@ export const EnvironmentProvider = (): infer _ =>
           }
         for (const environmentId of org?.environments ?? []) {
           const existing = try getByName(`${organization}/environments/${environmentId}`)
-          if (existing !== undefined && hasOwnershipMarker(existing.description)) {
+          if (
+            existing !== undefined
+            && (try Effect.orDie(Effect.try({
+              try: () => hasOwnershipMarker(existing.description),
+              catch: (e) => e,
+            })))
+          ) {
             rows.push(toAttrs(existing, organization))
           }
         }
@@ -282,7 +304,9 @@ export const EnvironmentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const organization = defaultOrgName(env.project, news.organization)
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
       const environmentId = try letterPrefixedId(
         id,
         news.environmentId,
@@ -291,8 +315,12 @@ export const EnvironmentProvider = (): infer _ =>
       )
       const name = resourceName(organization, environmentId)
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
-      const properties = desiredAttributes(news.properties, ownership)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const properties = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.properties, ownership), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -328,9 +356,19 @@ export const EnvironmentProvider = (): infer _ =>
       const displayChanged = (current.displayName ?? "") !== (news.displayName ?? "")
       const descriptionChanged = (current.description ?? "") !== desiredDescription
       const proxyUriChanged = (current.forwardProxyUri ?? "") !== (news.forwardProxyUri ?? "")
-      const ipChanged = !jsonEqual(current.clientIpResolutionConfig, news.clientIpResolutionConfig)
-      const propertiesChanged = !sameRecord(observedProperties, properties)
-      const nodeChanged = !jsonEqual(current.nodeConfig, news.nodeConfig)
+      const ipChanged = !(try Effect.orDie(
+        Effect.try({
+          try: jsonEqual.bind(undefined, current.clientIpResolutionConfig, news.clientIpResolutionConfig),
+          catch: (e) => e,
+        }),
+      ))
+      const propertiesChanged = !(try Effect.orDie(Effect.try({
+        try: sameRecord.bind(undefined, observedProperties, properties),
+        catch: (e) => e,
+      })))
+      const nodeChanged = !(try Effect.orDie(
+        Effect.try({ try: jsonEqual.bind(undefined, current.nodeConfig, news.nodeConfig), catch: (e) => e }),
+      ))
 
       if (
         displayChanged

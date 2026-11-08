@@ -1,7 +1,7 @@
+import * as Effect from "effect/Effect"
 import type * as Firehose from "@distilled.cloud/aws/firehose"
 import * as Output from "alchemy/Output"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import type { DeliveryStream } from "./DeliveryStream.vibe"
@@ -34,25 +34,38 @@ export const DeliveryStreamSinkHttp = Layer.effect(
         })
       }
       const send = try putRecordBatch(deliveryStream)
-      return makeBatchedSink<
-        DeliveryStreamSinkRecord,
-        Firehose.PutRecordBatchOutput,
-        Firehose.PutRecordBatchError
-      >({
-        maxRecords: 500,
-        maxBytes: 4 * 1024 * 1024,
-        sizeOf: (record): infer _ => record.Data.length,
-        send: (batch) => send({ Records: [...batch] }),
-        // PutRecordBatch failures are positional: RequestResponses[i] mirrors
-        // the request order and carries an ErrorCode (ServiceUnavailable /
-        // internal failure) — all transient, so re-submit them on the
-        // bounded schedule.
-        unprocessed: (out, batch): infer _ => {
-          if (!out.FailedPutCount) {
-            return []
-          }
-          return batch.filter((_, index) => out.RequestResponses[index]?.ErrorCode !== undefined)
-        },
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<
+            DeliveryStreamSinkRecord,
+            Firehose.PutRecordBatchOutput,
+            Firehose.PutRecordBatchError
+          >
+        >[0] = {
+          maxRecords: 500,
+          maxBytes: 4 * 1024 * 1024,
+          sizeOf: (record): infer _ => record.Data.length,
+          send: effect (batch) => try send({ Records: [...batch] }),
+          // PutRecordBatch failures are positional: RequestResponses[i] mirrors
+          // the request order and carries an ErrorCode (ServiceUnavailable /
+          // internal failure) — all transient, so re-submit them on the
+          // bounded schedule.
+          unprocessed: (out, batch): infer _ => {
+            if (!out.FailedPutCount) {
+              return []
+            }
+            return batch.filter((_, index) => out.RequestResponses[index]?.ErrorCode !== undefined)
+          },
+        }
+        return try Effect.orDie(Effect.try({
+          try: () =>
+            makeBatchedSink<
+              DeliveryStreamSinkRecord,
+              Firehose.PutRecordBatchOutput,
+              Firehose.PutRecordBatchError
+            >(sinkOptions),
+          catch: (error) => error,
+        }))
       })
     }
   },

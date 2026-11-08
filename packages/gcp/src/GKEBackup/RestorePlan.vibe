@@ -352,27 +352,34 @@ export const RestorePlanProvider = (): infer _ =>
     stables: ["name", "restorePlanId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousCluster = olds?.cluster ?? output?.cluster
       const previousPlan = olds?.backupPlan ?? output?.backupPlan
-      return replaceOnIdentity({
-        previousId: olds?.restorePlanId ?? output?.restorePlanId,
-        nextId: news.restorePlanId ?? olds?.restorePlanId ?? output?.restorePlanId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (previousCluster !== undefined
-          && news.cluster !== undefined
-          && previousCluster !== news.cluster
-          && !previousCluster.endsWith(`/${news.cluster}`))
-          || (previousPlan !== undefined
-            && news.backupPlan !== undefined
-            && previousPlan !== news.backupPlan
-            && !previousPlan.endsWith(`/${news.backupPlan}`)),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.restorePlanId ?? output?.restorePlanId,
+            nextId: resolved.restorePlanId ?? olds?.restorePlanId ?? output?.restorePlanId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (previousCluster !== undefined
+              && resolved.cluster !== undefined
+              && previousCluster !== resolved.cluster
+              && !previousCluster.endsWith(`/${resolved.cluster}`))
+              || (previousPlan !== undefined
+                && resolved.backupPlan !== undefined
+                && previousPlan !== resolved.backupPlan
+                && !previousPlan.endsWith(`/${resolved.backupPlan}`)),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -383,12 +390,19 @@ export const RestorePlanProvider = (): infer _ =>
         output?.restorePlanId,
         "restoreplan",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, restorePlanId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -405,12 +419,18 @@ export const RestorePlanProvider = (): infer _ =>
         output?.restorePlanId,
         "restoreplan",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, restorePlanId)
-      const cluster = clusterName(news.cluster, env.project, location)
-      const backupPlan = expandParent(news.backupPlan, env.project, location, "backupPlans")
+      const cluster = try Effect.orDie(
+        Effect.try({ try: () => clusterName(news.cluster, env.project, location), catch: (e) => e }),
+      )
+      const backupPlan = try Effect.orDie(
+        Effect.try({ try: () => expandParent(news.backupPlan, env.project, location, "backupPlans"), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -454,7 +474,13 @@ export const RestorePlanProvider = (): infer _ =>
       const mask = fieldMask([
         (upsert.length > 0 || removed.length > 0) && "labels",
         !sameText(current.description, news.description) && "description",
-        fingerprint(toRestoreConfig(current.restoreConfig)) !== fingerprint(news.restoreConfig)
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toRestoreConfig(current.restoreConfig)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, news.restoreConfig),
+            catch: (e) => e,
+          })))
         && "restoreConfig",
       ])
 
@@ -485,16 +511,18 @@ export const RestorePlanProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (gkebackup
-        .deleteProjectsLocationsRestorePlans({
-          name: output.name,
-          force: true,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (gkebackup
+          .deleteProjectsLocationsRestorePlans({
+            name: output.name,
+            force: true,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

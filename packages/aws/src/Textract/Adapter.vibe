@@ -158,9 +158,9 @@ export const AdapterProvider = (): infer _ =>
       }
 
       const getOne = effect (adapterId: string) =>
-        ({ ...(try throttleRetry(textract.getAdapter({ AdapterId: adapterId }))), AdapterId: adapterId }) catch effect (
+        (effect { return ({ ...(try throttleRetry(textract.getAdapter({ AdapterId: adapterId }))), AdapterId: adapterId }) }) catch effect (
           e,
-        ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+        ) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
       // Adapter ids are server-assigned, so recovery without persisted
       // output falls back to a bounded name scan.
@@ -179,9 +179,10 @@ export const AdapterProvider = (): infer _ =>
       return {
         stables: ["adapterId", "adapterArn", "creationTime"],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldFeatures = [...(olds?.featureTypes ?? [])].sort()
-          const newFeatures = [...news.featureTypes].sort()
+          const newFeatures = [...resolved.featureTypes].sort()
           if (
             oldFeatures.length !== newFeatures.length
             || oldFeatures.some((f, i) => f !== newFeatures[i])
@@ -237,7 +238,7 @@ export const AdapterProvider = (): infer _ =>
                 Tags: desiredTags,
               }),
             ) catch effect (e) => match (e) {
-              when { _tag: "ConflictException" }: try Effect.undefined;
+              when { _tag: "ConflictException" }: undefined;
               default: throw e;
             }
             adapterId = created?.AdapterId ?? (try findByName(name))
@@ -276,7 +277,8 @@ export const AdapterProvider = (): infer _ =>
 
           // Sync tags — diff against the OBSERVED cloud tags (adoption may
           // hand us foreign tags), not olds/output.
-          const { removed, upsert } = diffTags(normalizeTags(observed?.Tags), desiredTags)
+          const oldTags = normalizeTags(observed?.Tags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
           if (upsert.length > 0) {
             try throttleRetry(
               textract.tagResource({
@@ -300,7 +302,7 @@ export const AdapterProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // Idempotent — the adapter may already be gone.
           throttleRetry(textract.deleteAdapter({ AdapterId: output.adapterId })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

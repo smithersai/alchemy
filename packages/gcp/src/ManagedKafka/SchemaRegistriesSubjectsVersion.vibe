@@ -190,30 +190,41 @@ export const SchemaRegistriesSubjectsVersionProvider = (): infer _ =>
     stables: ["name", "schemaRegistry", "project", "location", "subject", "version", "schemaId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const schemaChanged = (olds?.schema ?? output?.schema ?? "") !== news.schema
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved_.location ?? output?.location, env.region),
+          catch: (e) => e,
+        }),
+      )
+      const schemaChanged = (olds?.schema ?? output?.schema ?? "") !== resolved_.schema
         || (olds?.schemaType ?? output?.schemaType ?? "")
-          !== (news.schemaType ?? olds?.schemaType ?? output?.schemaType ?? "")
-      return replaceOnIdentity({
+          !== (resolved_.schemaType ?? olds?.schemaType ?? output?.schemaType ?? "")
+      const input = {
         previousId: olds?.subject !== undefined && olds.version !== undefined
           ? `${olds.subject}/${olds.version}`
           : output !== undefined
           ? `${output.subject}/${output.version}`
           : undefined,
-        nextId: news.subject !== undefined && news.version !== undefined
-          ? `${news.subject}/${news.version}`
+        nextId: resolved_.subject !== undefined && resolved_.version !== undefined
+          ? `${resolved_.subject}/${resolved_.version}`
           : undefined,
         previousParent: olds?.schemaRegistry ?? output?.schemaRegistry,
-        nextParent: registryOf(news.schemaRegistry, env.project, location),
+        nextParent: registryOf(resolved_.schemaRegistry, env.project, location),
         extra: schemaChanged,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const subject = try toSubjectId(id, olds?.subject, output?.subject)
       const schemaRegistry = olds?.schemaRegistry !== undefined
         ? registryOf(olds.schemaRegistry, env.project, location)
@@ -221,16 +232,24 @@ export const SchemaRegistriesSubjectsVersionProvider = (): infer _ =>
       const version = olds?.version ?? output?.version ?? "latest"
       const name = output?.name
         ?? (schemaRegistry.length > 0
-          ? versionName(subjectParent(schemaRegistry, subject), version)
+          ? try Effect.orDie(
+            Effect.try({ try: () => versionName(subjectParent(schemaRegistry, subject), version), catch: (e) => e }),
+          )
           : "")
       const existing = try getSchemaVersion(name)
       if (existing === undefined) return undefined
-      const resolvedName = versionName(
-        subjectParent(schemaRegistry, existing.subject ?? subject),
-        existing.version ?? version,
-      )
+      const resolvedName = try Effect.orDie(Effect.try({
+        try: () =>
+          versionName(
+            subjectParent(schemaRegistry, existing.subject ?? subject),
+            existing.version ?? version,
+          ),
+        catch: (e) => e,
+      }))
       const attrs = toAttrs(existing, schemaRegistry, env.project, location, resolvedName)
-      return output !== undefined || olds !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined || olds !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -280,7 +299,9 @@ export const SchemaRegistriesSubjectsVersionProvider = (): infer _ =>
                         item,
                         registry.name!,
                         env.project,
-                        parseName(registry.name!, "schemaRegistries").location,
+                        (try Effect.orDie(
+                          Effect.try({ try: () => parseName(registry.name!, "schemaRegistries"), catch: (e) => e }),
+                        )).location,
                         versionName(subjectParent(registry.name!, subject), version),
                       )
                       : undefined
@@ -300,12 +321,17 @@ export const SchemaRegistriesSubjectsVersionProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const schemaRegistry = registryOf(news.schemaRegistry, env.project, location)
       const subject = try toSubjectId(id, news.subject, output?.subject)
-      const parent = subjectParent(schemaRegistry, subject)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => subjectParent(schemaRegistry, subject), catch: (e) => e }),
+      )
       const versionHint = news.version ?? output?.version
-      const name = output?.name ?? versionName(parent, versionHint ?? "latest")
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => versionName(parent, versionHint ?? "latest"), catch: (e) => e })))
 
       let current = try getSchemaVersion(name)
 
@@ -336,7 +362,12 @@ export const SchemaRegistriesSubjectsVersionProvider = (): infer _ =>
               references: news.references,
             },
           }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
-        current = lookedUp ?? (try getSchemaVersion(versionName(parent, news.version ?? "latest")))
+        current = lookedUp
+          ?? (try getSchemaVersion(
+            try Effect.orDie(
+              Effect.try({ try: () => versionName(parent, news.version ?? "latest"), catch: (e) => e }),
+            ),
+          ))
         void created
       }
 
@@ -346,10 +377,14 @@ export const SchemaRegistriesSubjectsVersionProvider = (): infer _ =>
         })
       }
 
-      const resolved = versionName(
-        subjectParent(schemaRegistry, current.subject ?? subject),
-        current.version ?? versionHint ?? "latest",
-      )
+      const resolved = try Effect.orDie(Effect.try({
+        try: () =>
+          versionName(
+            subjectParent(schemaRegistry, current.subject ?? subject),
+            current.version ?? versionHint ?? "latest",
+          ),
+        catch: (e) => e,
+      }))
       return toAttrs(current, schemaRegistry, env.project, location, resolved)
     },
 

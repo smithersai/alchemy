@@ -292,18 +292,27 @@ export const TransferJobProvider = (): infer _ =>
     stables: ["name", "jobId", "project", "creationTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnImmutable(news, olds, output)
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return replaceOnImmutable(resolved, olds, output)
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const jobId = try toJobId(id, olds?.jobId, output?.jobId)
-      const name = output?.name ?? transferJobName(jobId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => transferJobName(jobId), catch: (e) => e })))
       const existing = try getTransferJob(name, env.project)
-      if (existing === undefined || isDeletedJob(existing)) return undefined
+      if (
+        existing === undefined
+        || (try Effect.orDie(Effect.try({ try: () => isDeletedJob(existing), catch: (e) => e })))
+      ) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -317,9 +326,11 @@ export const TransferJobProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const jobId = try toJobId(id, news.jobId, output?.jobId)
-      const name = transferJobName(jobId)
+      const name = try Effect.orDie(Effect.try({ try: () => transferJobName(jobId), catch: (e) => e }))
       const ownership = try createOwnership(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const desiredStatus = statusOf(news.status)
 
       let current = try getTransferJob(output?.name ?? name, env.project)
@@ -340,18 +351,22 @@ export const TransferJobProvider = (): infer _ =>
         throw new TransferJobNotResolved({ resourceName: name })
       }
 
-      if (isDeletedJob(current)) {
+      if (try Effect.orDie(Effect.try({ try: () => isDeletedJob(current), catch: (e) => e }))) {
         current = try storagetransfer.patchTransferJobs({
           jobName: current.name ?? name,
           body: {
             projectId: env.project,
-            updateTransferJobFieldMask: fieldMask([
-              "description",
-              news.transferSpec !== undefined ? "transfer_spec" : undefined,
-              news.notificationConfig !== undefined ? "notification_config" : undefined,
-              news.loggingConfig !== undefined ? "logging_config" : undefined,
-              "status",
-            ]),
+            updateTransferJobFieldMask: try Effect.orDie(Effect.try({
+              try: () =>
+                fieldMask([
+                  "description",
+                  news.transferSpec !== undefined ? "transfer_spec" : undefined,
+                  news.notificationConfig !== undefined ? "notification_config" : undefined,
+                  news.loggingConfig !== undefined ? "logging_config" : undefined,
+                  "status",
+                ]),
+              catch: (e) => e,
+            })),
             transferJob: {
               description: desiredDescription,
               transferSpec: news.transferSpec,
@@ -364,17 +379,30 @@ export const TransferJobProvider = (): infer _ =>
       }
 
       const descriptionChanged = (current.description ?? "") !== desiredDescription
-      const specChanged = !sameValue(current.transferSpec, news.transferSpec)
-      const notificationChanged = !sameValue(current.notificationConfig, news.notificationConfig)
-      const loggingChanged = !sameValue(current.loggingConfig, news.loggingConfig)
+      const specChanged = !(try Effect.orDie(
+        Effect.try({ try: sameValue.bind(undefined, current.transferSpec, news.transferSpec), catch: (e) => e }),
+      ))
+      const notificationChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameValue.bind(undefined, current.notificationConfig, news.notificationConfig),
+          catch: (e) => e,
+        }),
+      ))
+      const loggingChanged = !(try Effect.orDie(
+        Effect.try({ try: sameValue.bind(undefined, current.loggingConfig, news.loggingConfig), catch: (e) => e }),
+      ))
       const statusChanged = (current.status ?? "") !== desiredStatus
-      const updateMask = fieldMask([
-        descriptionChanged ? "description" : undefined,
-        specChanged && news.transferSpec !== undefined ? "transfer_spec" : undefined,
-        notificationChanged ? "notification_config" : undefined,
-        loggingChanged ? "logging_config" : undefined,
-        statusChanged ? "status" : undefined,
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            descriptionChanged ? "description" : undefined,
+            specChanged && news.transferSpec !== undefined ? "transfer_spec" : undefined,
+            notificationChanged ? "notification_config" : undefined,
+            loggingChanged ? "logging_config" : undefined,
+            statusChanged ? "status" : undefined,
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try storagetransfer.patchTransferJobs({

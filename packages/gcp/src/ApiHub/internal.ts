@@ -108,12 +108,13 @@ export const toPhysicalId = (
     return rfc1035(yield* createPhysicalName({ id, maxLength, lowercase: true }), maxLength);
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 const markerOf = (labels: Record<string, string>) =>
   `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${labels[alchemyLabelKeys.stage]} ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`;
@@ -166,7 +167,7 @@ export const encodeOwnershipLine = (
   return `${marker} ${trimmed}`.slice(0, maxLength);
 };
 
-export const parseOwnership = (
+export const parseOwnership = /** @throws {never} */ (
   text: string | undefined,
 ): {
   labels: Record<string, string>;
@@ -238,10 +239,12 @@ export const fingerprint = (value: unknown): string => JSON.stringify(canonical(
 
 export const sameJson = (left: unknown, right: unknown) => fingerprint(left) === fingerprint(right);
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify([...(left ?? [])].sort()) === JSON.stringify([...(right ?? [])].sort());

@@ -174,7 +174,7 @@ const parseBindingName = (name: string): infer _ => {
     }
   }
   return {
-    parent: decodeURIComponent(rest.slice(0, at)),
+    parent: $invoke(decodeURIComponent, rest.slice(0, at)),
     tagValue: rest.slice(at + 1),
   }
 }
@@ -183,19 +183,23 @@ const bindingNameOf = (parent: string, tagValue: string): infer _ =>
   `tagBindings/${encodeURIComponent(parent)}/${tagValue}`
 
 const projectNumberOf = effect (project: string) =>
-  (try effect {
-    const resource = try resourcemanager.getProjects({ name: `projects/${project}` })
+  (effect {
+    return (try effect {
+      const resource = try resourcemanager.getProjects({ name: `projects/${project}` })
 
-    const number = lastSegment(resource.name ?? "")
-    return /^\d+$/.test(number) ? number : project
+      const number = lastSegment(resource.name ?? "")
+      return /^\d+$/.test(number) ? number : project
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: project; default: throw e; }
 
 const listBindings = effect (parent: string) =>
-  (Array.from(
-    try (resourcemanager.listTagBindings.pages({ parent, pageSize: 300 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tagBindings ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as resourcemanager.TagBinding[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (resourcemanager.listTagBindings.pages({ parent, pageSize: 300 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tagBindings ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as resourcemanager.TagBinding[]; default: throw e; }
 
 const listBindingsOn = effect (parents: string[]) => {
   const pages = try Effect.forEach(parents, listBindings, {
@@ -259,7 +263,7 @@ const waitUntilGone = effect (
   try (effect {
     return try effect {
       const binding = try findBinding(parent, tagValue, name, project, projectNumber)
-      return (binding === undefined ? try Effect.void : throw new TagBindingStillExists({
+      return (binding === undefined ? (undefined as void) : throw new TagBindingStillExists({
         resourceName: binding.name ?? name ?? "",
       }))
     }
@@ -275,19 +279,22 @@ export const TagBindingProvider = (): infer _ =>
     stables: ["name", "parent", "tagValue", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const projectNumber = try projectNumberOf(env.project)
       const previousParent = olds?.parent ?? output?.parent
-      const nextParent = expandParent(news.parent ?? previousParent, env.project, projectNumber)
+      const nextParent = expandParent(resolved.parent ?? previousParent, env.project, projectNumber)
       const parentChanged = previousParent !== undefined
         && !sameParent(previousParent, nextParent, env.project, projectNumber)
 
       const previousValue = olds?.tagValue ?? output?.tagValue
       const previousNs = output?.tagValueNamespacedName
       const tagValueChanged = previousValue !== undefined
-        && news.tagValue !== previousValue
-        && news.tagValue !== previousNs
+        && resolved.tagValue !== previousValue
+        && resolved.tagValue !== previousNs
 
       if (!parentChanged && !tagValueChanged) return undefined
       return { action: "replace" as const, deleteFirst: true }
@@ -314,7 +321,9 @@ export const TagBindingProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ news }) => {
@@ -329,7 +338,7 @@ export const TagBindingProvider = (): infer _ =>
         const created = resourcemanager
           .createTagBindings({
             body: createBody(parent, tagValue),
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -367,7 +376,7 @@ export const TagBindingProvider = (): infer _ =>
 
       const operation = resourcemanager
         .deleteTagBindings({ name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {
@@ -376,3 +385,13 @@ export const TagBindingProvider = (): infer _ =>
       try waitUntilGone(parent, tagValue, env.project, projectNumber, name)
     },
   })
+
+module $call$ts {
+  export function invoke<T extends Function>(
+    target: T,
+    arg0: Parameters<Extract<T, (...args: any[]) => any>>[0],
+  ): ReturnType<Extract<T, (...args: any[]) => any>> {
+    return target(arg0)
+  }
+}
+import { invoke as $invoke } from $call$ts

@@ -129,13 +129,16 @@ export const IapDestGroupProvider = (): infer _ =>
     stables: ["name", "destGroupId", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       return replaceOnIdentity({
         previousId: olds?.destGroupId ?? output?.destGroupId,
-        nextId: news.destGroupId,
+        nextId: resolved.destGroupId,
         previousParent: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextParent: news.location !== undefined ? normalizeLocation(news.location, env.region) : undefined,
+        nextParent: resolved.location !== undefined ? normalizeLocation(resolved.location, env.region) : undefined,
       })
     },
 
@@ -148,7 +151,9 @@ export const IapDestGroupProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
       const generated = try toDestGroupId(id, undefined, undefined)
-      return attrs.destGroupId === generated ? attrs : Unowned(attrs)
+      return attrs.destGroupId === generated
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -198,7 +203,7 @@ export const IapDestGroupProvider = (): infer _ =>
       iap
         .deleteProjectsIap_tunnelLocationsDestGroups({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       try waitUntilGone(getDestGroup(output.name))
     },
   })

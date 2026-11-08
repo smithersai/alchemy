@@ -5,9 +5,7 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 import { syncManagedIntegrationsTags, toTagRecord, unwrapSensitive } from "./internal.vibe"
 
@@ -150,7 +148,7 @@ export const ManagedThingProvider = (): infer _ =>
       const observeById = effect (identifier: string) =>
         mi
           .getManagedThing({ Identifier: identifier }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -191,14 +189,17 @@ export const ManagedThingProvider = (): infer _ =>
       return {
         stables: ["managedThingId", "managedThingArn"],
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
           if (olds === undefined) return
           // Role and authentication material are create-only.
           if (
-            olds.role !== news.role
+            olds.role !== resolved.role
             || Redacted.value(olds.authenticationMaterial)
-              !== Redacted.value(news.authenticationMaterial)
-            || olds.authenticationMaterialType !== news.authenticationMaterialType
+              !== Redacted.value(resolved.authenticationMaterial)
+            || olds.authenticationMaterialType !== resolved.authenticationMaterialType
           ) {
             return { action: "replace" } as const
           }
@@ -209,7 +210,9 @@ export const ManagedThingProvider = (): infer _ =>
             : try findByName(try toName(id, olds ?? {}))
           if (thing === undefined) return undefined
           const attrs = try toAttributes(thing)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         reconcile: effect ({ id, news, output, session }) => {
           const name = try toName(id, news)
@@ -313,7 +316,7 @@ export const ManagedThingProvider = (): infer _ =>
             summaries.filter(
               (s): s is mi.ManagedThingSummary & { Id: string } => s.Id !== undefined,
             ),
-            (summary) => observeById(summary.Id),
+            effect (summary) => try observeById(summary.Id),
             { concurrency: 5 },
           )
           return try Effect.forEach(
@@ -324,7 +327,7 @@ export const ManagedThingProvider = (): infer _ =>
         delete: effect ({ output }) => {
           mi
             .deleteManagedThing({ Identifier: output.managedThingId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

@@ -265,7 +265,7 @@ export const OriginEndpointProvider = (): infer _ =>
             ChannelName: channelName,
             OriginEndpointName: originEndpointName,
           }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -279,19 +279,20 @@ export const OriginEndpointProvider = (): infer _ =>
         ],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // Group, channel, name, and container type are the endpoint's
           // identity.
-          if (olds.channelGroupName !== news.channelGroupName) {
+          if (olds.channelGroupName !== resolved.channelGroupName) {
             return { action: "replace" } as const
           }
-          if (olds.channelName !== news.channelName) {
+          if (olds.channelName !== resolved.channelName) {
             return { action: "replace" } as const
           }
           const oldName = try createName(id, olds)
-          const newName = try createName(id, news)
+          const newName = try createName(id, resolved)
           if (oldName !== newName) return { action: "replace" } as const
-          if (olds.containerType !== news.containerType) {
+          if (olds.containerType !== resolved.containerType) {
             return { action: "replace" } as const
           }
         },
@@ -306,7 +307,7 @@ export const OriginEndpointProvider = (): infer _ =>
           const endpoint = try getEndpoint(channelGroupName, channelName, name)
           if (endpoint === undefined) return undefined
           const attrs = toAttrs(endpoint)
-          return (try hasAlchemyTags(id, toMpTagRecord(endpoint.Tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, try Effect.orDie(Effect.try({ try: () => toMpTagRecord(endpoint.Tags), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -315,7 +316,7 @@ export const OriginEndpointProvider = (): infer _ =>
           const channelGroupName = news.channelGroupName
           const channelName = news.channelName
           // The wire field is whole seconds.
-          const startoverWindowSeconds = toWireSeconds(news.startoverWindow)
+          const startoverWindowSeconds = try Effect.orDie(Effect.try({ try: () => toWireSeconds(news.startoverWindow), catch: (e) => e }))
           const name = output?.originEndpointName ?? (try createName(id, news))
 
           // 1. Observe — cloud state is authoritative; output is an id cache.
@@ -376,7 +377,7 @@ export const OriginEndpointProvider = (): infer _ =>
               ForceEndpointErrorConfiguration: endpoint.ForceEndpointErrorConfiguration,
               UriSeparator: endpoint.UriSeparator,
             }
-            if (!matchesDesired(desired, observed)) {
+            if (!(try Effect.orDie(Effect.try({ try: () => matchesDesired(desired, observed), catch: (e) => e })))) {
               endpoint = try mediapackagev2.updateOriginEndpoint({
                 ChannelGroupName: channelGroupName,
                 ChannelName: channelName,
@@ -396,11 +397,11 @@ export const OriginEndpointProvider = (): infer _ =>
           }
 
           // 3b. Sync tags — diff against OBSERVED cloud tags.
-          try syncMpTags(endpoint.Arn, toMpTagRecord(endpoint.Tags), desiredTags)
+          try syncMpTags(endpoint.Arn, try Effect.orDie(Effect.try({ try: () => toMpTagRecord(endpoint.Tags), catch: (e) => e })), desiredTags)
 
           // 3c. Sync the resource policy — observe the live policy (absent
           //     policy is the typed not-found) and apply only the delta.
-          const observedPolicy = (try effect {
+          const observedPolicy = (effect { return (try effect {
             const response = try mediapackagev2
               .getOriginEndpointPolicy({
                 ChannelGroupName: channelGroupName,
@@ -411,7 +412,7 @@ export const OriginEndpointProvider = (): infer _ =>
               policy: response.Policy as string | undefined,
               cdnAuth: response.CdnAuthConfiguration,
             })
-          }) catch effect (e) => match (e) {
+          }) }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: {
               policy: undefined as string | undefined,
               cdnAuth: undefined as mediapackagev2.CdnAuthConfiguration | undefined,
@@ -419,10 +420,10 @@ export const OriginEndpointProvider = (): infer _ =>
             default: throw e;
           }
           if (news.policy !== undefined) {
-            const cdnDrift = news.cdnAuthConfiguration === undefined
+            const cdnDrift = try Effect.orDie(Effect.try({ try: () => news.cdnAuthConfiguration === undefined
               ? observedPolicy.cdnAuth !== undefined
-              : !matchesDesired(news.cdnAuthConfiguration, observedPolicy.cdnAuth)
-            if (!policiesEqual(observedPolicy.policy, news.policy) || cdnDrift) {
+              : !matchesDesired(news.cdnAuthConfiguration, observedPolicy.cdnAuth), catch: (e) => e }))
+            if (try Effect.orDie(Effect.try({ try: () => !policiesEqual(observedPolicy.policy, news.policy) || cdnDrift, catch: (e) => e }))) {
               try mediapackagev2.putOriginEndpointPolicy({
                 ChannelGroupName: channelGroupName,
                 ChannelName: channelName,
@@ -462,12 +463,12 @@ export const OriginEndpointProvider = (): infer _ =>
           const groups = try listAllChannelGroups()
           const channels = (try Effect.forEach(
             groups,
-            (group) => listGroupChannels(group.ChannelGroupName),
+            effect (group) => try listGroupChannels(group.ChannelGroupName),
             { concurrency: 5 },
           )).flat()
           const items = (try Effect.forEach(
             channels,
-            (channel) => listChannelEndpoints(channel.ChannelGroupName, channel.ChannelName),
+            effect (channel) => try listChannelEndpoints(channel.ChannelGroupName, channel.ChannelName),
             { concurrency: 5 },
           )).flat()
           // Hydrate each item via get so the attributes carry the manifest

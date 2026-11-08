@@ -304,7 +304,8 @@ const findMatching = effect (pullRequest: string, id: string, body: string | und
   const items = try listOnPullRequest(pullRequest)
   for (const item of items) {
     if (try ownedByAlchemy(id, ownershipBodyOf(item))) return item
-    if (sameText(ownershipBodyOf(item), body)) return item
+    const left = ownershipBodyOf(item)
+    if (try Effect.orDie(Effect.try({ try: () => sameText(left, body), catch: (e) => e }))) return item
   }
   return undefined
 }
@@ -322,13 +323,20 @@ export const RepositoriesPullRequestsPullRequestCommentProvider = (): infer _ =>
     stables: ["name", "commentId", "pullRequest", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const nextKind = news.review !== undefined ? "review" : news.code !== undefined ? "code" : "comment"
+      if (resolved_ === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved_.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const nextKind = resolved_.review !== undefined ? "review" : resolved_.code !== undefined ? "code" : "comment"
       const previousKind = olds?.review !== undefined || output?.review !== undefined
         ? "review"
         : olds?.code !== undefined || output?.code !== undefined
@@ -336,27 +344,37 @@ export const RepositoriesPullRequestsPullRequestCommentProvider = (): infer _ =>
         : olds?.comment !== undefined || output?.comment !== undefined
         ? "comment"
         : nextKind
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.commentId ?? output?.commentId,
-        nextId: news.commentId ?? olds?.commentId ?? output?.commentId,
+        nextId: resolved_.commentId ?? olds?.commentId ?? output?.commentId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.pullRequest ?? output?.pullRequest,
-        nextParent: expandPullRequest(news.pullRequest, news.repository, env.project, location),
+        nextParent: expandPullRequest(resolved_.pullRequest, resolved_.repository, env.project, location),
         extra: previousKind !== nextKind
-          || fingerprint(news.code?.position)
-            !== fingerprint(olds?.code?.position ?? output?.code?.position)
-          || !sameText(news.code?.reply, olds?.code?.reply ?? output?.code?.reply)
+          || (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, resolved_.code?.position), catch: (e) => e }),
+            ))
+            !== (try Effect.orDie(
+              Effect.try({
+                try: fingerprint.bind(undefined, olds?.code?.position ?? output?.code?.position),
+                catch: (e) => e,
+              }),
+            ))
+          || !sameText(resolved_.code?.reply, olds?.code?.reply ?? output?.code?.reply)
           || !sameText(
-            news.review?.actionType,
+            resolved_.review?.actionType,
             olds?.review?.actionType ?? output?.review?.actionType,
           ),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const pullRequest = expandPullRequest(
         olds?.pullRequest ?? output?.pullRequest ?? "",
         olds?.repository,
@@ -375,9 +393,12 @@ export const RepositoriesPullRequestsPullRequestCommentProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(ownershipBodyOf(existing))
+      const text = ownershipBodyOf(existing)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(text), catch: (e) => e }))
       // A matching comment found without a recorded id could be anyone's.
-      return recorded || (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return recorded || (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -388,7 +409,9 @@ export const RepositoriesPullRequestsPullRequestCommentProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const pullRequest = expandPullRequest(
         news.pullRequest,
         news.repository,
@@ -412,7 +435,9 @@ export const RepositoriesPullRequestsPullRequestCommentProvider = (): infer _ =>
           }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           const operation = try waitForOperation(created)
-          const createdName = nameFromOperation(operation)
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => nameFromOperation(operation), catch: (e) => e }),
+          )
           if (createdName !== undefined) {
             current = try waitUntilExists(getByName(createdName), createdName)
           }
@@ -430,7 +455,9 @@ export const RepositoriesPullRequestsPullRequestCommentProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       // Raw body: also rewrites a legacy ownership marker away.
-      if (!sameText(ownershipBodyOf(current), desiredBody(news))) {
+      const left = ownershipBodyOf(current)
+      const right = desiredBody(news)
+      if (!(try Effect.orDie(Effect.try({ try: () => sameText(left, right), catch: (e) => e })))) {
         const operation = try ssm.patchProjectsLocationsRepositoriesPullRequestsPullRequestComments({
           name: currentName,
           updateMask: "body",

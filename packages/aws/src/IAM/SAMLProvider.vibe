@@ -107,8 +107,9 @@ export const SAMLProviderProvider = (): infer _ =>
   Provider.succeed(SAMLProvider, {
     stables: ["samlProviderArn", "name"],
     diff: effect ({ id, olds, news }) => {
-      if (!isResolved(news)) return
-      if ((try toName(id, olds ?? {})) !== (try toName(id, news))) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return
+      if ((try toName(id, olds ?? {})) !== (try toName(id, resolved))) {
         return { action: "replace" } as const
       }
     },
@@ -118,7 +119,7 @@ export const SAMLProviderProvider = (): infer _ =>
       }
       const response = iam
         .getSAMLProvider({ SAMLProviderArn: output.samlProviderArn }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
       if (!response) {
@@ -143,7 +144,7 @@ export const SAMLProviderProvider = (): infer _ =>
       const rows = try Effect.forEach(
         arns,
         effect (samlProviderArn) =>
-          (try effect {
+          (effect { return (try effect {
             const response = try iam.getSAMLProvider({ SAMLProviderArn: samlProviderArn })
             const tags = try iam.listSAMLProviderTags({ SAMLProviderArn: samlProviderArn })
             return {
@@ -154,8 +155,8 @@ export const SAMLProviderProvider = (): infer _ =>
               assertionEncryptionMode: response.AssertionEncryptionMode,
               tags: toTagRecord(tags.Tags),
             }
-          }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          }) }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           },
         { concurrency: 10 },
@@ -173,14 +174,14 @@ export const SAMLProviderProvider = (): infer _ =>
       // mode, and UUID; absence is `NoSuchEntityException`.
       let observed = iam
         .getSAMLProvider({ SAMLProviderArn: samlProviderArn }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          when { _tag: "NoSuchEntityException" }: undefined;
           default: throw e;
         }
 
       // Ensure — create when missing. Race with a peer is recovered by
       // verifying alchemy ownership tags on the existing provider.
       if (!observed) {
-        const created = (try (iam
+        const created = effect { return (try (iam
           .createSAMLProvider({
             Name: name,
             SAMLMetadataDocument: news.samlMetadataDocument,
@@ -190,14 +191,14 @@ export const SAMLProviderProvider = (): infer _ =>
               : undefined,
             Tags: Object.entries(desiredTags).map(([Key, Value]) => ({ Key, Value })),
           })
-          |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule }))) catch effect (
+          |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule }))) } catch effect (
             e,
           ) => match (e) {
             when { _tag: "EntityAlreadyExistsException" }: try effect {
               const existingTags = try iam.listSAMLProviderTags({
                 SAMLProviderArn: samlProviderArn,
               })
-              if (!hasTags(internalTags, existingTags.Tags)) {
+              if (!(try Effect.orDie(Effect.try({ try: () => hasTags(internalTags, existingTags.Tags), catch: (e) => e })))) {
                 throw new SAMLProviderConflict({
                   message: `SAML provider '${name}' already exists and is not managed by alchemy`,
                 })
@@ -230,7 +231,7 @@ export const SAMLProviderProvider = (): infer _ =>
               AddPrivateKey: addPrivateKey,
             })
             |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule })
-            |> Effect.catchIf(%, isEmptyUpdateError, effect () => try Effect.void))
+            |> Effect.catchIf(%, isEmptyUpdateError, effect () => (undefined as void)))
         }
       }
 
@@ -239,7 +240,7 @@ export const SAMLProviderProvider = (): infer _ =>
         SAMLProviderArn: samlProviderArn,
       })
       const observedTags = toTagRecord(observedTagsResp.Tags)
-      const { removed, upsert } = diffTags(observedTags, desiredTags)
+      const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
       if (upsert.length > 0) {
         try iam.tagSAMLProvider({ SAMLProviderArn: samlProviderArn, Tags: upsert })
       }
@@ -260,7 +261,7 @@ export const SAMLProviderProvider = (): infer _ =>
     delete: effect ({ output }) => {
       iam
         .deleteSAMLProvider({ SAMLProviderArn: output.samlProviderArn }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchEntityException" }: try Effect.void;
+          when { _tag: "NoSuchEntityException" }: (undefined as void);
           default: throw e;
         }
     },

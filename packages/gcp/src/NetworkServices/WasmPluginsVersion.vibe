@@ -238,28 +238,44 @@ export const WasmPluginsVersionProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.wasmPluginVersionId ?? output?.wasmPluginVersionId
-      const nextId = news.wasmPluginVersionId
-        ? rfc1035(news.wasmPluginVersionId, "wasm-plugin-version")
-        : previousId
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        DEFAULT_GLOBAL,
-      )
-      const nextLocation = normalizeLocation(
-        news.location ?? locationFromParent(news.wasmPlugin, previousLocation),
-        DEFAULT_GLOBAL,
-      )
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.wasmPluginVersionId
+            ? rfc1035(resolved.wasmPluginVersionId, "wasm-plugin-version")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const location2 = resolved.location ?? locationFromParent(resolved.wasmPlugin, previousLocation)
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const previousParent = linkKey(olds?.wasmPlugin ?? output?.wasmPlugin)
-      const nextParent = linkKey(news.wasmPlugin)
+      const nextParent = linkKey(resolved.wasmPlugin)
       if (
         replaceIfChanged(previousId, nextId)
         || previousLocation !== nextLocation
         || (previousParent.length > 0 && previousParent !== nextParent)
-        || replaceIfChanged(olds?.imageUri ?? output?.imageUri, news.imageUri)
-        || replaceIfChanged(olds?.pluginConfigUri ?? output?.pluginConfigUri, news.pluginConfigUri)
-        || replaceIfChanged(olds?.pluginConfigData, news.pluginConfigData)
+        || replaceIfChanged(olds?.imageUri ?? output?.imageUri, resolved.imageUri)
+        || replaceIfChanged(olds?.pluginConfigUri ?? output?.pluginConfigUri, resolved.pluginConfigUri)
+        || replaceIfChanged(olds?.pluginConfigData, resolved.pluginConfigData)
       ) {
         return { action: "replace" as const }
       }
@@ -268,12 +284,17 @@ export const WasmPluginsVersionProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.wasmPlugin ? locationFromParent(olds.wasmPlugin, DEFAULT_GLOBAL) : undefined),
-        DEFAULT_GLOBAL,
-      )
+      const location2 = olds?.location
+        ?? output?.location
+        ?? (olds?.wasmPlugin ? locationFromParent(olds.wasmPlugin, DEFAULT_GLOBAL) : undefined)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentPluginName(
         env.project,
         location,
@@ -289,14 +310,19 @@ export const WasmPluginsVersionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const plugins = try collectPages(
         networkservices.listProjectsLocationsWasmPlugins.pages({
-          parent: parentOf(env.project, DEFAULT_GLOBAL),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, DEFAULT_GLOBAL), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.wasmPlugins,
@@ -321,10 +347,15 @@ export const WasmPluginsVersionProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? output?.location ?? locationFromParent(news.wasmPlugin, DEFAULT_GLOBAL),
-        DEFAULT_GLOBAL,
-      )
+      const location2 = news.location ?? output?.location ?? locationFromParent(news.wasmPlugin, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentPluginName(env.project, location, news.wasmPlugin)
       const versionId = try toPhysicalId(
         id,
@@ -334,30 +365,32 @@ export const WasmPluginsVersionProvider = (): infer _ =>
       )
       const name = resourceNameOf(parent, versionId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkservices
-          .createProjectsLocationsWasmPluginsVersions({
-            parent,
-            wasmPluginVersionId: versionId,
-            body: {
-              labels: desiredLabels,
-              description: news.description,
-              imageUri: news.imageUri,
-              pluginConfigData: news.pluginConfigData,
-              pluginConfigUri: news.pluginConfigUri,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkservices
+            .createProjectsLocationsWasmPluginsVersions({
+              parent,
+              wasmPluginVersionId: versionId,
+              body: {
+                labels: desiredLabels,
+                description: news.description,
+                imageUri: news.imageUri,
+                pluginConfigData: news.pluginConfigData,
+                pluginConfigUri: news.pluginConfigUri,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -381,7 +414,7 @@ export const WasmPluginsVersionProvider = (): infer _ =>
           (version) => lastSegment(version.name ?? "") !== output.wasmPluginVersionId,
         )
         if (other !== undefined) {
-          const nextMain = lastSegment(other.name ?? "")
+          const nextMain = try Effect.orDie(Effect.try({ try: () => lastSegment(other.name ?? ""), catch: (e) => e }))
           const switched = networkservices
             .patchProjectsLocationsWasmPlugins({
               name: output.wasmPlugin,

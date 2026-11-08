@@ -176,7 +176,7 @@ const sameRestrictions = (a: ApiKeyRestrictions, b: ApiKeyRestrictions): infer _
 const readKey = effect (keyName: string) => {
   const found = location
     .describeKey({ KeyName: keyName }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!found) return undefined
@@ -187,7 +187,7 @@ const readKey = effect (keyName: string) => {
     restrictions: toRestrictions(found.Restrictions),
     expireTime: found.ExpireTime ? found.ExpireTime.toISOString() : undefined,
     description: found.Description ? found.Description : undefined,
-    tags: toTagRecord(found.Tags),
+    tags: try Effect.orDie(Effect.try({ try: () => toTagRecord(found.Tags), catch: (e) => e })),
   } satisfies ApiKey["Attributes"]
 }
 
@@ -202,7 +202,7 @@ export const ApiKeyProvider = (): infer _ =>
             try (location.listKeys.pages({})
               |> EffectStream.runCollect(%)),
           ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.KeyName))
-          const hydrated = try Effect.forEach(names, (name) => readKey(name), {
+          const hydrated = try Effect.forEach(names, effect (name) => try readKey(name), {
             concurrency: 10,
           })
           return hydrated.filter((attrs): attrs is ApiKey["Attributes"] => attrs !== undefined)
@@ -211,12 +211,13 @@ export const ApiKeyProvider = (): infer _ =>
           const keyName = output?.keyName ?? (try createKeyName(id, olds ?? {}))
           const state = try readKey(keyName)
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved_ === undefined) return
           const oldName = try createKeyName(id, olds)
-          const newName = try createKeyName(id, news)
+          const newName = try createKeyName(id, resolved_)
           if (oldName !== newName) {
             return { action: "replace" } as const
           }
@@ -242,7 +243,7 @@ export const ApiKeyProvider = (): infer _ =>
                 ExpireTime: news.expireTime ? new Date(news.expireTime) : undefined,
                 NoExpiry: news.expireTime ? undefined : (news.noExpiry ?? true),
                 Tags: desiredTags,
-              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
             state = try readKey(keyName)
             if (state === undefined) {
               throw new LocationApiKeyUnexpectedResponse({
@@ -270,7 +271,7 @@ export const ApiKeyProvider = (): infer _ =>
             })
           }
 
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try location.untagResource({
               ResourceArn: state.keyArn,
@@ -297,7 +298,7 @@ export const ApiKeyProvider = (): infer _ =>
         delete: effect ({ output }) => {
           location
             .deleteKey({ KeyName: output.keyName, ForceDelete: true }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

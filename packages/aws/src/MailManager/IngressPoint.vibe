@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -144,7 +145,7 @@ export const IngressPointProvider = (): infer _ =>
       const getById = effect (ingressPointId: string) =>
         mm
           .getIngressPoint({ IngressPointId: ingressPointId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -171,8 +172,8 @@ export const IngressPointProvider = (): infer _ =>
 
       // Provisioning/updating is asynchronous — wait (bounded, ~2 min) for
       // the endpoint to leave its transitional state before mutating it.
-      const waitForStable = (ingressPointId: string) =>
-        repeatUntilMailManagerStable(
+      const waitForStable = effect (ingressPointId: string) =>
+        try repeatUntilMailManagerStable(
           getById(ingressPointId),
           (r) => r === undefined || (r.Status !== "PROVISIONING" && r.Status !== "UPDATING"),
         )
@@ -204,9 +205,9 @@ export const IngressPointProvider = (): infer _ =>
               )
                 .flatMap((page) => page.IngressPoints ?? [])
                 .map((p) => p.IngressPointId),
-              (ingressPointId) => getById(ingressPointId),
+              effect (ingressPointId) => try getById(ingressPointId),
             )).flatMap((p) => (p === undefined ? [] : [p])),
-            (p) => toAttrs(p),
+            effect (p) => try toAttrs(p),
           ),
 
         read: effect ({ id, olds, output }) => {
@@ -215,15 +216,18 @@ export const IngressPointProvider = (): infer _ =>
           if (ingress === undefined) return undefined
           const attrs = try toAttrs(ingress)
           const tags = try readMailManagerTags(attrs.ingressPointArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // `type` and `networkConfiguration` are create-only — changing
         // either replaces the ingress point. TlsPolicy transitions from or
         // to FIPS (including the omitted-default, which AWS creates as
         // FIPS) are rejected by UpdateIngressPoint, so they replace too.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds === undefined) return undefined
           if (olds.type !== news.type) {
             return { action: "replace" } as const
@@ -262,7 +266,7 @@ export const IngressPointProvider = (): infer _ =>
                 TlsPolicy: news.tlsPolicy,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             ingress = created !== undefined
@@ -321,13 +325,15 @@ export const IngressPointProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           // Deleting mid-provision conflicts — retry through the window.
-          ;(try (retryWhileMailManagerConflict(
-            mm.deleteIngressPoint({ IngressPointId: output.ingressPointId }),
-          )
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (retryWhileMailManagerConflict(
+              mm.deleteIngressPoint({ IngressPointId: output.ingressPointId }),
+            )
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
           // Deprovisioning is asynchronous and the endpoint keeps its rule
           // set and traffic policy "in use" until it is fully gone — wait
           // (bounded, ~3 min) so dependent deletes don't conflict.

@@ -192,19 +192,26 @@ export const ApisVersionsSpecProvider = (): infer _ =>
     stables: ["name", "specId", "version", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.specId ?? output?.specId,
-        nextId: news.specId ?? olds?.specId ?? output?.specId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        previousParent: olds?.version ?? output?.version,
-        nextParent: news.version ?? olds?.version ?? output?.version,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.specId ?? output?.specId,
+            nextId: resolved.specId ?? olds?.specId ?? output?.specId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.version ?? output?.version,
+            nextParent: resolved.version ?? olds?.version ?? output?.version,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -215,7 +222,9 @@ export const ApisVersionsSpecProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -234,13 +243,21 @@ export const ApisVersionsSpecProvider = (): infer _ =>
       const specId = try toPhysicalId(id, news.specId, output?.specId)
       const name = output?.name ?? resourceName(version, specId)
       const ownership = try createOwnership(id)
-      const displayName = encodeOwnershipLine(
-        ownership,
-        news.displayName ?? specId,
-        MAX_DISPLAY_NAME_LENGTH,
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            news.displayName ?? specId,
+            MAX_DISPLAY_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const specType = news.specType ?? (news.contents ? openApiSpecType(env.project, location) : undefined)
+      const specType = news.specType ?? (news.contents
+        ? try Effect.orDie(Effect.try({ try: () => openApiSpecType(env.project, location), catch: (e) => e }))
+        : undefined)
       const encodedContents = news.contents === undefined
         ? undefined
         : {
@@ -275,9 +292,19 @@ export const ApisVersionsSpecProvider = (): infer _ =>
       const currentName = current.name ?? name
       const displayChanged = !sameText(current.displayName, displayName)
       const sourceChanged = !sameText(current.sourceUri, news.sourceUri)
-      const contentsChanged = news.contents !== undefined && !sameJson(news.contents, olds?.contents)
-      const typeChanged = specType !== undefined && !sameJson(current.specType, specType)
-      const attributesChanged = !sameJson(current.attributes, news.attributes)
+      const contentsChanged = try Effect.orDie(
+        Effect.try({
+          try: () => news.contents !== undefined && !sameJson(news.contents, olds?.contents),
+          catch: (e) => e,
+        }),
+      )
+      const typeChanged = specType !== undefined
+        && !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.specType, specType), catch: (e) => e }),
+        ))
+      const attributesChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.attributes, news.attributes), catch: (e) => e }),
+      ))
 
       if (
         displayChanged
@@ -288,13 +315,17 @@ export const ApisVersionsSpecProvider = (): infer _ =>
       ) {
         current = try apihub.patchProjectsLocationsApisVersionsSpecs({
           name: currentName,
-          updateMask: updateMaskOf(
-            displayChanged ? "display_name" : undefined,
-            sourceChanged ? "source_uri" : undefined,
-            contentsChanged ? "contents" : undefined,
-            contentsChanged || typeChanged ? "spec_type" : undefined,
-            attributesChanged ? "attributes" : undefined,
-          ),
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              updateMaskOf(
+                displayChanged ? "display_name" : undefined,
+                sourceChanged ? "source_uri" : undefined,
+                contentsChanged ? "contents" : undefined,
+                contentsChanged || typeChanged ? "spec_type" : undefined,
+                attributesChanged ? "attributes" : undefined,
+              ),
+            catch: (e) => e,
+          })),
           body: {
             name: currentName,
             displayName,

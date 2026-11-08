@@ -1,7 +1,6 @@
 import * as medialive from "@distilled.cloud/aws/medialive"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
 
 /**
  * Raised while a MediaLive resource is still transitioning (e.g. a channel
@@ -17,10 +16,10 @@ export error MediaLiveResourcePending {
 // `AWS.providers()`.
 
 /** Bounded wait (3s x 30 = 90s) while a resource is still transitioning. */
-export const retryWhilePending = <A, E extends { readonly _tag: string }, R>(
+export const retryWhilePending = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "MediaLiveResourcePending",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(30)]),
   })
@@ -29,10 +28,10 @@ export const retryWhilePending = <A, E extends { readonly _tag: string }, R>(
  * Bounded retry (3s x 10) on `ConflictException` — MediaLive rejects
  * deletes/updates while a dependent resource is still detaching.
  */
-export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileConflict = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ConflictException",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
   })
@@ -46,7 +45,7 @@ export error MediaLiveIncompleteResponse {
 }
 
 /** Narrow an optional wire field to defined with a typed failure. */
-export const ensurePresent = <T>(
+export const ensurePresent = effect <T>(
   value: T | undefined,
   what: string,
 ): T!MediaLiveIncompleteResponse =>
@@ -60,10 +59,10 @@ export const ensurePresent = <T>(
  * Narrow a MediaLive resource body to one whose server-assigned `Id`/`Arn`
  * are present, failing with a typed error otherwise.
  */
-export const ensureIdentified = <T extends { Id?: string; Arn?: string }>(
+export const ensureIdentified = effect <T extends { Id?: string; Arn?: string }>(
   value: T | undefined,
   what: string,
-): T & { Id: string; Arn: string }!MediaLiveIncompleteResponse =>
+): (T & { Id: string; Arn: string })!MediaLiveIncompleteResponse =>
   value === undefined || value.Id === undefined || value.Arn === undefined
     ? throw new MediaLiveIncompleteResponse({
       message: `MediaLive response is missing ${what}`,
@@ -100,7 +99,9 @@ export const readMlTags = effect (arn: string) => {
  */
 export const syncMlTags = effect (arn: string, desiredTags: Record<string, string>) => {
   const observedTags = try readMlTags(arn)
-  const { removed, upsert } = diffTags(observedTags, desiredTags)
+  const { removed, upsert } = try Effect.orDie(
+    Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+  )
   if (upsert.length > 0) {
     try medialive.createTags({
       ResourceArn: arn,

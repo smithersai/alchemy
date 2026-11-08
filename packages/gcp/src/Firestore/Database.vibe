@@ -307,10 +307,12 @@ const toAttrs = (
 }
 
 const getByName = effect (name: string) =>
-  (try effect {
-    const database = try firestore.getProjectsDatabases({ name })
-    return (database.deleteTime !== undefined ? undefined : database)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const database = try firestore.getProjectsDatabases({ name })
+      return (database.deleteTime !== undefined ? undefined : database)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 /**
  * Wait for a Firestore admin operation; named databases provision in tens
@@ -384,23 +386,26 @@ export const DatabaseProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
 
       const previousId = olds?.databaseId ?? output?.databaseId
-      const nextId = news.databaseId ?? previousId
+      const nextId = resolved.databaseId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       const previousEdition = normalizeEdition(olds?.databaseEdition ?? output?.databaseEdition)
-      const nextEdition = normalizeEdition(news.databaseEdition ?? output?.databaseEdition)
+      const nextEdition = normalizeEdition(resolved.databaseEdition ?? output?.databaseEdition)
       const previousKms = olds?.cmekConfig?.kmsKeyName ?? output?.kmsKeyName ?? ""
-      const nextKms = news.cmekConfig?.kmsKeyName ?? previousKms
+      const nextKms = resolved.cmekConfig?.kmsKeyName ?? previousKms
       const previousRealtime = (
         olds?.realtimeUpdatesMode
           ?? output?.realtimeUpdatesMode
           ?? ""
       ).toUpperCase()
       const nextRealtime = (
-        news.realtimeUpdatesMode
+        resolved.realtimeUpdatesMode
           ?? output?.realtimeUpdatesMode
           ?? previousRealtime
       ).toUpperCase()
@@ -409,7 +414,7 @@ export const DatabaseProvider = (): infer _ =>
         || previousLocation !== nextLocation
         || previousEdition !== nextEdition
         || previousKms !== nextKms
-        || (news.realtimeUpdatesMode !== undefined && previousRealtime !== nextRealtime)
+        || (resolved.realtimeUpdatesMode !== undefined && previousRealtime !== nextRealtime)
 
       if (!replace) return undefined
       return {
@@ -426,7 +431,9 @@ export const DatabaseProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -461,7 +468,7 @@ export const DatabaseProvider = (): infer _ =>
                 ? { kmsKeyName: news.cmekConfig.kmsKeyName }
                 : undefined,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
@@ -542,7 +549,7 @@ export const DatabaseProvider = (): infer _ =>
       }
 
       retryConcurrentChanges(firestore.deleteProjectsDatabases({ name: output.name })) catch effect (e) => match (e) {
-        when { _tag: "NotFound" }: try Effect.void;
+        when { _tag: "NotFound" }: (undefined as void);
         default: throw e;
       }
       // Soft-delete: GET reports `deleteTime` long before the LRO is done.

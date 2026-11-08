@@ -234,7 +234,7 @@ const toAttrs = (report: apigee.GoogleCloudApigeeV1CustomReport, organization: s
 const getByName = effect (name: string) =>
   apigee
     .getOrganizationsReports({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -265,14 +265,17 @@ export const ReportProvider = (): infer _ =>
     stables: ["name", "reportId", "organization", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.reportId ?? output?.reportId
       const previousOrg = olds?.organization ?? output?.organization
       if (
-        (previousId !== undefined && news.reportId !== undefined && news.reportId !== previousId)
+        (previousId !== undefined && resolved.reportId !== undefined && resolved.reportId !== previousId)
         || (previousOrg !== undefined
-          && news.organization !== undefined
-          && news.organization !== previousOrg)
+          && resolved.organization !== undefined
+          && resolved.organization !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -287,8 +290,10 @@ export const ReportProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
-      const { labels } = parseComments(existing.comments)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseComments(existing.comments), catch: (e) => e }))
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -314,7 +319,9 @@ export const ReportProvider = (): infer _ =>
       const reportId = try toResourceId(id, news.reportId, output?.reportId, MAX_NAME_LENGTH)
       const name = resourceName(organization, reportId)
       const ownership = try createInternalLabels(id)
-      const desiredComments = encodeComments(ownership, news.comments)
+      const desiredComments = try Effect.orDie(
+        Effect.try({ try: () => encodeComments(ownership, news.comments), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -357,7 +364,7 @@ export const ReportProvider = (): infer _ =>
     delete: effect ({ output }) => {
       apigee
         .deleteOrganizationsReports({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

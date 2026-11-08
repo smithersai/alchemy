@@ -72,8 +72,10 @@ export const toCustomerId = (value: string | undefined) => {
   return lastSegment(trimmed);
 };
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const replaceOn = (previous: string | undefined, next: string | undefined) =>
   previous !== undefined && next !== undefined && previous !== next

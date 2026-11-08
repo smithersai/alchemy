@@ -38,7 +38,7 @@ export const parentOf = (name: string) => {
   return parts.slice(0, -2).join("/");
 };
 
-export const projectParent = (project: string) => `projects/${project}`;
+export const projectParent = /** @throws {never} */ (project: string) => `projects/${project}`;
 
 export const parseResourceName = (name: string, collection: string) => {
   const parts = name.split("/").filter((part) => part.length > 0);
@@ -57,8 +57,10 @@ export const parseResourceName = (name: string, collection: string) => {
   };
 };
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

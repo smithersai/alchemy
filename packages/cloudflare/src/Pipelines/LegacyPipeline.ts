@@ -209,6 +209,7 @@ export const LegacyPipeline = Resource<LegacyPipeline>(TypeId);
 
 /**
  * Returns true if the given value is a LegacyPipeline resource.
+ * @throws {never}
  */
 export const isLegacyPipeline = (value: unknown): value is LegacyPipeline =>
   Predicate.hasProperty(value, "Type") && value.Type === TypeId;

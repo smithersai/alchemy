@@ -354,32 +354,51 @@ export const BackendsBuildProvider = (): infer _ =>
     stables: ["name", "buildId", "backend", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const previousParent = (olds?.backend ?? output?.backend)
-        ? expandParent(
-          olds?.backend ?? output?.backend ?? "",
-          env.project,
-          previousLocation,
-          "backends",
-        )
+        ? try Effect.orDie(Effect.try({
+          try: () =>
+            expandParent(
+              olds?.backend ?? output?.backend ?? "",
+              env.project,
+              previousLocation,
+              "backends",
+            ),
+          catch: (e) => e,
+        }))
         : undefined
-      const nextParent = expandParent(news.backend, env.project, location, "backends")
-      return replaceOnIdentity({
-        previousId: olds?.buildId ?? output?.buildId,
-        nextId: news.buildId ?? olds?.buildId ?? output?.buildId,
-        previousLocation,
-        nextLocation: location,
-        previousParent,
-        nextParent,
-        extra: fingerprint(olds?.source ?? output?.source) !== fingerprint(news.source)
-          || fingerprint(olds?.config ?? output?.config) !== fingerprint(news.config),
-      })
+      const nextParent = try Effect.orDie(
+        Effect.try({ try: () => expandParent(resolved.backend, env.project, location, "backends"), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.buildId ?? output?.buildId,
+            nextId: resolved.buildId ?? olds?.buildId ?? output?.buildId,
+            previousLocation,
+            nextLocation: location,
+            previousParent,
+            nextParent,
+            extra: fingerprint(olds?.source ?? output?.source) !== fingerprint(resolved.source)
+              || fingerprint(olds?.config ?? output?.config) !== fingerprint(resolved.config),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -391,15 +410,26 @@ export const BackendsBuildProvider = (): infer _ =>
         "build",
         MAX_BACKEND_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const backend = output?.backend
-        ?? (olds?.backend ? expandParent(olds.backend, env.project, location, "backends") : undefined)
+        ?? (olds?.backend
+          ? try Effect.orDie(
+            Effect.try({ try: () => expandParent(olds.backend, env.project, location, "backends"), catch: (e) => e }),
+          )
+          : undefined)
       const name = output?.name ?? (backend ? resourceName(backend, buildId) : undefined)
       if (name === undefined) return undefined
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -417,11 +447,15 @@ export const BackendsBuildProvider = (): infer _ =>
         "build",
         MAX_BACKEND_ID_LENGTH,
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const backend = expandParent(news.backend, env.project, location, "backends")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const backend = try Effect.orDie(
+        Effect.try({ try: () => expandParent(news.backend, env.project, location, "backends"), catch: (e) => e }),
+      )
       const name = resourceName(backend, buildId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
@@ -455,15 +489,17 @@ export const BackendsBuildProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (firebaseapphosting
-        .deleteProjectsLocationsBackendsBuilds({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (firebaseapphosting
+          .deleteProjectsLocationsBackendsBuilds({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

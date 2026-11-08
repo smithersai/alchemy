@@ -294,34 +294,48 @@ export const NfsShareProvider = (): infer _ =>
     stables: ["name", "nfsShareId", "project", "location", "id", "volume"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.storageType ?? output?.storageType
-      const nextType = news.storageType ?? previousType
+      const nextType = resolved.storageType ?? previousType
       const previousPod = olds?.pod ?? output?.pod
-      const nextPod = news.pod ?? previousPod
-      return replaceOnIdentity({
-        previousId: olds?.nfsShareId ?? output?.nfsShareId,
-        nextId: news.nfsShareId ?? olds?.nfsShareId ?? output?.nfsShareId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (previousType !== undefined && nextType !== undefined && previousType !== nextType)
-          || (previousPod !== undefined && nextPod !== undefined && previousPod !== nextPod),
-      })
+      const nextPod = resolved.pod ?? previousPod
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.nfsShareId ?? output?.nfsShareId,
+            nextId: resolved.nfsShareId ?? olds?.nfsShareId ?? output?.nfsShareId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (previousType !== undefined && nextType !== undefined && previousType !== nextType)
+              || (previousPod !== undefined && nextPod !== undefined && previousPod !== nextPod),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const nfsShareId = try toPhysicalId(id, olds?.nfsShareId, output?.nfsShareId, "nfsshare")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, nfsShareId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -333,13 +347,16 @@ export const NfsShareProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const nfsShareId = try toPhysicalId(id, news.nfsShareId, output?.nfsShareId, "nfsshare")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, nfsShareId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
-      const size = gibOf(news.requestedSizeGib) ?? DEFAULT_SIZE_GIB
+      const size = (try Effect.orDie(Effect.try({ try: () => gibOf(news.requestedSizeGib), catch: (e) => e })))
+        ?? DEFAULT_SIZE_GIB
       const storageType = news.storageType ?? DEFAULT_STORAGE_TYPE
       const desiredClients = news.allowedClients.map((client) => desiredClient(client, env.project, location))
 
@@ -382,16 +399,22 @@ export const NfsShareProvider = (): infer _ =>
       const observedLabels = tagRecord(ready.labels)
       const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
       const labelsChanged = upsert.length > 0 || removed.length > 0
-      const clientsChanged = differs(
-        (ready.allowedClients ?? []).map((client) => ({
-          network: client.network,
-          allowedClientsCidr: client.allowedClientsCidr,
-          mountPermissions: client.mountPermissions,
-          allowDev: client.allowDev,
-          allowSuid: client.allowSuid,
-          noRootSquash: client.noRootSquash,
-        })),
-        desiredClients,
+      const clientsChanged = try Effect.orDie(
+        Effect.try({
+          try: differs.bind(
+            undefined,
+            (ready.allowedClients ?? []).map((client) => ({
+              network: client.network,
+              allowedClientsCidr: client.allowedClientsCidr,
+              mountPermissions: client.mountPermissions,
+              allowDev: client.allowDev,
+              allowSuid: client.allowSuid,
+              noRootSquash: client.noRootSquash,
+            })),
+            desiredClients,
+          ),
+          catch: (e) => e,
+        }),
       )
       const sizeChanged = !sameText(ready.requestedSizeGib, size)
       const mask = fieldMask([
@@ -425,13 +448,15 @@ export const NfsShareProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       if (!output.name || output.name.includes("//")) return
-      const operation = (try (baremetalsolution
-        .deleteProjectsLocationsNfsShares({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (baremetalsolution
+          .deleteProjectsLocationsNfsShares({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

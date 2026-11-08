@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as iotw from "@distilled.cloud/aws/iot-wireless"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -113,7 +114,7 @@ export const WirelessGatewayProvider = (): infer _ =>
       const getBy = effect (identifier: string, type: iotw.WirelessGatewayIdType) =>
         iotw
           .getWirelessGateway({ Identifier: identifier, IdentifierType: type }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -175,14 +176,17 @@ export const WirelessGatewayProvider = (): infer _ =>
           if (gateway === undefined) return undefined
           const attrs = try toAttrs(gateway, name)
           const tags = try readIotWirelessTags(attrs.wirelessGatewayArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // The radio identity (GatewayEui, RfRegion, sub-bands, beaconing) is
         // create-only. Name, description, filters, and MaxEirp update in
         // place via UpdateWirelessGateway.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (!sameShape(gatewayIdentity(olds?.loRaWAN), gatewayIdentity(news.loRaWAN))) {
             return { action: "replace" } as const
           }
@@ -207,7 +211,7 @@ export const WirelessGatewayProvider = (): infer _ =>
                 LoRaWAN: news.loRaWAN,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             gateway = created?.Id !== undefined
@@ -261,11 +265,13 @@ export const WirelessGatewayProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (iotw.deleteWirelessGateway({ Id: output.wirelessGatewayId })
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (iotw.deleteWirelessGateway({ Id: output.wirelessGatewayId })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

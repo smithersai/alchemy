@@ -183,26 +183,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (dm.listProjectsLocationsPrivateConnections
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.privateConnections ?? []))
-      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (dm.listProjectsLocationsPrivateConnections
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.privateConnections ?? []))
         |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.PrivateConnection[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (dm.listProjectsLocationsPrivateConnections
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.privateConnections ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dm.PrivateConnection[]; default: throw e; };
     default: throw e;
   }
 
@@ -211,36 +215,55 @@ export const PrivateConnectionProvider = (): infer _ =>
     stables: ["name", "privateConnectionId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKind = kindOf({
         vpcPeeringConfig: olds?.vpcPeeringConfig ?? output?.vpcPeeringConfig,
         pscInterfaceConfig: olds?.pscInterfaceConfig ?? output?.pscInterfaceConfig,
       })
-      const nextKind = kindOf(news) || previousKind
-      const previousPeering = fingerprint(olds?.vpcPeeringConfig ?? output?.vpcPeeringConfig)
-      const nextPeering = fingerprint(news.vpcPeeringConfig)
-      const previousPsc = fingerprint(olds?.pscInterfaceConfig ?? output?.pscInterfaceConfig)
-      const nextPsc = fingerprint(news.pscInterfaceConfig)
+      const nextKind = kindOf(resolved) || previousKind
+      const previousPeering = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(olds?.vpcPeeringConfig ?? output?.vpcPeeringConfig), catch: (e) => e }),
+      )
+      const nextPeering = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(resolved.vpcPeeringConfig), catch: (e) => e }),
+      )
+      const previousPsc = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(olds?.pscInterfaceConfig ?? output?.pscInterfaceConfig), catch: (e) => e }),
+      )
+      const nextPsc = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(resolved.pscInterfaceConfig), catch: (e) => e }),
+      )
       const previousDisplay = olds?.displayName ?? output?.displayName
-      const nextDisplay = news.displayName ?? previousDisplay
-      const previousLabels = fingerprint(olds?.labels ?? output?.labels)
-      const nextLabels = fingerprint(news.labels ?? olds?.labels ?? output?.labels)
-      return replaceOnIdentity({
-        previousId: olds?.privateConnectionId ?? output?.privateConnectionId,
-        nextId: news.privateConnectionId ?? olds?.privateConnectionId ?? output?.privateConnectionId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (olds !== undefined || output !== undefined)
-          && (previousKind !== nextKind
-            || (news.vpcPeeringConfig !== undefined && previousPeering !== nextPeering)
-            || (news.pscInterfaceConfig !== undefined && previousPsc !== nextPsc)
-            || previousDisplay !== nextDisplay
-            || previousLabels !== nextLabels),
-      })
+      const nextDisplay = resolved.displayName ?? previousDisplay
+      const previousLabels = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(olds?.labels ?? output?.labels), catch: (e) => e }),
+      )
+      const nextLabels = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(resolved.labels ?? olds?.labels ?? output?.labels), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.privateConnectionId ?? output?.privateConnectionId,
+            nextId: resolved.privateConnectionId ?? olds?.privateConnectionId ?? output?.privateConnectionId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (olds !== undefined || output !== undefined)
+              && (previousKind !== nextKind
+                || (resolved.vpcPeeringConfig !== undefined && previousPeering !== nextPeering)
+                || (resolved.pscInterfaceConfig !== undefined && previousPsc !== nextPsc)
+                || previousDisplay !== nextDisplay
+                || previousLabels !== nextLabels),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -251,12 +274,19 @@ export const PrivateConnectionProvider = (): infer _ =>
         output?.privateConnectionId,
         "pconn",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, privateConnectionId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -273,10 +303,12 @@ export const PrivateConnectionProvider = (): infer _ =>
         output?.privateConnectionId,
         "pconn",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, privateConnectionId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const displayName = news.displayName ?? privateConnectionId
@@ -313,13 +345,15 @@ export const PrivateConnectionProvider = (): infer _ =>
 
     delete: effect ({ output }) => {
       try (effect {
-        const operation = (try (dm
-          .deleteProjectsLocationsPrivateConnections({ name: output.name })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 8,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        const operation = (effect {
+          return (try (dm
+            .deleteProjectsLocationsPrivateConnections({ name: output.name })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 8,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
         if (operation !== undefined) {
           try waitForOperation(operation, { notFoundOk: true })
         }

@@ -173,7 +173,7 @@ export const TunnelProvider = (): infer _ =>
       const rows = try Effect.forEach(
         tunnels,
         effect (t) =>
-          ({
+          (effect { return ({
             tunnelId: t.id,
             tunnelName: t.name ?? t.id,
             accountTag: t.accountTag ?? undefined,
@@ -183,14 +183,15 @@ export const TunnelProvider = (): infer _ =>
             configSrc: ((t as { configSrc?: "cloudflare" | "local" | null }).configSrc
               ?? "cloudflare") as "cloudflare" | "local",
             token: Redacted.make(try zeroTrust.getTunnelCloudflaredToken({ accountId, tunnelId: t.id })),
-          }) catch effect (e) => match (e) { when zeroTrust.TunnelTokenNotFound: try Effect.undefined; default: throw e; },
+          }) }) catch effect (e) => match (e) { when zeroTrust.TunnelTokenNotFound: undefined; default: throw e; },
         { concurrency: 10 },
       )
       return rows.filter((row): row is Tunnel["Attributes"] => row !== undefined)
     },
     diff: effect ({ id, olds = {}, news, output }) => {
       const { accountId } = try try Effect.service(CloudflareEnvironment)
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
       if ((output?.accountId ?? accountId) !== accountId) {
         return { action: "replace" } as const
       }
@@ -198,16 +199,16 @@ export const TunnelProvider = (): infer _ =>
       // Auto-generated names are engine-owned: the deployed name stays
       // authoritative even if the generator would name this id differently
       // today. Only an explicit user-provided name can force a replace.
-      const name = news.name ?? oldName
+      const name = resolved_.name ?? oldName
       if (name !== oldName) {
         return { action: "replace" } as const
       }
       const oldSecret = olds.tunnelSecret ? Redacted.value(olds.tunnelSecret) : undefined
-      const newSecret = news.tunnelSecret ? Redacted.value(news.tunnelSecret) : undefined
+      const newSecret = resolved_.tunnelSecret ? Redacted.value(resolved_.tunnelSecret) : undefined
       if (oldSecret !== newSecret) {
         return { action: "replace" } as const
       }
-      if ((olds.configSrc ?? "cloudflare") !== (news.configSrc ?? "cloudflare")) {
+      if ((olds.configSrc ?? "cloudflare") !== (resolved_.configSrc ?? "cloudflare")) {
         return { action: "replace" } as const
       }
     },
@@ -294,7 +295,7 @@ export const TunnelProvider = (): infer _ =>
         .getTunnelCloudflared({
           accountId: output.accountId,
           tunnelId: output.tunnelId,
-        }) catch effect (e) => match (e) { when zeroTrust.TunnelNotFound: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when zeroTrust.TunnelNotFound: undefined; default: throw e; }
       if (observed === undefined || observed.deletedAt != null) return
       // Delete — sibling route/config deletions propagate asynchronously and
       // Cloudflare transiently rejects the tunnel delete while they drain.
@@ -312,7 +313,7 @@ export const TunnelProvider = (): infer _ =>
     read: effect ({ id, output, olds }) => {
       const { accountId } = try try Effect.service(CloudflareEnvironment)
       if (output?.tunnelId) {
-        return (try effect {
+        return (effect { return (try effect {
           const t = try zeroTrust
             .getTunnelCloudflared({
               accountId: output.accountId,
@@ -336,7 +337,7 @@ export const TunnelProvider = (): infer _ =>
                 }),
             ),
           })
-        }) catch () => undefined
+        }) }) catch () => undefined
       }
       const name = try createTunnelName(id, olds?.name)
       const existing = try findTunnelByName(name)

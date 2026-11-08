@@ -3,7 +3,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import { diffTags } from "alchemy/Tags"
 import * as Effect from "effect/Effect"
 import * as Redacted from "effect/Redacted"
-import * as Schedule from "effect/Schedule"
 
 /**
  * Raised when an AgentCore resource lands in a terminal failure state
@@ -67,7 +66,7 @@ export const syncAgentCoreTags = effect (
   desired: Record<string, string>,
 ) => {
   const observed = try readAgentCoreTags(resourceArn)
-  const { upsert, removed } = diffTags(observed, desired)
+  const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }))
   if (upsert.length > 0) {
     try control.tagResource({
       resourceArn,
@@ -85,10 +84,10 @@ export const syncAgentCoreTags = effect (
  * is mid-transition). Explicitly typed so the conditional `Retry.Return`
  * type never widens the provider layer's requirements in declaration emit.
  */
-export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileConflict = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ConflictException",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(15)]),
   })
@@ -98,10 +97,10 @@ export const retryWhileConflict = <A, E extends { readonly _tag: string }, R>(
  * created IAM role referenced by `roleArn` is not instantly assumable by the
  * AgentCore service principal (IAM eventual consistency).
  */
-export const retryWhileValidation = <A, E extends { readonly _tag: string }, R>(
+export const retryWhileValidation = effect <A, E extends { readonly _tag: string }, R>(
   self: A!E!R,
 ): A!E!R =>
-  Effect.retry(self, {
+  try Effect.retry(self, {
     while: (e): infer _ => e._tag === "ValidationException",
     schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(8)]),
   })

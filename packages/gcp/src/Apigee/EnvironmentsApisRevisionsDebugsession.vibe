@@ -185,7 +185,7 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : try missingToUndefined(
+const getByName = effect (name: string) => (name.length === 0 ? undefined : try missingToUndefined(
   apigee.getOrganizationsEnvironmentsApisRevisionsDebugsessions({
     name,
   }),
@@ -201,11 +201,13 @@ const listOrgApis = effect (organizationId: string) =>
   )).proxies ?? []
 
 const listApiSessions = effect (apiName: string) =>
-  (Array.from(
-    try (apigee.listOrganizationsApisDebugsessions.pages({ parent: apiName, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sessions ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
+  (effect {
+    return (Array.from(
+      try (apigee.listOrganizationsApisDebugsessions.pages({ parent: apiName, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sessions ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
     when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as apigee.GoogleCloudApigeeV1ApiDebugSession[];
     default: throw e;
   }
@@ -226,7 +228,10 @@ export const EnvironmentsApisRevisionsDebugsessionProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousOrg = olds?.organization ?? output?.organizationId
       const previousEnv = olds?.environment ?? output?.environmentId
       const previousApi = olds?.api ?? output?.api
@@ -234,15 +239,15 @@ export const EnvironmentsApisRevisionsDebugsessionProvider = (): infer _ =>
       const previousId = olds?.debugsessionId ?? output?.debugsessionId
       if (
         (previousOrg !== undefined
-          && news.organization !== undefined
-          && organizationIdOf(news.organization, "") !== organizationIdOf(previousOrg, ""))
+          && resolved.organization !== undefined
+          && organizationIdOf(resolved.organization, "") !== organizationIdOf(previousOrg, ""))
         || (previousEnv !== undefined
-          && environmentIdOf(news.environment) !== environmentIdOf(previousEnv))
-        || (previousApi !== undefined && news.api !== previousApi)
-        || (previousRevision !== undefined && news.revision !== previousRevision)
+          && environmentIdOf(resolved.environment) !== environmentIdOf(previousEnv))
+        || (previousApi !== undefined && resolved.api !== previousApi)
+        || (previousRevision !== undefined && resolved.revision !== previousRevision)
         || (previousId !== undefined
-          && news.debugsessionId !== undefined
-          && news.debugsessionId !== previousId)
+          && resolved.debugsessionId !== undefined
+          && resolved.debugsessionId !== previousId)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -269,7 +274,7 @@ export const EnvironmentsApisRevisionsDebugsessionProvider = (): infer _ =>
       const attrs = toAttrs(existing, organizationId, environmentId, api, revision)
       return output !== undefined || isAlchemySessionId(attrs.debugsessionId)
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -370,7 +375,7 @@ export const EnvironmentsApisRevisionsDebugsessionProvider = (): infer _ =>
         .deleteDataOrganizationsEnvironmentsApisRevisionsDebugsessions({
           name: output.name,
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

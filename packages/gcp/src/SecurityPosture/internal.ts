@@ -107,8 +107,10 @@ export const hasAlchemyAnnotationMap = (
   annotations: Record<string, string | undefined> | null | undefined,
 ) => Object.keys(annotations ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;

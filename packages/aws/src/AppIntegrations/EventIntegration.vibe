@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as appintegrations from "@distilled.cloud/aws/appintegrations"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -91,8 +94,12 @@ export const EventIntegration = Resource<EventIntegration>("AWS.AppIntegrations.
  * Raised when the AppIntegrations API returns an event integration without
  * the fields required to build the resource attributes.
  */
-export error EventIntegrationIncomplete {
-  mutable message: string
+export class EventIntegrationIncomplete extends $MutableErrorBase("EventIntegrationIncomplete")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "EventIntegrationIncomplete", true)
+  }
 }
 
 export const EventIntegrationProvider = (): infer _ =>
@@ -106,7 +113,7 @@ export const EventIntegrationProvider = (): infer _ =>
       const observe = effect (name: string) =>
         appintegrations
           .getEventIntegration({ Name: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -157,12 +164,15 @@ export const EventIntegrationProvider = (): infer _ =>
           const live = try observe(name)
           if (live === undefined) return undefined
           const attrs = try toAttrs(live)
-          const tags = definedTags(live.Tags)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          const tags = try Effect.orDie(Effect.try({ try: () => definedTags(live.Tags), catch: (e) => e }))
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds === undefined) return undefined
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
@@ -194,7 +204,7 @@ export const EventIntegrationProvider = (): infer _ =>
                 EventBridgeBus: news.eventBridgeBus,
                 Tags: desiredTags,
               }) catch effect (e) => match (e) {
-                when { _tag: "DuplicateResourceException" }: try Effect.void;
+                when { _tag: "DuplicateResourceException" }: (undefined as void);
                 default: throw e;
               }
             live = try appintegrations.getEventIntegration({ Name: name })
@@ -213,10 +223,17 @@ export const EventIntegrationProvider = (): infer _ =>
 
           // 4. Sync tags — diff against OBSERVED cloud tags so adoption
           //    converges.
-          const observedTags = (definedTags(
-            (try appintegrations
-              .listTagsForResource({ resourceArn: attrs.eventIntegrationArn })).tags,
-          )) catch effect (e) => match (e) {
+          const observedTags = (effect {
+            const tags2 = (try appintegrations
+              .listTagsForResource({ resourceArn: attrs.eventIntegrationArn })).tags
+            return (try Effect.orDie(Effect.try({
+              try: () =>
+                definedTags(
+                  tags2,
+                ),
+              catch: (e) => e,
+            })))
+          }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
             default: throw e;
           }
@@ -241,7 +258,7 @@ export const EventIntegrationProvider = (): infer _ =>
         delete: effect ({ output }) => {
           appintegrations
             .deleteEventIntegration({ Name: output.eventIntegrationName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

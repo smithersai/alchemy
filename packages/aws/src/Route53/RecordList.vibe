@@ -100,7 +100,9 @@ const groupKeyOf = (entry: { hostedZoneId: string; name: string; type: string })
 
 const waitForChange = effect (changeId: string) =>
   try (effect {
-    return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status catch effect (e) => match (e) {
+    return (effect {
+      return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status
+    }) catch effect (e) => match (e) {
       when { _tag: "NoSuchChange" }: "PENDING" as const;
       default: throw e;
     }
@@ -111,19 +113,23 @@ const waitForChange = effect (changeId: string) =>
     }))
 
 const findRecordSet = effect (hostedZoneId: string, name: string, type: DnsRecordType) =>
-  (((try route53
-    .listResourceRecordSets({
-      HostedZoneId: normalizeHostedZoneId(hostedZoneId),
-      StartRecordName: `${name}.`,
-      StartRecordType: type,
-      MaxItems: 10,
-    })).ResourceRecordSets ?? []).find(
-      (recordSet) =>
-        normalizeName(recordSet.Name) === name
-        && recordSet.Type === type
-        && recordSet.SetIdentifier === undefined
-        && recordSet.AliasTarget === undefined,
-    )) catch effect (e) => match (e) { when { _tag: "NoSuchHostedZone" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (((try route53
+      .listResourceRecordSets({
+        HostedZoneId: try Effect.orDie(
+          Effect.try({ try: () => normalizeHostedZoneId(hostedZoneId), catch: (e) => e }),
+        ),
+        StartRecordName: `${name}.`,
+        StartRecordType: type,
+        MaxItems: 10,
+      })).ResourceRecordSets ?? []).find(
+        (recordSet) =>
+          normalizeName(recordSet.Name) === name
+          && recordSet.Type === type
+          && recordSet.SetIdentifier === undefined
+          && recordSet.AliasTarget === undefined,
+      ))
+  }) catch effect (e) => match (e) { when { _tag: "NoSuchHostedZone" }: undefined; default: throw e; }
 
 const liveValuesOf = (type: DnsRecordType, recordSet: route53.ResourceRecordSet | undefined): infer _ =>
   (recordSet?.ResourceRecords ?? []).map((record) => normalizeValue(type, record.Value))
@@ -178,9 +184,9 @@ const planRecordSetChange = effect (
   return undefined
 }
 
-const submitChanges = (hostedZoneId: string, changes: route53.Change[]) =>
-  route53.changeResourceRecordSets({
-    HostedZoneId: normalizeHostedZoneId(hostedZoneId),
+const submitChanges = effect (hostedZoneId: string, changes: route53.Change[]) =>
+  try route53.changeResourceRecordSets({
+    HostedZoneId: try Effect.orDie(Effect.try({ try: () => normalizeHostedZoneId(hostedZoneId), catch: (e) => e })),
     ChangeBatch: { Comment: "Alchemy Route53 record list", Changes: changes },
   })
 
@@ -192,15 +198,19 @@ const submitChanges = (hostedZoneId: string, changes: route53.Change[]) =>
  */
 const applyChanges = effect (hostedZoneId: string, changes: route53.Change[]) => {
   if (changes.length === 0) return
-  const batch = [(try submitChanges(hostedZoneId, changes)).ChangeInfo.Id] catch effect (error) => match (error) {
+  const batch = (effect {
+    return [(try submitChanges(hostedZoneId, changes)).ChangeInfo.Id]
+  }) catch effect (error) => match (error) {
     when { _tag: "InvalidChangeBatch" }: try (changes.length === 1 && changes[0]?.Action !== "DELETE"
       ? throw error
       : effect {
         return (try Effect.forEach(
           changes,
           effect (change) =>
-            [(try submitChanges(hostedZoneId, [change])).ChangeInfo.Id] catch effect (error) => match (error) {
-              when { _tag: "InvalidChangeBatch" }: try (change.Action === "DELETE" ? [] as string[] : throw error);
+            (effect {
+              return [(try submitChanges(hostedZoneId, [change])).ChangeInfo.Id]
+            }) catch effect (error) => match (error) {
+              when { _tag: "InvalidChangeBatch" }: (change.Action === "DELETE" ? [] as string[] : throw error);
               default: throw error;
             },
         )).flat()
@@ -270,7 +280,13 @@ export const RecordListProvider = (): infer _ =>
         const name = normalizeName(record.name)
         let hostedZoneId = zoneCache.get(name)
         if (hostedZoneId === undefined) {
-          hostedZoneId = normalizeHostedZoneId(try resolveHostedZoneId(news.hostedZoneId, name))
+          const hostedZoneId2 = try resolveHostedZoneId(news.hostedZoneId, name)
+          hostedZoneId = try Effect.orDie(Effect.try({
+            try: () =>
+              normalizeHostedZoneId(hostedZoneId2),
+            catch: (e) =>
+              e,
+          }))
           zoneCache.set(name, hostedZoneId)
         }
         const entry: RecordListEntry = {

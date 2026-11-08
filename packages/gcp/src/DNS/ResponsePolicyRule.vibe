@@ -218,7 +218,7 @@ const toAttrs = (rule: dns.ResponsePolicyRule, project: string, responsePolicy: 
 const getPolicy = effect (project: string, responsePolicy: string) =>
   dns
     .getResponsePolicies({ project, responsePolicy }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -228,24 +228,26 @@ const getByName = effect (project: string, responsePolicy: string, ruleName: str
       project,
       responsePolicy,
       responsePolicyRule: ruleName,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const listRules = effect (project: string, responsePolicy: string) =>
-  (try effect {
-    const found: dns.ResponsePolicyRule[] = []
-    let pageToken: string | undefined
-    for (let page = 0; page < 10; page++) {
-      const response = try dns.listResponsePolicyRules({
-        project,
-        responsePolicy,
-        maxResults: 1000,
-        pageToken,
-      })
-      found.push(...(response.responsePolicyRules ?? []))
-      pageToken = response.nextPageToken
-      if (pageToken === undefined || pageToken === "") break
-    }
-    return found
+  (effect {
+    return (try effect {
+      const found: dns.ResponsePolicyRule[] = []
+      let pageToken: string | undefined
+      for (let page = 0; page < 10; page++) {
+        const response = try dns.listResponsePolicyRules({
+          project,
+          responsePolicy,
+          maxResults: 1000,
+          pageToken,
+        })
+        found.push(...(response.responsePolicyRules ?? []))
+        pageToken = response.nextPageToken
+        if (pageToken === undefined || pageToken === "") break
+      }
+      return found
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dns.ResponsePolicyRule[]; default: throw e; }
 
 const listAlchemyResponsePolicies = effect (project: string) => {
@@ -273,11 +275,14 @@ export const ResponsePolicyRuleProvider = (): infer _ =>
     stables: ["project", "responsePolicy", "ruleName"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousPolicy = olds?.responsePolicy ?? output?.responsePolicy
       const previousName = olds?.ruleName ?? output?.ruleName
-      const nextName = news.ruleName ?? previousName
-      const policyChanged = previousPolicy !== undefined && news.responsePolicy !== previousPolicy
+      const nextName = resolved.ruleName ?? previousName
+      const policyChanged = previousPolicy !== undefined && resolved.responsePolicy !== previousPolicy
       const nameChanged = previousName !== undefined && nextName !== undefined && nextName !== previousName
       if (!policyChanged && !nameChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
@@ -377,6 +382,6 @@ export const ResponsePolicyRuleProvider = (): infer _ =>
           project: output.project,
           responsePolicy: output.responsePolicy,
           responsePolicyRule: output.ruleName,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

@@ -208,13 +208,15 @@ const getByName = effect (name: string) =>
 
 const listScans = effect (project: string, region: string) => {
   const collect = effect (parent: string) =>
-    ((try collectPages(
-      dataplex.listProjectsLocationsDataScans.pages({
-        parent,
-        pageSize: 1000,
-      }),
-      (page) => page.dataScans,
-    )).filter((item) => hasAlchemyLabelMap(item.labels))) catch effect (e) => match (e) {
+    (effect {
+      return ((try collectPages(
+        dataplex.listProjectsLocationsDataScans.pages({
+          parent,
+          pageSize: 1000,
+        }),
+        (page) => page.dataScans,
+      )).filter((item) => hasAlchemyLabelMap(item.labels)))
+    }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: [];
       default: throw e;
     }
@@ -231,32 +233,58 @@ export const DataScanProvider = (): infer _ =>
     stables: ["name", "dataScanId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.dataScanId ?? output?.dataScanId,
-        nextId: news.dataScanId ?? olds?.dataScanId ?? output?.dataScanId,
+        nextId: resolved.dataScanId ?? olds?.dataScanId ?? output?.dataScanId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
-        extra: fingerprint(dataSourceOf(news.data))
-            !== fingerprint(dataSourceOf(olds?.data ?? output?.data))
-          || fingerprint(news.executionIdentity ?? olds?.executionIdentity)
-            !== fingerprint(olds?.executionIdentity),
-      })
+        extra: (try Effect.orDie(Effect.try({
+              try: fingerprint.bind(undefined, dataSourceOf(resolved.data)),
+              catch: (e) => e,
+            })))
+            !== (try Effect.orDie(
+              Effect.try({
+                try: fingerprint.bind(undefined, dataSourceOf(olds?.data ?? output?.data)),
+                catch: (e) => e,
+              }),
+            ))
+          || (try Effect.orDie(
+              Effect.try({
+                try: fingerprint.bind(undefined, resolved.executionIdentity ?? olds?.executionIdentity),
+                catch: (e) => e,
+              }),
+            ))
+            !== (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, olds?.executionIdentity), catch: (e) => e }),
+            )),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const dataScanId = try toPhysicalId(id, olds?.dataScanId, output?.dataScanId, "datascan")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, dataScanId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -268,10 +296,12 @@ export const DataScanProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const dataScanId = try toPhysicalId(id, news.dataScanId, output?.dataScanId, "datascan")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, dataScanId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -308,18 +338,44 @@ export const DataScanProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
-      const executionChanged = fingerprint(current.executionSpec) !== fingerprint(news.executionSpec)
-      const qualityChanged = fingerprint(current.dataQualitySpec) !== fingerprint(news.dataQualitySpec)
-      const profileChanged = fingerprint(current.dataProfileSpec) !== fingerprint(news.dataProfileSpec)
-      const discoveryChanged = fingerprint(current.dataDiscoverySpec) !== fingerprint(news.dataDiscoverySpec)
-      const documentationChanged =
-        fingerprint(current.dataDocumentationSpec) !== fingerprint(news.dataDocumentationSpec)
-      const unstructuredChanged = fingerprint(current.unstructuredDataProfileSpec)
-        !== fingerprint(news.unstructuredDataProfileSpec)
+      const executionChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.executionSpec), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.executionSpec),
+            catch: (e) => e,
+          })))
+      const qualityChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.dataQualitySpec), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(news.dataQualitySpec),
+            catch: (e) => e,
+          })))
+      const profileChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.dataProfileSpec), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.dataProfileSpec), catch: (e) => e })))
+      const discoveryChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, current.dataDiscoverySpec),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(news.dataDiscoverySpec),
+        catch: (e) => e,
+      })))
+      const documentationChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, current.dataDocumentationSpec), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.dataDocumentationSpec), catch: (e) => e })))
+      const unstructuredChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, current.unstructuredDataProfileSpec), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({ try: () => fingerprint(news.unstructuredDataProfileSpec), catch: (e) => e }),
+        ))
 
       if (
         labelsChanged
@@ -370,17 +426,19 @@ export const DataScanProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (retryQuota(
-        dataplex.deleteProjectsLocationsDataScans({
-          name: output.name,
-          force: true,
-        }),
-      )
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (retryQuota(
+          dataplex.deleteProjectsLocationsDataScans({
+            name: output.name,
+            force: true,
+          }),
+        )
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

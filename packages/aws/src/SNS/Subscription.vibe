@@ -3,9 +3,6 @@ import { isResolved } from "alchemy/Diff"
 import type { Input } from "alchemy/Input"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 export type SubscriptionArn = string
@@ -137,8 +134,8 @@ export const SubscriptionProvider = (): infer _ =>
 
       const rows = try Effect.forEach(
         concrete,
-        (subscription) =>
-          readSubscription({
+        effect (subscription) =>
+          try readSubscription({
             subscriptionArn: subscription.SubscriptionArn,
             topicArn: subscription.TopicArn,
             protocol: subscription.Protocol,
@@ -150,23 +147,26 @@ export const SubscriptionProvider = (): infer _ =>
       return rows.filter((row): row is NonNullable<typeof row> => row !== undefined)
     },
     diff: effect ({ news, olds }) => {
-      if (!isResolved(news)) return undefined
-      if (news.protocol !== olds.protocol) {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (resolved.protocol !== olds.protocol) {
         return { action: "replace" } as const
       }
 
       if (
-        typeof news.topicArn === "string"
+        typeof resolved.topicArn === "string"
         && typeof olds.topicArn === "string"
-        && news.topicArn !== olds.topicArn
+        && resolved.topicArn !== olds.topicArn
       ) {
         return { action: "replace" } as const
       }
 
       if (
-        typeof news.endpoint === "string"
+        typeof resolved.endpoint === "string"
         && typeof olds.endpoint === "string"
-        && news.endpoint !== olds.endpoint
+        && resolved.endpoint !== olds.endpoint
       ) {
         return { action: "replace" } as const
       }
@@ -187,8 +187,8 @@ export const SubscriptionProvider = (): infer _ =>
           .getSubscriptionAttributes({
             SubscriptionArn: output.subscriptionArn,
           }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
-            when { _tag: "InvalidParameterException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
+            when { _tag: "InvalidParameterException" }: undefined;
             default: throw e;
           }
         if (observed) {
@@ -233,8 +233,8 @@ export const SubscriptionProvider = (): infer _ =>
       // returns no real ARN to mutate against).
       const attrsResponse = sns
         .getSubscriptionAttributes({ SubscriptionArn: subscriptionArn }) catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.undefined;
-          when { _tag: "InvalidParameterException" }: try Effect.undefined;
+          when { _tag: "NotFoundException" }: undefined;
+          when { _tag: "InvalidParameterException" }: undefined;
           default: throw e;
         }
       const observedAttributes = toAttributeMap(attrsResponse?.Attributes)
@@ -281,7 +281,7 @@ export const SubscriptionProvider = (): infer _ =>
           topicArn: (output.topicArn ?? olds.topicArn) as string | undefined,
           protocol: output.protocol ?? olds.protocol,
           endpoint: (output.endpoint ?? olds.endpoint) as string | undefined,
-        }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
         : output.subscriptionArn
 
       if (!subscriptionArn) {
@@ -292,8 +292,8 @@ export const SubscriptionProvider = (): infer _ =>
         .unsubscribe({
           SubscriptionArn: subscriptionArn,
         }) catch effect (e) => match (e) {
-          when { _tag: "NotFoundException" }: try Effect.void;
-          when { _tag: "InvalidParameterException" }: try Effect.void;
+          when { _tag: "NotFoundException" }: (undefined as void);
+          when { _tag: "InvalidParameterException" }: (undefined as void);
           default: throw e;
         }
     },
@@ -356,14 +356,16 @@ const readSubscription = effect ({
     // out of band, or by an interrupted destroy that committed the topic's
     // state row late) then the subscription is gone too: report "missing"
     // rather than failing the read, so a subsequent destroy can proceed.
-    const found = (try effect {
-      const arn = try findSubscription({
-        topicArn,
-        protocol,
-        endpoint,
+    const found = (effect {
+      return (try effect {
+        const arn = try findSubscription({
+          topicArn,
+          protocol,
+          endpoint,
+        })
+        return ({ arn })
       })
-      return ({ arn })
-    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
     if (found === undefined) {
       return undefined
     }
@@ -390,8 +392,8 @@ const readSubscription = effect ({
     .getSubscriptionAttributes({
       SubscriptionArn: resolvedSubscriptionArn,
     }) catch effect (e) => match (e) {
-      when { _tag: "NotFoundException" }: try Effect.undefined;
-      when { _tag: "InvalidParameterException" }: try Effect.undefined;
+      when { _tag: "NotFoundException" }: undefined;
+      when { _tag: "InvalidParameterException" }: undefined;
       default: throw e;
     }
 

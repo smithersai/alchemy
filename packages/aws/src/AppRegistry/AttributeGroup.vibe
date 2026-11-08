@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as appregistry from "@distilled.cloud/aws/service-catalog-appregistry"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -93,7 +94,7 @@ export const AttributeGroupProvider = (): infer _ =>
       const observe = effect (specifier: string) =>
         appregistry
           .getAttributeGroup({ attributeGroup: specifier }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -135,12 +136,15 @@ export const AttributeGroupProvider = (): infer _ =>
             attributeGroupArn: found.arn!,
             attributeGroupName: found.name!,
           }
-          return (try hasAlchemyTags(id, tagRecord(found.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tagRecord(found.tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
         // The attribute group name is its user-facing identity — changing it
         // replaces the group.
-        diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -172,7 +176,10 @@ export const AttributeGroupProvider = (): infer _ =>
                 attributes: desiredAttributes,
                 tags: desiredTags,
                 clientToken: clientToken(instanceId),
-              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (undefined as void);
+                default: throw e;
+              }
             found = try observe(attributeGroupName)
           }
 
@@ -192,7 +199,9 @@ export const AttributeGroupProvider = (): infer _ =>
 
           // 3b. SYNC tags — diff against OBSERVED cloud tags so adoption
           // converges.
-          const observedTags = stripAwsSystemTags(tagRecord(found!.tags))
+          const observedTags = try Effect.orDie(
+            Effect.try({ try: () => stripAwsSystemTags(tagRecord(found!.tags)), catch: (e) => e }),
+          )
           const { upsert, removed } = diffTags(observedTags, desiredTags)
           if (upsert.length > 0) {
             try appregistry.tagResource({
@@ -219,7 +228,7 @@ export const AttributeGroupProvider = (): infer _ =>
             .deleteAttributeGroup({
               attributeGroup: output.attributeGroupId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

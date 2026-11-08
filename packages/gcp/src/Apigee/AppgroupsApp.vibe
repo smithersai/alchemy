@@ -177,16 +177,23 @@ export const AppgroupsAppProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.appId ?? output?.appId
-      const previousGroup = olds?.appgroup ? lastSegment(olds.appgroup) : output?.appgroupId
+      const previousGroup = olds?.appgroup
+        ? try Effect.orDie(Effect.try({ try: () => lastSegment(olds.appgroup), catch: (e) => e }))
+        : output?.appgroupId
       const previousOrg = olds?.organizationId ?? output?.organizationId
       if (
-        (previousId !== undefined && news.appId !== undefined && news.appId !== previousId)
-        || (previousGroup !== undefined && lastSegment(news.appgroup) !== previousGroup)
+        (previousId !== undefined && resolved.appId !== undefined && resolved.appId !== previousId)
+        || (previousGroup !== undefined
+          && (try Effect.orDie(Effect.try({ try: () => lastSegment(resolved.appgroup), catch: (e) => e })))
+            !== previousGroup)
         || (previousOrg !== undefined
-          && news.organizationId !== undefined
-          && news.organizationId !== previousOrg)
+          && resolved.organizationId !== undefined
+          && resolved.organizationId !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -196,48 +203,58 @@ export const AppgroupsAppProvider = (): infer _ =>
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const organizationId = olds?.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
-      const appgroupId = lastSegment(olds?.appgroup ?? output?.appgroupId ?? "")
+      const appgroupId = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.appgroup ?? output?.appgroupId ?? ""), catch: (e) => e }),
+      )
       if (appgroupId.length === 0) return undefined
       const appId = try toPhysicalId(id, olds?.appId, output?.appId, MAX_NAME_LENGTH)
       const name = output?.name ?? resourceName(organizationId, appgroupId, appId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, organizationId, appgroupId)
-      const { labels } = fromAttributes(existing.attributes)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => fromAttributes(existing.attributes), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organizationId = try resolveOrgId(env.project)
-      const groups = (Array.from(
-        try (apigee.listOrganizationsAppgroups
-          .pages({
-            parent: orgParent(organizationId),
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.appGroups ?? []))
-          |> Stream.filter(%, (group) => fromAttributes(group.attributes).labels["alchemy-id"] !== undefined)
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      const groups = (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsAppgroups
+            .pages({
+              parent: try Effect.orDie(Effect.try({ try: () => orgParent(organizationId), catch: (e) => e })),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.appGroups ?? []))
+            |> Stream.filter(%, (group) => fromAttributes(group.attributes).labels["alchemy-id"] !== undefined)
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
         default: throw e;
       }
       const apps = []
       for (const group of groups) {
-        const appgroupId = lastSegment(group.name ?? "")
+        const appgroupId = try Effect.orDie(Effect.try({ try: () => lastSegment(group.name ?? ""), catch: (e) => e }))
         if (appgroupId.length === 0) continue
-        const page = (Array.from(
-          try (apigee.listOrganizationsAppgroupsApps
-            .pages({
-              parent: groupParent(organizationId, appgroupId),
-              pageSize: 1000,
-            })
-            |> Stream.flatMap(%, (item) => Stream.fromIterable(item.appGroupApps ?? []))
-            |> Stream.filter(%, (app) => fromAttributes(app.attributes).labels["alchemy-id"] !== undefined)
-            |> Stream.map(%, (app) => toAttrs(app, env.project, organizationId, appgroupId))
-            |> Stream.runCollect(%)),
-        )) catch effect (e) => match (e) {
+        const page = (effect {
+          return (Array.from(
+            try (apigee.listOrganizationsAppgroupsApps
+              .pages({
+                parent: groupParent(organizationId, appgroupId),
+                pageSize: 1000,
+              })
+              |> Stream.flatMap(%, (item) => Stream.fromIterable(item.appGroupApps ?? []))
+              |> Stream.filter(%, (app) => fromAttributes(app.attributes).labels["alchemy-id"] !== undefined)
+              |> Stream.map(%, (app) => toAttrs(app, env.project, organizationId, appgroupId))
+              |> Stream.runCollect(%)),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
           default: throw e;
         }
@@ -249,11 +266,13 @@ export const AppgroupsAppProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organizationId = news.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
-      const appgroupId = lastSegment(news.appgroup)
+      const appgroupId = try Effect.orDie(Effect.try({ try: () => lastSegment(news.appgroup), catch: (e) => e }))
       const appId = try toPhysicalId(id, news.appId, output?.appId, MAX_NAME_LENGTH)
       const name = resourceName(organizationId, appgroupId, appId)
       const ownership = try createInternalLabels(id)
-      const desiredAttributes = toAttributes(ownership, news.attributes)
+      const desiredAttributes = try Effect.orDie(
+        Effect.try({ try: () => toAttributes(ownership, news.attributes), catch: (e) => e }),
+      )
       const desiredStatus = news.status ?? "approved"
       const body: apigee.GoogleCloudApigeeV1AppGroupApp = {
         name: appId,
@@ -280,9 +299,21 @@ export const AppgroupsAppProvider = (): infer _ =>
       }
 
       const needsUpdate = (current.callbackUrl ?? "") !== (news.callbackUrl ?? "")
-        || !sameJson(sortedStrings(current.apiProducts), sortedStrings(news.apiProducts))
-        || !sameJson(sortedStrings(current.scopes), sortedStrings(news.scopes))
-        || !sameJson(current.attributes ?? [], desiredAttributes)
+        || !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, sortedStrings(current.apiProducts), sortedStrings(news.apiProducts)),
+            catch: (e) => e,
+          }),
+        ))
+        || !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, sortedStrings(current.scopes), sortedStrings(news.scopes)),
+            catch: (e) => e,
+          }),
+        ))
+        || !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.attributes ?? [], desiredAttributes), catch: (e) => e }),
+        ))
 
       if (needsUpdate) {
         current = try apigee.updateOrganizationsAppgroupsApps({

@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -216,8 +217,10 @@ export const SecurityConfigProvider = (): infer _ =>
           }
 
       const observe = effect (configId: string) =>
-        (try aoss.getSecurityConfig({ id: configId })).securityConfigDetail catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try aoss.getSecurityConfig({ id: configId })).securityConfigDetail
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -267,8 +270,9 @@ export const SecurityConfigProvider = (): infer _ =>
           return toAttributes(detail)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.type !== news.type) {
             return { action: "replace" } as const
           }
@@ -291,18 +295,20 @@ export const SecurityConfigProvider = (): infer _ =>
 
           // 2. ENSURE — create if missing; tolerate a concurrent create race
           if (detail?.id === undefined) {
-            detail = (try aoss
-              .createSecurityConfig({
-                type,
-                name,
-                description: news.description,
-                samlOptions: desiredSaml,
-                iamIdentityCenterOptions: news.iamIdentityCenterOptions,
-                iamFederationOptions: news.iamFederationOptions,
-              })).securityConfigDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try observe(configId);
-                default: throw e;
-              }
+            detail = (effect {
+              return (try aoss
+                .createSecurityConfig({
+                  type,
+                  name,
+                  description: news.description,
+                  samlOptions: desiredSaml,
+                  iamIdentityCenterOptions: news.iamIdentityCenterOptions,
+                  iamFederationOptions: news.iamFederationOptions,
+                })).securityConfigDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try observe(configId);
+              default: throw e;
+            }
           } else {
             // 3. SYNC — update when observed drifts from desired
             const samlDrift = desiredSaml !== undefined
@@ -341,9 +347,13 @@ export const SecurityConfigProvider = (): infer _ =>
           }
 
           if (detail?.id === undefined) {
-            throw aoss.ResourceNotFoundException.make({
-              message: `security config ${configId} not visible after reconcile`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                aoss.ResourceNotFoundException.make({
+                  message: `security config ${configId} not visible after reconcile`,
+                }),
+              catch: (e) => e,
+            }))
           }
           try session.note(detail.id)
           return toAttributes(detail)
@@ -351,7 +361,7 @@ export const SecurityConfigProvider = (): infer _ =>
 
         delete: effect ({ output }) => {
           retryWhileConflict(aoss.deleteSecurityConfig({ id: output.configId })) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

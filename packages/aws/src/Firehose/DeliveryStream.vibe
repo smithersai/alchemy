@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as firehose from "@distilled.cloud/aws/firehose"
 import * as iam from "@distilled.cloud/aws/iam"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -464,7 +465,7 @@ const toAttrs = ({
 const describeDeliveryStream = effect (deliveryStreamName: string) => {
   const response = firehose
     .describeDeliveryStream({ DeliveryStreamName: deliveryStreamName }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   return response?.DeliveryStreamDescription
@@ -486,7 +487,7 @@ const readDeliveryStream = effect ({
   // means it's gone.
   const tagsResponse = firehose
     .listTagsForDeliveryStream({ DeliveryStreamName: deliveryStreamName }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!tagsResponse) {
@@ -560,12 +561,12 @@ const waitForDeliveryStreamDeleted = effect (deliveryStreamName: string) =>
 const deleteRoleIfExists = effect (roleName: string) => {
   iam
     .deleteRolePolicy({ RoleName: roleName, PolicyName: roleName }) catch effect (e) => match (e) {
-      when { _tag: "NoSuchEntityException" }: try Effect.void;
+      when { _tag: "NoSuchEntityException" }: (undefined as void);
       default: throw e;
     }
   iam
     .deleteRole({ RoleName: roleName }) catch effect (e) => match (e) {
-      when { _tag: "NoSuchEntityException" }: try Effect.void;
+      when { _tag: "NoSuchEntityException" }: (undefined as void);
       default: throw e;
     }
 }
@@ -574,7 +575,7 @@ export const DeliveryStreamProvider = (): infer _ =>
   Provider.effect(
     DeliveryStream,
     effect {
-      const createRoleName = (id: string) => createPhysicalName({ id, maxLength: 64 })
+      const createRoleName = effect (id: string) => try createPhysicalName({ id, maxLength: 64 })
 
       // Ensure the synthesized IAM role exists and its inline policy matches
       // the desired destination/source access. `createRole` tolerates the
@@ -672,7 +673,7 @@ export const DeliveryStreamProvider = (): infer _ =>
 
           const hydrated = try Effect.forEach(
             names,
-            (deliveryStreamName) => readDeliveryStream({ deliveryStreamName, roleName: undefined }),
+            effect (deliveryStreamName) => try readDeliveryStream({ deliveryStreamName, roleName: undefined }),
             { concurrency: 10 },
           )
 
@@ -688,11 +689,14 @@ export const DeliveryStreamProvider = (): infer _ =>
             roleName: output?.roleName,
           })
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags))
+            ? state
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createDeliveryStreamName(id, olds ?? {})
           const newName = try createDeliveryStreamName(id, news ?? {})
           if (oldName !== newName) {
@@ -776,7 +780,7 @@ export const DeliveryStreamProvider = (): infer _ =>
                 DeliveryStreamName: deliveryStreamName,
                 AllowForceDelete: true,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               }
             try waitForDeliveryStreamDeleted(deliveryStreamName)
@@ -784,7 +788,10 @@ export const DeliveryStreamProvider = (): infer _ =>
           }
 
           const desiredBufferingHints = {
-            IntervalInSeconds: toWireSeconds(news.destination.bufferingInterval)
+            IntervalInSeconds: (try Effect.orDie(Effect.try({
+              try: () => toWireSeconds(news.destination.bufferingInterval),
+              catch: (e) => e,
+            })))
               ?? defaultBufferingIntervalInSeconds,
             SizeInMBs: news.destination.bufferingSizeInMBs ?? defaultBufferingSizeInMBs,
           }
@@ -822,7 +829,7 @@ export const DeliveryStreamProvider = (): infer _ =>
                     },
                     Tags: createTagsList(desiredTags),
                   }) catch effect (e) => match (e) {
-                    when { _tag: "ResourceInUseException" }: try Effect.void;
+                    when { _tag: "ResourceInUseException" }: (undefined as void);
                     default: throw e;
                   }
               },
@@ -928,7 +935,7 @@ export const DeliveryStreamProvider = (): infer _ =>
             .listTagsForDeliveryStream({
               DeliveryStreamName: deliveryStreamName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           const observedTags = toTagRecord(observedTagsResponse?.Tags)
@@ -971,7 +978,7 @@ export const DeliveryStreamProvider = (): infer _ =>
                   DeliveryStreamName: output.deliveryStreamName,
                   AllowForceDelete: true,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

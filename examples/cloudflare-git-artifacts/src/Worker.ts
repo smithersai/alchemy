@@ -1,11 +1,9 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Http from "alchemy/Http";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import * as Etag from "effect/http/Etag";
-import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as Layer from "effect/Layer";
-import * as Path from "effect/Path";
 import {
   CloneToken,
   CreateRepoResponse,
@@ -18,13 +16,6 @@ import {
 import Repo from "./Repo.ts";
 import { Repos } from "./Repos.ts";
 
-// Workers don't have a FileSystem, so HttpPlatform's file-response surface
-// is stubbed. The repo API never serves files.
-const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
-  fileResponse: () => Effect.die("HttpPlatform.fileResponse not supported"),
-  fileWebResponse: () => Effect.die("HttpPlatform.fileWebResponse not supported"),
-});
-
 export default class Worker extends Cloudflare.Worker<Worker>()(
   "Api",
   {
@@ -35,7 +26,7 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
     },
   },
   Effect.gen(function* () {
-    const artifacts = yield* Repos;
+    const artifacts = yield* Cloudflare.Artifacts.ReadWriteNamespace(Repos);
     const repos = yield* Repo;
 
     const findRepo = (name: string) =>
@@ -154,11 +145,11 @@ export default class Worker extends Cloudflare.Worker<Worker>()(
     );
 
     return {
-      fetch: HttpApiBuilder.layer(RepoApi).pipe(
+      fetch: yield* HttpApiBuilder.layer(RepoApi).pipe(
         Layer.provide(handlers),
-        Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
+        Layer.provide(Http.Platform),
         HttpRouter.toHttpEffect,
       ),
     };
-  }).pipe(Effect.provide(Layer.mergeAll(Binding))),
+  }).pipe(Effect.provide(Cloudflare.Artifacts.ReadWriteNamespaceBinding)),
 ) {}

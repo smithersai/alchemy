@@ -109,21 +109,22 @@ export const SubscriptionProvider = (): infer _ =>
     stables: ["subscriptionId", "subscriptionName", "streamId", "startAt", "createdAt"],
 
     diff: effect ({ id, olds, news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_ === undefined) return undefined
       const oldName = output?.subscriptionName ?? (try subscriptionName(id, olds?.name))
-      const newName = news.name ?? oldName
+      const newName = resolved_.name ?? oldName
       const oldStartAt = output?.startAt ?? olds?.startAt ?? "latest"
-      const streamChanged = (output?.streamId ?? streamIdOf(olds?.stream)) !== streamIdOf(news.stream)
+      const streamChanged = (output?.streamId ?? streamIdOf(olds?.stream)) !== streamIdOf(resolved_.stream)
       if (
         streamChanged
         || newName.toLowerCase() !== oldName.toLowerCase()
-        || (news.startAt ?? "latest") !== oldStartAt
+        || (resolved_.startAt ?? "latest") !== oldStartAt
       ) {
         // An explicit name is reused by the replacement; K2 rejects the same
         // name with different settings, so delete the old one first.
         return {
           action: "replace",
-          deleteFirst: news.name !== undefined && !streamChanged,
+          deleteFirst: resolved_.name !== undefined && !streamChanged,
         } as const
       }
       return undefined
@@ -140,7 +141,7 @@ export const SubscriptionProvider = (): infer _ =>
       const match = try findSubscriptionByName(streamId, name)
       if (match) {
         const attrs = toAttributes(match, streamId)
-        return olds?.name !== undefined ? Unowned(attrs) : attrs
+        return olds?.name !== undefined ? try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e })) : attrs
       }
       return undefined
     },
@@ -183,7 +184,7 @@ export const SubscriptionProvider = (): infer _ =>
           streamId: output.streamId,
           subscriptionId: output.subscriptionId,
         }) catch effect (e) => match (e) {
-          when { _tag: "K2SubscriptionNotFound" } or { _tag: "K2StreamNotFound" }: try Effect.void;
+          when { _tag: "K2SubscriptionNotFound" } or { _tag: "K2StreamNotFound" }: (undefined as void);
           default: throw e;
         }
     },
@@ -223,16 +224,16 @@ const streamIdOf = (stream: unknown): string | undefined =>
     : undefined
 
 const getSubscription = effect (streamId: string, subscriptionId: string) =>
-  (try k2.getSubscription({ streamId, subscriptionId })) catch effect (e) => match (e) {
-    when { _tag: "K2SubscriptionNotFound" } or { _tag: "K2StreamNotFound" }: try Effect.undefined;
+  (effect { return (try k2.getSubscription({ streamId, subscriptionId })) }) catch effect (e) => match (e) {
+    when { _tag: "K2SubscriptionNotFound" } or { _tag: "K2StreamNotFound" }: undefined;
     default: throw e;
   }
 
 /** `listSubscriptions` filters by name server-side (at most one match). */
 const findSubscriptionByName = effect (streamId: string, name: string) =>
-  ((try k2.listSubscriptions({ streamId, name })).find((s) => s.name.toLowerCase() === name.toLowerCase())) catch effect (
+  (effect { return ((try k2.listSubscriptions({ streamId, name })).find((s) => s.name.toLowerCase() === name.toLowerCase())) }) catch effect (
     e,
-  ) => match (e) { when { _tag: "K2StreamNotFound" }: try Effect.undefined; default: throw e; }
+  ) => match (e) { when { _tag: "K2StreamNotFound" }: undefined; default: throw e; }
 
 const toAttributes = (
   observed: ObservedSubscription,

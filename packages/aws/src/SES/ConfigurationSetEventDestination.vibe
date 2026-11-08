@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import type * as sesv2Types from "@distilled.cloud/aws/sesv2"
 import * as sesv2 from "@distilled.cloud/aws/sesv2"
 import { isResolved } from "alchemy/Diff"
@@ -206,13 +207,15 @@ export const ConfigurationSetEventDestinationProvider = (): infer _ =>
         configurationSetName: string,
         eventDestinationName: string,
       ) => {
-        const destinations = ((try sesv2
-          .getConfigurationSetEventDestinations({
-            ConfigurationSetName: configurationSetName,
-          })).EventDestinations ?? []) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: [] as sesv2Types.EventDestination[];
-            default: throw e;
-          }
+        const destinations = (effect {
+          return ((try sesv2
+            .getConfigurationSetEventDestinations({
+              ConfigurationSetName: configurationSetName,
+            })).EventDestinations ?? [])
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: [] as sesv2Types.EventDestination[];
+          default: throw e;
+        }
         return destinations.find((d) => d.Name === eventDestinationName)
       }
 
@@ -225,19 +228,21 @@ export const ConfigurationSetEventDestinationProvider = (): infer _ =>
           const nested = try Effect.forEach(
             configSets,
             effect (configurationSetName) =>
-              (((try sesv2
-                .getConfigurationSetEventDestinations({
-                  ConfigurationSetName: configurationSetName,
-                })).EventDestinations ?? []).map((d) => ({
-                  configurationSetName,
-                  eventDestinationName: d.Name,
-                }))) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: [] as {
-                    configurationSetName: string
-                    eventDestinationName: string
-                  }[];
-                  default: throw e;
-                },
+              (effect {
+                return (((try sesv2
+                  .getConfigurationSetEventDestinations({
+                    ConfigurationSetName: configurationSetName,
+                  })).EventDestinations ?? []).map((d) => ({
+                    configurationSetName,
+                    eventDestinationName: d.Name,
+                  })))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: [] as {
+                  configurationSetName: string
+                  eventDestinationName: string
+                }[];
+                default: throw e;
+              },
             { concurrency: 2 },
           )
           return nested.flat()
@@ -256,8 +261,9 @@ export const ConfigurationSetEventDestinationProvider = (): infer _ =>
           }
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
           if (
@@ -317,7 +323,10 @@ export const ConfigurationSetEventDestinationProvider = (): infer _ =>
             .deleteConfigurationSetEventDestination({
               ConfigurationSetName: output.configurationSetName,
               EventDestinationName: output.eventDestinationName,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
         },
       })
     },

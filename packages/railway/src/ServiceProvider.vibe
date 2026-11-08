@@ -170,19 +170,19 @@ const readInstance = Query.fn((environmentId: string, serviceId: string) =>
 )
 
 const getById = effect (serviceId: string) =>
-  (try effect {
+  (effect { return (try effect {
     const service = try readService(serviceId)
     return (isGoneService(service) ? undefined : service)
-  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const getInstance = effect (environmentId: string, serviceId: string) =>
-  (try effect {
+  (effect { return (try effect {
     const instance = try readInstance(environmentId, serviceId)
     return (isGoneInstance(instance) ? undefined : instance)
-  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const listProjectServices = effect (projectId: string) =>
-  ((try projectServices(projectId, serviceFields)).filter((node) => !isGoneService(node))) catch effect (e) => match (e) {
+  (effect { return ((try projectServices(projectId, serviceFields)).filter((node) => !isGoneService(node))) }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: [] as CloudService[];
     default: throw e;
   }
@@ -366,14 +366,14 @@ const instanceSettingsDelta = (input: {
 const listDeploymentTriggers = effect (projectId: string, environmentId: string, serviceId: string) =>
   Array.from(
     try (Query.items(
-      Railway.deploymentTriggers({ projectId, environmentId, serviceId, first: 50 }).pipe(
+      try Effect.orDie(Effect.try({ try: () => Railway.deploymentTriggers({ projectId, environmentId, serviceId, first: 50 }).pipe(
         Query.map((trigger) => ({
           id: trigger.id,
           branch: trigger.branch,
           repository: trigger.repository,
           provider: trigger.provider,
         })),
-      ),
+      ), catch: (e) => e })),
     )
       |> Stream.runCollect(%)),
   )
@@ -475,7 +475,7 @@ const syncAutoUpdates = effect (input: {
 }
 
 const waitForInstance = effect (environmentId: string, serviceId: string) =>
-  (try (effect {
+  (effect { return (try (effect {
     return try effect {
       const instance = try getInstance(environmentId, serviceId)
 
@@ -491,7 +491,7 @@ const waitForInstance = effect (environmentId: string, serviceId: string) =>
       // asynchronously; wait a bounded interval for it to appear.
       times: 10,
       schedule: Schedule.spaced("2 seconds"),
-    }))) catch effect (e) => match (e) {
+    }))) }) catch effect (e) => match (e) {
       when { _tag: "Railway.ServicePending" }: try getInstance(environmentId, serviceId);
       default: throw e;
     }
@@ -504,9 +504,9 @@ const deploymentLogs = Query.fn((deploymentId: string) =>
 
 const fetchDeployLogs = effect (
   deploymentId: string | undefined,
-) => (deploymentId === undefined || deploymentId.length === 0 ? "" : ((try deploymentLogs(deploymentId))
+) => (deploymentId === undefined || deploymentId.length === 0 ? "" : (effect { return ((try deploymentLogs(deploymentId))
   .map((row) => (row.severity != null ? `[${row.severity}] ${row.message}` : row.message))
-  .join("\n")) catch () => "")
+  .join("\n")) }) catch () => "")
 
 // Railway builds routinely take 60–90s and exceed 90s when its build queue is
 // busy (observed 2026-10: a small bundled service stuck BUILDING past 90s), so
@@ -560,29 +560,29 @@ const listUploadedDeployment = effect (input: {
   serviceId: string
   environmentId: string
 }) =>
-  (try (effect {
+  (effect { return (try (effect {
     return Array.from(
       try (Query.items(
-        Railway.deployments({
+        try Effect.orDie(Effect.try({ try: () => Railway.deployments({
           first: 10,
           input: { serviceId: input.serviceId, environmentId: input.environmentId },
-        }).pipe(Query.map((deployment) => ({ id: deployment.id, status: deployment.status }))),
+        }).pipe(Query.map((deployment) => ({ id: deployment.id, status: deployment.status }))), catch: (e) => e })),
       )
         |> Stream.filter(%, (row) => row.id === input.deploymentId)
         |> Stream.take(%, 1)
         |> Stream.runCollect(%)),
     )[0]
   }
-    |> Effect.timeoutOrElse(%, { duration: "8 seconds", orElse: effect () => try Effect.undefined }))) catch effect (
+    |> Effect.timeoutOrElse(%, { duration: "8 seconds", orElse: effect () => undefined }))) }) catch effect (
       e,
-    ) => match (e) { when { _tag: "RailwayNotFound" }: try Effect.undefined; default: throw e; }
+    ) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const waitForDeploymentById = effect (input: {
   deploymentId: string
   serviceId: string
   environmentId: string
 }) =>
-  (try (effect {
+  (effect { return (try (effect {
     // Poll the instance, not `deployment(id)`. Distilled's deployment
     // query is a huge nested selection that 404s/times out for /up ids;
     // `serviceInstance.latestDeployment` is the same record the rest of
@@ -623,7 +623,7 @@ const waitForDeploymentById = effect (input: {
       orElse: effect () => {
         throw new ServiceDeployPending({ serviceId: input.serviceId, status: "pending" })
       },
-    }))) catch effect (pending) => match (pending) {
+    }))) }) catch effect (pending) => match (pending) {
       when { _tag: "Railway.ServiceDeployPending" }: try (effect {
         const instance = try getInstance(input.environmentId, input.serviceId)
         const match = matchUploadedDeployment(instance, input.deploymentId)
@@ -698,7 +698,7 @@ const asVariableMap = (value: unknown): Record<string, string> => {
 }
 
 const listVariableMap = effect (projectId: string, environmentId: string, serviceId: string) =>
-  (asVariableMap(try readVariables({ projectId, environmentId, serviceId, unrendered: true }))) catch effect (e) => match (e) {
+  (effect { return (asVariableMap(try readVariables({ projectId, environmentId, serviceId, unrendered: true }))) }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: {} as Record<string, string>;
     default: throw e;
   }
@@ -836,12 +836,12 @@ export const ServiceProvider = (): infer _ =>
       const stack = try Effect.service(Stack)
       const { dotAlchemy } = try Effect.service(AlchemyContext)
       const virtualEntryPlugin = try Bundle.virtualEntryPlugin
-      const hosted = createRailwayHostedSupport({
+      const hosted = try Effect.orDie(Effect.try({ try: () => createRailwayHostedSupport({
         stackName: stack.name,
         stage: stack.stage,
         virtualEntryPlugin,
         dotAlchemy,
-      })
+      }), catch: (e) => e }))
 
       return Service.Provider.of({
         stables: ["serviceId", "projectId", "environmentId"],
@@ -851,7 +851,7 @@ export const ServiceProvider = (): infer _ =>
           // Runtime exports contain Effects that remain unevaluated during
           // planning. The bundle hash covers their code; they must not prevent
           // code-only changes from reaching the hash comparison below.
-          const news = stripEffects(desired)
+          const news = try Effect.orDie(Effect.try({ try: () => stripEffects(desired), catch: (e) => e }))
           if (news === undefined || !isResolved(news)) return undefined
           if (output === undefined) return undefined
           const nextProject = projectIdOf(news.project)
@@ -947,7 +947,7 @@ export const ServiceProvider = (): infer _ =>
             }
             return attrs
           }
-          return matchesAlchemyPhysicalName(found.name) ? attrs : Unowned(attrs)
+          return matchesAlchemyPhysicalName(found.name) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         list: effect () => {
@@ -999,7 +999,7 @@ export const ServiceProvider = (): infer _ =>
             url: undefined,
             domain: undefined,
             dnsName: `${name}.railway.internal`,
-            rpcToken: plainEnvValue(news.rpcToken) ?? "",
+            rpcToken: (try Effect.orDie(Effect.try({ try: () => plainEnvValue(news.rpcToken), catch: (e) => e }))) ?? "",
             domainId: undefined,
             deploymentId: undefined,
             deploymentStatus: undefined,
@@ -1027,15 +1027,15 @@ export const ServiceProvider = (): infer _ =>
           const source = try resolveRailwayServiceSource(props)
           const hostedMain = source.mode === "main" ? source.main : undefined
           const localContext: RailwayLocalContextSource | undefined = source.mode === "context" ? source : undefined
-          const bound = collectBindingState(bindings ?? [])
+          const bound = try Effect.orDie(Effect.try({ try: () => collectBindingState(bindings ?? []), catch: (e) => e }))
           try assertHostDisk({ name, mounts: bound.mounts })
           const port = hostedMain !== undefined ? (props.port ?? DEFAULT_PORT) : props.port
-          const rpcToken = plainEnvValue(props.rpcToken) ?? output?.rpcToken ?? ""
+          const rpcToken = (try Effect.orDie(Effect.try({ try: () => plainEnvValue(props.rpcToken), catch: (e) => e }))) ?? output?.rpcToken ?? ""
           const env = {
             ...bound.env,
             ...(hostedMain !== undefined ? hosted.alchemyEnv : {}),
             ...(port !== undefined ? { PORT: String(port) } : {}),
-            ...toEnvRecord(props.env),
+            ...try Effect.orDie(Effect.try({ try: () => toEnvRecord(props.env), catch: (e) => e })),
             [RPC_TOKEN_ENV]: rpcToken,
           }
 
@@ -1056,7 +1056,7 @@ export const ServiceProvider = (): infer _ =>
             }
             | undefined
           if (source.mode === "main") {
-            try (session?.note ?? (effect (_message: string) => try Effect.void))(
+            try (session?.note ?? (effect (_message: string) => (undefined as void)))(
               `Bundling ${id} program...`,
             )
             hashed = try hosted.computeCodeHash({
@@ -1100,7 +1100,7 @@ export const ServiceProvider = (): infer _ =>
                 ? { branch: props.branch }
                 : {}),
             }) catch effect (e) => match (e) {
-              when { _tag: "RailwayValidationError" }: try Effect.undefined;
+              when { _tag: "RailwayValidationError" }: undefined;
               default: throw e;
             }
             current = created ?? (try findByName(projectId, name))
@@ -1133,7 +1133,7 @@ export const ServiceProvider = (): infer _ =>
             // Railway's generated-domain API refuses a service that already
             // has PORT (or other env) set — it returns "please try again"
             // forever. Create the hostname on a bare service, then sync env.
-            try (session?.note ?? (effect (_message: string) => try Effect.void))(
+            try (session?.note ?? (effect (_message: string) => (undefined as void)))(
               `Creating service domain for ${id}...`,
             )
             domain = try ensureServiceDomain({
@@ -1282,7 +1282,7 @@ export const ServiceProvider = (): infer _ =>
           const shouldUpload = uploadSource && (codeHash !== output?.code.hash || !latestOk || localSourceChanged)
 
           if (shouldUpload) {
-            const note = session?.note ?? (effect (_message: string) => try Effect.void)
+            const note = session?.note ?? (effect (_message: string) => (undefined as void))
             try note(`Preparing ${id} build context...`)
             const tarball = localPrepared !== undefined
               ? localPrepared.tarball
@@ -1323,7 +1323,7 @@ export const ServiceProvider = (): infer _ =>
             })) ?? instance
           } else if (!uploadSource && (needsDeploy || instance?.latestDeployment == null)) {
             serviceInstanceDeploy(environmentId, current.id) catch effect (e) => match (e) {
-              when { _tag: "RailwayValidationError" }: try Effect.void;
+              when { _tag: "RailwayValidationError" }: (undefined as void);
               default: throw e;
             }
             instance = sourceRepo !== undefined
@@ -1331,7 +1331,7 @@ export const ServiceProvider = (): infer _ =>
               : ((try waitForDeployment(environmentId, current.id)) ?? instance)
           } else if (uploadSource && needsDeploy) {
             serviceInstanceDeploy(environmentId, current.id) catch effect (e) => match (e) {
-              when { _tag: "RailwayValidationError" }: try Effect.void;
+              when { _tag: "RailwayValidationError" }: (undefined as void);
               default: throw e;
             }
             instance = (try waitForDeployment(environmentId, current.id)) ?? instance
@@ -1357,7 +1357,7 @@ export const ServiceProvider = (): infer _ =>
           if (serviceId.length === 0) return
           const environmentId = output.environmentId.length > 0 ? output.environmentId : undefined
           serviceDelete(serviceId, environmentId) catch effect (e) => match (e) {
-            when { _tag: "RailwayNotFound" }: try Effect.void;
+            when { _tag: "RailwayNotFound" }: (undefined as void);
             default: throw e;
           }
           // Other environments may still hold instances of this service, so

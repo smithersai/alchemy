@@ -205,7 +205,7 @@ const toAttributes = (assessment: auditmanager.Assessment): Assessment["Attribut
 const readAssessmentById = effect (assessmentId: string) => {
   const response = auditmanager
     .getAssessment({ assessmentId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   return response?.assessment
@@ -267,7 +267,7 @@ export const AssessmentProvider = (): infer _ =>
             .flatMap((assessment) => (assessment.id ? [assessment.id] : []))
           const hydrated = try Effect.forEach(
             ids,
-            (assessmentId) => readAssessmentById(assessmentId),
+            effect (assessmentId) => try readAssessmentById(assessmentId),
             { concurrency: 5 },
           )
           return hydrated.flatMap((assessment) => assessment === undefined ? [] : [toAttributes(assessment)])
@@ -278,13 +278,14 @@ export const AssessmentProvider = (): infer _ =>
             : try findAssessmentByName(try createAssessmentName(id, olds ?? {}))
           if (!assessment) return undefined
           const attrs = toAttributes(assessment)
-          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The source framework is fixed at creation.
-          if (olds.frameworkId !== news.frameworkId) {
+          if (olds.frameworkId !== resolved.frameworkId) {
             return { action: "replace" } as const
           }
         },
@@ -386,7 +387,7 @@ export const AssessmentProvider = (): infer _ =>
 
           // Sync tags — diff against observed cloud tags.
           const attrs = toAttributes(assessment)
-          const { removed, upsert } = diffTags(attrs.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(attrs.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try auditmanager.untagResource({
               resourceArn: attrs.arn,
@@ -406,7 +407,7 @@ export const AssessmentProvider = (): infer _ =>
         delete: effect ({ output }) => {
           auditmanager
             .deleteAssessment({ assessmentId: output.assessmentId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

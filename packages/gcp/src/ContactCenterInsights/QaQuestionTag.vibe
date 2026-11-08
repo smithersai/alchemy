@@ -118,24 +118,28 @@ const toAttrs = (tag: cci.GoogleCloudContactcenterinsightsV1QaQuestionTag, proje
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsQaQuestionTags({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (((try cci.listProjectsLocationsQaQuestionTags({ parent })).qaQuestionTags ?? [])
-    .filter((tag) => hasOwnershipMarker(tag.displayName))
-    .map((tag) => toAttrs(tag, project))) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: [];
-      default: throw e;
-    }
+  (effect {
+    return (((try cci.listProjectsLocationsQaQuestionTags({ parent })).qaQuestionTags ?? [])
+      .filter((tag) => hasOwnershipMarker(tag.displayName))
+      .map((tag) => toAttrs(tag, project)))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (((try cci.listProjectsLocationsQaQuestionTags({ parent })).qaQuestionTags ?? []).find((tag) =>
-    tag.displayName === displayName
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (((try cci.listProjectsLocationsQaQuestionTags({ parent })).qaQuestionTags ?? []).find((tag) =>
+      tag.displayName === displayName
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const waitAndGet = effect (name: string, operation: cci.GoogleLongrunningOperation) => {
   if (operation.name !== undefined && operation.name.length > 0) {
@@ -149,20 +153,23 @@ export const QaQuestionTagProvider = (): infer _ =>
     stables: ["name", "qaQuestionTagId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
       if (
         previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        && resolved.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.qaQuestionTagId ?? output?.qaQuestionTagId
       if (
         previousId !== undefined
-        && news.qaQuestionTagId !== undefined
-        && news.qaQuestionTagId !== previousId
+        && resolved.qaQuestionTagId !== undefined
+        && resolved.qaQuestionTagId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -188,7 +195,9 @@ export const QaQuestionTagProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -258,7 +267,7 @@ export const QaQuestionTagProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const operation = cci
         .deleteProjectsLocationsQaQuestionTags({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined && (operation.name ?? "").length > 0) {

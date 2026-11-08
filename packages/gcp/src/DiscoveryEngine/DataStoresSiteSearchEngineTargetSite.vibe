@@ -141,19 +141,21 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : discoveryengine
+const getByName = effect (name: string) => (name.length === 0 ? undefined : discoveryengine
   .getProjectsLocationsDataStoresSiteSearchEngineTargetSites({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAtParent = effect (parent: string) =>
-  (Array.from(
-    try (discoveryengine.listProjectsLocationsDataStoresSiteSearchEngineTargetSites
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.targetSites ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (discoveryengine.listProjectsLocationsDataStoresSiteSearchEngineTargetSites
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.targetSites ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByPattern = effect (uri: string, parent: string | undefined, hinted?: string) => {
   if (hinted !== undefined && hinted.length > 0) {
@@ -178,26 +180,29 @@ export const DataStoresSiteSearchEngineTargetSiteProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.dataStore ?? output?.dataStore
-      if (previousParent !== undefined && news.dataStore !== previousParent) {
+      if (previousParent !== undefined && resolved.dataStore !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousExact = olds?.exactMatch ?? output?.exactMatch ?? false
-      const nextExact = news.exactMatch ?? previousExact
+      const nextExact = resolved.exactMatch ?? previousExact
       if (previousExact !== nextExact) {
         return { action: "replace" as const, deleteFirst: true }
       }
       const previousUri = olds?.providedUriPattern ?? output?.providedUriPattern
       if (
         previousUri !== undefined
-        && news.providedUriPattern !== undefined
-        && news.providedUriPattern !== previousUri
+        && resolved.providedUriPattern !== undefined
+        && resolved.providedUriPattern !== previousUri
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
       const previousType = olds?.type ?? output?.type ?? "INCLUDE"
-      const nextType = news.type ?? previousType
+      const nextType = resolved.type ?? previousType
       if (previousType !== nextType) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -216,7 +221,9 @@ export const DataStoresSiteSearchEngineTargetSiteProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, uri)
       // No labels field: without prior state it may not be ours.
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ news, output }) => {
@@ -238,7 +245,7 @@ export const DataStoresSiteSearchEngineTargetSiteProvider = (): infer _ =>
               exactMatch,
               type,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -276,7 +283,7 @@ export const DataStoresSiteSearchEngineTargetSiteProvider = (): infer _ =>
       const operation = discoveryengine
         .deleteProjectsLocationsDataStoresSiteSearchEngineTargetSites({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

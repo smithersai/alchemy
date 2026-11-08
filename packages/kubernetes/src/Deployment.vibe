@@ -503,13 +503,13 @@ class ServiceStillExists extends Data.TaggedError("Kubernetes.ServiceStillExists
 const waitForServiceGone = effect (
   transport: ClusterTransport,
   service: KubernetesObjectRef,
-): void!unknown =>
+): void!unknown!unknown =>
   try Effect.retry(
     effect {
       return (try effect {
         try readObject({ transport, object: service })
         return throw new ServiceStillExists()
-      }) catch effect (e) => match (e) { when { _tag: "KubernetesNotFound" }: try Effect.void; default: throw e; }
+      }) catch effect (e) => match (e) { when { _tag: "KubernetesNotFound" }: (undefined as void); default: throw e; }
     },
     { while: (error) => error instanceof ServiceStillExists, schedule: loadBalancerRetrySchedule },
   )
@@ -535,7 +535,7 @@ export const DeploymentProvider = (): infer _ =>
 
       // Read a LoadBalancer Service's assigned hostname (bounded wait).
       const waitForLoadBalancer = effect (transport: ClusterTransport, service: KubernetesObjectRef) =>
-        (try (effect {
+        (effect { return (try (effect {
           return try effect {
             const hostname = try effect {
               const response = try readObject({ transport, object: service })
@@ -552,8 +552,8 @@ export const DeploymentProvider = (): infer _ =>
             return (hostname ? hostname : throw new ServiceNotReady())
           }
         }
-          |> retryUntilServiceReady(%))) catch effect (e) => match (e) {
-            when ServiceNotReady: try Effect.undefined;
+          |> retryUntilServiceReady(%))) }) catch effect (e) => match (e) {
+            when ServiceNotReady: undefined;
             default: throw e;
           }
 
@@ -577,12 +577,17 @@ export const DeploymentProvider = (): infer _ =>
           // `exports` carries the program's runtime Effects (never plain
           // data); everything else must be resolved to diff.
           const { exports: _exports, ...declared } = input as typeof input & { exports?: unknown }
-          if (!isResolved(declared)) {
+          const resolved__ = try Effect.orDie(Effect.try({ try: () => isResolved(declared) ? declared : undefined, catch: (e) => e }))
+          if (resolved__ === undefined) {
             return
           }
           const news = input as unknown as DeploymentProps
-          const oldCluster = connectionIdentity(tryConnectionOf(clusterOf(olds.cluster)))
-          const newCluster = connectionIdentity(tryConnectionOf(clusterOf(news.cluster)))
+          const cluster2 = clusterOf(olds.cluster)
+          const connection2 = try Effect.orDie(Effect.try({ try: () => tryConnectionOf(cluster2), catch: (e) => e }))
+          const oldCluster = try Effect.orDie(Effect.try({ try: () => connectionIdentity(connection2), catch: (e) => e }))
+          const cluster3 = clusterOf(news.cluster)
+          const connection3 = try Effect.orDie(Effect.try({ try: () => tryConnectionOf(cluster3), catch: (e) => e }))
+          const newCluster = try Effect.orDie(Effect.try({ try: () => connectionIdentity(connection3), catch: (e) => e }))
           // Workload identity keys on (cluster, namespace, serviceAccount);
           // a change to either forces a replacement. Only compare when the
           // old value is present so a first create (empty `olds`) doesn't
@@ -599,7 +604,8 @@ export const DeploymentProvider = (): infer _ =>
           // Content drift: the props don't change when files under a build
           // context (or the bundled program) do, so surface hash drift as
           // an update.
-          const connection = tryConnectionOf(clusterOf(news.cluster))
+          const cluster4 = clusterOf(news.cluster)
+          const connection = try Effect.orDie(Effect.try({ try: () => tryConnectionOf(cluster4), catch: (e) => e }))
           if (output && connection) {
             const adapter = try findClusterAdapter(connection.auth.kind)
             const source = news as WorkloadImageSource
@@ -608,12 +614,12 @@ export const DeploymentProvider = (): infer _ =>
               connection,
               connectionRegistry,
               source,
-              platform: imagePlatformOf(news.architecture, connection),
+              platform: try Effect.orDie(Effect.try({ try: () => imagePlatformOf(news.architecture, connection), catch: (e) => e })),
               port: news.port ?? 3000,
               isExternal: news.isExternal,
-              bootstrap: (adapter.bootstrap?.server ?? makeServerBootstrap)(
+              bootstrap: try Effect.orDie(Effect.try({ try: () => (adapter.bootstrap?.server ?? makeServerBootstrap)(
                 source.handler ?? "default",
-              ),
+              ), catch: (e) => e })),
             })
             if (hash !== undefined && hash !== output.code.hash) {
               return { action: "update" } as const
@@ -622,7 +628,7 @@ export const DeploymentProvider = (): infer _ =>
         },
         read: effect ({ output }) => {
           if (!output) return undefined
-          const connection = connectionOfOutput(output)
+          const connection = try Effect.orDie(Effect.try({ try: () => connectionOfOutput(output), catch: (e) => e }))
           if (!connection) return undefined
           const transport = try connectCluster(connection)
           // The ServiceAccount is the stable first object of the workload
@@ -631,14 +637,15 @@ export const DeploymentProvider = (): infer _ =>
           const anchor = (output.kubernetesObjects ?? [])[0]
           if (!anchor) return output
           const observed = readObject({ transport, object: anchor }) catch effect (e) => match (e) {
-            when { _tag: "KubernetesNotFound" }: try Effect.undefined;
+            when { _tag: "KubernetesNotFound" }: undefined;
             default: throw e;
           }
           if (observed === undefined) return undefined
           return output
         },
         reconcile: effect ({ id, news, bindings, output, session }) => {
-          const connection = toConnection(clusterOf(news.cluster)!)
+          const cluster2 = clusterOf(news.cluster)!
+          const connection = try Effect.orDie(Effect.try({ try: () => toConnection(cluster2), catch: (e) => e }))
           const adapter = try findClusterAdapter(connection.auth.kind)
           const transport = try adapter.connect(connection)
           const namespace = news.namespace ?? "default"
@@ -652,7 +659,7 @@ export const DeploymentProvider = (): infer _ =>
           // Environment from bindings is collected generically; cloud
           // credential grants (any non-env binding channel) require the
           // cluster platform's identity adapter.
-          const { env: bindingEnv, grantKeys } = collectBindingEnv(bindings)
+          const { env: bindingEnv, grantKeys } = try Effect.orDie(Effect.try({ try: () => collectBindingEnv(bindings), catch: (e) => e }))
           if (grantKeys.length > 0 && adapter.identity === undefined) {
             return try Effect.die(
               new Error(
@@ -689,12 +696,12 @@ export const DeploymentProvider = (): infer _ =>
             connectionRegistry,
             id,
             source,
-            platform: imagePlatformOf(news.architecture, connection),
+            platform: try Effect.orDie(Effect.try({ try: () => imagePlatformOf(news.architecture, connection), catch: (e) => e })),
             port,
             isExternal: news.isExternal,
-            bootstrap: (adapter.bootstrap?.server ?? makeServerBootstrap)(
+            bootstrap: try Effect.orDie(Effect.try({ try: () => (adapter.bootstrap?.server ?? makeServerBootstrap)(
               source.handler ?? "default",
-            ),
+            ), catch: (e) => e })),
             tags,
             state: (output?.registry as Record<string, unknown> | undefined)
               ?? (output as Record<string, unknown> | undefined),
@@ -728,7 +735,7 @@ export const DeploymentProvider = (): infer _ =>
                 : {}),
             },
           }
-          const podTemplate = deepMerge(
+          const podTemplate = try Effect.orDie(Effect.try({ try: () => deepMerge(
             {
               metadata: { labels },
               spec: {
@@ -750,7 +757,7 @@ export const DeploymentProvider = (): infer _ =>
               },
             },
             news.podTemplate,
-          )
+          ), catch: (e) => e }))
           const deploymentObject: KubernetesObjectDefinition = {
             apiVersion: "apps/v1",
             kind: "Deployment",
@@ -801,7 +808,7 @@ export const DeploymentProvider = (): infer _ =>
           // to it), so the URL carries the port unless it's 80 — mirroring
           // `AWS.ECS.Service`'s url semantics.
           const hostname = serviceType === "LoadBalancer"
-            ? try waitForLoadBalancer(transport, toKubernetesObjectRef(serviceObject))
+            ? try waitForLoadBalancer(transport, try Effect.orDie(Effect.try({ try: () => toKubernetesObjectRef(serviceObject), catch: (e) => e })))
             : undefined
           const url = hostname === undefined
             ? undefined
@@ -825,7 +832,7 @@ export const DeploymentProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          const connection = connectionOfOutput(output)
+          const connection = try Effect.orDie(Effect.try({ try: () => connectionOfOutput(output), catch: (e) => e }))
           if (!connection) return
           const adapter = try findClusterAdapter(connection.auth.kind)
 

@@ -252,43 +252,46 @@ export const SubscriptionProvider = (): infer _ =>
     stables: ["name", "subscriptionId", "project", "uid", "createTime", "targetResource"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.subscriptionId ?? output?.subscriptionId
       if (
         previousId !== undefined
-        && news.subscriptionId !== undefined
-        && toSubscriptionName(news.subscriptionId) !== toSubscriptionName(previousId)
-        && news.subscriptionId !== output?.subscriptionId
-        && toSubscriptionName(news.subscriptionId) !== output?.name
+        && resolved.subscriptionId !== undefined
+        && toSubscriptionName(resolved.subscriptionId) !== toSubscriptionName(previousId)
+        && resolved.subscriptionId !== output?.subscriptionId
+        && toSubscriptionName(resolved.subscriptionId) !== output?.name
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousTarget = olds?.targetResource ?? output?.targetResource
-      if (previousTarget !== undefined && news.targetResource !== previousTarget) {
+      if (previousTarget !== undefined && resolved.targetResource !== previousTarget) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousTopic = olds?.pubsubTopic ?? output?.pubsubTopic
       if (
-        news.pubsubTopic !== undefined
+        resolved.pubsubTopic !== undefined
         && previousTopic !== undefined
-        && !sameTopic(news.pubsubTopic, previousTopic)
+        && !sameTopic(resolved.pubsubTopic, previousTopic)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousPayload = olds?.payloadOptions ?? output?.payloadOptions
       if (
-        news.payloadOptions !== undefined
+        resolved.payloadOptions !== undefined
         && previousPayload !== undefined
-        && (news.payloadOptions.includeResource !== previousPayload.includeResource
-          || (news.payloadOptions.fieldMask ?? "") !== (previousPayload.fieldMask ?? ""))
+        && (resolved.payloadOptions.includeResource !== previousPayload.includeResource
+          || (resolved.payloadOptions.fieldMask ?? "") !== (previousPayload.fieldMask ?? ""))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousDrive = olds?.driveOptions ?? output?.driveOptions
       if (
-        news.driveOptions?.includeDescendants !== undefined
+        resolved.driveOptions?.includeDescendants !== undefined
         && previousDrive?.includeDescendants !== undefined
-        && news.driveOptions.includeDescendants !== previousDrive.includeDescendants
+        && resolved.driveOptions.includeDescendants !== previousDrive.includeDescendants
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -309,7 +312,9 @@ export const SubscriptionProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const topic = try getTopic(existing.notificationEndpoint?.pubsubTopic ?? "")
       const attrs = toAttrs(existing, env.project, output?.managedTopic === true)
-      return (try ownedByWesubLabels(id, topic?.labels)) ? attrs : Unowned(attrs)
+      return (try ownedByWesubLabels(id, topic?.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -348,11 +353,11 @@ export const SubscriptionProvider = (): infer _ =>
               expireTime: news.expireTime,
               ttl: news.ttl,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           // ALREADY_EXISTS (6): a concurrent create won the race.
           const settled = waitForOperation(created) catch effect (error) => match (error) {
-            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? created : throw error);
+            when { _tag: "GCP.OperationFailed" }: (error.code === 6 ? created : throw error);
             default: throw error;
           }
           const createdName = operationResourceName(settled) ?? lookup
@@ -397,7 +402,7 @@ export const SubscriptionProvider = (): infer _ =>
       if (current.state === "SUSPENDED") {
         const reactivated = we
           .reactivateSubscriptions({ name, body: {} }) catch effect (e) => match (e) {
-            when { _tag: "NotFound" } or { _tag: "BadRequest" } or { _tag: "Conflict" }: try Effect.undefined;
+            when { _tag: "NotFound" } or { _tag: "BadRequest" } or { _tag: "Conflict" }: undefined;
             default: throw e;
           }
         if (reactivated !== undefined) {
@@ -415,7 +420,7 @@ export const SubscriptionProvider = (): infer _ =>
       if (name.length > 0) {
         const operation = we
           .deleteSubscriptions({ name, allowMissing: true }) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.undefined;
+            when { _tag: "NotFound" }: undefined;
             default: throw e;
           }
         if (operation !== undefined) {
@@ -430,7 +435,7 @@ export const SubscriptionProvider = (): infer _ =>
       if (output.managedTopic === true && output.pubsubTopic) {
         pubsub
           .deleteProjectsTopics({ topic: output.pubsubTopic }) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.void;
+            when { _tag: "NotFound" }: (undefined as void);
             default: throw e;
           }
       }

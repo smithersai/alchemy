@@ -230,7 +230,7 @@ const toAttrs = (job: kms.ImportJob, project: string, region: string): ImportJob
 const getByName = effect (name: string) =>
   kms
     .getProjectsLocationsKeyRingsImportJobs({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -252,16 +252,18 @@ const paginate = effect <A, E, R>(
 
 const listKeyRingsAt = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
-      const response = try kms
-        .listProjectsLocationsKeyRings({
-          parent,
-          pageSize: 1000,
-          pageToken,
+    (effect {
+      return (try effect {
+        const response = try kms
+          .listProjectsLocationsKeyRings({
+            parent,
+            pageSize: 1000,
+            pageToken,
+          })
+        return ({
+          items: response.keyRings ?? [],
+          nextPageToken: response.nextPageToken,
         })
-      return ({
-        items: response.keyRings ?? [],
-        nextPageToken: response.nextPageToken,
       })
     }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
@@ -274,16 +276,18 @@ const listKeyRingsAt = effect (parent: string) =>
 
 const listImportJobsInRing = effect (parent: string) =>
   try paginate(effect (pageToken) =>
-    (try effect {
-      const response = try kms
-        .listProjectsLocationsKeyRingsImportJobs({
-          parent,
-          pageSize: 1000,
-          pageToken,
+    (effect {
+      return (try effect {
+        const response = try kms
+          .listProjectsLocationsKeyRingsImportJobs({
+            parent,
+            pageSize: 1000,
+            pageToken,
+          })
+        return ({
+          items: response.importJobs ?? [],
+          nextPageToken: response.nextPageToken,
         })
-      return ({
-        items: response.importJobs ?? [],
-        nextPageToken: response.nextPageToken,
       })
     }) catch effect (e) => match (e) {
       when { _tag: "NotFound" }: {
@@ -306,9 +310,9 @@ const listImportJobsAt = effect (locationParent: string) => {
 
 const waitReady = effect (
   name: string,
-): kms.ImportJob!ImportJobNotResolved | ImportJobPending | kms.GetProjectsLocationsKeyRingsImportJobsError!kms.GcpOpContext => {
+): kms.ImportJob!(ImportJobNotResolved | ImportJobPending | kms.GetProjectsLocationsKeyRingsImportJobsError)!kms.GcpOpContext => {
   const probe:
-    kms.ImportJob!ImportJobNotResolved | ImportJobPending | kms.GetProjectsLocationsKeyRingsImportJobsError!kms.GcpOpContext =
+    kms.ImportJob!(ImportJobNotResolved | ImportJobPending | kms.GetProjectsLocationsKeyRingsImportJobsError)!kms.GcpOpContext =
       effect {
         return try effect {
           const job = try getByName(name)
@@ -351,11 +355,14 @@ export const ImportJobProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousId = olds?.importJobId ?? output?.importJobId
-      const nextId = news.importJobId ?? previousId
+      const nextId = resolved.importJobId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
 
       const previousParent = output?.keyRing
@@ -364,8 +371,8 @@ export const ImportJobProvider = (): infer _ =>
           : undefined)
       const nextParent = resolveParent(
         output?.project ?? "",
-        news.keyRing,
-        news.location ?? output?.location,
+        resolved.keyRing,
+        resolved.location ?? output?.location,
         env.region,
       ).parent
       const parentChanged = previousParent !== undefined && previousParent !== nextParent

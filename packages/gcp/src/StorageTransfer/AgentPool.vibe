@@ -149,12 +149,19 @@ export const AgentPoolProvider = (): infer _ =>
     stables: ["name", "agentPoolId", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previous = olds?.agentPoolId ?? output?.agentPoolId
       if (
-        previous !== undefined
-        && news.agentPoolId !== undefined
-        && sanitizeAgentPoolId(news.agentPoolId) !== previous
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previous !== undefined
+            && resolved.agentPoolId !== undefined
+            && sanitizeAgentPoolId(resolved.agentPoolId) !== previous,
+          catch: (e) => e,
+        }))
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -164,11 +171,14 @@ export const AgentPoolProvider = (): infer _ =>
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const agentPoolId = try toAgentPoolId(id, olds?.agentPoolId, output?.agentPoolId)
-      const name = output?.name ?? agentPoolName(env.project, agentPoolId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => agentPoolName(env.project, agentPoolId), catch: (e) => e })))
       const existing = try getAgentPool(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -186,13 +196,19 @@ export const AgentPoolProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const agentPoolId = try toAgentPoolId(id, news.agentPoolId, output?.agentPoolId)
-      const name = agentPoolName(env.project, agentPoolId)
-      const ownership = try createOwnership(id)
-      const desiredDisplayName = encodeOwnership(
-        ownership,
-        news.displayName,
-        MAX_AGENT_POOL_DISPLAY_NAME,
+      const name = try Effect.orDie(
+        Effect.try({ try: () => agentPoolName(env.project, agentPoolId), catch: (e) => e }),
       )
+      const ownership = try createOwnership(id)
+      const desiredDisplayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnership(
+            ownership,
+            news.displayName,
+            MAX_AGENT_POOL_DISPLAY_NAME,
+          ),
+        catch: (e) => e,
+      }))
       const desiredLimit = toBandwidth(news.bandwidthLimit)
 
       let current = try getAgentPool(output?.name ?? name)
@@ -224,11 +240,19 @@ export const AgentPoolProvider = (): infer _ =>
       }
 
       const displayChanged = (current.displayName ?? "") !== desiredDisplayName
-      const limitChanged = !sameValue(toBandwidth(current.bandwidthLimit), desiredLimit)
-      const updateMask = fieldMask([
-        displayChanged ? "display_name" : undefined,
-        limitChanged ? "bandwidth_limit" : undefined,
-      ])
+      const left = toBandwidth(current.bandwidthLimit)
+      const limitChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameValue(left, desiredLimit),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            displayChanged ? "display_name" : undefined,
+            limitChanged ? "bandwidth_limit" : undefined,
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try storagetransfer.patchProjectsAgentPools({

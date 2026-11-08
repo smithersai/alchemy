@@ -146,31 +146,35 @@ const toAttrs = (
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : integrations
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
   .getProjectsLocationsIntegrationsVersionsTestCases({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (integrations.listProjectsLocationsIntegrationsVersionsTestCases
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.testCases ?? []))
-      |> Stream.filter(%, (testCase) => hasOwnershipMarker(testCase.description))
-      |> Stream.map(%, (testCase) => toAttrs(testCase, project, region, parent))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsIntegrationsVersionsTestCases
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.testCases ?? []))
+        |> Stream.filter(%, (testCase) => hasOwnershipMarker(testCase.description))
+        |> Stream.map(%, (testCase) => toAttrs(testCase, project, region, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findOwned = effect (parent: string, id: string) =>
-  (try effect {
-    const option = try (integrations.listProjectsLocationsIntegrationsVersionsTestCases
-      .pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.testCases ?? []))
-      |> Stream.filterEffect(%, effect (testCase) => try ownedByAlchemy(id, testCase.description))
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsIntegrationsVersionsTestCases
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.testCases ?? []))
+        |> Stream.filterEffect(%, effect (testCase) => try ownedByAlchemy(id, testCase.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const listWildcard = effect (project: string, location: string) =>
   try listAt(`${locationParent(project, location)}/integrations/-/versions/-`, project, location)
@@ -180,20 +184,23 @@ export const IntegrationsVersionsTestCasesProvider = (): infer _ =>
     stables: ["name", "testCaseId", "version", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousVersion = olds?.version ?? output?.version
       if (
         previousVersion !== undefined
-        && news.version !== previousVersion
-        && !news.version.endsWith(`/${lastSegment(previousVersion)}`)
+        && resolved.version !== previousVersion
+        && !resolved.version.endsWith(`/${lastSegment(previousVersion)}`)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.testCaseId ?? output?.testCaseId
       if (
         previousId !== undefined
-        && news.testCaseId !== undefined
-        && news.testCaseId !== previousId
+        && resolved.testCaseId !== undefined
+        && resolved.testCaseId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -212,7 +219,9 @@ export const IntegrationsVersionsTestCasesProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region, version)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -282,6 +291,6 @@ export const IntegrationsVersionsTestCasesProvider = (): infer _ =>
       integrations
         .deleteProjectsLocationsIntegrationsVersionsTestCases({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

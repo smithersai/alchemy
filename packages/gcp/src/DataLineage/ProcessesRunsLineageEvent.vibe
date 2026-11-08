@@ -250,31 +250,44 @@ export const ProcessesRunsLineageEventProvider = (): infer _ =>
     stables: ["name", "lineageEventId", "run", "process", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previous = identityFingerprint({
         startTime: olds?.startTime ?? output?.startTime,
         endTime: olds?.endTime ?? output?.endTime,
         links: olds?.links ?? output?.links,
       })
       const next = identityFingerprint({
-        startTime: news.startTime ?? olds?.startTime ?? output?.startTime,
-        endTime: news.endTime ?? olds?.endTime ?? output?.endTime,
-        links: news.links ?? olds?.links ?? output?.links,
+        startTime: resolved.startTime ?? olds?.startTime ?? output?.startTime,
+        endTime: resolved.endTime ?? olds?.endTime ?? output?.endTime,
+        links: resolved.links ?? olds?.links ?? output?.links,
       })
-      return replaceOnIdentity({
-        previousId: olds?.lineageEventId ?? output?.lineageEventId,
-        nextId: news.lineageEventId,
-        previousParent: olds?.run ?? output?.run,
-        nextParent: news.run,
-        extra: (output !== undefined && previousLocation !== nextLocation)
-          || (output !== undefined && previous !== next),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.lineageEventId ?? output?.lineageEventId,
+            nextId: resolved.lineageEventId,
+            previousParent: olds?.run ?? output?.run,
+            nextParent: resolved.run,
+            extra: (output !== undefined && previousLocation !== nextLocation)
+              || (output !== undefined && previous !== next),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -287,7 +300,9 @@ export const ProcessesRunsLineageEventProvider = (): infer _ =>
       if (output?.name === undefined && (typeof parentRef !== "string" || parentRef.length === 0)) {
         return undefined
       }
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const run = runOf(
         olds?.run ?? output?.run ?? "",
         olds?.process ?? output?.process,
@@ -300,9 +315,10 @@ export const ProcessesRunsLineageEventProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
       const parent = try getProcess(attrs.process)
-      return parent === undefined || hasAlchemyAttributeMap(parent.attributes)
+      return parent === undefined
+          || (try Effect.orDie(Effect.try({ try: () => hasAlchemyAttributeMap(parent.attributes), catch: (e) => e })))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -319,7 +335,9 @@ export const ProcessesRunsLineageEventProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const run = runOf(news.run, news.process, env.project, location)
       const lineageEventId = try toPhysicalId(id, news.lineageEventId, output?.lineageEventId)
       const name = output?.name ?? resourceName(run, lineageEventId)

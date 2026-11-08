@@ -197,18 +197,27 @@ export const SignedCustomersDeploymentsDeviceProvider = (): infer _ =>
     stables: ["name", "deviceId", "parent", "project", "serialNumber", "fccId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousParent: olds?.parent ?? output?.parent,
-        nextParent: expandPath(news.parent),
-        previousId: olds?.name ?? output?.name,
-        nextId: news.name,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousParent: olds?.parent ?? output?.parent,
+            nextParent: expandPath(resolved.parent),
+            previousId: olds?.name ?? output?.name,
+            nextId: resolved.name,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandPath(olds?.parent ?? output?.parent ?? "")
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => expandPath(olds?.parent ?? output?.parent ?? ""), catch: (e) => e }),
+      )
       const name = olds?.name ?? output?.name ?? ""
       let existing = try getDeploymentDevice(name)
       let locatedParent = existing ? parentOf(existing.name ?? "") || parent : parent
@@ -220,7 +229,9 @@ export const SignedCustomersDeploymentsDeviceProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, locatedParent, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -241,23 +252,32 @@ export const SignedCustomersDeploymentsDeviceProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandPath(news.parent)
+      const parent = try Effect.orDie(Effect.try({ try: () => expandPath(news.parent), catch: (e) => e }))
       const decoded = try decodeSignedDevice(news.encodedDevice)
       const ownership = try ownershipLabels(id)
-      const displayName = encodeOwnershipLine(
-        ownership,
-        try toDisplayName(id, news.displayName ?? decoded?.displayName, output?.displayName),
-        MAX_DISPLAY_NAME_LENGTH,
-      )
+      const text = try toDisplayName(id, news.displayName ?? decoded?.displayName, output?.displayName)
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            text,
+            MAX_DISPLAY_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
       const serialNumber = news.serialNumber ?? output?.serialNumber ?? decoded?.serialNumber
-      const desired = deviceBody({
-        displayName,
-        serialNumber,
-        fccId: news.fccId ?? output?.fccId ?? decoded?.fccId,
-        grantRangeAllowlists: news.grantRangeAllowlists,
-        preloadedConfig: news.preloadedConfig,
-        deviceMetadata: news.deviceMetadata,
-      })
+      const desired = try Effect.orDie(Effect.try({
+        try: () =>
+          deviceBody({
+            displayName,
+            serialNumber,
+            fccId: news.fccId ?? output?.fccId ?? decoded?.fccId,
+            grantRangeAllowlists: news.grantRangeAllowlists,
+            preloadedConfig: news.preloadedConfig,
+            deviceMetadata: news.deviceMetadata,
+          }),
+        catch: (e) => e,
+      }))
 
       let current = try getDeploymentDevice(news.name ?? output?.name ?? "")
       if (current === undefined) {
@@ -267,7 +287,7 @@ export const SignedCustomersDeploymentsDeviceProvider = (): infer _ =>
       }
       if (current === undefined) {
         const rows = try listCustomerDeploymentDevices(parent)
-        current = findDeviceBySerial(rows, serialNumber)
+        current = try Effect.orDie(Effect.try({ try: () => findDeviceBySerial(rows, serialNumber), catch: (e) => e }))
       }
 
       if (current === undefined) {
@@ -300,11 +320,26 @@ export const SignedCustomersDeploymentsDeviceProvider = (): infer _ =>
       const name = current.name ?? news.name ?? output?.name ?? ""
       const nameChanged = !sameText(current.displayName, displayName)
       const allowlistsChanged = news.grantRangeAllowlists !== undefined
-        && !sameJson(frequencyRangesOf(current.grantRangeAllowlists), news.grantRangeAllowlists)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, frequencyRangesOf(current.grantRangeAllowlists), news.grantRangeAllowlists),
+            catch: (e) => e,
+          }),
+        ))
       const configChanged = news.preloadedConfig !== undefined
-        && !sameJson(deviceConfigOf(current.preloadedConfig), news.preloadedConfig)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, deviceConfigOf(current.preloadedConfig), news.preloadedConfig),
+            catch: (e) => e,
+          }),
+        ))
       const metadataChanged = news.deviceMetadata !== undefined
-        && !sameJson(deviceMetadataOf(current.deviceMetadata), news.deviceMetadata)
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, deviceMetadataOf(current.deviceMetadata), news.deviceMetadata),
+            catch: (e) => e,
+          }),
+        ))
       if (nameChanged || allowlistsChanged || configChanged || metadataChanged) {
         current = try sasportal.patchDeploymentsDevices({
           name,

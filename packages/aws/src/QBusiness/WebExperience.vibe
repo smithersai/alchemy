@@ -137,7 +137,7 @@ export const WebExperience = Resource<WebExperience>("AWS.QBusiness.WebExperienc
 const fetchTags = effect (arn: string) => {
   const response = qbusiness
     .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
@@ -151,7 +151,7 @@ interface WebExperienceState {
 const readWebExperienceById = effect (applicationId: string, webExperienceId: string) => {
   const described = qbusiness
     .getWebExperience({ applicationId, webExperienceId }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described || described.status === "DELETING") return undefined
@@ -204,16 +204,16 @@ const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
 
 // A web experience without identity-provider auth settles in
 // PENDING_AUTH_CONFIG rather than ACTIVE — both are converged states.
-const waitForWebExperienceSettled = (
+const waitForWebExperienceSettled = effect (
   applicationId: string,
   webExperienceId: string,
   target: "SETTLED" | "DELETED",
 ) =>
-  retryWhileNotReady(
+  try retryWhileNotReady(
     effect {
       const described = qbusiness
         .getWebExperience({ applicationId, webExperienceId }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (target === "DELETED") {
@@ -261,13 +261,14 @@ export const WebExperienceProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The parent application is fixed at creation.
-          if (olds.applicationId !== news.applicationId) {
+          if (olds.applicationId !== resolved.applicationId) {
             return { action: "replace" } as const
           }
         },
@@ -356,7 +357,7 @@ export const WebExperienceProvider = (): infer _ =>
           }
 
           // Sync tags — diff against observed cloud tags.
-          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.attrs.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try qbusiness.untagResource({
               resourceARN: state.attrs.webExperienceArn,
@@ -389,7 +390,7 @@ export const WebExperienceProvider = (): infer _ =>
               applicationId: output.applicationId,
               webExperienceId: output.webExperienceId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           try waitForWebExperienceSettled(

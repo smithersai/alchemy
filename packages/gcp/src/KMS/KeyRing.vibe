@@ -122,25 +122,27 @@ const toAttrs = (keyRing: kms.KeyRing, project: string, region: string): infer _
 const getByName = effect (name: string) =>
   kms
     .getProjectsLocationsKeyRings({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const listKeyRingsAt = effect (parent: string) =>
-  (try effect {
-    const found: kms.KeyRing[] = []
-    let pageToken: string | undefined
-    for (let page = 0; page < 10; page++) {
-      const response = try kms.listProjectsLocationsKeyRings({
-        parent,
-        pageSize: 1000,
-        pageToken,
-      })
-      found.push(...(response.keyRings ?? []))
-      pageToken = response.nextPageToken
-      if (pageToken === undefined || pageToken === "") break
-    }
-    return found
+  (effect {
+    return (try effect {
+      const found: kms.KeyRing[] = []
+      let pageToken: string | undefined
+      for (let page = 0; page < 10; page++) {
+        const response = try kms.listProjectsLocationsKeyRings({
+          parent,
+          pageSize: 1000,
+          pageToken,
+        })
+        found.push(...(response.keyRings ?? []))
+        pageToken = response.nextPageToken
+        if (pageToken === undefined || pageToken === "") break
+      }
+      return found
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as kms.KeyRing[]; default: throw e; }
 
 export const KeyRingProvider = (): infer _ =>
@@ -151,14 +153,17 @@ export const KeyRingProvider = (): infer _ =>
     stables: ["name", "keyRingId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.keyRingId ?? output?.keyRingId
-      const nextId = news.keyRingId ?? previousId
+      const nextId = resolved.keyRingId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
 
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       const locationChanged = previousLocation !== nextLocation
 
       if (idChanged || locationChanged) {

@@ -157,16 +157,19 @@ export const AppgroupProvider = (): infer _ =>
     stables: ["name", "appgroupId", "organizationId", "project", "appGroupId", "createdAt"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.appgroupId ?? output?.appgroupId
       const previousOrg = olds?.organizationId ?? output?.organizationId
       if (
         (previousId !== undefined
-          && news.appgroupId !== undefined
-          && news.appgroupId !== previousId)
+          && resolved.appgroupId !== undefined
+          && resolved.appgroupId !== previousId)
         || (previousOrg !== undefined
-          && news.organizationId !== undefined
-          && news.organizationId !== previousOrg)
+          && resolved.organizationId !== undefined
+          && resolved.organizationId !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -186,24 +189,30 @@ export const AppgroupProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, organizationId)
-      const { labels } = fromAttributes(existing.attributes)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => fromAttributes(existing.attributes), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organizationId = try resolveOrgId(env.project)
-      return (Array.from(
-        try (apigee.listOrganizationsAppgroups
-          .pages({
-            parent: orgParent(organizationId),
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.appGroups ?? []))
-          |> Stream.filter(%, (group) => fromAttributes(group.attributes).labels["alchemy-id"] !== undefined)
-          |> Stream.map(%, (group) => toAttrs(group, env.project, organizationId))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsAppgroups
+            .pages({
+              parent: try Effect.orDie(Effect.try({ try: () => orgParent(organizationId), catch: (e) => e })),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.appGroups ?? []))
+            |> Stream.filter(%, (group) => fromAttributes(group.attributes).labels["alchemy-id"] !== undefined)
+            |> Stream.map(%, (group) => toAttrs(group, env.project, organizationId))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
         default: throw e;
       }
@@ -220,7 +229,9 @@ export const AppgroupProvider = (): infer _ =>
       )
       const name = resourceName(organizationId, appgroupId)
       const ownership = try createInternalLabels(id)
-      const desiredAttributes = toAttributes(ownership, news.attributes)
+      const desiredAttributes = try Effect.orDie(
+        Effect.try({ try: () => toAttributes(ownership, news.attributes), catch: (e) => e }),
+      )
       const desiredStatus = news.status ?? "active"
       const body: apigee.GoogleCloudApigeeV1AppGroup = {
         name: appgroupId,
@@ -250,7 +261,9 @@ export const AppgroupProvider = (): infer _ =>
         || (current.email ?? "") !== (news.email ?? "")
         || (current.channelId ?? "") !== (news.channelId ?? "")
         || (current.channelUri ?? "") !== (news.channelUri ?? "")
-        || !sameJson(current.attributes ?? [], desiredAttributes)
+        || !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.attributes ?? [], desiredAttributes), catch: (e) => e }),
+        ))
 
       if (needsUpdate) {
         current = try apigee.updateOrganizationsAppgroups({

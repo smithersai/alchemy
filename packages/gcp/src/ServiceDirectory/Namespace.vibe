@@ -153,7 +153,7 @@ const getByName = effect (name: string) =>
     }
 
 const listNamespacesAt = effect (parent: string, project: string, region: string) =>
-  (try effect {
+  (effect { return (try effect {
     const found: ReturnType<typeof toAttrs>[] = []
     let pageToken: string | undefined
     do {
@@ -170,21 +170,22 @@ const listNamespacesAt = effect (parent: string, project: string, region: string
       pageToken = response.nextPageToken
     } while (pageToken !== undefined && pageToken !== "")
     return found
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[]; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[]; default: throw e; }
 
 export const NamespaceProvider = (): infer _ =>
   Provider.succeed(Namespace, {
     stables: ["name", "namespaceId", "project", "location", "uid"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.namespaceId ?? output?.namespaceId
-      const nextId = news.namespaceId ?? previousId
+      const nextId = resolved.namespaceId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
 
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       if (idChanged || previousLocation !== nextLocation) {
         return { action: "replace" as const }
       }
@@ -199,7 +200,7 @@ export const NamespaceProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -247,7 +248,7 @@ export const NamespaceProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const name = resourceName(env.project, location, namespaceId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -270,7 +271,7 @@ export const NamespaceProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       if (upsert.length > 0 || removed.length > 0) {
         current = try servicedirectory.patchProjectsLocationsNamespaces({
           name,
@@ -286,11 +287,11 @@ export const NamespaceProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (servicedirectory.deleteProjectsLocationsNamespaces({ name: output.name })
+      ;(effect { return (try (servicedirectory.deleteProjectsLocationsNamespaces({ name: output.name })
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("1 second"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
     },
   })

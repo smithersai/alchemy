@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as ec2 from "@distilled.cloud/aws/ec2"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -15,13 +17,29 @@ import {
 } from "./SecurityGroupRule.ts"
 import type { VpcId } from "./Vpc.vibe"
 
-error DefaultSecurityGroupNotFound {
-  mutable vpcId: VpcId
+class DefaultSecurityGroupNotFound extends $MutableErrorBase("DefaultSecurityGroupNotFound")<{
+  vpcId: VpcId
+}> {
+  static {
+    $MutableErrorMatcher(this, "DefaultSecurityGroupNotFound", true)
+  }
 }
 
-error InvalidDefaultSecurityGroupRules { mutable message: string }
+class InvalidDefaultSecurityGroupRules extends $MutableErrorBase("InvalidDefaultSecurityGroupRules")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "InvalidDefaultSecurityGroupRules", true)
+  }
+}
 
-error DefaultSecurityGroupRulesNotConverged { mutable groupId: SecurityGroupId }
+class DefaultSecurityGroupRulesNotConverged extends $MutableErrorBase("DefaultSecurityGroupRulesNotConverged")<{
+  groupId: SecurityGroupId
+}> {
+  static {
+    $MutableErrorMatcher(this, "DefaultSecurityGroupRulesNotConverged", true)
+  }
+}
 
 /** An observed rule on the AWS-created default security group. */
 export interface DefaultSecurityGroupRuleAttributes<IsEgress extends boolean> {
@@ -318,10 +336,19 @@ export const DefaultSecurityGroupProvider = (): infer _ =>
           })
         }
         const desired = new Map<string, SecurityGroupRuleData>()
-        for (const rule of expandSecurityGroupRules(rules)) {
-          const key = securityGroupRuleKey({ ...rule, description: undefined })
+        for (
+          const rule of try Effect.orDie(Effect.try({ try: () => expandSecurityGroupRules(rules), catch: (e) => e }))
+        ) {
+          const key = try Effect.orDie(
+            Effect.try({ try: () => securityGroupRuleKey({ ...rule, description: undefined }), catch: (e) => e }),
+          )
           const previous = desired.get(key)
-          if (previous && securityGroupRuleKey(previous) !== securityGroupRuleKey(rule)) {
+          if (
+            previous && (try Effect.orDie(Effect.try({
+                try: () => securityGroupRuleKey(previous),
+                catch: (e) => e,
+              }))) !== (try Effect.orDie(Effect.try({ try: () => securityGroupRuleKey(rule), catch: (e) => e })))
+          ) {
             throw new InvalidDefaultSecurityGroupRules({
               message: "Duplicate rules must have the same description.",
             })
@@ -365,12 +392,14 @@ export const DefaultSecurityGroupProvider = (): infer _ =>
               SecurityGroupRuleIds: [rule.SecurityGroupRuleId!],
               DryRun: false,
             }
-            ;(try effect {
-              if (isEgress) try ec2.revokeSecurityGroupEgress(request)
-              else try ec2.revokeSecurityGroupIngress(request)
+            ;(effect {
+              return (try effect {
+                if (isEgress) try ec2.revokeSecurityGroupEgress(request)
+                else try ec2.revokeSecurityGroupIngress(request)
+              })
             }) catch effect (e) => match (e) {
               when { _tag: "InvalidPermission.NotFound" } or { _tag: "InvalidSecurityGroupRuleId.NotFound" }:
-                try Effect.void;
+                (undefined as void);
               default: throw e;
             }
           } else if ((wanted.description ?? "") !== (rule.Description ?? "")) {
@@ -407,11 +436,13 @@ export const DefaultSecurityGroupProvider = (): infer _ =>
             IpPermissions: [toPermission(rule)],
             DryRun: false,
           }
-          ;(try (
-            isEgress
-              ? ec2.authorizeSecurityGroupEgress(request)
-              : ec2.authorizeSecurityGroupIngress(request)
-          )) catch effect (e) => match (e) {
+          ;(effect {
+            return (try (
+              isEgress
+                ? ec2.authorizeSecurityGroupEgress(request)
+                : ec2.authorizeSecurityGroupIngress(request)
+            ))
+          }) catch effect (e) => match (e) {
             when { _tag: "InvalidPermission.Duplicate" }: throw new DefaultSecurityGroupRulesNotConverged({ groupId });
             default: throw e;
           }
@@ -438,12 +469,26 @@ export const DefaultSecurityGroupProvider = (): infer _ =>
 
         diff: effect ({ news, olds }) => {
           // An unresolved VPC must not expose the previous group's stable identity.
-          if (!("vpcId" in news) || !isResolved(news.vpcId) || news.vpcId !== olds.vpcId) {
+          if (
+            !("vpcId" in news) || !(try Effect.orDie(Effect.try({
+              try: () => isResolved(news.vpcId),
+              catch: (e) => e,
+            }))) || news.vpcId !== olds.vpcId
+          ) {
             return { action: "replace" }
           }
-          if (!isResolved(news.ingress) || !isResolved(news.egress)) return
-          const ingress = try desiredRules(resolveSecurityGroupRules(news.ingress, false))
-          const egress = try desiredRules(resolveSecurityGroupRules(news.egress, true))
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(news.ingress), catch: (error) => error })))
+            || !(try Effect.orDie(Effect.try({ try: () => isResolved(news.egress), catch: (error) => error })))
+          ) return
+          const rules = news.ingress as typeof olds.ingress
+          const ingress = try desiredRules(
+            try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(rules, false), catch: (e) => e })),
+          )
+          const rules2 = news.egress as typeof olds.egress
+          const egress = try desiredRules(
+            try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(rules2, true), catch: (e) => e })),
+          )
           const group = try describeGroup(news.vpcId)
           if (!group?.GroupId) return { action: "update", stables: [] }
           const groupId = group.GroupId as SecurityGroupId
@@ -456,8 +501,14 @@ export const DefaultSecurityGroupProvider = (): infer _ =>
 
         reconcile: effect ({ news, session }) => {
           // Validate both directions before changing either one.
-          const ingress = try desiredRules(resolveSecurityGroupRules(news.ingress, false))
-          const egress = try desiredRules(resolveSecurityGroupRules(news.egress, true))
+          const ingress = try desiredRules(
+            try Effect.orDie(
+              Effect.try({ try: () => resolveSecurityGroupRules(news.ingress, false), catch: (e) => e }),
+            ),
+          )
+          const egress = try desiredRules(
+            try Effect.orDie(Effect.try({ try: () => resolveSecurityGroupRules(news.egress, true), catch: (e) => e })),
+          )
           const group = try (effect {
             return try effect {
               const group = try describeGroup(news.vpcId)
@@ -507,7 +558,7 @@ export const DefaultSecurityGroupProvider = (): infer _ =>
         },
 
         // AWS owns the default group. Intentionally leave it and its rules as-is.
-        delete: effect () => try Effect.void,
+        delete: effect () => (undefined as void),
       }
     },
   )

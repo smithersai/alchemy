@@ -364,18 +364,27 @@ export const BiddersPretargetingConfigProvider = (): infer _ =>
     stables: ["name", "configId", "parent", "project", "billingId"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      return replaceOnIdentity({
-        previousParent: expandParent(olds?.parent ?? output?.parent ?? ""),
-        nextParent: expandParent(news.parent),
-        previousId: olds?.configId ?? output?.configId,
-        nextId: news.configId,
-      })
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousParent: expandParent(olds?.parent ?? output?.parent ?? ""),
+            nextParent: expandParent(resolved.parent),
+            previousId: olds?.configId ?? output?.configId,
+            nextId: resolved.configId,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandParent(olds?.parent ?? output?.parent ?? "")
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => expandParent(olds?.parent ?? output?.parent ?? ""), catch: (e) => e }),
+      )
       const name = lookupName(parent, olds?.configId ?? output?.configId, output?.name)
       let existing = try getConfig(name)
       if (existing === undefined) {
@@ -383,7 +392,9 @@ export const BiddersPretargetingConfigProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -396,7 +407,7 @@ export const BiddersPretargetingConfigProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const parent = expandParent(news.parent)
+      const parent = try Effect.orDie(Effect.try({ try: () => expandParent(news.parent), catch: (e) => e }))
       if (parent.length === 0) {
         throw new BiddersPretargetingConfigParentRequired({
           message: "BiddersPretargetingConfig requires parent (bidders/{bidder})",
@@ -404,7 +415,9 @@ export const BiddersPretargetingConfigProvider = (): infer _ =>
       }
       const ownership = try ownershipLabels(id)
       const displayName = try toDisplayName(id, news.displayName, output?.displayName)
-      const stamped = encodeDisplayName(ownership, displayName)
+      const stamped = try Effect.orDie(
+        Effect.try({ try: () => encodeDisplayName(ownership, displayName), catch: (e) => e }),
+      )
       const name = lookupName(parent, news.configId ?? output?.configId, output?.name)
 
       let current = try getConfig(name)
@@ -412,10 +425,15 @@ export const BiddersPretargetingConfigProvider = (): infer _ =>
         current = try findOwnedConfig(id, parent, name, stamped)
       }
 
-      const desired = mergeSpec(
-        specFromProps(news),
-        current === undefined ? undefined : specFromRow(current),
-      )
+      const news2 = specFromProps(news)
+      const desired = try Effect.orDie(Effect.try({
+        try: () =>
+          mergeSpec(
+            news2,
+            current === undefined ? undefined : specFromRow(current),
+          ),
+        catch: (e) => e,
+      }))
 
       if (current === undefined) {
         const created = rtb
@@ -437,7 +455,9 @@ export const BiddersPretargetingConfigProvider = (): infer _ =>
       }
 
       const currentName = current.name ?? name
-      const updateMask = updateMaskOf(current, desired, stamped)
+      const updateMask = try Effect.orDie(
+        Effect.try({ try: updateMaskOf.bind(undefined, current, desired, stamped), catch: (e) => e }),
+      )
       if (updateMask.length > 0) {
         current = try rtb.patchBiddersPretargetingConfigs({
           name: currentName,

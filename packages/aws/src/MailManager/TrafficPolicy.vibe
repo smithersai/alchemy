@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -111,7 +112,7 @@ export const TrafficPolicyProvider = (): infer _ =>
       const getById = effect (trafficPolicyId: string) =>
         mm
           .getTrafficPolicy({ TrafficPolicyId: trafficPolicyId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -161,9 +162,9 @@ export const TrafficPolicyProvider = (): infer _ =>
               )
                 .flatMap((page) => page.TrafficPolicies ?? [])
                 .flatMap((p) => (p.TrafficPolicyId !== undefined ? [p.TrafficPolicyId] : [])),
-              (trafficPolicyId) => getById(trafficPolicyId),
+              effect (trafficPolicyId) => try getById(trafficPolicyId),
             )).flatMap((p) => (p === undefined ? [] : [p])),
-            (p) => toAttrs(p),
+            effect (p) => try toAttrs(p),
           ),
 
         read: effect ({ id, olds, output }) => {
@@ -172,7 +173,9 @@ export const TrafficPolicyProvider = (): infer _ =>
           if (policy === undefined) return undefined
           const attrs = try toAttrs(policy)
           const tags = try readMailManagerTags(attrs.trafficPolicyArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // Every prop updates in place — no replacement triggers, so the
@@ -198,7 +201,7 @@ export const TrafficPolicyProvider = (): infer _ =>
                 MaxMessageSizeBytes: news.maxMessageSizeBytes,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             policy = created !== undefined
@@ -239,15 +242,17 @@ export const TrafficPolicyProvider = (): infer _ =>
         delete: effect ({ output }) => {
           // A traffic policy stays "in use" while a deleted ingress point
           // finishes deprovisioning — retry through the Conflict window.
-          ;(try (retryWhileMailManagerConflict(
-            mm.deleteTrafficPolicy({
-              TrafficPolicyId: output.trafficPolicyId,
-            }),
-          )
-            |> Effect.asVoid(%))) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
-              default: throw e;
-            }
+          ;(effect {
+            return (try (retryWhileMailManagerConflict(
+              mm.deleteTrafficPolicy({
+                TrafficPolicyId: output.trafficPolicyId,
+              }),
+            )
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
         },
       })
     },

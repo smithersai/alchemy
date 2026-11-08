@@ -40,7 +40,7 @@ export const rfc1035 = (name: string, fallback = "config"): string => {
 export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
   lastSegment(location ?? defaultLocation).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${lastSegment(location).toLowerCase()}`;
 
 export const toPhysicalId = (
@@ -80,7 +80,7 @@ export const parseName = (name: string, collection: string, defaultLocation: str
   };
 };
 
-export const expandNamed = (
+export const expandNamed = /** @throws {never} */ (
   value: string,
   project: string,
   location: string,
@@ -90,7 +90,7 @@ export const expandNamed = (
   return `projects/${project}/locations/${location}/${collection}/${value}`;
 };
 
-export const serviceAccountName = (value: string, project: string) => {
+export const serviceAccountName = /** @throws {never} */ (value: string, project: string) => {
   if (value.startsWith("projects/")) return value.replace(/\/+$/, "");
   if (value.includes("@")) {
     return `projects/${project}/serviceAccounts/${value}`;
@@ -98,11 +98,11 @@ export const serviceAccountName = (value: string, project: string) => {
   return `projects/${project}/serviceAccounts/${value}@${project}.iam.gserviceaccount.com`;
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const stringMap = (
+export const stringMap = /** @throws {never} */ (
   value: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> =>
   Object.fromEntries(
@@ -111,8 +111,9 @@ export const stringMap = (
     ),
   );
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -137,7 +138,7 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
 export const sameText = (left: string | undefined, right: string | undefined) =>

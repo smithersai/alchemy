@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as cip from "@distilled.cloud/aws/cognito-identity-provider"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -149,14 +150,16 @@ export const IdentityProviderProvider = (): infer _ =>
       }
 
       const describeProvider = effect (userPoolId: string, providerName: string) =>
-        (try cip
-          .describeIdentityProvider({
-            UserPoolId: userPoolId,
-            ProviderName: providerName,
-          })).IdentityProvider catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return (try cip
+            .describeIdentityProvider({
+              UserPoolId: userPoolId,
+              ProviderName: providerName,
+            })).IdentityProvider
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
 
       const attributesOf = (
         provider: cip.IdentityProviderType,
@@ -188,8 +191,9 @@ export const IdentityProviderProvider = (): infer _ =>
             : attributesOf(observed, providerName, userPoolId)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = olds === undefined ? undefined : try createName(id, olds)
           const newName = news === undefined ? undefined : try createName(id, news)
           if (
@@ -211,18 +215,20 @@ export const IdentityProviderProvider = (): infer _ =>
 
           // 2. ENSURE — tolerate the create race.
           if (observed === undefined) {
-            observed = (try cip
-              .createIdentityProvider({
-                UserPoolId: userPoolId,
-                ProviderName: providerName,
-                ProviderType: news.providerType,
-                ProviderDetails: desiredDetails,
-                AttributeMapping: news.attributeMapping,
-                IdpIdentifiers: news.idpIdentifiers,
-              })).IdentityProvider catch effect (e) => match (e) {
-                when { _tag: "DuplicateProviderException" }: (try describeProvider(userPoolId, providerName))!;
-                default: throw e;
-              }
+            observed = (effect {
+              return (try cip
+                .createIdentityProvider({
+                  UserPoolId: userPoolId,
+                  ProviderName: providerName,
+                  ProviderType: news.providerType,
+                  ProviderDetails: desiredDetails,
+                  AttributeMapping: news.attributeMapping,
+                  IdpIdentifiers: news.idpIdentifiers,
+                })).IdentityProvider
+            }) catch effect (e) => match (e) {
+              when { _tag: "DuplicateProviderException" }: (try describeProvider(userPoolId, providerName))!;
+              default: throw e;
+            }
           } else {
             // 3. SYNC — details, mapping, and identifiers are mutable.
             // Cognito augments ProviderDetails with derived keys (e.g.
@@ -259,7 +265,7 @@ export const IdentityProviderProvider = (): infer _ =>
               UserPoolId: output.userPoolId,
               ProviderName: output.providerName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

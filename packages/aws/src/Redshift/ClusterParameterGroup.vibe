@@ -122,7 +122,7 @@ export const ClusterParameterGroupProvider = (): infer _ =>
       const readGroup = effect (name: string) => {
         const response = redshift
           .describeClusterParameterGroups({ ParameterGroupName: name }) catch effect (e) => match (e) {
-            when { _tag: "ClusterParameterGroupNotFoundFault" }: try Effect.undefined;
+            when { _tag: "ClusterParameterGroupNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.ParameterGroups?.[0]
@@ -169,14 +169,15 @@ export const ClusterParameterGroupProvider = (): infer _ =>
         stables: ["clusterParameterGroupName", "clusterParameterGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) {
             return undefined
           }
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // Family and description are create-only.
-          if (olds?.family !== news.family || olds?.description !== news.description) {
+          if (olds?.family !== resolved.family || olds?.description !== resolved.description) {
             return { action: "replace" } as const
           }
         },
@@ -186,7 +187,7 @@ export const ClusterParameterGroupProvider = (): infer _ =>
           const group = try readGroup(name)
           if (!group?.ParameterGroupName) return undefined
           const attrs = try toAttrs(group)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -210,7 +211,7 @@ export const ClusterParameterGroupProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "ClusterParameterGroupAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "ClusterParameterGroupAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try readGroup(name)
@@ -253,7 +254,8 @@ export const ClusterParameterGroupProvider = (): infer _ =>
           //     surfaces them inline).
           const { accountId, region } = try AWSEnvironment.current
           const arn = redshiftArn(region, accountId, "parametergroup", name)
-          const { removed, upsert } = diffTags(toTagRecord(observed.Tags), desiredTags)
+          const oldTags = toTagRecord(observed.Tags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
           try applyRedshiftTagDelta({ arn, upsert, removed })
 
           try session.note(arn)
@@ -272,7 +274,7 @@ export const ClusterParameterGroupProvider = (): infer _ =>
             .deleteClusterParameterGroup({
               ParameterGroupName: output.clusterParameterGroupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ClusterParameterGroupNotFoundFault" }: try Effect.void;
+              when { _tag: "ClusterParameterGroupNotFoundFault" }: (undefined as void);
               default: throw e;
             }
         },
@@ -290,7 +292,7 @@ export const ClusterParameterGroupProvider = (): infer _ =>
               )
             )
           }
-            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+            |> Effect.flatMap(%, Effect.forEach(effect (group) => try toAttrs(group), { concurrency: 4 }))),
       }
     },
   )

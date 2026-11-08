@@ -248,14 +248,21 @@ export const OrganizationsSecurityHealthAnalyticsSettingsCustomModuleProvider = 
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       return (
-        replaceOn(olds?.moduleId ?? output?.moduleId, news.moduleId)
-          ?? replaceOn(
-            olds?.organization ?? output?.organization,
-            news.organization === undefined ? undefined : organizationParent(news.organization),
-          )
-          ?? replaceOn(olds?.displayName ?? output?.displayName, news.displayName)
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.moduleId ?? output?.moduleId, resolved.moduleId)
+              ?? replaceOn(
+                olds?.organization ?? output?.organization,
+                resolved.organization === undefined ? undefined : organizationParent(resolved.organization),
+              )
+              ?? replaceOn(olds?.displayName ?? output?.displayName, resolved.displayName),
+          catch: (e) => e,
+        }))
       )
     },
 
@@ -272,7 +279,7 @@ export const OrganizationsSecurityHealthAnalyticsSettingsCustomModuleProvider = 
       const attrs = toAttrs(existing, organization, env.project)
       return (try ownedByAlchemy(id, existing.customConfig?.description))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -288,7 +295,7 @@ export const OrganizationsSecurityHealthAnalyticsSettingsCustomModuleProvider = 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const organization = try resolveOrganization(news.organization, output?.organization)
-      const parent = shaSettingsParent(organization)
+      const parent = try Effect.orDie(Effect.try({ try: () => shaSettingsParent(organization), catch: (e) => e }))
       const moduleId = news.moduleId ?? output?.moduleId
       const name = output?.name ?? (moduleId ? resourceName(organization, moduleId) : "")
       const ownership = try createInternalLabels(id)
@@ -326,11 +333,17 @@ export const OrganizationsSecurityHealthAnalyticsSettingsCustomModuleProvider = 
 
       const currentName = current.name ?? name
       const enablementChanged = !sameText(current.enablementState, enablementState)
-      const configChanged = !jsonEqual(current.customConfig, customConfig)
-      const updateMask = updateMaskOf(
-        enablementChanged ? "enablement_state" : undefined,
-        configChanged ? "custom_config" : undefined,
-      )
+      const configChanged = !(try Effect.orDie(
+        Effect.try({ try: jsonEqual.bind(undefined, current.customConfig, customConfig), catch: (e) => e }),
+      ))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            enablementChanged ? "enablement_state" : undefined,
+            configChanged ? "custom_config" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try scc.patchOrganizationsSecurityHealthAnalyticsSettingsCustomModules({

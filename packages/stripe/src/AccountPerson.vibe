@@ -16,7 +16,6 @@ import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
 import {
   alchemyMetadataKeys,
   createInternalMetadata,
@@ -271,7 +270,7 @@ const isSkippedListError = (error: StripeOpError): boolean =>
 
 const getById = effect (account: string, person: string) =>
   try (GetAccountPerson({ account, person })
-    |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+    |> Effect.catchIf(%, isMissing, effect () => undefined))
 
 const listPersons = effect (account: string) => {
   const people: StripePerson[] = []
@@ -282,7 +281,7 @@ const listPersons = effect (account: string) => {
       limit: LIST_PAGE_SIZE,
       ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
     })
-      |> Effect.catchIf(%, isSkippedListError, effect () => try Effect.undefined))
+      |> Effect.catchIf(%, isSkippedListError, effect () => undefined))
     if (response === undefined) {
       break
     }
@@ -322,7 +321,7 @@ const findByAlchemyIdOnAccount = effect (account: string, id: string) => {
   const people = try listPersons(account)
   const matches: StripePerson[] = []
   for (const person of people) {
-    if (try hasAlchemyMetadata(id, tagRecord(person.metadata))) {
+    if (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(person.metadata), catch: (e) => e })))) {
       matches.push(person)
     }
   }
@@ -376,8 +375,9 @@ export const AccountPersonProvider = (): infer _ =>
     nuke: { dependsOn: ["Stripe.Account"] },
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
-      if (shouldReplace(news, output)) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
+      if (shouldReplace(resolved, output)) {
         return { action: "replace" } as const
       }
       return undefined
@@ -394,7 +394,7 @@ export const AccountPersonProvider = (): infer _ =>
       const resolvedAccount = existing.account ?? account
       if (resolvedAccount === undefined) return undefined
       const attrs = toAttrs(resolvedAccount, existing)
-      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyMetadata(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -440,13 +440,13 @@ export const AccountPersonProvider = (): infer _ =>
             : {}),
           metadata,
         })
-          |> withRequestOptions({
+          |> (try Effect.orDie(Effect.try({ try: () => withRequestOptions({
             idempotencyKey: `alchemy-account-person-${instanceId}`,
-          })(%))
+          }), catch: (e) => e })))(%))
       }
 
-      const observedMetadata = tagRecord(current.metadata)
-      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const observedMetadata = try Effect.orDie(Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }))
       const metadataChanged = upsert.length > 0 || removed.length > 0
       const firstNameChanged = (current.first_name ?? "") !== desiredFirstName
       const lastNameChanged = (current.last_name ?? "") !== desiredLastName
@@ -492,6 +492,6 @@ export const AccountPersonProvider = (): infer _ =>
         account: output.account,
         person: output.id,
       })
-        |> Effect.catchIf(%, isMissing, effect () => try Effect.void))
+        |> Effect.catchIf(%, isMissing, effect () => (undefined as void)))
     },
   })

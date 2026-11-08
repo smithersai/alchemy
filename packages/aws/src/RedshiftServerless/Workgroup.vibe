@@ -190,7 +190,7 @@ export const WorkgroupProvider = (): infer _ =>
       const readWorkgroup = effect (name: string) => {
         const response = redshiftserverless
           .getWorkgroup({ workgroupName: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.workgroup
@@ -219,7 +219,7 @@ export const WorkgroupProvider = (): infer _ =>
         try (effect {
           return try effect {
             const wg = try readWorkgroup(name)
-            return (wg === undefined ? try Effect.void : throw new WorkgroupNotSettled({
+            return (wg === undefined ? (undefined as void) : throw new WorkgroupNotSettled({
               workgroupName: name,
               status: wg.status ?? "DELETING",
             }))
@@ -260,12 +260,13 @@ export const WorkgroupProvider = (): infer _ =>
         stables: ["workgroupName", "workgroupArn", "workgroupId"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // A workgroup can't be reassigned to another namespace.
-          if ((news?.namespaceName ?? undefined) !== (olds?.namespaceName ?? undefined)) {
+          if ((resolved?.namespaceName ?? undefined) !== (olds?.namespaceName ?? undefined)) {
             return { action: "replace" } as const
           }
         },
@@ -276,7 +277,7 @@ export const WorkgroupProvider = (): infer _ =>
           if (wg === undefined) return undefined
           const attrs = toAttrs(wg)
           const tags = try readTags(attrs.workgroupArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -290,7 +291,7 @@ export const WorkgroupProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate a concurrent create.
           if (observed === undefined) {
-            const created = (try redshiftserverless
+            const created = (effect { return (try redshiftserverless
               .createWorkgroup({
                 workgroupName: name,
                 namespaceName: news.namespaceName,
@@ -303,7 +304,7 @@ export const WorkgroupProvider = (): infer _ =>
                 port: news.port,
                 configParameters: toConfigList(news.configParameters),
                 tags: toWireTags(desiredTags),
-              })).workgroup catch effect (e) => match (e) {
+              })).workgroup }) catch effect (e) => match (e) {
                 when { _tag: "ConflictException" }: (try redshiftserverless
                   .getWorkgroup({ workgroupName: name })).workgroup;
                 default: throw e;
@@ -361,16 +362,16 @@ export const WorkgroupProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(try (effect {
+          ;(effect { return (try (effect {
             return redshiftserverless.deleteWorkgroup({ workgroupName: output.workgroupName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }
             |> Effect.retry(%, {
               while: (e) => e._tag === "ConflictException",
               schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(24)]),
-            }))) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            }))) }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
           try waitUntilGone(output.workgroupName)
         },
 

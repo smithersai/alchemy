@@ -176,7 +176,7 @@ const toId = effect (
   location: string,
 ) => {
   if (networkId !== undefined) {
-    return rfc1035(networkId, "network")
+    return try Effect.orDie(Effect.try({ try: () => rfc1035(networkId, "network"), catch: (e) => e }))
   }
   if (type === "LEGACY") {
     return existing ?? `${location}-default`
@@ -221,40 +221,66 @@ export const VmwareEngineNetworkProvider = (): infer _ =>
     stables: ["name", "vmwareEngineNetworkId", "project", "location", "type", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = typeOf(olds?.type ?? output?.type)
-      const nextType = typeOf(news.type ?? olds?.type ?? output?.type)
-      const previousLocation = normalizeLocation(
-        olds?.location ?? output?.location,
-        fallbackLocation(previousType, env.region),
-      )
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        fallbackLocation(nextType, env.region),
-      )
+      const nextType = typeOf(resolved.type ?? olds?.type ?? output?.type)
+      const fallback = fallbackLocation(previousType, env.region)
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            fallback,
+          ),
+        catch: (e) => e,
+      }))
+      const fallback2 = fallbackLocation(nextType, env.region)
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            fallback2,
+          ),
+        catch: (e) => e,
+      }))
       const previousId = olds?.vmwareEngineNetworkId ?? output?.vmwareEngineNetworkId
-      const nextId = news.vmwareEngineNetworkId
-        ? rfc1035(news.vmwareEngineNetworkId, "network")
-        : nextType === "LEGACY"
-        ? `${nextLocation}-default`
-        : previousId
-      return replaceOnIdentity({
-        previousId,
-        nextId,
-        previousLocation,
-        nextLocation,
-        extra: previousType !== nextType,
-      })
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.vmwareEngineNetworkId
+            ? rfc1035(resolved.vmwareEngineNetworkId, "network")
+            : nextType === "LEGACY"
+            ? `${nextLocation}-default`
+            : previousId,
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId,
+            nextId,
+            previousLocation,
+            nextLocation,
+            extra: previousType !== nextType,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const type = typeOf(olds?.type ?? output?.type)
-      const location = normalizeLocation(
-        olds?.location ?? output?.location,
-        fallbackLocation(type, env.region),
-      )
+      const fallback = fallbackLocation(type, env.region)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            fallback,
+          ),
+        catch: (e) => e,
+      }))
       const networkId = try toId(
         id,
         olds?.vmwareEngineNetworkId,
@@ -266,8 +292,12 @@ export const VmwareEngineNetworkProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -288,10 +318,15 @@ export const VmwareEngineNetworkProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const type = typeOf(news.type ?? output?.type)
-      const location = normalizeLocation(
-        news.location ?? output?.location,
-        fallbackLocation(type, env.region),
-      )
+      const fallback = fallbackLocation(type, env.region)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location,
+            fallback,
+          ),
+        catch: (e) => e,
+      }))
       const networkId = try toId(
         id,
         news.vmwareEngineNetworkId,
@@ -301,25 +336,29 @@ export const VmwareEngineNetworkProvider = (): infer _ =>
       )
       const name = resourceName(env.project, location, networkId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        const created = (try (vmwareengine
-          .createProjectsLocationsVmwareEngineNetworks({
-            parent: parentOf(env.project, location),
-            vmwareEngineNetworkId: networkId,
-            body: {
-              type,
-              description: desiredDescription,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsVmwareEngineNetworks({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              vmwareEngineNetworkId: networkId,
+              body: {
+                type,
+                description: desiredDescription,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -360,16 +399,18 @@ export const VmwareEngineNetworkProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vmwareengine
-        .deleteProjectsLocationsVmwareEngineNetworks({
-          name: output.name,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsVmwareEngineNetworks({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

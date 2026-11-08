@@ -224,19 +224,32 @@ export const AuthzExtensionProvider = (): infer _ =>
     stables: ["name", "authzExtensionId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.authzExtensionId ?? output?.authzExtensionId
-      const nextId = news.authzExtensionId
-        ? rfc1035(news.authzExtensionId, "authz-extension")
-        : previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.authzExtensionId
+            ? rfc1035(resolved.authzExtensionId, "authz-extension")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousScheme = olds?.loadBalancingScheme ?? output?.loadBalancingScheme ?? DEFAULT_SCHEME
-      const nextScheme = news.loadBalancingScheme ?? previousScheme
+      const nextScheme = resolved.loadBalancingScheme ?? previousScheme
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -255,19 +268,29 @@ export const AuthzExtensionProvider = (): infer _ =>
         output?.authzExtensionId,
         "authz-extension",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const name = output?.name ?? resourceName(env.project, location, COLLECTION, authzExtensionId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, authzExtensionId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try collectPages(
         networkservices.listProjectsLocationsAuthzExtensions.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.authzExtensions,
@@ -285,10 +308,14 @@ export const AuthzExtensionProvider = (): infer _ =>
         output?.authzExtensionId,
         "authz-extension",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const name = resourceName(env.project, location, COLLECTION, authzExtensionId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, authzExtensionId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const loadBalancingScheme = news.loadBalancingScheme ?? DEFAULT_SCHEME
@@ -300,29 +327,31 @@ export const AuthzExtensionProvider = (): infer _ =>
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networkservices
-          .createProjectsLocationsAuthzExtensions({
-            parent: parentOf(env.project, location),
-            authzExtensionId,
-            body: {
-              labels: desiredLabels,
-              description: news.description,
-              service: news.service,
-              timeout,
-              loadBalancingScheme,
-              authority: news.authority,
-              failOpen,
-              metadata: news.metadata,
-              forwardHeaders: desiredHeaders,
-              forwardAttributes: desiredAttributes,
-              wireFormat: news.wireFormat,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networkservices
+            .createProjectsLocationsAuthzExtensions({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              authzExtensionId,
+              body: {
+                labels: desiredLabels,
+                description: news.description,
+                service: news.service,
+                timeout,
+                loadBalancingScheme,
+                authority: news.authority,
+                failOpen,
+                metadata: news.metadata,
+                forwardHeaders: desiredHeaders,
+                forwardAttributes: desiredAttributes,
+                wireFormat: news.wireFormat,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -330,30 +359,39 @@ export const AuthzExtensionProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const serviceChanged = (current.service ?? "") !== (news.service ?? "")
       const timeoutChanged = (current.timeout ?? "") !== timeout
       const authorityChanged = (current.authority ?? "") !== (news.authority ?? "")
       const failOpenChanged = (current.failOpen === true) !== failOpen
-      const metadataChanged = !sameJson(current.metadata, news.metadata)
+      const metadataChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.metadata, news.metadata),
+        catch: (e) => e,
+      })))
       const headersChanged = !sameStringList(current.forwardHeaders, desiredHeaders)
       const attributesChanged = !sameStringList(current.forwardAttributes, desiredAttributes)
       const wireChanged = (current.wireFormat ?? "") !== (news.wireFormat ?? "")
 
-      const updateMask = changedFields([
-        ["labels", labelsChanged],
-        ["description", descriptionChanged],
-        ["service", serviceChanged],
-        ["timeout", timeoutChanged],
-        ["authority", authorityChanged],
-        ["failOpen", failOpenChanged],
-        ["metadata", metadataChanged],
-        ["forwardHeaders", headersChanged],
-        ["forwardAttributes", attributesChanged],
-        ["wireFormat", wireChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["service", serviceChanged],
+            ["timeout", timeoutChanged],
+            ["authority", authorityChanged],
+            ["failOpen", failOpenChanged],
+            ["metadata", metadataChanged],
+            ["forwardHeaders", headersChanged],
+            ["forwardAttributes", attributesChanged],
+            ["wireFormat", wireChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networkservices.patchProjectsLocationsAuthzExtensions({
@@ -382,13 +420,15 @@ export const AuthzExtensionProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networkservices
-        .deleteProjectsLocationsAuthzExtensions({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networkservices
+          .deleteProjectsLocationsAuthzExtensions({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

@@ -114,30 +114,34 @@ const toAttrs = (trial: aiplatform.GoogleCloudAiplatformV1Trial, project: string
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : aiplatform
+const getByName = effect (name: string) => (name.length === 0 ? undefined : aiplatform
   .getProjectsLocationsStudiesTrials({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listStudies = effect (parent: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsStudies.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.studies ?? []))
-      |> Stream.filter(%, (study) => hasStudyOwnership(study.displayName))
-      |> Stream.map(%, (study) => study.name ?? "")
-      |> Stream.filter(%, (name) => name.length > 0)
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsStudies.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.studies ?? []))
+        |> Stream.filter(%, (study) => hasStudyOwnership(study.displayName))
+        |> Stream.map(%, (study) => study.name ?? "")
+        |> Stream.filter(%, (name) => name.length > 0)
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
 
 const listAtParent = effect (parent: string, project: string, clientId?: string) =>
-  (Array.from(
-    try (aiplatform.listProjectsLocationsStudiesTrials.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.trials ?? []))
-      |> Stream.filter(%, (trial) => (clientId !== undefined ? trial.clientId === clientId : true))
-      |> Stream.map(%, (trial) => toAttrs(trial, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsStudiesTrials.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.trials ?? []))
+        |> Stream.filter(%, (trial) => (clientId !== undefined ? trial.clientId === clientId : true))
+        |> Stream.map(%, (trial) => toAttrs(trial, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByClientId = effect (parent: string, clientId: string, project: string) =>
   (try listAtParent(parent, project, clientId))[0]
@@ -147,9 +151,12 @@ export const StudiesTrialProvider = (): infer _ =>
     stables: ["name", "trialId", "parent", "location", "project", "startTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       return undefined
@@ -169,7 +176,9 @@ export const StudiesTrialProvider = (): infer _ =>
       const fetched = try getByName(match.name)
       if (fetched === undefined) return undefined
       const attrs = toAttrs(fetched, env.project)
-      return fetched.clientId === clientId ? attrs : Unowned(attrs)
+      return fetched.clientId === clientId
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -215,7 +224,7 @@ export const StudiesTrialProvider = (): infer _ =>
           }) catch effect (e) => match (e) {
             when { _tag: "Conflict" }: try effect {
               const match = try findByClientId(news.parent, clientId, env.project)
-              return (match ? try getByName(match.name) : try Effect.undefined)
+              return (match ? try getByName(match.name) : undefined)
             };
             default: throw e;
           }
@@ -234,7 +243,7 @@ export const StudiesTrialProvider = (): infer _ =>
     delete: effect ({ output }) => {
       aiplatform
         .deleteProjectsLocationsStudiesTrials({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

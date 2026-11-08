@@ -22,7 +22,7 @@ import {
   toResourcePath,
   userLabels,
 } from "./names.vibe";
-import { waitForOperation } from "./operations.vibe";
+import { waitForOperation } from "./operations.ts";
 
 const COLLECTION = "mirroringEndpointGroups";
 const DEFAULT_TYPE = "DIRECT" satisfies networksecurity.MirroringEndpointGroupTypeEnum;

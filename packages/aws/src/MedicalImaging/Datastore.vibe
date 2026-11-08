@@ -1,3 +1,5 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as medicalimaging from "@distilled.cloud/aws/medical-imaging"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -5,9 +7,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 export interface DatastoreProps {
@@ -101,16 +100,24 @@ export const Datastore = Resource<Datastore>("AWS.MedicalImaging.Datastore")
  * Raised when a data store never reaches `ACTIVE` (or its create fails)
  * within the bounded provisioning wait.
  */
-export error DatastoreNotReady {
-  mutable message: string
+export class DatastoreNotReady extends $MutableErrorBase("DatastoreNotReady")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DatastoreNotReady", true)
+  }
 }
 
 /**
  * Raised when the HealthImaging API omits an expected field (e.g. the
  * data store ARN) from a response.
  */
-export error DatastoreIncomplete {
-  mutable message: string
+export class DatastoreIncomplete extends $MutableErrorBase("DatastoreIncomplete")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DatastoreIncomplete", true)
+  }
 }
 
 /** CreateDatastore requires a client token; derive it from the instance id
@@ -155,7 +162,7 @@ export const DatastoreProvider = (): infer _ =>
       const getById = effect (datastoreId: string) => {
         const response = medicalimaging
           .getDatastore({ datastoreId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         const properties = response?.datastoreProperties
@@ -246,8 +253,11 @@ export const DatastoreProvider = (): infer _ =>
         stables: ["datastoreId", "datastoreArn", "datastoreName"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          const n = news
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const n = resolved
           const o = olds
           if (n === undefined || o === undefined) return undefined
           // HealthImaging has no UpdateDatastore — every property except
@@ -272,7 +282,9 @@ export const DatastoreProvider = (): infer _ =>
           const properties = try observe(output?.datastoreId, name)
           if (properties === undefined) return undefined
           const attrs = try toAttrs(properties)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session, instanceId }) => {
@@ -297,7 +309,7 @@ export const DatastoreProvider = (): infer _ =>
                 losslessStorageFormat: props.losslessStorageFormat,
                 tags: desiredTags,
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             observed = created !== undefined ? try getById(created.datastoreId) : try findByName(name)
@@ -315,7 +327,9 @@ export const DatastoreProvider = (): infer _ =>
 
           // 3. SYNC TAGS — diff against OBSERVED cloud tags.
           const observedTags = try readTags(arn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try medicalimaging.tagResource({
               resourceArn: arn,
@@ -340,7 +354,7 @@ export const DatastoreProvider = (): infer _ =>
           // once the retry budget is exhausted.
           const observed = medicalimaging
             .getDatastore({ datastoreId: output.datastoreId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           const status = observed?.datastoreProperties.datastoreStatus
@@ -349,7 +363,7 @@ export const DatastoreProvider = (): infer _ =>
           }
           try (effect {
             return medicalimaging.deleteDatastore({ datastoreId: output.datastoreId }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
           }
@@ -369,7 +383,7 @@ export const DatastoreProvider = (): infer _ =>
             effect (summary) =>
               try effect {
                 const properties = try getById(summary.datastoreId)
-                return (properties === undefined ? try Effect.undefined : try toAttrs(properties))
+                return (properties === undefined ? undefined : try toAttrs(properties))
               },
             { concurrency: 4 },
           )).filter((a): a is NonNullable<typeof a> => a !== undefined),

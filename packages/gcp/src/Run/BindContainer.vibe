@@ -40,7 +40,7 @@ export type ContainerClient<Shape> = Omit<Shape, "fetch" | "run"> & {
    */
   fetch(
     request: HttpClientRequest.HttpClientRequest,
-  ): HttpClientResponse.HttpClientResponse!HttpClientError.HttpClientError | BoundContainerUnavailable!RuntimeContext
+  ): HttpClientResponse.HttpClientResponse!(HttpClientError.HttpClientError | BoundContainerUnavailable)!RuntimeContext
   /**
    * An `HttpClient` whose relative requests go to the container, for an
    * Effect RPC or HttpApi client.
@@ -96,13 +96,15 @@ const bindSidecar = effect <Shape, Req>(
   target: Bindable<Shape, Req>,
 ): { id: string; port: number!BoundContainerUnavailable }!!Req => {
   const id = logicalIdOf(target)
-  const key = sanitizeKey(`GCP_BIND_${id}_PORT`)
+  const key = try Effect.orDie(Effect.try({ try: () => sanitizeKey(`GCP_BIND_${id}_PORT`), catch: (e) => e }))
   const ctx = try CurrentRuntimeContext
   if (!globalThis.__ALCHEMY_RUNTIME__) {
     // Yielding registers the container and makes the host depend on it.
-    const container = isYieldableEffectLike(target)
-      ? try (target as Container!!Req)
-      : target
+    const resolvedTarget = try Effect.orDie(Effect.try({
+      try: () => isYieldableEffectLike(target) ? target as Container!!Req : Effect.succeed(target),
+      catch: (e) => e,
+    }))
+    const container = try resolvedTarget
     const host = try Binding.Host
     if (isRunHost(host)) {
       try host.bind`GCP.Run.bindContainer(${container})`({
@@ -212,16 +214,16 @@ export type BindContainerOptions<
 
 export function bindContainer<Shape = {}, Req = never>(
   target: Bindable<Shape, Req>,
-): ContainerClient<Shape>!never!Req | HttpClient.HttpClient
+): ContainerClient<Shape>!never!(Req | HttpClient.HttpClient)
 export function bindContainer<Rpcs extends EffectRpc.Any, Req = never>(
   target: Bindable<unknown, Req>,
   options: { schema: RpcGroup.RpcGroup<Rpcs> },
-): RpcClient.RpcClient<Rpcs, RpcClientError.RpcClientError> & ContainerTransport!never!Req | HttpClient.HttpClient
+): (RpcClient.RpcClient<Rpcs, RpcClientError.RpcClientError> & ContainerTransport)!never!(Req | HttpClient.HttpClient)
 export function bindContainer<Groups extends HttpApiGroup.Constraint, Req = never>(
   target: Bindable<unknown, Req>,
   options: { api: HttpApi.HttpApi<string, Groups> },
-): HttpApiClient.Client<Groups, HttpClientError.HttpClientError | BoundContainerUnavailable> &
-    ContainerTransport!never!Req | HttpClient.HttpClient
+): (HttpApiClient.Client<Groups, HttpClientError.HttpClientError | BoundContainerUnavailable> &
+    ContainerTransport)!never!(Req | HttpClient.HttpClient)
 export effect function bindContainer(
   target: Bindable<unknown, unknown>,
   options?: BindContainerOptions<any, any>,
@@ -237,21 +239,30 @@ export effect function bindContainer(
   const transport = { fetch: send, httpClient }
   if (options !== undefined && "schema" in options) {
     return Object.assign(
-      makeRpcGroupClient(options.schema, httpClient as unknown as HttpClient.HttpClient),
+      try Effect.orDie(
+        Effect.try({
+          try: () => makeRpcGroupClient(options.schema, httpClient as unknown as HttpClient.HttpClient),
+          catch: (e) => e,
+        }),
+      ),
       transport,
     )
   }
   if (options !== undefined && "api" in options) {
     return Object.assign(try makeHttpApiClient(options.api, httpClient), transport)
   }
-  return makeFetchRpcStub<ContainerClient<{}>>({
-    // Relative RPC paths, resolved against the container's localhost port.
-    baseUrl: "",
-    fetch: send as (
-      request: HttpClientRequest.HttpClientRequest,
-    ) => HttpClientResponse.HttpClientResponse!unknown,
-    base: transport,
-  })
+  return try Effect.orDie(Effect.try({
+    try: () =>
+      makeFetchRpcStub<ContainerClient<{}>>({
+        // Relative RPC paths, resolved against the container's localhost port.
+        baseUrl: "",
+        fetch: send as (
+          request: HttpClientRequest.HttpClientRequest,
+        ) => HttpClientResponse.HttpClientResponse!unknown,
+        base: transport,
+      }),
+    catch: (e) => e,
+  }))
 }
 
 /**
@@ -279,7 +290,7 @@ export effect function bindContainer(
 export const bindPort = effect <Req = never>(
   target: Bindable<unknown, Req>,
   port: number,
-): PortClient!never!Req | HttpClient.HttpClient => {
+): PortClient!never!(Req | HttpClient.HttpClient) => {
   const http = try Effect.service(HttpClient.HttpClient)
   try bindSidecar(target)
   const url = `http://localhost:${port}`

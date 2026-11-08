@@ -209,7 +209,7 @@ const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1NotebookExecutionJob, pr
 const getByName = effect (name: string) =>
   aiplatform
     .getProjectsLocationsNotebookExecutionJobs({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -241,15 +241,18 @@ export const NotebookExecutionJobProvider = (): infer _ =>
 
     diff: effect ({ news, olds, output }) => {
       const env = try GcpEnvironment.current
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.notebookExecutionJobId ?? output?.notebookExecutionJobId
-      const nextId = news.notebookExecutionJobId ?? previousId
+      const nextId = resolved.notebookExecutionJobId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
-      const sourceChanged = (news.gcsNotebookSource?.uri ?? "") !== (olds?.gcsNotebookSource?.uri ?? "")
-        || (news.directNotebookSource?.content ?? "")
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
+      const sourceChanged = (resolved.gcsNotebookSource?.uri ?? "") !== (olds?.gcsNotebookSource?.uri ?? "")
+        || (resolved.directNotebookSource?.content ?? "")
           !== (olds?.directNotebookSource?.content ?? "")
-        || (news.dataformRepositorySource?.dataformRepositoryResourceName ?? "")
+        || (resolved.dataformRepositorySource?.dataformRepositoryResourceName ?? "")
           !== (olds?.dataformRepositorySource?.dataformRepositoryResourceName ?? "")
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -277,9 +280,13 @@ export const NotebookExecutionJobProvider = (): infer _ =>
       // job at the generated (instance-unique) id is ours even when the
       // ownership labels name the template.
       const generated = olds?.notebookExecutionJobId === undefined
-      return generated || (try hasAlchemyLabels(id, tagRecord(existing.labels)))
+      return generated
+          || (try hasAlchemyLabels(
+            id,
+            try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+          ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -308,7 +315,7 @@ export const NotebookExecutionJobProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location, env.region)
       const name = resourceName(env.project, location, jobId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -334,11 +341,15 @@ export const NotebookExecutionJobProvider = (): infer _ =>
               executionTimeout: news.executionTimeout,
               encryptionSpec: news.encryptionSpec,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created, { alreadyExistsOk: true })
         }
-        const createdName = resourceNameFromOperation(created ?? {}) ?? output?.name ?? name
+        const createdName = (try Effect.orDie(Effect.try({
+          try: () => resourceNameFromOperation(created ?? {}),
+          catch: (e) => e,
+        })))
+          ?? output?.name ?? name
         current = try waitUntilExists(createdName)
       }
 
@@ -352,7 +363,7 @@ export const NotebookExecutionJobProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const operation = aiplatform
         .deleteProjectsLocationsNotebookExecutionJobs({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.undefined;
+          when { _tag: "NotFound" }: undefined;
           default: throw e;
         }
       if (operation !== undefined) {

@@ -32,13 +32,15 @@ const isTransientConnectError = (cause: unknown): boolean => {
  * connection failures are retried; one that persists is almost always a
  * missing route — MPG hostnames only exist on the org's private network.
  */
-const withFlyPgExecutor = <A, E, R>(
+const withFlyPgExecutor = effect <A, E, R>(
   connectionUri: Redacted.Redacted<string>,
   use: (executor: SqlExecutor) => A!E!R,
-): A!MigrationError | E!R =>
-  withPgExecutor(
+): A!(MigrationError | E)!R =>
+  try withPgExecutor(
     {
-      connectionString: connectionUri.pipe(Redacted.value, stripSslQueryParams),
+      connectionString: try Effect.orDie(
+        Effect.try({ try: () => stripSslQueryParams(Redacted.value(connectionUri)), catch: (e) => e }),
+      ),
       ssl: { rejectUnauthorized: true },
     },
     use,
@@ -62,31 +64,31 @@ const withFlyPgExecutor = <A, E, R>(
  * with a connection-URI-scoped pg client as its executor. Use the
  * direct (non-PgBouncer) URI so DDL and advisory locks work.
  */
-export const runPgMigrations = (options: {
+export const runPgMigrations = effect (options: {
   connectionUri: Redacted.Redacted<string>
   input: NormalizedMigrationsInput
   stamped: StampedMigrationsState
 }) =>
-  runMigrations({
+  try runMigrations({
     input: options.input,
     stamped: options.stamped,
-    withExecutor: (apply) => withFlyPgExecutor(options.connectionUri, apply),
+    withExecutor: effect (apply) => try withFlyPgExecutor(options.connectionUri, apply),
   })
 
 /** Run a single SQL script against the database (used for `importFiles`). */
-export const runSql = (connectionUri: Redacted.Redacted<string>, sql: string) =>
-  withFlyPgExecutor(connectionUri, (executor) => executor.query(sql)) |> Effect.asVoid(%)
+export const runSql = effect (connectionUri: Redacted.Redacted<string>, sql: string) =>
+  withFlyPgExecutor(connectionUri, effect (executor) => try executor.query(sql)) |> try Effect.asVoid(%)
 
 /** Apply `importFiles`, each once and again only when it changes. */
-export const runImports = (
+export const runImports = effect (
   connectionUri: Redacted.Redacted<string>,
   importFiles: ReadonlyArray<string>,
   rootDir: string,
   previous: Record<string, string>,
 ) =>
-  applySqlImports({
+  try applySqlImports({
     importFiles,
     rootDir,
     previous,
-    apply: (file) => runSql(connectionUri, file.sql),
+    apply: effect (file) => try runSql(connectionUri, file.sql),
   })

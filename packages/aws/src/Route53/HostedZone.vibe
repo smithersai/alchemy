@@ -118,7 +118,7 @@ export const HostedZoneProvider = (): infer _ =>
       // forever, silently burning the full repeat cap on every change.
       const waitForChange = effect (changeId: string) =>
         try (effect {
-          return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status catch effect (
+          return (effect { return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status }) catch effect (
             e,
           ) => match (e) { when { _tag: "NoSuchChange" }: "PENDING"; default: throw e; }
         }
@@ -138,7 +138,7 @@ export const HostedZoneProvider = (): infer _ =>
       const observe = effect (id: string) =>
         route53
           .getHostedZone({ Id: normalizeId(id) }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchHostedZone" }: try Effect.undefined;
+            when { _tag: "NoSuchHostedZone" }: undefined;
             default: throw e;
           }
 
@@ -164,7 +164,7 @@ export const HostedZoneProvider = (): infer _ =>
         const internalTags = try createInternalTags(logicalId)
         const newTags = { ...userTags, ...internalTags }
         const oldTags = try observedTags(id)
-        const { upsert, removed } = diffTags(oldTags, newTags)
+        const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, newTags), catch: (e) => e }))
         if (upsert.length === 0 && removed.length === 0) {
           return
         }
@@ -231,16 +231,17 @@ export const HostedZoneProvider = (): infer _ =>
             }))
           ),
         diff: effect ({ olds, news }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
           // Name change → replace, but only when the old name is known — a
           // half-created state row can't round-trip an Output-valued `name`
           // (it deserializes as `undefined`), and an unknown old name must
           // fall through to the create/update recovery path.
           if (
-            (olds.name !== undefined && normalizeName(olds.name) !== normalizeName(news.name))
-            || (olds.privateZone ?? false) !== (news.privateZone ?? false)
-            || olds.delegationSetId !== news.delegationSetId
-            || olds.vpc?.vpcId !== news.vpc?.vpcId
+            (olds.name !== undefined && normalizeName(olds.name) !== normalizeName(resolved.name))
+            || (olds.privateZone ?? false) !== (resolved.privateZone ?? false)
+            || olds.delegationSetId !== resolved.delegationSetId
+            || olds.vpc?.vpcId !== resolved.vpc?.vpcId
           ) {
             return { action: "replace" } as const
           }
@@ -273,7 +274,7 @@ export const HostedZoneProvider = (): infer _ =>
 
           // Ensure.
           if (!zone) {
-            const created = (try effect {
+            const created = (effect { return (try effect {
               const response = try route53
                 .createHostedZone({
                   Name: normalizeName(news.name),
@@ -293,7 +294,7 @@ export const HostedZoneProvider = (): infer _ =>
                 HostedZone: response.HostedZone,
                 DelegationSet: response.DelegationSet,
               })
-            }) catch effect (e) => match (e) {
+            }) }) catch effect (e) => match (e) {
               when { _tag: "HostedZoneAlreadyExists" }: try effect {
                 const existing = try findByName(news.name)
                 if (!existing) {
@@ -348,14 +349,14 @@ export const HostedZoneProvider = (): infer _ =>
         delete: effect ({ olds, output }) => {
           if (olds.forceDestroy) {
             purgeRecords(output.id) catch effect (e) => match (e) {
-              when { _tag: "NoSuchHostedZone" }: try Effect.void;
+              when { _tag: "NoSuchHostedZone" }: (undefined as void);
               default: throw e;
             }
           }
           try (effect {
-            return (try (route53.deleteHostedZone({ Id: normalizeId(output.id) })
-              |> Effect.asVoid(%))) catch effect (e) => match (e) {
-                when { _tag: "NoSuchHostedZone" }: try Effect.void;
+            return (effect { return (try (route53.deleteHostedZone({ Id: normalizeId(output.id) })
+              |> Effect.asVoid(%))) }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchHostedZone" }: (undefined as void);
                 default: throw e;
               }
           }

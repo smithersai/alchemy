@@ -52,7 +52,7 @@ export {
   HASH_ROUTE,
   HashError,
   makeFrameReader,
-} from "./Protocol.vibe";
+} from "./Protocol.ts";
 import {
   decodeDeltaResults,
   decodeScanResult,
@@ -61,7 +61,7 @@ import {
   HASH_ROUTE,
   HashError,
   makeFrameReader,
-} from "./Protocol.vibe";
+} from "./Protocol.ts";
 
 export interface HashPartOptions {
   /** Pack-relative offset of `payload[skip]`. */

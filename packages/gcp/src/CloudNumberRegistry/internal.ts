@@ -39,10 +39,10 @@ export const rfc1035 = (name: string, fallback = "cnr"): string => {
   return next.slice(0, MAX_NAME_LENGTH);
 };
 
-export const normalizeLocation = (location: string | undefined) =>
+export const normalizeLocation = /** @throws {never} */ (location: string | undefined) =>
   lastSegment(location ?? DEFAULT_LOCATION).toLowerCase();
 
-export const parentOf = (project: string, location: string | undefined) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string | undefined) =>
   `projects/${project}/locations/${normalizeLocation(location)}`;
 
 export const resourceName = (project: string, location: string, collection: string, id: string) =>
@@ -95,12 +95,13 @@ export const expandName = (
   return resourceName(project, location, collection, trimmed);
 };
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
@@ -125,16 +126,20 @@ export const canonical = (value: unknown): unknown => {
 
 export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null);
 
-export const fieldMask = (fields: Array<string | false | undefined>) =>
+export const fieldMask = /** @throws {never} */ (fields: Array<string | false | undefined>) =>
   fields.filter((field): field is string => typeof field === "string").join(",");
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameRef = (left: string | undefined, right: string | undefined) =>
-  lastSegment(left ?? "") === lastSegment(right ?? "");
+export const sameRef = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => lastSegment(left ?? "") === lastSegment(right ?? "");
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => fingerprint([...(left ?? [])].sort()) === fingerprint([...(right ?? [])].sort());

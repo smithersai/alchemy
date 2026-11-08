@@ -128,7 +128,7 @@ export const ApiMappingProvider = (): infer _ =>
       const getMappingSafe = effect (domainName: string, apiMappingId: string) =>
         agw2
           .getApiMapping({ DomainName: domainName, ApiMappingId: apiMappingId }) catch effect (e) => match (e) {
-            when { _tag: "NotFoundException" }: try Effect.undefined;
+            when { _tag: "NotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -136,21 +136,23 @@ export const ApiMappingProvider = (): infer _ =>
         stables: ["apiMappingId", "domainName"],
 
         list: effect () => {
-          const domains = try collectAllPages((NextToken) => agw2.getDomainNames({ NextToken }))
+          const domains = try collectAllPages(effect (NextToken) => try agw2.getDomainNames({ NextToken }))
           const perDomain = try Effect.forEach(
             domains.filter((domain) => domain.DomainName != null),
             effect (domain) =>
-              ((try collectAllPages((NextToken) =>
-                agw2.getApiMappings({
-                  DomainName: domain.DomainName!,
-                  NextToken,
-                })
-              ))
-                .filter((mapping) => mapping.ApiMappingId != null)
-                .map((mapping) => snapshotFromMapping(domain.DomainName!, mapping))) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: [] as ApiMapping["Attributes"][];
-                  default: throw e;
-                },
+              (effect {
+                return ((try collectAllPages(effect (NextToken) =>
+                  try agw2.getApiMappings({
+                    DomainName: domain.DomainName!,
+                    NextToken,
+                  })
+                ))
+                  .filter((mapping) => mapping.ApiMappingId != null)
+                  .map((mapping) => snapshotFromMapping(domain.DomainName!, mapping)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: [] as ApiMapping["Attributes"][];
+                default: throw e;
+              },
             { concurrency: 5 },
           )
           return perDomain.flat()
@@ -163,8 +165,9 @@ export const ApiMappingProvider = (): infer _ =>
           return snapshotFromMapping(output.domainName, mapping)
         },
 
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (news.domainName !== olds.domainName) {
             return { action: "replace" } as const
           }
@@ -226,7 +229,7 @@ export const ApiMappingProvider = (): infer _ =>
                   DomainName: output.domainName,
                   ApiMappingId: output.apiMappingId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "NotFoundException" }: try Effect.void;
+                  when { _tag: "NotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

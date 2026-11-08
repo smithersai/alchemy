@@ -340,28 +340,35 @@ export const BackupPlanProvider = (): infer _ =>
     stables: ["name", "backupPlanId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousVault = olds?.backupVault ?? output?.backupVault
       const previousType = olds?.resourceType ?? output?.resourceType
-      return replaceOnIdentity({
-        previousId: olds?.backupPlanId ?? output?.backupPlanId,
-        nextId: news.backupPlanId ?? olds?.backupPlanId ?? output?.backupPlanId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: (previousType !== undefined
-          && news.resourceType !== undefined
-          && previousType !== news.resourceType)
-          || (previousVault !== undefined
-            && news.backupVault !== undefined
-            && previousVault !== news.backupVault
-            && !previousVault.endsWith(`/${news.backupVault}`))
-          // Backup plan labels are immutable ("labels can not be updated").
-          || (olds !== undefined && fingerprint(olds.labels ?? {}) !== fingerprint(news.labels ?? {})),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.backupPlanId ?? output?.backupPlanId,
+            nextId: resolved.backupPlanId ?? olds?.backupPlanId ?? output?.backupPlanId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: (previousType !== undefined
+              && resolved.resourceType !== undefined
+              && previousType !== resolved.resourceType)
+              || (previousVault !== undefined
+                && resolved.backupVault !== undefined
+                && previousVault !== resolved.backupVault
+                && !previousVault.endsWith(`/${resolved.backupVault}`))
+              // Backup plan labels are immutable ("labels can not be updated").
+              || (olds !== undefined && fingerprint(olds.labels ?? {}) !== fingerprint(resolved.labels ?? {})),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -372,12 +379,19 @@ export const BackupPlanProvider = (): infer _ =>
         output?.backupPlanId,
         "backupplan",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, backupPlanId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -394,11 +408,15 @@ export const BackupPlanProvider = (): infer _ =>
         output?.backupPlanId,
         "backupplan",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, backupPlanId)
-      const backupVault = backupVaultOf(news.backupVault, env.project, location)
+      const backupVault = try Effect.orDie(
+        Effect.try({ try: () => backupVaultOf(news.backupVault, env.project, location), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -443,7 +461,13 @@ export const BackupPlanProvider = (): infer _ =>
 
       const mask = fieldMask([
         !sameText(current.description, news.description) && "description",
-        fingerprint(toRules(current.backupRules)) !== fingerprint(toRules(news.backupRules))
+        (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, toRules(current.backupRules)), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(undefined, toRules(news.backupRules)),
+            catch: (e) => e,
+          })))
         && "backupRules",
         news.logRetentionDays !== undefined
         && !sameText(current.logRetentionDays, news.logRetentionDays)
@@ -452,12 +476,23 @@ export const BackupPlanProvider = (): infer _ =>
         && current.maxCustomOnDemandRetentionDays !== news.maxCustomOnDemandRetentionDays
         && "maxCustomOnDemandRetentionDays",
         news.diskBackupPlanProperties !== undefined
-        && fingerprint(current.diskBackupPlanProperties)
-          !== fingerprint(news.diskBackupPlanProperties)
+        && (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.diskBackupPlanProperties), catch: (e) => e }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.diskBackupPlanProperties), catch: (e) => e }),
+          ))
         && "diskBackupPlanProperties",
         news.computeInstanceBackupPlanProperties !== undefined
-        && fingerprint(current.computeInstanceBackupPlanProperties)
-          !== fingerprint(news.computeInstanceBackupPlanProperties)
+        && (try Effect.orDie(
+            Effect.try({
+              try: fingerprint.bind(undefined, current.computeInstanceBackupPlanProperties),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, news.computeInstanceBackupPlanProperties), catch: (e) => e }),
+          ))
         && "computeInstanceBackupPlanProperties",
       ])
 
@@ -487,13 +522,15 @@ export const BackupPlanProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (backupdr
-        .deleteProjectsLocationsBackupPlans({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (backupdr
+          .deleteProjectsLocationsBackupPlans({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

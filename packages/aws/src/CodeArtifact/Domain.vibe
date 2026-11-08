@@ -96,7 +96,7 @@ export const DomainProvider = (): infer _ =>
       const getDomain = effect (name: string) => {
         const response = codeartifact
           .describeDomain({ domain: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return response?.domain
@@ -114,7 +114,8 @@ export const DomainProvider = (): infer _ =>
       const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
         const observed = codeartifact
           .listTagsForResource({ resourceArn: arn }) catch () => undefined
-        const { removed, upsert } = diffTags(toTagRecord(observed?.tags), desiredTags)
+        const oldTags = toTagRecord(observed?.tags)
+        const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
         if (upsert.length > 0) {
           try codeartifact.tagResource({
             resourceArn: arn,
@@ -133,12 +134,13 @@ export const DomainProvider = (): infer _ =>
         stables: ["domainName", "domainArn", "owner"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
           }
           // The encryption key is immutable — replace on change.
-          if ((news?.encryptionKey ?? undefined) !== (olds?.encryptionKey ?? undefined)) {
+          if ((resolved?.encryptionKey ?? undefined) !== (olds?.encryptionKey ?? undefined)) {
             return { action: "replace" } as const
           }
         },
@@ -148,11 +150,11 @@ export const DomainProvider = (): infer _ =>
           const domain = try getDomain(name)
           if (domain?.arn === undefined) return undefined
           const attrs = toAttrs(domain, name)
-          const tags = (toTagRecord(
+          const tags = (effect { return (toTagRecord(
             (try codeartifact
               .listTagsForResource({ resourceArn: attrs.domainArn })).tags,
-          )) catch () => ({})
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          )) }) catch () => ({})
+          return (try hasAlchemyTags(id, tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -170,7 +172,7 @@ export const DomainProvider = (): infer _ =>
           // already reports it gone.
           if (observed?.arn === undefined) {
             observed = try (effect {
-              return (try codeartifact
+              return (effect { return (try codeartifact
                 .createDomain({
                   domain: name,
                   encryptionKey: news.encryptionKey,
@@ -178,7 +180,7 @@ export const DomainProvider = (): infer _ =>
                     key,
                     value,
                   })),
-                })).domain catch effect (e) => match (e) {
+                })).domain }) catch effect (e) => match (e) {
                   when { _tag: "ConflictException" }: try getDomain(name);
                   default: throw e;
                 }

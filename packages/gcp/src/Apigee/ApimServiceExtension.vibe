@@ -209,16 +209,19 @@ export const ApimServiceExtensionProvider = (): infer _ =>
     stables: ["name", "apimServiceExtensionId", "organizationId", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.apimServiceExtensionId ?? output?.apimServiceExtensionId
       const previousOrg = olds?.organizationId ?? output?.organizationId
       if (
         (previousId !== undefined
-          && news.apimServiceExtensionId !== undefined
-          && news.apimServiceExtensionId !== previousId)
+          && resolved.apimServiceExtensionId !== undefined
+          && resolved.apimServiceExtensionId !== previousId)
         || (previousOrg !== undefined
-          && news.organizationId !== undefined
-          && news.organizationId !== previousOrg)
+          && resolved.organizationId !== undefined
+          && resolved.organizationId !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -238,24 +241,30 @@ export const ApimServiceExtensionProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, organizationId)
-      const labels = parseOwnershipExtension(existing.extensions)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const labels = try Effect.orDie(
+        Effect.try({ try: () => parseOwnershipExtension(existing.extensions), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organizationId = try resolveOrgId(env.project)
-      return (Array.from(
-        try (apigee.listOrganizationsApimServiceExtensions
-          .pages({
-            parent: orgParent(organizationId),
-            pageSize: 100,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.apimServiceExtensions ?? []))
-          |> Stream.filter(%, (resource) => hasOwnershipExtension(resource.extensions))
-          |> Stream.map(%, (resource) => toAttrs(resource, env.project, organizationId))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsApimServiceExtensions
+            .pages({
+              parent: try Effect.orDie(Effect.try({ try: () => orgParent(organizationId), catch: (e) => e })),
+              pageSize: 100,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.apimServiceExtensions ?? []))
+            |> Stream.filter(%, (resource) => hasOwnershipExtension(resource.extensions))
+            |> Stream.map(%, (resource) => toAttrs(resource, env.project, organizationId))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
         default: throw e;
       }
@@ -272,7 +281,9 @@ export const ApimServiceExtensionProvider = (): infer _ =>
       )
       const name = resourceName(organizationId, extensionId)
       const ownership = try createInternalLabels(id)
-      const desiredExtensions = withOwnershipExtension(ownership, news.extensions)
+      const desiredExtensions = try Effect.orDie(
+        Effect.try({ try: () => withOwnershipExtension(ownership, news.extensions), catch: (e) => e }),
+      )
       const body: apigee.GoogleCloudApigeeV1ApimServiceExtension = {
         name: extensionId,
         lbForwardingRule: news.lbForwardingRule,
@@ -285,14 +296,16 @@ export const ApimServiceExtensionProvider = (): infer _ =>
       let current = try getByName(output?.name ?? name)
 
       if (current === undefined) {
-        ;(try waitForOperation(
-          try apigee
-            .createOrganizationsApimServiceExtensions({
-              parent: orgParent(organizationId),
-              apimServiceExtensionId: extensionId,
-              body,
-            }),
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
+        ;(effect {
+          return (try waitForOperation(
+            try apigee
+              .createOrganizationsApimServiceExtensions({
+                parent: try Effect.orDie(Effect.try({ try: () => orgParent(organizationId), catch: (e) => e })),
+                apimServiceExtensionId: extensionId,
+                body,
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
         current = try getByName(name)
       }
 
@@ -303,8 +316,15 @@ export const ApimServiceExtensionProvider = (): infer _ =>
       const needsUpdate = (current.lbForwardingRule ?? "") !== news.lbForwardingRule
         || (current.network ?? "") !== news.network
         || (current.extensionProcessor ?? "") !== news.extensionProcessor
-        || !sameJson(current.networkConfigs ?? [], news.networkConfigs)
-        || !sameJson(current.extensions ?? [], desiredExtensions)
+        || !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, current.networkConfigs ?? [], news.networkConfigs),
+            catch: (e) => e,
+          }),
+        ))
+        || !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.extensions ?? [], desiredExtensions), catch: (e) => e }),
+        ))
 
       if (needsUpdate) {
         const operation = try apigee.patchOrganizationsApimServiceExtensions({

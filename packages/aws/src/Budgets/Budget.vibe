@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as budgets from "@distilled.cloud/aws/budgets"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -319,14 +320,16 @@ export const BudgetProvider = (): infer _ =>
         name: string,
         desired: BudgetNotification[],
       ) => {
-        const current = (Array.from(
-          try (budgets.describeNotificationsForBudget
-            .pages({
-              AccountId: accountId,
-              BudgetName: name,
-            })
-            |> Stream.runCollect(%)),
-        ).flatMap((page) => page.Notifications ?? [])) catch effect (e) => match (e) {
+        const current = (effect {
+          return (Array.from(
+            try (budgets.describeNotificationsForBudget
+              .pages({
+                AccountId: accountId,
+                BudgetName: name,
+              })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Notifications ?? []))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFoundException" }: [];
           default: throw e;
         }
@@ -352,22 +355,24 @@ export const BudgetProvider = (): infer _ =>
                 Notification: notif,
                 Subscribers: desiredSubscribers,
               }) catch effect (e) => match (e) {
-                when { _tag: "DuplicateRecordException" }: try Effect.void;
+                when { _tag: "DuplicateRecordException" }: (undefined as void);
                 default: throw e;
               }
             continue
           }
           // The notification already exists — converge its subscribers by
           // diffing the OBSERVED subscriber list against the desired one.
-          const observedSubscribers = ((try budgets
-            .describeSubscribersForNotification({
-              AccountId: accountId,
-              BudgetName: name,
-              Notification: notif,
-            })).Subscribers ?? []) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: [];
-              default: throw e;
-            }
+          const observedSubscribers = (effect {
+            return ((try budgets
+              .describeSubscribersForNotification({
+                AccountId: accountId,
+                BudgetName: name,
+                Notification: notif,
+              })).Subscribers ?? [])
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: [];
+            default: throw e;
+          }
           const observedKeys = new Set(observedSubscribers.map(subscriberKey))
           const desiredSubKeys = new Set(desiredSubscribers.map(subscriberKey))
           // Create before delete so the notification never drops to zero
@@ -381,7 +386,7 @@ export const BudgetProvider = (): infer _ =>
                 Notification: notif,
                 Subscriber: s,
               }) catch effect (e) => match (e) {
-                when { _tag: "DuplicateRecordException" }: try Effect.void;
+                when { _tag: "DuplicateRecordException" }: (undefined as void);
                 default: throw e;
               }
           }
@@ -393,7 +398,10 @@ export const BudgetProvider = (): infer _ =>
                 BudgetName: name,
                 Notification: notif,
                 Subscriber: s,
-              }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: (undefined as void);
+                default: throw e;
+              }
           }
         }
         for (const n of current) {
@@ -403,20 +411,27 @@ export const BudgetProvider = (): infer _ =>
               AccountId: accountId,
               BudgetName: name,
               Notification: n,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
         }
       }
 
       const syncTags = effect (arn: string, desired: Record<string, string>) => {
         // Diff against OBSERVED cloud tags (not olds/output) so adoption and
         // out-of-band drift converge correctly.
-        const observed = (Object.fromEntries(
-          ((try budgets.listTagsForResource({ ResourceARN: arn })).ResourceTags ?? []).map((t) => [t.Key, t.Value]),
-        )) catch effect (e) => match (e) {
+        const observed = (effect {
+          return (Object.fromEntries(
+            ((try budgets.listTagsForResource({ ResourceARN: arn })).ResourceTags ?? []).map((t) => [t.Key, t.Value]),
+          ))
+        }) catch effect (e) => match (e) {
           when { _tag: "NotFoundException" }: {} as Record<string, string>;
           default: throw e;
         }
-        const { removed, upsert } = diffTags(observed, desired)
+        const { removed, upsert } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }),
+        )
         if (upsert.length > 0) {
           try budgets.tagResource({
             ResourceARN: arn,
@@ -435,23 +450,25 @@ export const BudgetProvider = (): infer _ =>
         stables: ["budgetName", "accountId", "budgetArn"],
         list: effect () => {
           const { accountId } = try AWSEnvironment.current
-          return (Array.from(
-            try (budgets.describeBudgets.pages({ AccountId: accountId })
-              |> Stream.runCollect(%)),
-          )
-            .flatMap((page) => page.Budgets ?? [])
-            .map((b) => ({
-              budgetName: b.BudgetName,
-              accountId,
-              budgetArn: budgetArn(accountId, b.BudgetName),
-            }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: []; default: throw e; }
+          return (effect {
+            return (Array.from(
+              try (budgets.describeBudgets.pages({ AccountId: accountId })
+                |> Stream.runCollect(%)),
+            )
+              .flatMap((page) => page.Budgets ?? [])
+              .map((b) => ({
+                budgetName: b.BudgetName,
+                accountId,
+                budgetArn: budgetArn(accountId, b.BudgetName),
+              })))
+          }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: []; default: throw e; }
         },
         read: effect ({ id, olds, output }) => {
           const { accountId } = try AWSEnvironment.current
           const name = output?.budgetName ?? (try createName(id, olds ?? {}))
           const found = budgets
             .describeBudget({ AccountId: accountId, BudgetName: name }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.undefined;
+              when { _tag: "NotFoundException" }: undefined;
               default: throw e;
             }
           if (!found?.Budget) return undefined
@@ -461,8 +478,9 @@ export const BudgetProvider = (): infer _ =>
             budgetArn: budgetArn(accountId, name),
           }
         },
-        diff: effect ({ id, news = {}, olds = {} }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput = {}, olds = {} }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -474,11 +492,13 @@ export const BudgetProvider = (): infer _ =>
           const budgetBody = buildBudget(name, news)
 
           // OBSERVE — cloud state is authoritative.
-          const live = (try budgets
-            .describeBudget({ AccountId: accountId, BudgetName: name })).Budget catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.undefined;
-              default: throw e;
-            }
+          const live = (effect {
+            return (try budgets
+              .describeBudget({ AccountId: accountId, BudgetName: name })).Budget
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: undefined;
+            default: throw e;
+          }
 
           if (!live) {
             // ENSURE — create; tolerate a DuplicateRecord race.
@@ -527,7 +547,10 @@ export const BudgetProvider = (): infer _ =>
             .deleteBudget({
               AccountId: output.accountId,
               BudgetName: output.budgetName,
-            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: (undefined as void);
+              default: throw e;
+            }
         },
       })
     },

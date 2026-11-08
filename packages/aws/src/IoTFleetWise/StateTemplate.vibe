@@ -125,11 +125,13 @@ export const StateTemplateProvider = (): infer _ =>
       ) => (props.stateTemplateName ? props.stateTemplateName : try createPhysicalName({ id, maxLength: 100 }))
 
       const readTemplate = effect (identifier: string) =>
-        (try (iotfleetwise.getStateTemplate({ identifier })
-          |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
-            default: throw e;
-          }
+        (effect {
+          return (try (iotfleetwise.getStateTemplate({ identifier })
+            |> inFleetWiseRegion(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
 
       const toAttrs = effect (template: iotfleetwise.GetStateTemplateResponse) => {
         if (template.name === undefined || template.arn === undefined) {
@@ -150,12 +152,15 @@ export const StateTemplateProvider = (): infer _ =>
         stables: ["stateTemplateName", "stateTemplateArn", "stateTemplateId"],
 
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds)) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
           // The backing signal catalog is fixed at creation.
-          if (olds.signalCatalogArn !== news.signalCatalogArn) {
+          if (olds.signalCatalogArn !== resolved.signalCatalogArn) {
             return { action: "replace" } as const
           }
         },
@@ -166,7 +171,9 @@ export const StateTemplateProvider = (): infer _ =>
           if (found?.arn === undefined) return undefined
           const attrs = try toAttrs(found)
           const tags = try readFleetWiseTags(found.arn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -179,20 +186,22 @@ export const StateTemplateProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate the AlreadyExists race.
           if (observed === undefined) {
-            ;(try (iotfleetwise
-              .createStateTemplate({
-                name,
-                description: news.description,
-                signalCatalogArn: news.signalCatalogArn,
-                stateTemplateProperties: news.stateTemplateProperties,
-                dataExtraDimensions: news.dataExtraDimensions,
-                metadataExtraDimensions: news.metadataExtraDimensions,
-                tags: toFleetWiseTagList(desiredTags),
-              })
-              |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (iotfleetwise
+                .createStateTemplate({
+                  name,
+                  description: news.description,
+                  signalCatalogArn: news.signalCatalogArn,
+                  stateTemplateProperties: news.stateTemplateProperties,
+                  dataExtraDimensions: news.dataExtraDimensions,
+                  metadataExtraDimensions: news.metadataExtraDimensions,
+                  tags: try Effect.orDie(Effect.try({ try: () => toFleetWiseTagList(desiredTags), catch: (e) => e })),
+                })
+                |> inFleetWiseRegion(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             observed = try (effect {
               return try effect {
                 const template = try readTemplate(name)
@@ -214,11 +223,18 @@ export const StateTemplateProvider = (): infer _ =>
           const toRemove = observedProperties.filter(
             (fqn) => !news.stateTemplateProperties.includes(fqn),
           )
+          const currentTemplate = observed
           const descriptionChanged = news.description !== undefined && news.description !== observed.description
           const dataDimensionsChanged = news.dataExtraDimensions !== undefined
-            && !stableEquals(observed.dataExtraDimensions ?? [], news.dataExtraDimensions)
+            && !(try Effect.orDie(Effect.try({
+              try: () => stableEquals(currentTemplate.dataExtraDimensions ?? [], news.dataExtraDimensions),
+              catch: (e) => e,
+            })))
           const metadataDimensionsChanged = news.metadataExtraDimensions !== undefined
-            && !stableEquals(observed.metadataExtraDimensions ?? [], news.metadataExtraDimensions)
+            && !(try Effect.orDie(Effect.try({
+              try: () => stableEquals(currentTemplate.metadataExtraDimensions ?? [], news.metadataExtraDimensions),
+              catch: (e) => e,
+            })))
           if (
             toAdd.length > 0
             || toRemove.length > 0
@@ -269,8 +285,8 @@ export const StateTemplateProvider = (): infer _ =>
             |> inFleetWiseRegion(%))
         },
 
-        list: () =>
-          iotfleetwise.listStateTemplates.items({}).pipe(
+        list: effect () =>
+          try iotfleetwise.listStateTemplates.items({}).pipe(
             Stream.runCollect,
             Effect.map((chunk) =>
               Array.from(chunk).flatMap((summary) =>

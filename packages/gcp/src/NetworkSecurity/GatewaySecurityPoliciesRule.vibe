@@ -229,19 +229,40 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.gatewaySecurityPolicyRuleId ?? output?.gatewaySecurityPolicyRuleId
-      const nextId = news.gatewaySecurityPolicyRuleId
-        ? rfc1035(news.gatewaySecurityPolicyRuleId, "rule")
-        : previousId
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? locationFromParent(news.gatewaySecurityPolicy, previousLocation),
-        env.region,
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.gatewaySecurityPolicyRuleId
+            ? rfc1035(resolved.gatewaySecurityPolicyRuleId, "rule")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
-      const previousParent = linkKey(olds?.gatewaySecurityPolicy ?? output?.gatewaySecurityPolicy)
-      const nextParent = linkKey(news.gatewaySecurityPolicy)
+      const location2 = resolved.location ?? locationFromParent(resolved.gatewaySecurityPolicy, previousLocation)
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousParent = try Effect.orDie(
+        Effect.try({
+          try: () => linkKey(olds?.gatewaySecurityPolicy ?? output?.gatewaySecurityPolicy),
+          catch: (e) => e,
+        }),
+      )
+      const nextParent = try Effect.orDie(
+        Effect.try({ try: () => linkKey(resolved.gatewaySecurityPolicy), catch: (e) => e }),
+      )
       if (
         (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
@@ -254,14 +275,19 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        olds?.location
-          ?? output?.location
-          ?? (olds?.gatewaySecurityPolicy
-            ? locationFromParent(olds.gatewaySecurityPolicy, env.region)
-            : undefined),
-        env.region,
-      )
+      const location2 = olds?.location
+        ?? output?.location
+        ?? (olds?.gatewaySecurityPolicy
+          ? locationFromParent(olds.gatewaySecurityPolicy, env.region)
+          : undefined)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentPolicyName(
         env.project,
         location,
@@ -277,15 +303,19 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const { labels } = parseOwnership(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const policies = try collectPages(
         networksecurity.listProjectsLocationsGatewaySecurityPolicies.pages({
-          parent: parentOf(env.project, "-"),
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
           pageSize: 1000,
         }),
         (page) => page.gatewaySecurityPolicies,
@@ -310,12 +340,17 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location
-          ?? output?.location
-          ?? locationFromParent(news.gatewaySecurityPolicy, env.region),
-        env.region,
-      )
+      const location2 = news.location
+        ?? output?.location
+        ?? locationFromParent(news.gatewaySecurityPolicy, env.region)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const parent = parentPolicyName(env.project, location, news.gatewaySecurityPolicy)
       const ruleId = try toPhysicalId(
         id,
@@ -325,32 +360,36 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
       )
       const name = resourceNameOf(parent, ruleId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const enabled = news.enabled !== false
       const tlsInspectionEnabled = news.tlsInspectionEnabled === true
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networksecurity
-          .createProjectsLocationsGatewaySecurityPoliciesRules({
-            parent,
-            gatewaySecurityPolicyRuleId: ruleId,
-            body: {
-              basicProfile: news.basicProfile,
-              priority: news.priority,
-              enabled,
-              sessionMatcher: news.sessionMatcher,
-              applicationMatcher: news.applicationMatcher,
-              tlsInspectionEnabled,
-              description: desiredDescription,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsGatewaySecurityPoliciesRules({
+              parent,
+              gatewaySecurityPolicyRuleId: ruleId,
+              body: {
+                basicProfile: news.basicProfile,
+                priority: news.priority,
+                enabled,
+                sessionMatcher: news.sessionMatcher,
+                applicationMatcher: news.applicationMatcher,
+                tlsInspectionEnabled,
+                description: desiredDescription,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -368,15 +407,19 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
       const sessionChanged = (current.sessionMatcher ?? "") !== news.sessionMatcher
       const applicationChanged = (current.applicationMatcher ?? "") !== (news.applicationMatcher ?? "")
       const tlsChanged = (current.tlsInspectionEnabled === true) !== tlsInspectionEnabled
-      const updateMask = changedFields([
-        ["description", descriptionChanged],
-        ["basicProfile", profileChanged],
-        ["priority", priorityChanged],
-        ["enabled", enabledChanged],
-        ["sessionMatcher", sessionChanged],
-        ["applicationMatcher", applicationChanged],
-        ["tlsInspectionEnabled", tlsChanged],
-      ])
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["description", descriptionChanged],
+            ["basicProfile", profileChanged],
+            ["priority", priorityChanged],
+            ["enabled", enabledChanged],
+            ["sessionMatcher", sessionChanged],
+            ["applicationMatcher", applicationChanged],
+            ["tlsInspectionEnabled", tlsChanged],
+          ]),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         const operation = try networksecurity.patchProjectsLocationsGatewaySecurityPoliciesRules(
@@ -403,15 +446,17 @@ export const GatewaySecurityPoliciesRuleProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networksecurity
-        .deleteProjectsLocationsGatewaySecurityPoliciesRules({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsGatewaySecurityPoliciesRules({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

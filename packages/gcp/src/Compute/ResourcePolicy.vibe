@@ -433,7 +433,7 @@ const immutablePolicyChanged = (
 const getByName = effect (project: string, region: string, resourcePolicy: string) =>
   compute
     .getResourcePolicies({ project, region, resourcePolicy }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -466,7 +466,7 @@ const waitPolicyGone = effect (project: string, region: string, resourcePolicyNa
   try (effect {
     return try effect {
       const policy = try getByName(project, region, resourcePolicyName)
-      return (policy === undefined ? try Effect.void : throw new ResourcePolicyStillExists({
+      return (policy === undefined ? (undefined as void) : throw new ResourcePolicyStillExists({
         resourcePolicyName,
         status: policy.status ?? "UNKNOWN",
       }))
@@ -490,21 +490,24 @@ export const ResourcePolicyProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved__ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved__ === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousName = olds?.resourcePolicyName ?? output?.resourcePolicyName
-      const nextName = news.resourcePolicyName ?? previousName
+      const nextName = resolved__.resourcePolicyName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
 
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved__.region ?? output?.region, env.region)
       const regionChanged = previousRegion !== nextRegion
 
       if (nameChanged || regionChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
-      if (immutablePolicyChanged(news, olds, output)) {
+      if (immutablePolicyChanged(resolved__, olds, output)) {
         return { action: "replace" as const, deleteFirst: true }
       }
       return undefined
@@ -522,7 +525,9 @@ export const ResourcePolicyProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -566,7 +571,7 @@ export const ResourcePolicyProvider = (): infer _ =>
             project: env.project,
             region,
             body: desired,
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (inserted !== undefined) {
           try waitRegionOperation(env.project, region, inserted, {
             ignore: ["RESOURCE_ALREADY_EXISTS"],
@@ -635,7 +640,7 @@ export const ResourcePolicyProvider = (): infer _ =>
             project,
             region,
             resourcePolicy: output.resourcePolicyName,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",

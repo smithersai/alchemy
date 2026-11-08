@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as rds from "@distilled.cloud/aws/rds"
 import { deepEqual, isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -138,8 +141,12 @@ const retryWhileParameterGroupBusy = effect <A, E extends { _tag: string }, R>(
     schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(10)]),
   })
 
-error DBParameterGroupNotSettled {
-  mutable resourceName: string
+class DBParameterGroupNotSettled extends $MutableErrorBase("DBParameterGroupNotSettled")<{
+  resourceName: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DBParameterGroupNotSettled", true)
+  }
 }
 
 export const DBParameterGroupProvider = (): infer _ =>
@@ -156,7 +163,7 @@ export const DBParameterGroupProvider = (): infer _ =>
           .describeDBParameterGroups({
             DBParameterGroupName: name,
           }) catch effect (e) => match (e) {
-            when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.undefined;
+            when { _tag: "DBParameterGroupNotFoundFault" }: undefined;
             default: throw e;
           }
         return response?.DBParameterGroups?.[0]
@@ -206,21 +213,24 @@ export const DBParameterGroupProvider = (): infer _ =>
       return {
         stables: ["dbParameterGroupArn", "dbParameterGroupName"],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return undefined
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
           if (
-            (try toName(id, olds ?? ({} as DBParameterGroupProps))) !== (try toName(id, news))
+            (try toName(id, olds ?? ({} as DBParameterGroupProps))) !== (try toName(id, resolved))
           ) {
             return { action: "replace" } as const
           }
-          if (olds?.family !== news.family || olds?.description !== news.description) {
+          if (olds?.family !== resolved.family || olds?.description !== resolved.description) {
             return { action: "replace" } as const
           }
           if (output !== undefined) {
             const group = try readGroup(output.dbParameterGroupName)
             if (!group) return { action: "update", stables: [] } as const
-            const desired = news.parameters ?? {}
+            const desired = resolved.parameters ?? {}
             const parameters = readParameters(output.dbParameterGroupName) catch effect (e) => match (e) {
-              when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.undefined;
+              when { _tag: "DBParameterGroupNotFoundFault" }: undefined;
               default: throw e;
             }
             if (parameters === undefined) {
@@ -228,12 +238,15 @@ export const DBParameterGroupProvider = (): infer _ =>
             }
             const observed = toManagedParameterRecord(parameters, desired)
             const desiredTags = {
-              ...news.tags,
+              ...resolved.tags,
               ...(try createInternalTags(id)),
             }
             if (
-              !deepEqual(desired, observed)
-              || !deepEqual(desiredTags, try readTags(group.DBParameterGroupArn))
+              !(try Effect.orDie(Effect.try({ try: () => deepEqual(desired, observed), catch: (e) => e })))
+              || !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(desiredTags, try readTags(group.DBParameterGroupArn)),
+                catch: (error) => error,
+              })))
             ) {
               return { action: "update" } as const
             }
@@ -308,7 +321,7 @@ export const DBParameterGroupProvider = (): infer _ =>
                   Value,
                 })),
               }) catch effect (e) => match (e) {
-                when { _tag: "DBParameterGroupAlreadyExistsFault" }: try Effect.void;
+                when { _tag: "DBParameterGroupAlreadyExistsFault" }: (undefined as void);
                 default: throw e;
               }
             observed = try readGroup(name)
@@ -331,7 +344,9 @@ export const DBParameterGroupProvider = (): infer _ =>
             const toModify: rds.Parameter[] = Object.entries(desiredParameters).flatMap(
               ([ParameterName, ParameterValue]) => {
                 const current = byName.get(ParameterName)
-                if (current?.ParameterValue === ParameterValue) return []
+                if (current?.ParameterValue === ParameterValue) {
+                  return []
+                }
                 return [
                   {
                     ParameterName,
@@ -382,7 +397,9 @@ export const DBParameterGroupProvider = (): infer _ =>
           const dbParameterGroupArn = observed.DBParameterGroupArn
 
           const observedTags = try readTags(dbParameterGroupArn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0 && dbParameterGroupArn) {
             try rds.addTagsToResource({
               ResourceName: dbParameterGroupArn,
@@ -405,7 +422,9 @@ export const DBParameterGroupProvider = (): infer _ =>
               const parameters = try readParameters(name)
 
               const observed = toManagedParameterRecord(parameters, desiredParameters)
-              return (deepEqual(desiredParameters, observed)
+              return ((try Effect.orDie(
+                  Effect.try({ try: () => deepEqual(desiredParameters, observed), catch: (e) => e }),
+                ))
                 ? observed
                 : throw new DBParameterGroupNotSettled({ resourceName: name }))
             }
@@ -430,7 +449,7 @@ export const DBParameterGroupProvider = (): infer _ =>
             .deleteDBParameterGroup({
               DBParameterGroupName: output.dbParameterGroupName,
             }) catch effect (e) => match (e) {
-              when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.void;
+              when { _tag: "DBParameterGroupNotFoundFault" }: (undefined as void);
               default: throw e;
             }
         },

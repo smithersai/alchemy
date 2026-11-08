@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as fis from "@distilled.cloud/aws/fis"
 import { isResolved } from "alchemy/Diff"
 import * as Provider from "alchemy/Provider"
@@ -95,7 +96,10 @@ export const TargetAccountConfigurationProvider = (): infer _ =>
       // ResourceNotFoundException — either way the configuration does not
       // exist.
       const observe = effect (experimentTemplateId: string, accountId: string) =>
-        (try fis.getTargetAccountConfiguration({ experimentTemplateId, accountId })).targetAccountConfiguration catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+        (effect {
+          return (try fis.getTargetAccountConfiguration({ experimentTemplateId, accountId }))
+            .targetAccountConfiguration
+        }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
 
       const toAttrs = (experimentTemplateId: string, config: fis.TargetAccountConfiguration): infer _ => ({
         experimentTemplateId,
@@ -109,8 +113,9 @@ export const TargetAccountConfigurationProvider = (): infer _ =>
         // The (template, account) pair IS the configuration's identity —
         // changing either side replaces it. roleArn/description sync in
         // place.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (
             olds !== undefined
             && (olds.experimentTemplateId !== news.experimentTemplateId
@@ -141,16 +146,18 @@ export const TargetAccountConfigurationProvider = (): infer _ =>
           if (observed === undefined) {
             // 2. Ensure — create when missing; a concurrent create race
             // surfaces as ConflictException and falls through to observe.
-            observed = (try fis
-              .createTargetAccountConfiguration({
-                experimentTemplateId: news.experimentTemplateId,
-                accountId: news.accountId,
-                roleArn: news.roleArn,
-                description: news.description,
-              })).targetAccountConfiguration catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try observe(news.experimentTemplateId, news.accountId);
-                default: throw e;
-              }
+            observed = (effect {
+              return (try fis
+                .createTargetAccountConfiguration({
+                  experimentTemplateId: news.experimentTemplateId,
+                  accountId: news.accountId,
+                  roleArn: news.roleArn,
+                  description: news.description,
+                })).targetAccountConfiguration
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try observe(news.experimentTemplateId, news.accountId);
+              default: throw e;
+            }
           } else if (
             // 3. Sync — diff observed against desired and apply the single
             // update on any delta. `description` is settable-but-not-removable,
@@ -177,7 +184,7 @@ export const TargetAccountConfigurationProvider = (): infer _ =>
               experimentTemplateId: output.experimentTemplateId,
               accountId: output.accountId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },
@@ -192,11 +199,14 @@ export const TargetAccountConfigurationProvider = (): infer _ =>
           const results: TargetAccountConfiguration["Attributes"][] = []
           for (const template of templates) {
             if (template.id === undefined) continue
-            const configs = (Array.from(
-              try (fis.listTargetAccountConfigurations
-                .items({ experimentTemplateId: template.id })
-                |> Stream.runCollect(%)),
-            )) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; }
+            const experimentTemplateId = template.id
+            const configs = (effect {
+              return (Array.from(
+                try (fis.listTargetAccountConfigurations
+                  .items({ experimentTemplateId: experimentTemplateId })
+                  |> Stream.runCollect(%)),
+              ))
+            }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; }
             for (const config of configs) {
               if (config.accountId === undefined || config.roleArn === undefined) {
                 continue

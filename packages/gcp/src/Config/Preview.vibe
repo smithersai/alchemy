@@ -268,64 +268,90 @@ export const PreviewProvider = (): infer _ =>
     stables: ["name", "previewId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const extra = olds === undefined
         ? false
-        : fingerprint(
-          snapshotOf({
-            terraformBlueprint: olds.terraformBlueprint,
-            deployment: olds.deployment === undefined
-              ? undefined
-              : expandNamed(olds.deployment, env.project, location, "deployments"),
-            previewMode: olds.previewMode,
-            serviceAccount: serviceAccountName(olds.serviceAccount, env.project),
-            artifactsGcsBucket: olds.artifactsGcsBucket,
-            workerPool: olds.workerPool,
-            tfVersionConstraint: olds.tfVersionConstraint,
-            providerConfig: olds.providerConfig,
-            annotations: olds.annotations,
-            labels: olds.labels,
-          }),
-        )
-          !== fingerprint(
+        : (try Effect.orDie(Effect.try({
+          try: fingerprint.bind(
+            undefined,
             snapshotOf({
-              terraformBlueprint: news.terraformBlueprint,
-              deployment: news.deployment === undefined
+              terraformBlueprint: olds.terraformBlueprint,
+              deployment: olds.deployment === undefined
                 ? undefined
-                : expandNamed(news.deployment, env.project, location, "deployments"),
-              previewMode: news.previewMode,
-              serviceAccount: serviceAccountName(news.serviceAccount, env.project),
-              artifactsGcsBucket: news.artifactsGcsBucket,
-              workerPool: news.workerPool,
-              tfVersionConstraint: news.tfVersionConstraint,
-              providerConfig: news.providerConfig,
-              annotations: news.annotations,
-              labels: news.labels,
+                : expandNamed(olds.deployment, env.project, location, "deployments"),
+              previewMode: olds.previewMode,
+              serviceAccount: serviceAccountName(olds.serviceAccount, env.project),
+              artifactsGcsBucket: olds.artifactsGcsBucket,
+              workerPool: olds.workerPool,
+              tfVersionConstraint: olds.tfVersionConstraint,
+              providerConfig: olds.providerConfig,
+              annotations: olds.annotations,
+              labels: olds.labels,
             }),
-          )
-      return replaceOnIdentity({
-        previousId: olds?.previewId ?? output?.previewId,
-        nextId: news.previewId ?? olds?.previewId ?? output?.previewId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: location,
-        extra,
-      })
+          ),
+          catch: (e) => e,
+        })))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(
+              undefined,
+              snapshotOf({
+                terraformBlueprint: resolved.terraformBlueprint,
+                deployment: resolved.deployment === undefined
+                  ? undefined
+                  : expandNamed(resolved.deployment, env.project, location, "deployments"),
+                previewMode: resolved.previewMode,
+                serviceAccount: serviceAccountName(resolved.serviceAccount, env.project),
+                artifactsGcsBucket: resolved.artifactsGcsBucket,
+                workerPool: resolved.workerPool,
+                tfVersionConstraint: resolved.tfVersionConstraint,
+                providerConfig: resolved.providerConfig,
+                annotations: resolved.annotations,
+                labels: resolved.labels,
+              }),
+            ),
+            catch: (e) => e,
+          })))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.previewId ?? output?.previewId,
+            nextId: resolved.previewId ?? olds?.previewId ?? output?.previewId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: location,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const previewId = try toPhysicalId(id, olds?.previewId, output?.previewId, "preview")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, previewId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -337,17 +363,25 @@ export const PreviewProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const previewId = try toPhysicalId(id, news.previewId, output?.previewId, "preview")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, previewId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const desiredAnnotations = news.annotations ?? {}
-      const serviceAccount = serviceAccountName(news.serviceAccount, env.project)
-      const deployment = news.deployment === undefined
-        ? undefined
-        : expandNamed(news.deployment, env.project, location, "deployments")
+      const serviceAccount = try Effect.orDie(
+        Effect.try({ try: () => serviceAccountName(news.serviceAccount, env.project), catch: (e) => e }),
+      )
+      const deployment = try Effect.orDie(Effect.try({
+        try: () =>
+          news.deployment === undefined
+            ? undefined
+            : expandNamed(news.deployment, env.project, location, "deployments"),
+        catch: (e) => e,
+      }))
 
       let current = try getByName(output?.name ?? name)
 
@@ -383,15 +417,17 @@ export const PreviewProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (config
-        .deleteProjectsLocationsPreviews({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (config
+          .deleteProjectsLocationsPreviews({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

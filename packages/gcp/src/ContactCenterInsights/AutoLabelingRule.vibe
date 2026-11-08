@@ -179,40 +179,45 @@ const toAttrs = (rule: cci.GoogleCloudContactcenterinsightsV1AutoLabelingRule, p
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsAutoLabelingRules({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsAutoLabelingRules.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.autoLabelingRules ?? []))
-      |> Stream.filter(%, (rule) => hasOwnershipMarker(rule.description))
-      |> Stream.map(%, (rule) => toAttrs(rule, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsAutoLabelingRules.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.autoLabelingRules ?? []))
+        |> Stream.filter(%, (rule) => hasOwnershipMarker(rule.description))
+        |> Stream.map(%, (rule) => toAttrs(rule, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const AutoLabelingRuleProvider = (): infer _ =>
   Provider.succeed(AutoLabelingRule, {
     stables: ["name", "autoLabelingRuleId", "location", "project", "labelKey", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
       if (
         previousLocation !== undefined
-        && news.location !== undefined
-        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+        && resolved.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location)
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.autoLabelingRuleId ?? output?.autoLabelingRuleId
       if (
         previousId !== undefined
-        && news.autoLabelingRuleId !== undefined
-        && news.autoLabelingRuleId !== previousId
+        && resolved.autoLabelingRuleId !== undefined
+        && resolved.autoLabelingRuleId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -231,7 +236,9 @@ export const AutoLabelingRuleProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -311,7 +318,7 @@ export const AutoLabelingRuleProvider = (): infer _ =>
     delete: effect ({ output }) => {
       cci
         .deleteProjectsLocationsAutoLabelingRules({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

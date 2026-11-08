@@ -358,7 +358,7 @@ const getByName = effect (name: string) =>
     }
 
 const getKeyStringValue = effect (name: string) =>
-  (try apikeys.getKeyStringProjectsLocationsKeys({ name })).keyString catch effect (e) => match (e) {
+  (effect { return (try apikeys.getKeyStringProjectsLocationsKeys({ name })).keyString }) catch effect (e) => match (e) {
     when { _tag: "NotFound" }: try Effect.undefined;
     default: throw e;
   }
@@ -408,7 +408,7 @@ const reviveDeleted = effect (name: string) => {
 }
 
 const listOwnedKeys = effect (project: string) =>
-  (Array.from(
+  (effect { return (Array.from(
     try (apikeys.listProjectsLocationsKeys
       .pages({
         parent: parentOf(project),
@@ -420,7 +420,7 @@ const listOwnedKeys = effect (project: string) =>
         && Object.keys(key.annotations ?? {}).some((item) => item.startsWith("alchemy-")))
       |> Stream.map(%, (key) => toAttrs(key, project))
       |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const toCreateBody = (news: KeyProps, annotations: Record<string, string>): apikeys.V2Key => ({
   displayName: news.displayName,
@@ -434,12 +434,13 @@ export const KeyProvider = (): infer _ =>
     stables: ["name", "keyId", "project", "location", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousId = olds?.keyId ?? output?.keyId
-      const nextId = news.keyId ?? previousId
+      const nextId = resolved.keyId ?? previousId
       const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
       const previousSa = olds?.serviceAccountEmail ?? output?.serviceAccountEmail ?? ""
-      const nextSa = news.serviceAccountEmail ?? previousSa
+      const nextSa = resolved.serviceAccountEmail ?? previousSa
       const saChanged = previousSa !== nextSa
 
       if (!idChanged && !saChanged) return undefined
@@ -456,9 +457,9 @@ export const KeyProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined || isDeleted(existing)) return undefined
       const attrs = try toAttrsLive(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e }))))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -472,7 +473,7 @@ export const KeyProvider = (): infer _ =>
       const name = resourceName(env.project, keyId)
       const parent = parentOf(env.project)
       const desiredAnnotations = {
-        ...toLabels(news.annotations),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.annotations), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -506,7 +507,7 @@ export const KeyProvider = (): infer _ =>
       }
 
       const observedAnnotations = tagRecord(current.annotations)
-      const { upsert, removed } = diffLabels(observedAnnotations, desiredAnnotations)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedAnnotations, desiredAnnotations), catch: (e) => e }))
       const annotationsChanged = upsert.length > 0 || removed.length > 0
       const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
       const restrictionsChanged = restrictionsFingerprint(toRestrictions(current.restrictions))
@@ -538,7 +539,7 @@ export const KeyProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (apikeys
+      const operation = (effect { return (try (apikeys
         .deleteProjectsLocationsKeys({
           name: output.name,
           etag: output.etag,
@@ -547,7 +548,7 @@ export const KeyProvider = (): infer _ =>
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("1 second"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForDeleteOperation(operation)
       }

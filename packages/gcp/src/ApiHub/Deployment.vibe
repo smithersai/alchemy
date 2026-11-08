@@ -242,13 +242,15 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listAt = effect (parent: string, project: string, region: string) =>
-  (Array.from(
-    try (apihub.listProjectsLocationsDeployments.pages({ parent, pageSize: 1000 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.deployments ?? []))
-      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
-      |> Stream.map(%, (item) => toAttrs(item, project, region))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (apihub.listProjectsLocationsDeployments.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.deployments ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+        |> Stream.map(%, (item) => toAttrs(item, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const toBody = (
   news: DeploymentProps,
@@ -275,17 +277,24 @@ export const DeploymentProvider = (): infer _ =>
     stables: ["name", "deploymentId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.deploymentId ?? output?.deploymentId,
-        nextId: news.deploymentId ?? olds?.deploymentId ?? output?.deploymentId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.deploymentId ?? output?.deploymentId,
+            nextId: resolved.deploymentId ?? olds?.deploymentId ?? output?.deploymentId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -296,22 +305,32 @@ export const DeploymentProvider = (): infer _ =>
         output?.deploymentId,
         MAX_LONG_ID_LENGTH,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, deploymentId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return try listAt(locationParent(env.project, env.region), env.project, env.region)
+      return try listAt(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project, env.region), catch: (e) => e })),
+        env.project,
+        env.region,
+      )
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const deploymentId = try toPhysicalId(
         id,
         news.deploymentId,
@@ -320,9 +339,13 @@ export const DeploymentProvider = (): infer _ =>
       )
       const name = resourceName(env.project, location, deploymentId)
       const ownership = try ownershipLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const displayName = news.displayName ?? deploymentId
-      const parent = locationParent(env.project, location)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? name)
 
@@ -343,37 +366,58 @@ export const DeploymentProvider = (): infer _ =>
       const currentName = current.name ?? name
       const observed = parseOwnership(current.description).text
       const displayChanged = !sameText(current.displayName, displayName)
-      const descriptionChanged = !sameText(observed, news.description)
-      const documentationChanged = !sameJson(current.documentation, news.documentation)
-      const typeChanged = !sameJson(
-        current.deploymentType,
-        news.deploymentType ?? DEFAULT_DEPLOYMENT_TYPE,
-      )
+      const descriptionChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameText(observed, news.description),
+        catch: (e) => e,
+      })))
+      const documentationChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.documentation, news.documentation), catch: (e) => e }),
+      ))
+      const typeChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.deploymentType, news.deploymentType ?? DEFAULT_DEPLOYMENT_TYPE),
+          catch: (e) => e,
+        }),
+      ))
       const uriChanged = !sameText(current.resourceUri, news.resourceUri)
       const endpointsChanged = !sameStringList(current.endpoints, news.endpoints)
-      const sloChanged = !sameJson(current.slo, news.slo)
-      const environmentChanged = !sameJson(current.environment, news.environment)
-      const attributesChanged = !sameJson(current.attributes, news.attributes)
+      const sloChanged =
+        !(try Effect.orDie(Effect.try({ try: sameJson.bind(undefined, current.slo, news.slo), catch: (e) => e })))
+      const environmentChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.environment, news.environment), catch: (e) => e }),
+      ))
+      const attributesChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.attributes, news.attributes), catch: (e) => e }),
+      ))
       const sourceProjectChanged = !sameText(current.sourceProject, news.sourceProject)
       const sourceEnvironmentChanged = !sameText(current.sourceEnvironment, news.sourceEnvironment)
-      const managementUrlChanged = !sameJson(current.managementUrl, news.managementUrl)
-      const sourceUriChanged = !sameJson(current.sourceUri, news.sourceUri)
+      const managementUrlChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.managementUrl, news.managementUrl), catch: (e) => e }),
+      ))
+      const sourceUriChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.sourceUri, news.sourceUri),
+        catch: (e) => e,
+      })))
 
-      const updateMask = updateMaskOf(
-        displayChanged ? "display_name" : undefined,
-        descriptionChanged ? "description" : undefined,
-        documentationChanged ? "documentation" : undefined,
-        typeChanged ? "deployment_type" : undefined,
-        uriChanged ? "resource_uri" : undefined,
-        endpointsChanged ? "endpoints" : undefined,
-        sloChanged ? "slo" : undefined,
-        environmentChanged ? "environment" : undefined,
-        attributesChanged ? "attributes" : undefined,
-        sourceProjectChanged ? "source_project" : undefined,
-        sourceEnvironmentChanged ? "source_environment" : undefined,
-        managementUrlChanged ? "management_url" : undefined,
-        sourceUriChanged ? "source_uri" : undefined,
-      )
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            documentationChanged ? "documentation" : undefined,
+            typeChanged ? "deployment_type" : undefined,
+            uriChanged ? "resource_uri" : undefined,
+            endpointsChanged ? "endpoints" : undefined,
+            sloChanged ? "slo" : undefined,
+            environmentChanged ? "environment" : undefined,
+            attributesChanged ? "attributes" : undefined,
+            sourceProjectChanged ? "source_project" : undefined,
+            sourceEnvironmentChanged ? "source_environment" : undefined,
+            managementUrlChanged ? "management_url" : undefined,
+            sourceUriChanged ? "source_uri" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try apihub.patchProjectsLocationsDeployments({

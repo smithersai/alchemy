@@ -177,7 +177,7 @@ const toAttrs = (feedback: apigee.GoogleCloudApigeeV1SecurityFeedback, organizat
 const getByName = effect (name: string) =>
   apigee
     .getOrganizationsSecurityFeedback({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
       default: throw e;
     }
 
@@ -197,16 +197,19 @@ export const SecurityFeedbackProvider = (): infer _ =>
     stables: ["name", "securityFeedbackId", "organization", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.securityFeedbackId ?? output?.securityFeedbackId
       const previousOrg = olds?.organization ?? output?.organization
       if (
         (previousId !== undefined
-          && news.securityFeedbackId !== undefined
-          && news.securityFeedbackId !== previousId)
+          && resolved.securityFeedbackId !== undefined
+          && resolved.securityFeedbackId !== previousId)
         || (previousOrg !== undefined
-          && news.organization !== undefined
-          && news.organization !== previousOrg)
+          && resolved.organization !== undefined
+          && resolved.organization !== previousOrg)
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -226,23 +229,27 @@ export const SecurityFeedbackProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization)
-      const { labels } = parseOwnership(existing.comment)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(existing.comment), catch: (e) => e }))
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (apigee.listOrganizationsSecurityFeedback
-          .pages({
-            parent: orgParent(env.project),
-            pageSize: 100,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityFeedback ?? []))
-          |> Stream.filter(%, (feedback) => hasOwnershipMarker(feedback.comment))
-          |> Stream.map(%, (feedback) => toAttrs(feedback, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) {
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsSecurityFeedback
+            .pages({
+              parent: orgParent(env.project),
+              pageSize: 100,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityFeedback ?? []))
+            |> Stream.filter(%, (feedback) => hasOwnershipMarker(feedback.comment))
+            |> Stream.map(%, (feedback) => toAttrs(feedback, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
         when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as SecurityFeedback["Attributes"][];
         default: throw e;
       }
@@ -259,7 +266,9 @@ export const SecurityFeedbackProvider = (): infer _ =>
       )
       const name = resourceName(organization, securityFeedbackId)
       const ownership = try createInternalLabels(id)
-      const desiredComment = encodeOwnership(ownership, news.comment)
+      const desiredComment = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.comment), catch: (e) => e }),
+      )
       const desiredType = news.feedbackType ?? DEFAULT_FEEDBACK_TYPE
 
       let current = try getByName(output?.name ?? name)
@@ -309,7 +318,7 @@ export const SecurityFeedbackProvider = (): infer _ =>
     delete: effect ({ output }) => {
       apigee
         .deleteOrganizationsSecurityFeedback({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: (undefined as void);
           default: throw e;
         }
     },

@@ -232,14 +232,14 @@ const toAttrs = (record: dns.ResourceRecordSet, project: string, managedZone: st
 const getZone = effect (project: string, managedZone: string) =>
   dns
     .getManagedZones({ project, managedZone }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
 const getByName = effect (project: string, managedZone: string, name: string, type: string) =>
   dns
     .getResourceRecordSets({ project, managedZone, name, type }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -260,21 +260,23 @@ const toRecordName = effect (
 }
 
 const listRrsets = effect (project: string, zoneName: string) =>
-  (try effect {
-    const found: dns.ResourceRecordSet[] = []
-    let pageToken: string | undefined
-    for (let page = 0; page < 10; page++) {
-      const response = try dns.listResourceRecordSets({
-        project,
-        managedZone: zoneName,
-        maxResults: 1000,
-        pageToken,
-      })
-      found.push(...(response.rrsets ?? []))
-      pageToken = response.nextPageToken
-      if (pageToken === undefined || pageToken === "") break
-    }
-    return found
+  (effect {
+    return (try effect {
+      const found: dns.ResourceRecordSet[] = []
+      let pageToken: string | undefined
+      for (let page = 0; page < 10; page++) {
+        const response = try dns.listResourceRecordSets({
+          project,
+          managedZone: zoneName,
+          maxResults: 1000,
+          pageToken,
+        })
+        found.push(...(response.rrsets ?? []))
+        pageToken = response.nextPageToken
+        if (pageToken === undefined || pageToken === "") break
+      }
+      return found
+    })
   }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dns.ResourceRecordSet[]; default: throw e; }
 
 const listAlchemyZones = effect (project: string) => {
@@ -300,14 +302,17 @@ export const ResourceRecordSetProvider = (): infer _ =>
     stables: ["project", "managedZone", "name", "type"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousZone = olds?.managedZone ?? output?.managedZone
       const previousName = olds?.name ?? output?.name
       const previousType = olds?.type ?? output?.type
-      const nextType = normalizeType(news.type)
-      const zoneChanged = previousZone !== undefined && news.managedZone !== previousZone
+      const nextType = normalizeType(resolved.type)
+      const zoneChanged = previousZone !== undefined && resolved.managedZone !== previousZone
       const typeChanged = previousType !== undefined && nextType !== normalizeType(previousType)
-      const nameChanged = nameIdentityChanged(news.name, previousName)
+      const nameChanged = nameIdentityChanged(resolved.name, previousName)
       if (zoneChanged || typeChanged || nameChanged) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -414,6 +419,6 @@ export const ResourceRecordSetProvider = (): infer _ =>
           managedZone: output.managedZone,
           name: output.name,
           type: output.type,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

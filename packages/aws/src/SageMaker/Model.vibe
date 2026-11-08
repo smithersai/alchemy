@@ -138,10 +138,10 @@ const createModelName = effect (
 ) => (props.modelName ? props.modelName : try createPhysicalName({ id, maxLength: 63 }))
 
 const fetchModelTags = effect (arn: string) => {
-  const tags = (Array.from(
+  const tags = (effect { return (Array.from(
     try (sagemaker.listTags.items({ ResourceArn: arn })
       |> EffectStream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "AccessDeniedException" }: []; default: throw e; }
+  )) }) catch effect (e) => match (e) { when { _tag: "AccessDeniedException" }: []; default: throw e; }
   return Object.fromEntries(
     tags.flatMap((tag) => (tag.Key !== undefined ? [[tag.Key, tag.Value ?? ""]] : [])),
   )
@@ -150,7 +150,7 @@ const fetchModelTags = effect (arn: string) => {
 const readModel = effect (modelName: string) => {
   const described = sagemaker
     .describeModel({ ModelName: modelName }) catch effect (e) => match (e) {
-      when { _tag: "ModelNotFound" }: try Effect.undefined;
+      when { _tag: "ModelNotFound" }: undefined;
       default: throw e;
     }
   if (!described) return undefined
@@ -195,10 +195,11 @@ export const ModelProvider = (): infer _ =>
           const attrs = try readModel(modelName)
           if (!attrs) return undefined
           const tags = try fetchModelTags(attrs.modelArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // SageMaker models are immutable — everything except tags replaces.
           const identity = (props: ModelProps): infer _ => [
@@ -210,10 +211,10 @@ export const ModelProvider = (): infer _ =>
             props.enableNetworkIsolation ?? false,
           ]
           const oldName = try createModelName(id, olds)
-          const newName = try createModelName(id, news)
+          const newName = try createModelName(id, resolved)
           if (
             oldName !== newName
-            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(news))
+            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(resolved))
           ) {
             return { action: "replace" } as const
           }
@@ -245,7 +246,7 @@ export const ModelProvider = (): infer _ =>
                   Value,
                 })),
               }),
-            ) catch effect (e) => match (e) { when { _tag: "ModelAlreadyExists" }: try Effect.void; default: throw e; }
+            ) catch effect (e) => match (e) { when { _tag: "ModelAlreadyExists" }: (undefined as void); default: throw e; }
             attrs = try readModel(modelName)
             if (attrs === undefined) {
               throw new ModelUnexpectedResponse({
@@ -256,7 +257,7 @@ export const ModelProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchModelTags(attrs.modelArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: attrs.modelArn,
@@ -276,7 +277,7 @@ export const ModelProvider = (): infer _ =>
         delete: effect ({ output }) => {
           sagemaker
             .deleteModel({ ModelName: output.modelName }) catch effect (e) => match (e) {
-              when { _tag: "ModelNotFound" }: try Effect.void;
+              when { _tag: "ModelNotFound" }: (undefined as void);
               default: throw e;
             }
         },

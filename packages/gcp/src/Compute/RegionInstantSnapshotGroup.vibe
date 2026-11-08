@@ -224,7 +224,7 @@ const getByName = effect (project: string, region: string, instantSnapshotGroup:
       project,
       region,
       instantSnapshotGroup,
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const waitReady = effect (project: string, region: string, instantSnapshotGroupName: string) =>
   try (effect {
@@ -255,7 +255,7 @@ const waitGone = effect (project: string, region: string, instantSnapshotGroupNa
   try (effect {
     return try effect {
       const group = try getByName(project, region, instantSnapshotGroupName)
-      return (group === undefined ? try Effect.void : throw new RegionInstantSnapshotGroupStillExists({
+      return (group === undefined ? (undefined as void) : throw new RegionInstantSnapshotGroupStillExists({
         instantSnapshotGroupName,
         status: group.status ?? "UNKNOWN",
       }))
@@ -280,19 +280,22 @@ export const RegionInstantSnapshotGroupProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
 
       const previousName = olds?.instantSnapshotGroupName ?? output?.instantSnapshotGroupName
-      const nextName = news.instantSnapshotGroupName ?? previousName
+      const nextName = resolved.instantSnapshotGroupName ?? previousName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? output?.region, env.region)
       const previousSource = canonicalizePolicy(
         olds?.sourceConsistencyGroup ?? output?.sourceConsistencyGroup,
       )
-      const nextSource = canonicalizePolicy(news.sourceConsistencyGroup)
+      const nextSource = canonicalizePolicy(resolved.sourceConsistencyGroup)
       const previousDescription = olds?.description ?? output?.description ?? ""
-      const nextDescription = news.description ?? ""
+      const nextDescription = resolved.description ?? ""
 
       const replace = previousRegion !== nextRegion
         || (previousName !== undefined && nextName !== undefined && previousName !== nextName)
@@ -321,7 +324,9 @@ export const RegionInstantSnapshotGroupProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -369,7 +374,7 @@ export const RegionInstantSnapshotGroupProvider = (): infer _ =>
               description: desiredDescription,
               sourceConsistencyGroup: desiredSource,
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (inserted !== undefined) {
           try waitRegionOperation(env.project, region, inserted, {
             ignore: ["RESOURCE_ALREADY_EXISTS"],
@@ -408,7 +413,7 @@ export const RegionInstantSnapshotGroupProvider = (): infer _ =>
             project: output.project,
             region,
             instantSnapshotGroup: output.instantSnapshotGroupName,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",

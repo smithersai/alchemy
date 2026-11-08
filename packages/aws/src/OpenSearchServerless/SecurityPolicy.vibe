@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as aoss from "@distilled.cloud/aws/opensearchserverless"
 import { isResolved } from "alchemy/Diff"
 import { createPhysicalName } from "alchemy/PhysicalName"
@@ -180,7 +181,7 @@ export const SecurityPolicyProvider = (): infer _ =>
           const name = output?.policyName ?? (try createName(id, olds ?? {}))
           const found = aoss
             .getSecurityPolicy({ type, name }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (found?.securityPolicyDetail === undefined) {
@@ -191,8 +192,9 @@ export const SecurityPolicyProvider = (): infer _ =>
           return toAttributes(found.securityPolicyDetail)
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds.type !== news.type) {
             return { action: "replace" } as const
           }
@@ -210,24 +212,28 @@ export const SecurityPolicyProvider = (): infer _ =>
           const policy = stringifyPolicy(news.policy)
 
           // 1. OBSERVE
-          let detail = (try aoss.getSecurityPolicy({ type, name })).securityPolicyDetail catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          let detail = (effect {
+            return (try aoss.getSecurityPolicy({ type, name })).securityPolicyDetail
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
           // 2. ENSURE — create if missing; tolerate a concurrent create race
           if (detail === undefined) {
-            detail = (try aoss
-              .createSecurityPolicy({
-                type,
-                name,
-                policy,
-                description: news.description,
-              })).securityPolicyDetail catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: (try aoss
-                  .getSecurityPolicy({ type, name })).securityPolicyDetail;
-                default: throw e;
-              }
+            detail = (effect {
+              return (try aoss
+                .createSecurityPolicy({
+                  type,
+                  name,
+                  policy,
+                  description: news.description,
+                })).securityPolicyDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (try aoss
+                .getSecurityPolicy({ type, name })).securityPolicyDetail;
+              default: throw e;
+            }
           } else {
             // 3. SYNC — update policy/description when observed drifts from desired
             const policyDrift = canonicalizePolicy(detail.policy) !== canonicalizePolicy(policy)
@@ -245,9 +251,13 @@ export const SecurityPolicyProvider = (): infer _ =>
           }
 
           if (detail?.name === undefined) {
-            throw aoss.ResourceNotFoundException.make({
-              message: `security policy ${type}/${name} not visible after reconcile`,
-            })
+            throw try Effect.orDie(Effect.try({
+              try: () =>
+                aoss.ResourceNotFoundException.make({
+                  message: `security policy ${type}/${name} not visible after reconcile`,
+                }),
+              catch: (e) => e,
+            }))
           }
           try session.note(`${type}/${name}`)
           return toAttributes(detail)
@@ -260,7 +270,7 @@ export const SecurityPolicyProvider = (): infer _ =>
               name: output.policyName,
             }),
           ) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
         },

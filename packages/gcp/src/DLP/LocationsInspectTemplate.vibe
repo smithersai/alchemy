@@ -171,26 +171,43 @@ export const LocationsInspectTemplateProvider = (): infer _ =>
     stables: ["name", "templateId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.templateId ?? output?.templateId
-      const idChanged = previousId !== undefined && news.templateId !== undefined && news.templateId !== previousId
+      const idChanged = previousId !== undefined && resolved.templateId !== undefined
+        && resolved.templateId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && normalizeLocation(news.location ?? previousLocation, env.region)
-          !== normalizeLocation(previousLocation, env.region)
-      return replaceOnIdentity(idChanged || locationChanged)
+        && (try Effect.orDie(
+            Effect.try({
+              try: () => normalizeLocation(resolved.location ?? previousLocation, env.region),
+              catch: (e) => e,
+            }),
+          ))
+          !== (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(previousLocation, env.region), catch: (e) => e }),
+          ))
+      return try Effect.orDie(
+        Effect.try({ try: () => replaceOnIdentity(idChanged || locationChanged), catch: (e) => e }),
+      )
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const templateId = try toResourceId(id, olds?.templateId, output?.templateId)
       const name = output?.name ?? resourceName(env.project, location, templateId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -212,11 +229,15 @@ export const LocationsInspectTemplateProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const templateId = try toResourceId(id, news.templateId, output?.templateId)
       const name = resourceName(env.project, location, templateId)
       const ownership = try createInternalLabels(id)
-      const description = encodeOwnership(ownership, news.description)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
       const allowLimitedAvailabilityInfoTypes = news.allowLimitedAvailabilityInfoTypes === true
 
       let current = try getByName(output?.name ?? name)
@@ -242,9 +263,13 @@ export const LocationsInspectTemplateProvider = (): infer _ =>
         throw new LocationsInspectTemplateNotResolved({ resourceName: name })
       }
 
-      const displayChanged = !jsonEqual(current.displayName, news.displayName)
+      const displayChanged = !(try Effect.orDie(
+        Effect.try({ try: jsonEqual.bind(undefined, current.displayName, news.displayName), catch: (e) => e }),
+      ))
       const descriptionChanged = (current.description ?? "") !== description
-      const configChanged = !jsonEqual(current.inspectConfig, news.inspectConfig)
+      const configChanged = !(try Effect.orDie(
+        Effect.try({ try: jsonEqual.bind(undefined, current.inspectConfig, news.inspectConfig), catch: (e) => e }),
+      ))
       const limitedChanged = (current.allowLimitedAvailabilityInfoTypes === true) !== allowLimitedAvailabilityInfoTypes
 
       if (displayChanged || descriptionChanged || configChanged || limitedChanged) {

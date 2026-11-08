@@ -98,9 +98,10 @@ export const VpcLinkProvider = (): infer _ =>
       return {
         stables: ["vpcLinkId"] as const,
         diff: effect ({ news: newsIn, olds }) => {
-          if (!isResolved(newsIn)) return
-          const news = newsIn as VpcLinkProps
-          if (!deepEqual(news.targetArns, olds.targetArns)) {
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
+          const news = resolved as VpcLinkProps
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(news.targetArns, olds.targetArns), catch: (e) => e })))) {
             return { action: "replace" } as const
           }
         },
@@ -108,11 +109,11 @@ export const VpcLinkProvider = (): infer _ =>
           if (!output?.vpcLinkId) return undefined
           const v = ag
             .getVpcLink({ vpcLinkId: output.vpcLinkId }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: try Effect.undefined;
+              when { _tag: "NotFoundException" }: undefined;
               default: throw e;
             }
           if (!v?.id) return undefined
-          return snapshotFromVpcLink(v, tagRecord(v.tags))
+          return snapshotFromVpcLink(v, try Effect.orDie(Effect.try({ try: () => tagRecord(v.tags), catch: (e) => e })))
         },
         list: effect () =>
           Array.from(
@@ -124,10 +125,11 @@ export const VpcLinkProvider = (): infer _ =>
               .map((v) => snapshotFromVpcLink(v, tagRecord(v.tags)))
           ),
         reconcile: effect ({ id, news: newsIn, output, session }) => {
-          if (!isResolved(newsIn)) {
+          const resolved_ = try Effect.orDie(Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }))
+          if (resolved_ === undefined) {
             return try Effect.die("VpcLink props were not resolved")
           }
-          const news = newsIn as VpcLinkProps
+          const news = resolved_ as VpcLinkProps
           const name = try generatedName(id, news)
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...news.tags, ...internalTags }
@@ -138,7 +140,7 @@ export const VpcLinkProvider = (): infer _ =>
           let observed = output?.vpcLinkId
             ? ag
               .getVpcLink({ vpcLinkId: output.vpcLinkId }) catch effect (e) => match (e) {
-                when { _tag: "NotFoundException" }: try Effect.undefined;
+                when { _tag: "NotFoundException" }: undefined;
                 default: throw e;
               }
             : undefined
@@ -185,10 +187,10 @@ export const VpcLinkProvider = (): infer _ =>
 
           // Sync tags — observed ↔ desired so adoption converges without
           // fighting the existing tag set.
-          const observedTags = tagRecord(observed.tags)
-          if (!deepEqual(observedTags, desiredTags)) {
+          const observedTags = try Effect.orDie(Effect.try({ try: () => tagRecord(observed.tags), catch: (e) => e }))
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(observedTags, desiredTags), catch: (e) => e })))) {
             try syncTags({
-              resourceArn: vpcLinkArn(region, vpcLinkId),
+              resourceArn: try Effect.orDie(Effect.try({ try: () => vpcLinkArn(region, vpcLinkId), catch: (e) => e })),
               oldTags: observedTags,
               newTags: desiredTags,
             })
@@ -196,15 +198,15 @@ export const VpcLinkProvider = (): infer _ =>
 
           try session.note(`Reconciled VPC link ${vpcLinkId}`)
           const final = try ag.getVpcLink({ vpcLinkId })
-          return snapshotFromVpcLink(final, tagRecord(final.tags))
+          return snapshotFromVpcLink(final, try Effect.orDie(Effect.try({ try: () => tagRecord(final.tags), catch: (e) => e })))
         },
         delete: effect ({ output, session }) => {
-          ;(try (ag.deleteVpcLink({ vpcLinkId: output.vpcLinkId })
+          ;(effect { return (try (ag.deleteVpcLink({ vpcLinkId: output.vpcLinkId })
             |> Effect.retry(%, {
               while: (e) => e._tag === "ConflictException",
               schedule: Schedule.spaced("1 second"),
               times: 8,
-            }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+            }))) }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: (undefined as void); default: throw e; }
           try session.note(`Deleted VPC link ${output.vpcLinkId}`)
         },
       }

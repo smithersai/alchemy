@@ -259,7 +259,7 @@ const toAttrs = (address: compute.Address, project: string): infer _ => ({
 const getByName = effect (project: string, region: string, address: string) =>
   compute
     .getAddresses({ project, region, address }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -300,7 +300,7 @@ const waitUntilGone = effect (project: string, region: string, addressName: stri
   try (effect {
     return try effect {
       const address = try getByName(project, region, addressName)
-      return (address === undefined ? try Effect.void : throw new AddressPending({
+      return (address === undefined ? (undefined as void) : throw new AddressPending({
         addressName,
         status: address.status ?? "EXISTS",
       }))
@@ -332,14 +332,17 @@ export const AddressProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds.addressName ?? output?.addressName
-      const nextName = news.addressName ?? previousName
+      const nextName = resolved_.addressName ?? previousName
       const nameChanged = previousName !== undefined && nextName !== undefined && nextName !== previousName
 
       const previousRegion = normalizeRegion(olds.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved_.region ?? output?.region, env.region)
       const regionChanged = previousRegion !== nextRegion
 
       const previousType = addressTypeOf(olds.addressType ?? output?.addressType)
@@ -353,20 +356,21 @@ export const AddressProvider = (): infer _ =>
       const previousIpv6 = olds.ipv6EndpointType ?? output?.ipv6EndpointType ?? ""
       const previousCollection = resourceRefOf(olds.ipCollection ?? output?.ipCollection)
 
-      const immutableChanged = (news.description !== undefined && (news.description ?? "") !== previousDescription)
-        || (news.address !== undefined
+      const immutableChanged =
+        (resolved_.description !== undefined && (resolved_.description ?? "") !== previousDescription)
+        || (resolved_.address !== undefined
           && output?.address !== undefined
-          && news.address !== output.address)
-        || (news.addressType !== undefined && addressTypeOf(news.addressType) !== previousType)
-        || (news.ipVersion !== undefined && ipVersionOf(news.ipVersion) !== previousVersion)
-        || (news.prefixLength !== undefined && news.prefixLength !== previousPrefix)
-        || (news.purpose !== undefined && (news.purpose ?? "") !== previousPurpose)
-        || (news.network !== undefined && resourceRefOf(news.network) !== previousNetwork)
-        || (news.subnetwork !== undefined && resourceRefOf(news.subnetwork) !== previousSubnetwork)
-        || (news.networkTier !== undefined && networkTierOf(news.networkTier) !== previousTier)
-        || (news.ipv6EndpointType !== undefined && (news.ipv6EndpointType ?? "") !== previousIpv6)
-        || (news.ipCollection !== undefined
-          && resourceRefOf(news.ipCollection) !== previousCollection)
+          && resolved_.address !== output.address)
+        || (resolved_.addressType !== undefined && addressTypeOf(resolved_.addressType) !== previousType)
+        || (resolved_.ipVersion !== undefined && ipVersionOf(resolved_.ipVersion) !== previousVersion)
+        || (resolved_.prefixLength !== undefined && resolved_.prefixLength !== previousPrefix)
+        || (resolved_.purpose !== undefined && (resolved_.purpose ?? "") !== previousPurpose)
+        || (resolved_.network !== undefined && resourceRefOf(resolved_.network) !== previousNetwork)
+        || (resolved_.subnetwork !== undefined && resourceRefOf(resolved_.subnetwork) !== previousSubnetwork)
+        || (resolved_.networkTier !== undefined && networkTierOf(resolved_.networkTier) !== previousTier)
+        || (resolved_.ipv6EndpointType !== undefined && (resolved_.ipv6EndpointType ?? "") !== previousIpv6)
+        || (resolved_.ipCollection !== undefined
+          && resourceRefOf(resolved_.ipCollection) !== previousCollection)
 
       if (nameChanged || regionChanged) {
         return { action: "replace" as const, deleteFirst: false }
@@ -384,7 +388,12 @@ export const AddressProvider = (): infer _ =>
       const existing = try getByName(env.project, region, addressName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -412,43 +421,45 @@ export const AddressProvider = (): infer _ =>
       const addressName = try toName(id, news.addressName, output?.addressName)
       const region = normalizeRegion(news.region ?? output?.region, env.region)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(env.project, region, addressName)
 
       if (current === undefined) {
-        const created = (try effect {
-          return try effect {
-            try waitRegionOperation(
-              env.project,
-              region,
-              try compute
-                .insertAddresses({
-                  project: env.project,
-                  region,
-                  body: {
-                    name: addressName,
-                    description: news.description,
-                    address: news.address,
-                    addressType: news.addressType,
-                    ipVersion: news.ipVersion,
-                    prefixLength: news.prefixLength,
-                    purpose: news.purpose,
-                    network: news.network,
-                    subnetwork: news.subnetwork,
-                    networkTier: news.networkTier,
-                    ipv6EndpointType: news.ipv6EndpointType,
-                    ipCollection: news.ipCollection,
-                  },
-                }),
-              {
-                ignore: ["RESOURCE_ALREADY_EXISTS"],
-              },
-            )
-            return try requireAddress(env.project, region, addressName)
-          }
+        const created = (effect {
+          return (try effect {
+            return try effect {
+              try waitRegionOperation(
+                env.project,
+                region,
+                try compute
+                  .insertAddresses({
+                    project: env.project,
+                    region,
+                    body: {
+                      name: addressName,
+                      description: news.description,
+                      address: news.address,
+                      addressType: news.addressType,
+                      ipVersion: news.ipVersion,
+                      prefixLength: news.prefixLength,
+                      purpose: news.purpose,
+                      network: news.network,
+                      subnetwork: news.subnetwork,
+                      networkTier: news.networkTier,
+                      ipv6EndpointType: news.ipv6EndpointType,
+                      ipCollection: news.ipCollection,
+                    },
+                  }),
+                {
+                  ignore: ["RESOURCE_ALREADY_EXISTS"],
+                },
+              )
+              return try requireAddress(env.project, region, addressName)
+            }
+          })
         }) catch effect (e) => match (e) {
           when { _tag: "Conflict" }: try getByName(env.project, region, addressName);
           default: throw e;
@@ -465,8 +476,10 @@ export const AddressProvider = (): infer _ =>
       }
 
       const resolved = current
-      const observedLabels = tagRecord(resolved.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const observedLabels = try Effect.orDie(Effect.try({ try: () => tagRecord(resolved.labels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       if (upsert.length > 0 || removed.length > 0) {
         try (effect {
           const latest = (try getByName(env.project, region, addressName)) ?? resolved
@@ -501,19 +514,21 @@ export const AddressProvider = (): infer _ =>
       const project = output.project || env.project
       const region = normalizeRegion(output.region, env.region)
       try (effect {
-        return (try waitRegionOperation(
-          project,
-          region,
-          try compute
-            .deleteAddresses({
-              project,
-              region,
-              address: output.addressName,
-            }),
-          {
-            ignore: ["RESOURCE_NOT_FOUND"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        return (effect {
+          return (try waitRegionOperation(
+            project,
+            region,
+            try compute
+              .deleteAddresses({
+                project,
+                region,
+                address: output.addressName,
+              }),
+            {
+              ignore: ["RESOURCE_NOT_FOUND"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
         |> Effect.retry(%, {
           while: (e) => e._tag === "Conflict",

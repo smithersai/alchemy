@@ -376,14 +376,14 @@ const createClusterName = effect (
 const describeClusterOrUndefined = effect (name: string) =>
   sagemaker
     .describeCluster({ ClusterName: name }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFound" }: try Effect.undefined;
+      when { _tag: "ResourceNotFound" }: undefined;
       default: throw e;
     }
 
 const fetchClusterTags = effect (arn: string) => {
   const response = sagemaker
     .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
-      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      when { _tag: "AccessDeniedException" }: undefined;
       default: throw e;
     }
   return Object.fromEntries(
@@ -481,8 +481,8 @@ const retryWhileRoleUnassumable = effect <
     schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(12)]),
   })
 
-const waitForCluster = (name: string, target: "InService" | "Gone") =>
-  retryWhileNotReady(
+const waitForCluster = effect (name: string, target: "InService" | "Gone") =>
+  try retryWhileNotReady(
     effect {
       const described = try describeClusterOrUndefined(name)
       if (target === "Gone") {
@@ -495,7 +495,7 @@ const waitForCluster = (name: string, target: "InService" | "Gone") =>
         // full wait budget on a delete that can never finish.
         const nodes = sagemaker
           .listClusterNodes({ ClusterName: name }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFound" }: try Effect.undefined;
+            when { _tag: "ResourceNotFound" }: undefined;
             default: throw e;
           }
         const blocked = (nodes?.ClusterNodeSummaries ?? []).find((node) =>
@@ -599,18 +599,19 @@ export const ClusterProvider = (): infer _ =>
           }
           const attrs = toAttrs(described)
           const tags = try fetchClusterTags(attrs.clusterArn)
-          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
         diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           const oldName = try createClusterName(id, olds)
-          const newName = try createClusterName(id, news)
+          const newName = try createClusterName(id, resolved)
           // The VPC is fixed at creation — changing it (or the name)
           // replaces the cluster. Everything else updates in place.
           if (
             oldName !== newName
-            || JSON.stringify(olds.vpcConfig) !== JSON.stringify(news.vpcConfig)
+            || JSON.stringify(olds.vpcConfig) !== JSON.stringify(resolved.vpcConfig)
           ) {
             return { action: "replace" } as const
           }
@@ -630,7 +631,7 @@ export const ClusterProvider = (): infer _ =>
 
           // Ensure — create if missing; tolerate the already-exists race.
           if (described === undefined) {
-            ;(try (sagemaker
+            ;(effect { return (try (sagemaker
               .createCluster({
                 ClusterName: name,
                 InstanceGroups: toGroupSpecs(news.instanceGroups),
@@ -648,8 +649,8 @@ export const ClusterProvider = (): infer _ =>
                   Value,
                 })),
               })
-              |> retryWhileRoleUnassumable(%))) catch effect (e) => match (e) {
-                when { _tag: "ResourceInUse" }: try Effect.void;
+              |> retryWhileRoleUnassumable(%))) }) catch effect (e) => match (e) {
+                when { _tag: "ResourceInUse" }: (undefined as void);
                 default: throw e;
               }
             try session.note(`Creating HyperPod cluster ${name} (typically 10-25 minutes)...`)
@@ -699,7 +700,7 @@ export const ClusterProvider = (): infer _ =>
                   ClusterRole: news.clusterRole,
                   AutoScaling: news.autoScaling,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFound" }: try Effect.void;
+                  when { _tag: "ResourceNotFound" }: (undefined as void);
                   default: throw e;
                 }
               try session.note(`Updating HyperPod cluster ${name}...`)
@@ -718,7 +719,7 @@ export const ClusterProvider = (): infer _ =>
 
           // Sync tags — diff against OBSERVED cloud tags.
           const currentTags = try fetchClusterTags(attrs.clusterArn)
-          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try sagemaker.deleteTags({
               ResourceArn: attrs.clusterArn,
@@ -745,12 +746,12 @@ export const ClusterProvider = (): infer _ =>
           // Gone wait instead of burning the full InService wait budget.
           if (described.ClusterStatus !== "Deleting") {
             waitForCluster(output.clusterName, "InService") catch effect (e) => match (e) {
-              when { _tag: "ClusterFailed" } or { _tag: "ClusterNotReady" }: try Effect.void;
+              when { _tag: "ClusterFailed" } or { _tag: "ClusterNotReady" }: (undefined as void);
               default: throw e;
             }
             sagemaker.deleteCluster({ ClusterName: output.clusterName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFound" }: try Effect.void;
-              when { _tag: "ConflictException" }: try Effect.void;
+              when { _tag: "ResourceNotFound" }: (undefined as void);
+              when { _tag: "ConflictException" }: (undefined as void);
               default: throw e;
             }
           }

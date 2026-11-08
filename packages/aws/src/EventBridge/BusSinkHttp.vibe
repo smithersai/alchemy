@@ -1,7 +1,7 @@
+import * as Effect from "effect/Effect"
 import type * as eventbridge from "@distilled.cloud/aws/eventbridge"
 import * as Output from "alchemy/Output"
 import { makeBatchedSink } from "alchemy/Util/BatchedSink"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as AWSBindings from "../AWSBindings.ts"
 import { AWSEnvironment } from "../Environment.ts"
@@ -77,10 +77,10 @@ export const BusSinkHttp = Layer.effect(
 
     return effect (bus?: EventBus | undefined) => {
       if (!globalThis.__ALCHEMY_RUNTIME__) {
-        const { accountId, region } = try (AWSEnvironment.current as unknown as Effect.Effect<{
+        const { accountId, region } = try (AWSEnvironment.current as unknown as {
           accountId: string
           region: string
-        }>)
+        }!!)
         // Pass the ARN as an unresolved Output — binding data is resolved
         // by the engine before the host reconciles (see PutEventsHttp).
         const resource = bus
@@ -98,21 +98,34 @@ export const BusSinkHttp = Layer.effect(
         })
       }
       const put = try putEvents(bus)
-      return makeBatchedSink<
-        BusSinkEntry,
-        eventbridge.PutEventsResponse,
-        eventbridge.PutEventsError
-      >({
-        maxRecords: 10,
-        maxBytes: 262_144,
-        sizeOf: entrySize,
-        send: (batch) => put({ Entries: [...batch] }),
-        // ThrottlingException / InternalFailure are transient — re-submit
-        // them on the bounded schedule.
-        unprocessed: (out, batch): infer _ => selectFailed(out, batch, true),
-        // Any other per-entry ErrorCode (e.g. MalformedDetail) is permanent —
-        // drop and surface.
-        rejected: (out, batch): infer _ => selectFailed(out, batch, false),
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<
+            BusSinkEntry,
+            eventbridge.PutEventsResponse,
+            eventbridge.PutEventsError
+          >
+        >[0] = {
+          maxRecords: 10,
+          maxBytes: 262_144,
+          sizeOf: entrySize,
+          send: effect (batch) => try put({ Entries: [...batch] }),
+          // ThrottlingException / InternalFailure are transient — re-submit
+          // them on the bounded schedule.
+          unprocessed: (out, batch): infer _ => selectFailed(out, batch, true),
+          // Any other per-entry ErrorCode (e.g. MalformedDetail) is permanent —
+          // drop and surface.
+          rejected: (out, batch): infer _ => selectFailed(out, batch, false),
+        }
+        return try Effect.orDie(Effect.try({
+          try: () =>
+            makeBatchedSink<
+              BusSinkEntry,
+              eventbridge.PutEventsResponse,
+              eventbridge.PutEventsError
+            >(sinkOptions),
+          catch: (error) => error,
+        }))
       })
     }
   },

@@ -178,26 +178,30 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
   })
 
 const listOwned = effect (project: string, region: string) =>
-  (Array.from(
-    try (vm.listProjectsLocationsSources
-      .pages({
-        parent: `projects/${project}/locations/-`,
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
-      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: (Array.from(
+  (effect {
+    return (Array.from(
       try (vm.listProjectsLocationsSources
         .pages({
-          parent: locationParent(project, region),
+          parent: `projects/${project}/locations/-`,
           pageSize: 1000,
         })
         |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
         |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
         |> Stream.runCollect(%)),
-    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.Source[]; default: throw e; };
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (vm.listProjectsLocationsSources
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.Source[]; default: throw e; };
     default: throw e;
   }
 
@@ -244,47 +248,61 @@ export const SourceProvider = (): infer _ =>
     stables: ["name", "sourceId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousKind = kindOf({
         aws: olds?.aws ?? output?.aws,
         azure: olds?.azure ?? output?.azure,
         vmware: olds?.vmware ?? output?.vmware,
       })
-      const nextKind = kindOf(news) || previousKind
+      const nextKind = kindOf(resolved) || previousKind
       const previousEncryption = olds?.encryption?.kmsKey ?? output?.encryption?.kmsKey
-      const nextEncryption = news.encryption?.kmsKey ?? previousEncryption
+      const nextEncryption = resolved.encryption?.kmsKey ?? previousEncryption
       const previousAwsRegion = olds?.aws?.awsRegion ?? output?.aws?.awsRegion
-      const nextAwsRegion = news.aws?.awsRegion ?? previousAwsRegion
+      const nextAwsRegion = resolved.aws?.awsRegion ?? previousAwsRegion
       const previousAzureLocation = olds?.azure?.azureLocation ?? output?.azure?.azureLocation
-      const nextAzureLocation = news.azure?.azureLocation ?? previousAzureLocation
+      const nextAzureLocation = resolved.azure?.azureLocation ?? previousAzureLocation
       const previousSubscription = olds?.azure?.subscriptionId ?? output?.azure?.subscriptionId
-      const nextSubscription = news.azure?.subscriptionId ?? previousSubscription
-      return replaceOnIdentity({
-        previousId: olds?.sourceId ?? output?.sourceId,
-        nextId: news.sourceId ?? olds?.sourceId ?? output?.sourceId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-        extra: previousKind !== nextKind
-          || previousEncryption !== nextEncryption
-          || previousAwsRegion !== nextAwsRegion
-          || previousAzureLocation !== nextAzureLocation
-          || previousSubscription !== nextSubscription,
-      })
+      const nextSubscription = resolved.azure?.subscriptionId ?? previousSubscription
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.sourceId ?? output?.sourceId,
+            nextId: resolved.sourceId ?? olds?.sourceId ?? output?.sourceId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousKind !== nextKind
+              || previousEncryption !== nextEncryption
+              || previousAwsRegion !== nextAwsRegion
+              || previousAzureLocation !== nextAzureLocation
+              || previousSubscription !== nextSubscription,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const sourceId = try toPhysicalId(id, olds?.sourceId, output?.sourceId, "source")
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, sourceId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -296,10 +314,12 @@ export const SourceProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const sourceId = try toPhysicalId(id, news.sourceId, output?.sourceId, "source")
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = resourceName(env.project, location, sourceId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -338,13 +358,30 @@ export const SourceProvider = (): infer _ =>
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const awsChanged = news.aws !== undefined
-        && (fingerprint(publicAws(current.aws)) !== fingerprint(publicAws(news.aws))
+        && ((try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, publicAws(current.aws)), catch: (e) => e }),
+            ))
+            !== (try Effect.orDie(Effect.try({
+              try: fingerprint.bind(undefined, publicAws(news.aws)),
+              catch: (e) => e,
+            })))
           || news.aws.accessKeyCreds?.secretAccessKey !== undefined)
       const azureChanged = news.azure !== undefined
-        && (fingerprint(publicAzure(current.azure)) !== fingerprint(publicAzure(news.azure))
+        && ((try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, publicAzure(current.azure)), catch: (e) => e }),
+            ))
+            !== (try Effect.orDie(Effect.try({
+              try: fingerprint.bind(undefined, publicAzure(news.azure)),
+              catch: (e) => e,
+            })))
           || news.azure.clientSecretCreds?.clientSecret !== undefined)
       const vmwareChanged = news.vmware !== undefined
-        && (fingerprint(publicVmware(current.vmware)) !== fingerprint(publicVmware(news.vmware))
+        && ((try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, publicVmware(current.vmware)), catch: (e) => e }),
+            ))
+            !== (try Effect.orDie(
+              Effect.try({ try: fingerprint.bind(undefined, publicVmware(news.vmware)), catch: (e) => e }),
+            ))
           || news.vmware.password !== undefined)
       const mask = fieldMask([
         labelsChanged && "labels",
@@ -375,12 +412,14 @@ export const SourceProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (vm.deleteProjectsLocationsSources({ name: output.name })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (vm.deleteProjectsLocationsSources({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         // NOT_FOUND (5): already gone.
         waitForOperation(operation) catch effect (error) => match (error) {

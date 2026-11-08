@@ -34,12 +34,13 @@ export const sameJson = (left: unknown, right: unknown) =>
 
 export const jsonEqual = sameJson;
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify([...(left ?? [])].sort()) === JSON.stringify([...(right ?? [])].sort());
 
-export const sortedStrings = (values: readonly string[] | undefined) => [...(values ?? [])].sort();
+export const sortedStrings = /** @throws {never} */ (values: readonly string[] | undefined) =>
+  [...(values ?? [])].sort();
 
 export const sameRecord = (
   left: Record<string, string> | undefined,
@@ -134,7 +135,7 @@ const isAttributesObject = (
   value: readonly apigee.GoogleCloudApigeeV1Attribute[] | apigee.GoogleCloudApigeeV1Attributes,
 ): value is apigee.GoogleCloudApigeeV1Attributes => !Array.isArray(value);
 
-export const attributesToRecord = (
+export const attributesToRecord = /** @throws {never} */ (
   attributes:
     | readonly apigee.GoogleCloudApigeeV1Attribute[]
     | apigee.GoogleCloudApigeeV1Attributes
@@ -153,7 +154,7 @@ export const attributesToRecord = (
   return record;
 };
 
-export const recordToAttributes = (
+export const recordToAttributes = /** @throws {never} */ (
   record: Record<string, string>,
 ): apigee.GoogleCloudApigeeV1Attribute[] =>
   Object.entries(record).map(([name, value]) => ({ name, value }));
@@ -166,7 +167,7 @@ export const desiredAttributes = (
   ownership: Record<string, string>,
 ) => ({ ...user, ...ownership });
 
-export const propertiesToRecord = (
+export const propertiesToRecord = /** @throws {never} */ (
   properties: apigee.GoogleCloudApigeeV1Properties | undefined,
 ): Record<string, string> => {
   const record: Record<string, string> = {};
@@ -176,7 +177,7 @@ export const propertiesToRecord = (
   return record;
 };
 
-export const recordToProperties = (
+export const recordToProperties = /** @throws {never} */ (
   record: Record<string, string>,
 ): apigee.GoogleCloudApigeeV1Properties => ({
   property: Object.entries(record).map(([name, value]) => ({ name, value })),

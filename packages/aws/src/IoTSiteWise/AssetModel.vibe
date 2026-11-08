@@ -164,7 +164,7 @@ interface AssetModelState_ {
 const readAssetModelById = effect (assetModelId: string) => {
   const described = sitewise
     .describeAssetModel({ assetModelId, excludeProperties: false }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!described || described.assetModelStatus.state === "DELETING") {
@@ -238,12 +238,12 @@ const retryThroughConflictingOperation = effect <A, E extends { readonly _tag: s
     schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(10)]),
   })
 
-const waitForAssetModelState = (assetModelId: string, target: "ACTIVE" | "DELETED") =>
-  retryWhileNotReady(
+const waitForAssetModelState = effect (assetModelId: string, target: "ACTIVE" | "DELETED") =>
+  try retryWhileNotReady(
     effect {
       const described = sitewise
         .describeAssetModel({ assetModelId, excludeProperties: true }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
       if (target === "DELETED") {
@@ -296,7 +296,7 @@ export const AssetModelProvider = (): infer _ =>
           ).flatMap((page) => page.assetModelSummaries)
           const hydrated = try Effect.forEach(
             summaries.map((s) => s.id),
-            (assetModelId) => readAssetModelById(assetModelId),
+            effect (assetModelId) => try readAssetModelById(assetModelId),
             { concurrency: 5 },
           )
           return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
@@ -308,13 +308,14 @@ export const AssetModelProvider = (): infer _ =>
           if (!state) return undefined
           return (try hasAlchemyTags(id, state.attrs.tags as Tags))
             ? state.attrs
-            : Unowned(state.attrs)
+            : try Effect.orDie(Effect.try({ try: () => Unowned(state.attrs), catch: (e) => e }))
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           if (olds === undefined) return
           // The model type is fixed at creation.
-          if ((olds.assetModelType ?? "ASSET_MODEL") !== (news.assetModelType ?? "ASSET_MODEL")) {
+          if ((olds.assetModelType ?? "ASSET_MODEL") !== (resolved.assetModelType ?? "ASSET_MODEL")) {
             return { action: "replace" } as const
           }
         },
@@ -420,7 +421,7 @@ export const AssetModelProvider = (): infer _ =>
             effect {
               return sitewise
                 .deleteAssetModel({ assetModelId: output.assetModelId }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             },

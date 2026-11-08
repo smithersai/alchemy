@@ -170,28 +170,43 @@ export const RepositoriesWorkflowInvocationProvider = (): infer _ =>
     stables: ["name", "workflowInvocationId", "repository", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const compilationChanged = (olds?.compilationResult ?? output?.compilationResult) !== undefined
-        && news.compilationResult !== undefined
-        && news.compilationResult !== (olds?.compilationResult ?? output?.compilationResult)
+        && resolved.compilationResult !== undefined
+        && resolved.compilationResult !== (olds?.compilationResult ?? output?.compilationResult)
       const workflowChanged = (olds?.workflowConfig ?? output?.workflowConfig) !== undefined
-        && news.workflowConfig !== undefined
-        && news.workflowConfig !== (olds?.workflowConfig ?? output?.workflowConfig)
-      const configChanged = news.invocationConfig !== undefined
-        && olds?.invocationConfig !== undefined
-        && !sameJson(olds.invocationConfig, news.invocationConfig)
-      return replaceOnIdentity({
-        previousLocation: olds?.location ?? output?.location,
-        nextLocation: news.location ?? olds?.location ?? output?.location,
-        previousParent: olds?.repository ?? output?.repository,
-        nextParent: expandRepository(news.repository, env.project, location),
-        extra: compilationChanged || workflowChanged || configChanged,
-      })
+        && resolved.workflowConfig !== undefined
+        && resolved.workflowConfig !== (olds?.workflowConfig ?? output?.workflowConfig)
+      const configChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.invocationConfig !== undefined
+          && olds?.invocationConfig !== undefined
+          && !sameJson(olds.invocationConfig, resolved.invocationConfig),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousLocation: olds?.location ?? output?.location,
+            nextLocation: resolved.location ?? olds?.location ?? output?.location,
+            previousParent: olds?.repository ?? output?.repository,
+            nextParent: expandRepository(resolved.repository, env.project, location),
+            extra: compilationChanged || workflowChanged || configChanged,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ output }) => {
@@ -204,23 +219,30 @@ export const RepositoriesWorkflowInvocationProvider = (): infer _ =>
           when { _tag: "NotFound" }: try Effect.undefined;
           default: throw e;
         }
-      if (parent === undefined) return Unowned(attrs)
-      return hasAlchemyLabelMap(parent.labels) ? attrs : Unowned(attrs)
+      if (parent === undefined) return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try Effect.orDie(Effect.try({ try: () => hasAlchemyLabelMap(parent.labels), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const invocations = try forEachOwnedRepository(env.project, env.region, effect (repo) =>
-        try listWorkflowInvocations(repo.name ?? ""))
-      return invocations.map((item) =>
-        toAttrs(item, env.project, env.region)
+      const invocations = try forEachOwnedRepository(
+        env.project,
+        env.region,
+        effect (repo) => try listWorkflowInvocations(repo.name ?? ""),
       )
+      return invocations.map((item) => toAttrs(item, env.project, env.region))
     },
 
     reconcile: effect ({ news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const repository = expandRepository(news.repository, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandRepository(news.repository, env.project, location), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? "")
 

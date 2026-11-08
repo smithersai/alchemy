@@ -242,7 +242,7 @@ const syncFields = effect (
       ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
       continue
     }
-    if (fieldNeedsReplace(previous, next)) {
+    if ((try Effect.orDie(Effect.try({ try: fieldNeedsReplace.bind(undefined, previous, next), catch: (e) => e })))) {
       retryTransient(
         datacatalog.deleteProjectsLocationsTagTemplatesFields({
           name: `${templateName}/fields/${fieldId}`,
@@ -262,7 +262,9 @@ const syncFields = effect (
     const requiredChanged = !sameBool(previous.isRequired, next.isRequired)
     const descriptionChanged = !sameText(previous.description, next.description)
     const orderChanged = (previous.order ?? 0) !== (next.order ?? 0)
-    const enumChanged = fingerprint(previous.type?.enumType) !== fingerprint(next.type?.enumType)
+    const enumChanged =
+      (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, previous.type?.enumType), catch: (e) => e })))
+        !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, next.type?.enumType), catch: (e) => e })))
     if (
       !displayChanged
       && !requiredChanged
@@ -303,28 +305,39 @@ export const TagTemplateProvider = (): infer _ =>
     stables: ["name", "tagTemplateId", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
-        previousId: olds?.tagTemplateId ?? output?.tagTemplateId,
-        nextId: news.tagTemplateId ?? olds?.tagTemplateId ?? output?.tagTemplateId,
-        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
-        nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
-          env.region,
-        ),
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.tagTemplateId ?? output?.tagTemplateId,
+            nextId: resolved.tagTemplateId ?? olds?.tagTemplateId ?? output?.tagTemplateId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
       const tagTemplateId = try toTagTemplateId(id, olds?.tagTemplateId, output?.tagTemplateId)
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const name = output?.name ?? resourceName(env.project, location, tagTemplateId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, ownershipText(existing)))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -335,11 +348,15 @@ export const TagTemplateProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const tagTemplateId = try toTagTemplateId(id, news.tagTemplateId, output?.tagTemplateId)
       const name = output?.name ?? resourceName(env.project, location, tagTemplateId)
       const ownership = try createInternalLabels(id)
-      const fields = desiredFields(ownership, news.fields)
+      const fields = try Effect.orDie(
+        Effect.try({ try: () => desiredFields(ownership, news.fields), catch: (e) => e }),
+      )
       const isPubliclyReadable = news.isPubliclyReadable === true
 
       let current = try getByName(name)
@@ -371,10 +388,14 @@ export const TagTemplateProvider = (): infer _ =>
         current = try retryTransient(
           datacatalog.patchProjectsLocationsTagTemplates({
             name: currentName,
-            updateMask: updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              publicChanged ? "is_publicly_readable" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  publicChanged ? "is_publicly_readable" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               name: currentName,
               displayName: news.displayName,
@@ -385,7 +406,12 @@ export const TagTemplateProvider = (): infer _ =>
       }
 
       if (
-        !sameJson(userFields(current.fields), userFields(fields))
+        !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, userFields(current.fields), userFields(fields)),
+            catch: (e) => e,
+          }),
+        ))
         || parseOwnership(ownershipText(current)).labels["alchemy-id"] !== ownership["alchemy-id"]
       ) {
         try syncFields(currentName, current.fields, fields)

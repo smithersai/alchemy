@@ -239,16 +239,17 @@ export const RolloutKindProvider = (): infer _ =>
     stables: ["name", "rolloutKindId", "project", "location", "unitKindId", "uid", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       return replaceOnIdentity({
         previousId: olds?.rolloutKindId ?? output?.rolloutKindId,
-        nextId: news.rolloutKindId ?? olds?.rolloutKindId ?? output?.rolloutKindId,
+        nextId: resolved.rolloutKindId ?? olds?.rolloutKindId ?? output?.rolloutKindId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location ?? env.region,
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
         ),
-        extra: !sameRef(olds?.unitKind ?? output?.unitKind, news.unitKind),
+        extra: !sameRef(olds?.unitKind ?? output?.unitKind, resolved.unitKind),
       })
     },
 
@@ -265,7 +266,7 @@ export const RolloutKindProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -285,7 +286,7 @@ export const RolloutKindProvider = (): infer _ =>
       const location = normalizeLocation(news.location ?? output?.location ?? env.region)
       const name = resourceName(env.project, location, COLLECTION, rolloutKindId)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
       const unitKind = expandName(news.unitKind, env.project, location, "unitKinds")
@@ -317,7 +318,7 @@ export const RolloutKindProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const annotationsChanged = annotations !== undefined
         && fingerprint(userAnnotations(current.annotations)) !== fingerprint(annotations)
@@ -362,12 +363,12 @@ export const RolloutKindProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      ;(try (saasservicemgmt.deleteProjectsLocationsRolloutKinds({ name: output.name })
+      ;(effect { return (try (saasservicemgmt.deleteProjectsLocationsRolloutKinds({ name: output.name })
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       try waitUntilGone(getByName(output.name), output.name)
     },
   })

@@ -114,16 +114,17 @@ export const AccessEntryProvider = (): infer _ =>
   Provider.succeed(AccessEntry, {
     stables: ["accessEntryArn"],
     diff: effect ({ olds, news }) => {
-      if (!isResolved(news)) return
-      if (olds.clusterName !== news.clusterName) {
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return
+      if (olds.clusterName !== resolved.clusterName) {
         return { action: "replace" } as const
       }
 
-      if (olds.principalArn !== news.principalArn) {
+      if (olds.principalArn !== resolved.principalArn) {
         return { action: "replace" } as const
       }
 
-      if ((olds.type ?? "STANDARD") !== (news.type ?? "STANDARD")) {
+      if ((olds.type ?? "STANDARD") !== (resolved.type ?? "STANDARD")) {
         return { action: "replace" } as const
       }
     },
@@ -141,8 +142,8 @@ export const AccessEntryProvider = (): infer _ =>
       const perCluster = try Effect.forEach(
         clusterNames,
         effect (clusterName) => {
-          const cluster = (try eks.describeCluster({ name: clusterName })).cluster catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          const cluster = (effect { return (try eks.describeCluster({ name: clusterName })).cluster }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
           // CONFIG_MAP clusters have no access entries, and EKS rejects
@@ -153,16 +154,16 @@ export const AccessEntryProvider = (): infer _ =>
           ) {
             return []
           }
-          const principalArns = (Array.from(
+          const principalArns = (effect { return (Array.from(
             try (eks.listAccessEntries.items({ clusterName })
               |> Stream.runCollect(%)),
-          )) catch effect (e) => match (e) {
+          )) }) catch effect (e) => match (e) {
             when { _tag: "ResourceNotFoundException" }: [] as string[];
             default: throw e;
           }
           return try Effect.forEach(
             principalArns,
-            (principalArn) => readAccessEntry({ clusterName, principalArn }),
+            effect (principalArn) => try readAccessEntry({ clusterName, principalArn }),
             { concurrency: 5 },
           )
         },
@@ -177,7 +178,7 @@ export const AccessEntryProvider = (): infer _ =>
         principalArn: (output?.principalArn ?? olds.principalArn) as string,
       })
       if (!state) return undefined
-      return (try hasAlchemyTags(id, state.tags)) ? state : Unowned(state)
+      return (try hasAlchemyTags(id, state.tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
     },
     reconcile: effect ({ id, news, olds, session }) => {
       const clusterName = news.clusterName as string
@@ -197,7 +198,7 @@ export const AccessEntryProvider = (): infer _ =>
       // `ResourceInUseException` as a race with a peer reconciler.
       let created = false
       if (!state) {
-        created = (try (eks
+        created = (effect { return (try (eks
           .createAccessEntry({
             clusterName,
             principalArn,
@@ -206,7 +207,7 @@ export const AccessEntryProvider = (): infer _ =>
             type: news.type,
             tags: desiredTags,
           })
-          |> Effect.as(%, true))) catch effect (e) => match (e) {
+          |> Effect.as(%, true))) }) catch effect (e) => match (e) {
             when { _tag: "ResourceInUseException" }: false;
             default: throw e;
           }
@@ -244,7 +245,7 @@ export const AccessEntryProvider = (): infer _ =>
       }
 
       // Sync tags — diff observed cloud tags against desired.
-      const { removed, upsert } = diffTags(state.tags, desiredTags)
+      const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
       if (upsert.length > 0) {
         try eks.tagResource({
           resourceArn: state.accessEntryArn,
@@ -313,7 +314,7 @@ export const AccessEntryProvider = (): infer _ =>
           clusterName: output.clusterName,
           principalArn: output.principalArn,
         }) catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.void;
+          when { _tag: "ResourceNotFoundException" }: (undefined as void);
           default: throw e;
         }
     },
@@ -392,7 +393,7 @@ const readAccessEntry = effect ({
       clusterName,
       principalArn,
     }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
 

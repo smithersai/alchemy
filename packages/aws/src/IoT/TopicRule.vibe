@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as iot from "@distilled.cloud/aws/iot"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -131,17 +132,20 @@ export const TopicRuleProvider = (): infer _ =>
           const ruleName = output?.ruleName ?? (try createName(id, olds ?? {}))
           const found = iot
             .getTopicRule({ ruleName }) catch effect (e) => match (e) {
-              when { _tag: "TopicRuleNotFound" }: try Effect.undefined;
+              when { _tag: "TopicRuleNotFound" }: undefined;
               default: throw e;
             }
           if (!found) return undefined
           const ruleArn = found.ruleArn ?? ruleArnOf(accountId, region, ruleName)
           const attrs = { ruleName, ruleArn }
           const tags = try readIotTags(ruleArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -156,7 +160,7 @@ export const TopicRuleProvider = (): infer _ =>
           // OBSERVE
           const live = iot
             .getTopicRule({ ruleName }) catch effect (e) => match (e) {
-              when { _tag: "TopicRuleNotFound" }: try Effect.undefined;
+              when { _tag: "TopicRuleNotFound" }: undefined;
               default: throw e;
             }
 
@@ -187,7 +191,7 @@ export const TopicRuleProvider = (): infer _ =>
         delete: effect ({ output }) => {
           iot
             .deleteTopicRule({ ruleName: output.ruleName }) catch effect (e) => match (e) {
-              when { _tag: "TopicRuleNotFound" }: try Effect.void;
+              when { _tag: "TopicRuleNotFound" }: (undefined as void);
               default: throw e;
             }
         },

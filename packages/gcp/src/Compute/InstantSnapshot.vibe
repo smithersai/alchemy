@@ -274,15 +274,16 @@ export const InstantSnapshotProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved === undefined) return undefined
       const previousName = olds?.instantSnapshotName ?? output?.instantSnapshotName
-      const nextName = news.instantSnapshotName ?? previousName
+      const nextName = resolved.instantSnapshotName ?? previousName
       const previousZone = lastSegment(olds?.zone) ?? lastSegment(output?.zone) ?? DEFAULT_ZONE
-      const nextZone = lastSegment(news.zone) ?? zoneFromDisk(news.sourceDisk) ?? previousZone
+      const nextZone = lastSegment(resolved.zone) ?? zoneFromDisk(resolved.sourceDisk) ?? previousZone
       const previousDisk = canonicalizeSource(olds?.sourceDisk ?? output?.sourceDisk)
-      const nextDisk = canonicalizeSource(news.sourceDisk)
+      const nextDisk = canonicalizeSource(resolved.sourceDisk)
       const previousDescription = olds?.description ?? output?.description ?? ""
-      const nextDescription = news.description ?? ""
+      const nextDescription = resolved.description ?? ""
 
       const replace = (previousName !== undefined && nextName !== undefined && previousName !== nextName)
         || previousZone !== nextZone
@@ -313,7 +314,7 @@ export const InstantSnapshotProvider = (): infer _ =>
       const existing = try getByName(env.project, zone, instantSnapshotName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -347,7 +348,7 @@ export const InstantSnapshotProvider = (): infer _ =>
         ?? zoneFromDisk(news.sourceDisk)
         ?? DEFAULT_ZONE
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -400,7 +401,7 @@ export const InstantSnapshotProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
       if (upsert.length > 0 || removed.length > 0) {
         const labeled = try compute.setLabelsInstantSnapshots({
           project: env.project,
@@ -429,7 +430,7 @@ export const InstantSnapshotProvider = (): infer _ =>
       const env = try GcpEnvironment.current
       const project = output.project || env.project
       const zone = lastSegment(output.zone) ?? DEFAULT_ZONE
-      const operation = (try (compute
+      const operation = (effect { return (try (compute
         .deleteInstantSnapshots({
           project,
           zone,
@@ -439,7 +440,7 @@ export const InstantSnapshotProvider = (): infer _ =>
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        }))) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         waitZoneOperation(project, zone, operation) catch effect (e) => match (e) {
           when { _tag: "NotFound" }: try Effect.void;

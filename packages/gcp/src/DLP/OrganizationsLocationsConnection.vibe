@@ -143,12 +143,14 @@ const getByName = effect (name: string) => (name.length === 0 ? try Effect.undef
 const findByConnectionName = effect (
   parent: string,
   connectionName: string,
-) => (connectionName.length === 0 ? try Effect.undefined : (try effect {
-  const option = try (dlp.listOrganizationsLocationsConnections.pages({ parent, pageSize: 100 })
-    |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connections ?? []))
-    |> Stream.filter(%, (connection) => (connection.cloudSql?.connectionName ?? "") === connectionName)
-    |> Stream.runHead(%))
-  return (option._tag === "Some" ? option.value : undefined)
+) => (connectionName.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    const option = try (dlp.listOrganizationsLocationsConnections.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.connections ?? []))
+      |> Stream.filter(%, (connection) => (connection.cloudSql?.connectionName ?? "") === connectionName)
+      |> Stream.runHead(%))
+    return (option._tag === "Some" ? option.value : undefined)
+  })
 }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
 
 const stateOf = (value: string | undefined): infer _ => value ?? DEFAULT_STATE
@@ -158,22 +160,36 @@ export const OrganizationsLocationsConnectionProvider = (): infer _ =>
     stables: ["name", "connectionId", "organization", "organizationId", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousInstance = olds?.cloudSql?.connectionName ?? output?.cloudSql?.connectionName
-      const nextInstance = news.cloudSql.connectionName ?? previousInstance
+      const nextInstance = resolved.cloudSql.connectionName ?? previousInstance
       const previousEngine = olds?.cloudSql?.databaseEngine ?? output?.cloudSql?.databaseEngine
-      const nextEngine = news.cloudSql.databaseEngine ?? previousEngine
+      const nextEngine = resolved.cloudSql.databaseEngine ?? previousEngine
       return (
-        replaceOn(olds?.organization ?? output?.organization, news.organization)
-          ?? replaceOn(previousLocation, nextLocation)
-          ?? replaceOn(previousInstance, nextInstance)
-          ?? replaceOn(previousEngine, nextEngine)
+        (try Effect.orDie(
+          Effect.try({
+            try: () => replaceOn(olds?.organization ?? output?.organization, resolved.organization),
+            catch: (e) => e,
+          }),
+        ))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousLocation, nextLocation), catch: (e) => e })))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousInstance, nextInstance), catch: (e) => e })))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousEngine, nextEngine), catch: (e) => e })))
       )
     },
 
@@ -183,8 +199,12 @@ export const OrganizationsLocationsConnectionProvider = (): infer _ =>
         olds?.organization ?? output?.organization,
         output?.organization,
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const parent = organizationLocationParent(organization, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => organizationLocationParent(organization, location), catch: (e) => e }),
+      )
       let existing = try getByName(output?.name ?? "")
       if (existing === undefined) {
         existing = try findByConnectionName(
@@ -194,7 +214,9 @@ export const OrganizationsLocationsConnectionProvider = (): infer _ =>
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project)
-      return output !== undefined ? attrs : Unowned(attrs)
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => [],
@@ -202,8 +224,12 @@ export const OrganizationsLocationsConnectionProvider = (): infer _ =>
     reconcile: effect ({ news, output }) => {
       const env = try GcpEnvironment.current
       const organization = try resolveOrganization(news.organization, output?.organization)
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const parent = organizationLocationParent(organization, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => organizationLocationParent(organization, location), catch: (e) => e }),
+      )
       const state = stateOf(news.state)
       const cloudSql = news.cloudSql
 
@@ -240,11 +266,20 @@ export const OrganizationsLocationsConnectionProvider = (): infer _ =>
 
       const currentName = current.name ?? ""
       const stateChanged = !sameText(current.state, state)
-      const sqlChanged = fingerprint(current.cloudSql) !== fingerprint(cloudSql)
-      const updateMask = updateMaskOf(
-        stateChanged ? "state" : undefined,
-        sqlChanged ? "cloudSql" : undefined,
-      )
+      const sqlChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.cloudSql), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({
+            try: () => fingerprint(cloudSql),
+            catch: (e) => e,
+          })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            stateChanged ? "state" : undefined,
+            sqlChanged ? "cloudSql" : undefined,
+          ),
+        catch: (e) => e,
+      }))
 
       if (updateMask.length > 0) {
         current = try dlp.patchOrganizationsLocationsConnections({

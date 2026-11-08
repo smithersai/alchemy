@@ -252,30 +252,40 @@ export const CatalogsDatabasesTableProvider = (): infer _ =>
     stables: ["name", "tableId", "database", "catalog", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const location = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const typeChanged = (olds?.type ?? output?.type) !== undefined
-        && (news.type ?? "HIVE") !== (olds?.type ?? output?.type)
+        && (resolved.type ?? "HIVE") !== (olds?.type ?? output?.type)
       if (typeChanged) {
         return { action: "replace" as const, deleteFirst: true }
       }
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.tableId ?? output?.tableId,
-        nextId: news.tableId,
+        nextId: resolved.tableId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: location,
         previousParent: olds?.database ?? output?.database,
-        nextParent: databaseOf(news.database, env.project, location, news.catalog),
-      })
+        nextParent: databaseOf(resolved.database, env.project, location, resolved.catalog),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const tableId = try toPhysicalId(id, olds?.tableId, output?.tableId)
       const database = olds?.database !== undefined
         ? databaseOf(olds.database, env.project, location, olds.catalog)
@@ -284,37 +294,60 @@ export const CatalogsDatabasesTableProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.hiveOptions?.parameters)))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.hiveOptions?.parameters), catch: (e) => e })),
+        ))
         ? attrs
-        : Unowned(attrs)
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      const catalogs = (try Effect.forEach(listLocations(env.region), effect (location) =>
-        try listCatalogs(locationParent(env.project, location)))).flat()
-      const databases = try listChildResources(namedOf(catalogs), listDatabases)
-      const tables = try listChildResources(namedOf(databases), listTables)
+      const catalogs = (try Effect.forEach(
+        try Effect.orDie(Effect.try({
+          try: () => listLocations(env.region),
+          catch: (e) => e,
+        })),
+        effect (location) =>
+          try listCatalogs(
+            try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e })),
+          ),
+      )).flat()
+      const databases = try listChildResources(
+        try Effect.orDie(Effect.try({
+          try: () => namedOf(catalogs),
+          catch: (e) => e,
+        })),
+        listDatabases,
+      )
+      const tables = try listChildResources(
+        try Effect.orDie(Effect.try({ try: () => namedOf(databases), catch: (e) => e })),
+        listTables,
+      )
       return tables
-        .filter((item) =>
-          hasAlchemyLabelMap(item.hiveOptions?.parameters)
-        )
-        .map((item) =>
-          toAttrs(item, env.project)
-        )
+        .filter((item) => hasAlchemyLabelMap(item.hiveOptions?.parameters))
+        .map((item) => toAttrs(item, env.project))
     },
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
       const database = databaseOf(news.database, env.project, location, news.catalog)
       const tableId = try toPhysicalId(id, news.tableId, output?.tableId)
       const name = output?.name ?? resourceName(database, tableId)
       const type = news.type ?? "HIVE"
-      const parameters = mergeParameters(
-        news.hiveOptions?.parameters,
-        try createInternalLabels(id),
-      )
+      const ownership = try createInternalLabels(id)
+      const parameters = try Effect.orDie(Effect.try({
+        try: () =>
+          mergeParameters(
+            news.hiveOptions?.parameters,
+            ownership,
+          ),
+        catch: (e) => e,
+      }))
       const hiveOptions = desiredHiveOptions(news, parameters)
 
       let current = try getByName(name)
@@ -336,16 +369,23 @@ export const CatalogsDatabasesTableProvider = (): infer _ =>
 
       const currentName = current.name ?? name
       const typeChanged = !sameText(current.type, type)
-      const hiveChanged = !sameJson(current.hiveOptions, hiveOptions)
+      const hiveChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.hiveOptions, hiveOptions),
+        catch: (e) => e,
+      })))
 
       if (typeChanged || hiveChanged) {
         current = try retryTransient(
           biglake.patchProjectsLocationsCatalogsDatabasesTables({
             name: currentName,
-            updateMask: updateMaskOf(
-              typeChanged ? "type" : undefined,
-              hiveChanged ? "hiveOptions" : undefined,
-            ),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  typeChanged ? "type" : undefined,
+                  hiveChanged ? "hiveOptions" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: {
               name: currentName,
               type,

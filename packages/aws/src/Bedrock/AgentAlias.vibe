@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as bedrock from "@distilled.cloud/aws/bedrock-agent"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -123,8 +124,10 @@ export const AgentAliasProvider = (): infer _ =>
       ) => props.agentAliasName ?? (try createPhysicalName({ id, maxLength: 100 }))
 
       const getAliasOrUndefined = effect (agentId: string, agentAliasId: string) =>
-        (try bedrock.getAgentAlias({ agentId, agentAliasId })).agentAlias catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try bedrock.getAgentAlias({ agentId, agentAliasId })).agentAlias
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -136,14 +139,18 @@ export const AgentAliasProvider = (): infer _ =>
       }
 
       const fetchObservedTags = effect (resourceArn: string) =>
-        (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>) catch effect (
+        (effect {
+          return (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>)
+        }) catch effect (
           e,
         ) => match (e) { when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>; default: throw e; }
 
       const waitForSettled = effect (agentId: string, agentAliasId: string) =>
         try (effect {
-          return (try bedrock.getAgentAlias({ agentId, agentAliasId })).agentAlias catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          return (effect {
+            return (try bedrock.getAgentAlias({ agentId, agentAliasId })).agentAlias
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         }
@@ -180,11 +187,14 @@ export const AgentAliasProvider = (): infer _ =>
             agentAliasName: alias.agentAliasName,
           }
           const tags = try fetchObservedTags(alias.agentAliasArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if ((olds?.agentId ?? undefined) !== (news?.agentId ?? undefined)) {
             return { action: "replace" } as const
           }
@@ -271,7 +281,7 @@ export const AgentAliasProvider = (): infer _ =>
               agentId: output.agentId,
               agentAliasId: output.agentAliasId,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

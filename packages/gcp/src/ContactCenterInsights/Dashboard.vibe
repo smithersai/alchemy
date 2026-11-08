@@ -181,29 +181,34 @@ const toAttrs = (dashboard: cci.GoogleCloudContactcenterinsightsV1Dashboard, pro
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsDashboards({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsDashboards.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dashboards ?? []))
-      |> Stream.filter(%, (dashboard) => hasOwnershipMarker(dashboard.description))
-      |> Stream.map(%, (dashboard) => toAttrs(dashboard, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsDashboards.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dashboards ?? []))
+        |> Stream.filter(%, (dashboard) => hasOwnershipMarker(dashboard.description))
+        |> Stream.map(%, (dashboard) => toAttrs(dashboard, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const DashboardProvider = (): infer _ =>
   Provider.succeed(Dashboard, {
     stables: ["name", "dashboardId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
-      const nextLocation = news.location
+      const nextLocation = resolved.location
       if (
         previousLocation !== undefined
         && nextLocation !== undefined
@@ -214,8 +219,8 @@ export const DashboardProvider = (): infer _ =>
       const previousId = olds?.dashboardId ?? output?.dashboardId
       if (
         previousId !== undefined
-        && news.dashboardId !== undefined
-        && news.dashboardId !== previousId
+        && resolved.dashboardId !== undefined
+        && resolved.dashboardId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: true }
       }
@@ -230,7 +235,9 @@ export const DashboardProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -311,7 +318,7 @@ export const DashboardProvider = (): infer _ =>
     delete: effect ({ output }) => {
       cci
         .deleteProjectsLocationsDashboards({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

@@ -239,7 +239,7 @@ const toAttrs = (
 const getByName = effect (name: string) =>
   logging
     .getOrganizationsLocationsSavedQueries({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -274,19 +274,22 @@ export const OrganizationSavedQueryProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.savedQueryId ?? output?.savedQueryId
       const idChanged = previousId !== undefined
-        && news.savedQueryId !== undefined
-        && news.savedQueryId !== previousId
+        && resolved.savedQueryId !== undefined
+        && resolved.savedQueryId !== previousId
       const previousLocation = olds?.location ?? output?.location
       const locationChanged = previousLocation !== undefined
-        && news.location !== undefined
-        && news.location !== previousLocation
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
       const previousOrg = olds?.organization ?? output?.organization
       const orgChanged = previousOrg !== undefined
-        && news.organization !== undefined
-        && news.organization !== previousOrg
+        && resolved.organization !== undefined
+        && resolved.organization !== previousOrg
       if (!idChanged && !locationChanged && !orgChanged) return undefined
       return { action: "replace" as const, deleteFirst: false }
     },
@@ -303,25 +306,31 @@ export const OrganizationSavedQueryProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, organization, env.project, location)
-      const { labels } = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
       const organization = try tryResolveOrganization()
       if (organization === undefined) return []
-      return (Array.from(
-        try (logging.listOrganizationsLocationsSavedQueries
-          .pages({
-            parent: `${organization}/locations/-`,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.savedQueries ?? []))
-          |> Stream.filter(%, (query) => hasOwnershipMarker(query.description))
-          |> Stream.map(%, (query) => toAttrs(query, organization, env.project, DEFAULT_LOCATION))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (logging.listOrganizationsLocationsSavedQueries
+            .pages({
+              parent: `${organization}/locations/-`,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.savedQueries ?? []))
+            |> Stream.filter(%, (query) => hasOwnershipMarker(query.description))
+            |> Stream.map(%, (query) => toAttrs(query, organization, env.project, DEFAULT_LOCATION))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -331,7 +340,9 @@ export const OrganizationSavedQueryProvider = (): infer _ =>
       const savedQueryId = try toPhysicalId(id, news.savedQueryId, output?.savedQueryId, "q")
       const name = resourceName(organization, location, savedQueryId)
       const ownership = try createInternalLabels(id)
-      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
       const desiredDisplayName = news.displayName ?? savedQueryId
       const desiredVisibility = news.visibility ?? "PRIVATE"
       const desiredLogging = news.loggingQuery
@@ -387,7 +398,7 @@ export const OrganizationSavedQueryProvider = (): infer _ =>
     delete: effect ({ output }) => {
       logging
         .deleteOrganizationsLocationsSavedQueries({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

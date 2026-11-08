@@ -17,7 +17,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./operations.vibe"
+} from "./operations.ts"
 
 const DEFAULT_WELL_KNOWN_ROOTS = "NONE" satisfies networksecurity.BackendAuthenticationConfigWellKnownRootsEnum
 
@@ -165,28 +165,33 @@ const getByName = effect (name: string) =>
     }
 
 const listOwned = effect (project: string) =>
-  (Array.from(
-    try (networksecurity.listProjectsLocationsBackendAuthenticationConfigs
-      .pages({
-        parent: projectParent(project, "-"),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.backendAuthenticationConfigs ?? []))
-      |> Stream.filter(%, (config) => Object.keys(config.labels ?? {}).some((key) => key.startsWith("alchemy-")))
-      |> Stream.map(%, (config) => toAttrs(config, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (networksecurity.listProjectsLocationsBackendAuthenticationConfigs
+        .pages({
+          parent: projectParent(project, "-"),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.backendAuthenticationConfigs ?? []))
+        |> Stream.filter(%, (config) => Object.keys(config.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+        |> Stream.map(%, (config) => toAttrs(config, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const BackendAuthenticationConfigProvider = (): infer _ =>
   Provider.succeed(BackendAuthenticationConfig, {
     stables: ["name", "backendAuthenticationConfigId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousId = olds?.backendAuthenticationConfigId ?? output?.backendAuthenticationConfigId
-      const nextId = news.backendAuthenticationConfigId ?? previousId
+      const nextId = resolved.backendAuthenticationConfigId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(resolved.location ?? olds?.location ?? output?.location)
       const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
         || previousLocation !== nextLocation
       if (!replace) return undefined
@@ -209,7 +214,12 @@ export const BackendAuthenticationConfigProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -229,30 +239,32 @@ export const BackendAuthenticationConfigProvider = (): infer _ =>
       const name = resourceName(env.project, location, backendAuthenticationConfigId)
       const wellKnownRoots = rootsOf(news.wellKnownRoots)
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
       let current = try getByName(name)
 
       if (current === undefined) {
-        const created = (try (networksecurity
-          .createProjectsLocationsBackendAuthenticationConfigs({
-            parent: projectParent(env.project, location),
-            backendAuthenticationConfigId,
-            body: {
-              trustConfig: news.trustConfig,
-              clientCertificate: news.clientCertificate,
-              wellKnownRoots,
-              description: news.description,
-              labels: desiredLabels,
-            },
-          })
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "Conflict",
-            times: 5,
-            schedule: Schedule.spaced("2 seconds"),
-          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsBackendAuthenticationConfigs({
+              parent: projectParent(env.project, location),
+              backendAuthenticationConfigId,
+              body: {
+                trustConfig: news.trustConfig,
+                clientCertificate: news.clientCertificate,
+                wellKnownRoots,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -264,7 +276,9 @@ export const BackendAuthenticationConfigProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
       const trustChanged = (current.trustConfig ?? "") !== (news.trustConfig ?? "")
@@ -302,15 +316,17 @@ export const BackendAuthenticationConfigProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (networksecurity
-        .deleteProjectsLocationsBackendAuthenticationConfigs({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsBackendAuthenticationConfigs({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

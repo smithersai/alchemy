@@ -149,11 +149,15 @@ export const toToken = (explicit: string | undefined, existing?: string) =>
     return yield* randomUuid4();
   });
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const sameTextInsensitive = (left: string | undefined, right: string | undefined) =>
-  (left ?? "").toLowerCase() === (right ?? "").toLowerCase();
+export const sameTextInsensitive = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "").toLowerCase() === (right ?? "").toLowerCase();
 
 export const normalizeEnforcement = (value: string | undefined) =>
   (value ?? DEFAULT_ENFORCEMENT_MODE).toUpperCase();
@@ -288,7 +292,7 @@ export const listOwnedResourcePolicies = (project: string) =>
     return pages.flat().filter((policy) => hasDummyAlchemyTarget(policy.targetResource));
   });
 
-export const findOwnedResourcePolicy = (
+export const findOwnedResourcePolicy = /** @throws {never} */ (
   policies: readonly firebaseappcheck.GoogleFirebaseAppcheckV1ResourcePolicy[],
   labels: Record<string, string>,
   name?: string,

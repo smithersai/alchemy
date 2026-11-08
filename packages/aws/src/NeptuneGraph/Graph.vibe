@@ -4,10 +4,6 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { createInternalTags, diffTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
-import * as Schedule from "effect/Schedule"
-import * as Stream from "effect/Stream"
 import type { Providers } from "../Providers.ts"
 
 export error NeptuneGraphGraphUnexpectedResponse {
@@ -206,7 +202,7 @@ export const GraphProvider = (): infer _ =>
       const getGraph = effect (graphId: string) =>
         neptunegraph
           .getGraph({ graphIdentifier: graphId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -233,7 +229,7 @@ export const GraphProvider = (): infer _ =>
       const readTags = effect (arn: string) => {
         const response = neptunegraph
           .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
         return toTagRecord(response?.tags)
@@ -302,17 +298,20 @@ export const GraphProvider = (): infer _ =>
             tags: {} as Record<string, string>,
           })),
         diff: effect ({ id, olds, news }) => {
-          if (!isResolved(news)) return undefined
-          if ((try toName(id, olds ?? { provisionedMemory: 0 })) !== (try toName(id, news))) {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? { provisionedMemory: 0 })) !== (try toName(id, resolved))) {
             return { action: "replace" } as const
           }
           // Immutable props — any change forces a fresh graph.
           if (
             olds !== undefined
-            && (olds.replicaCount !== news.replicaCount
-              || olds.kmsKeyIdentifier !== news.kmsKeyIdentifier
+            && (olds.replicaCount !== resolved.replicaCount
+              || olds.kmsKeyIdentifier !== resolved.kmsKeyIdentifier
               || olds.vectorSearchConfiguration?.dimension
-                !== news.vectorSearchConfiguration?.dimension)
+                !== resolved.vectorSearchConfiguration?.dimension)
           ) {
             return { action: "replace" } as const
           }
@@ -349,7 +348,7 @@ export const GraphProvider = (): infer _ =>
                 deletionProtection: news.deletionProtection,
                 tags: desiredTags,
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             const graphId = created?.id ?? (try findGraphByName(name))?.id
@@ -400,7 +399,9 @@ export const GraphProvider = (): infer _ =>
 
           // Sync tags — diff observed cloud tags against desired.
           const observedTags = try readTags(observed.arn)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try neptunegraph.tagResource({
               resourceArn: observed.arn,
@@ -428,7 +429,7 @@ export const GraphProvider = (): infer _ =>
                 graphIdentifier: output.graphId,
                 deletionProtection: false,
               }) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                when { _tag: "ResourceNotFoundException" }: undefined;
                 default: throw e;
               }
           }
@@ -437,24 +438,26 @@ export const GraphProvider = (): infer _ =>
               graphIdentifier: output.graphId,
               skipSnapshot: true,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           // Block until the graph is fully gone — deletion is async and the
           // graph bills until it disappears.
           Effect.repeat(
             effect {
-              return (try (neptunegraph.getGraph({ graphIdentifier: output.graphId })
-                |> Effect.as(%, true))) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: false;
-                  default: throw e;
-                }
+              return (effect {
+                return (try (neptunegraph.getGraph({ graphIdentifier: output.graphId })
+                  |> Effect.as(%, true)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: false;
+                default: throw e;
+              }
             },
             {
               schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(60)]),
               until: (exists) => exists === false,
             },
-          ) catch effect (e) => try Effect.void
+          ) catch effect (e) => (undefined as void)
         },
       }
     },

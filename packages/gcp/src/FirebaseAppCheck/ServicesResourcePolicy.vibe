@@ -154,18 +154,22 @@ export const ServicesResourcePolicyProvider = (): infer _ =>
     stables: ["name", "resourcePolicyId", "parent", "serviceId", "project", "targetResource"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousService = olds?.serviceId ?? output?.serviceId ?? DEFAULT_SERVICE_ID
-      const nextService = news.serviceId ?? previousService
+      const nextService = resolved.serviceId ?? previousService
       const previousTarget = olds?.targetResource ?? output?.targetResource
-      return replaceOnIdentity({
+      const input = {
         previous: previousService,
         next: nextService,
-        extra: news.targetResource !== undefined
+        extra: resolved.targetResource !== undefined
           && previousTarget !== undefined
-          && news.targetResource !== previousTarget,
+          && resolved.targetResource !== previousTarget,
         deleteFirst: true,
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -174,16 +178,24 @@ export const ServicesResourcePolicyProvider = (): infer _ =>
       let existing = try getByName(output?.name ?? "")
       if (existing === undefined) {
         const serviceId = olds?.serviceId ?? output?.serviceId ?? DEFAULT_SERVICE_ID
-        existing = findOwnedResourcePolicy(
-          try listResourcePolicies(env.project, serviceId),
-          ownership,
-          output?.name,
-        )
+        const policies = try listResourcePolicies(env.project, serviceId)
+        existing = try Effect.orDie(Effect.try({
+          try: () =>
+            findOwnedResourcePolicy(
+              policies,
+              ownership,
+              output?.name,
+            ),
+          catch: (e) => e,
+        }))
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      const owned = output !== undefined || hasDummyAlchemyTarget(existing.targetResource)
-      return owned ? attrs : Unowned(attrs)
+      const owned = output !== undefined
+        || (try Effect.orDie(
+          Effect.try({ try: () => hasDummyAlchemyTarget(existing.targetResource), catch: (e) => e }),
+        ))
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -195,20 +207,29 @@ export const ServicesResourcePolicyProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
       const serviceId = news.serviceId ?? output?.serviceId ?? DEFAULT_SERVICE_ID
-      const parent = serviceParent(env.project, serviceId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => serviceParent(env.project, serviceId), catch: (e) => e }),
+      )
       const ownership = try createOwnership(id)
       const targetResource = news.targetResource
         ?? output?.targetResource
-        ?? dummyTargetResource(env.project, ownership)
-      const enforcementMode = normalizeEnforcement(news.enforcementMode)
+        ?? (try Effect.orDie(Effect.try({ try: () => dummyTargetResource(env.project, ownership), catch: (e) => e })))
+      const enforcementMode = try Effect.orDie(
+        Effect.try({ try: () => normalizeEnforcement(news.enforcementMode), catch: (e) => e }),
+      )
 
       let current = try getByName(output?.name ?? "")
       if (current === undefined) {
-        current = findOwnedResourcePolicy(
-          try listResourcePolicies(env.project, serviceId),
-          ownership,
-          output?.name,
-        )
+        const policies = try listResourcePolicies(env.project, serviceId)
+        current = try Effect.orDie(Effect.try({
+          try: () =>
+            findOwnedResourcePolicy(
+              policies,
+              ownership,
+              output?.name,
+            ),
+          catch: (e) => e,
+        }))
       }
 
       if (current === undefined) {
@@ -263,11 +284,13 @@ export const ServicesResourcePolicyProvider = (): infer _ =>
           etag: output.etag,
         }),
       ) catch effect (e) =>
-        match (e) {
-          when { _tag: "Conflict" }: try firebaseappcheck.deleteProjectsServicesResourcePolicies({
-            name: output.name,
-          });
-          default: throw e;
-        } catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        (effect {
+          return match (e) {
+            when { _tag: "Conflict" }: try firebaseappcheck.deleteProjectsServicesResourcePolicies({
+              name: output.name,
+            });
+            default: throw e;
+          }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
     },
   })

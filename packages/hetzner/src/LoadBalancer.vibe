@@ -10,9 +10,7 @@ import { createPhysicalName } from "alchemy/PhysicalName"
 import * as Provider from "alchemy/Provider"
 import { Resource } from "alchemy/Resource"
 import { tagRecord } from "alchemy/Tags"
-import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
-import * as Stream from "effect/Stream"
 import { waitForAction } from "./actions.vibe"
 import type { Certificate } from "./Certificate.ts"
 import {
@@ -990,10 +988,10 @@ const createLoadBalancerName = effect (id: string, name: string | undefined, exi
 )
 
 const getById = effect (id: number) =>
-  (try effect {
+  (effect { return (try effect {
     const { load_balancer } = try Hetzner.loadBalancers.getLoadBalancer({ id })
     return load_balancer
-  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const getByName = effect (name: string) =>
   try effect {
@@ -1074,8 +1072,8 @@ const syncMetadata = effect (args: {
   name: string
   labels: Record<string, string>
 }) => {
-  const observedLabels = tagRecord(args.current.labels)
-  const { removed, upsert } = diffLabels(observedLabels, args.labels)
+  const observedLabels = try Effect.orDie(Effect.try({ try: () => tagRecord(args.current.labels), catch: (e) => e }))
+  const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, args.labels), catch: (e) => e }))
   const labelsChanged = removed.length > 0 || upsert.length > 0
   const nameChanged = args.current.name !== args.name
   if (!labelsChanged && !nameChanged) return args.current
@@ -1152,7 +1150,7 @@ const syncServices = effect (
         listen_port: service.listenPort,
       }),
     )
-      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
   }
 
   for (const service of desired) {
@@ -1172,7 +1170,7 @@ const syncServices = effect (
         |> Effect.catchIf(
           %,
           (e) => e._tag === "Conflict" || e._tag === "PreconditionFailed",
-          effect () => try Effect.void,
+          effect () => (undefined as void),
         ))
       continue
     }
@@ -1256,7 +1254,7 @@ const syncTargets = effect (
   for (const target of observed) {
     if (desiredKeys.has(targetKey(target))) continue
     try (runAction(removeTargetRequest(loadBalancerId, target))
-      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
   }
 
   for (const target of desired) {
@@ -1272,7 +1270,7 @@ const syncTargets = effect (
         return try waitForAction(action)
       }
     }
-      |> Effect.catchIf(%, alreadyThere, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyThere, effect () => (undefined as void)))
   }
 }
 
@@ -1292,7 +1290,7 @@ const syncNetworks = effect (
         network: item.networkId,
       }),
     )
-      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
   }
 
   for (const networkId of desired) {
@@ -1303,7 +1301,7 @@ const syncNetworks = effect (
         network: networkId,
       }),
     )
-      |> Effect.catchIf(%, alreadyThere, effect () => try Effect.void))
+      |> Effect.catchIf(%, alreadyThere, effect () => (undefined as void)))
   }
 }
 
@@ -1321,12 +1319,13 @@ export const LoadBalancerProvider = (): infer _ =>
     },
 
     diff: effect ({ news, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved_______ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      if (resolved_______ === undefined) return undefined
       if (output !== undefined) {
-        if (news.location !== undefined && news.location !== output.location) {
+        if (resolved_______.location !== undefined && resolved_______.location !== output.location) {
           return { action: "replace" } as const
         }
-        if (news.networkZone !== undefined && news.networkZone !== output.networkZone) {
+        if (resolved_______.networkZone !== undefined && resolved_______.networkZone !== output.networkZone) {
           return { action: "replace" } as const
         }
       }
@@ -1341,8 +1340,8 @@ export const LoadBalancerProvider = (): infer _ =>
       })
       if (found === undefined) return undefined
       const attrs = toAttrs(found)
-      const owned = try hasAlchemyLabels(id, tagRecord(found.labels))
-      return owned ? attrs : Unowned(attrs)
+      const owned = try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(found.labels), catch: (e) => e })))
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -1374,7 +1373,7 @@ export const LoadBalancerProvider = (): infer _ =>
       }
 
       if (current === undefined) {
-        const created = (try (Hetzner.loadBalancers
+        const created = (effect { return (try (Hetzner.loadBalancers
           .createLoadBalancer({
             name,
             load_balancer_type: loadBalancerType,
@@ -1386,8 +1385,8 @@ export const LoadBalancerProvider = (): infer _ =>
             ...(networks[0] !== undefined ? { network: networks[0] } : {}),
             ...(services.length > 0 ? { services: services.map(toCreateService) } : {}),
           })
-          |> Effect.retry(%, busyRetry))) catch effect (e) => match (e) {
-            when { _tag: "Conflict" }: try Effect.undefined;
+          |> Effect.retry(%, busyRetry))) }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: undefined;
             default: throw e;
           }
         if (created !== undefined) {
@@ -1439,12 +1438,12 @@ export const LoadBalancerProvider = (): infer _ =>
             delete: false,
           }),
         )
-          |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+          |> Effect.catchIf(%, alreadyGone, effect () => (undefined as void)))
       }
 
       try (effect {
         return Hetzner.loadBalancers.deleteLoadBalancer({ id: current.id }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
       }

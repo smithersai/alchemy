@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as mm from "@distilled.cloud/aws/mailmanager"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -100,7 +101,7 @@ export const AddonInstanceProvider = (): infer _ =>
       const getById = effect (addonInstanceId: string) =>
         mm
           .getAddonInstance({ AddonInstanceId: addonInstanceId }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -168,13 +169,16 @@ export const AddonInstanceProvider = (): infer _ =>
           const attrs = toAttrs(instance)
           if (attrs === undefined) return undefined
           const tags = try readMailManagerTags(attrs.addonInstanceArn)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
 
         // The subscription is create-only — changing it replaces the
         // instance.
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           if (olds !== undefined && olds.addonSubscriptionId !== news.addonSubscriptionId) {
             return { action: "replace" } as const
           }
@@ -199,7 +203,7 @@ export const AddonInstanceProvider = (): infer _ =>
                 AddonSubscriptionId: news.addonSubscriptionId,
                 Tags: createTagsList(desiredTags),
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.undefined;
+                when { _tag: "ConflictException" }: undefined;
                 default: throw e;
               }
             if (created !== undefined) {

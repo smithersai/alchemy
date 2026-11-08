@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect"
 import * as iot from "@distilled.cloud/aws/iot"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -117,7 +118,7 @@ export const PolicyProvider = (): infer _ =>
           const policyName = output?.policyName ?? (try createName(id, olds ?? {}))
           const found = iot
             .getPolicy({ policyName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
           if (!found) return undefined
@@ -126,10 +127,13 @@ export const PolicyProvider = (): infer _ =>
             policyArn: found.policyArn!,
           }
           const tags = try readIotTags(found.policyArn!)
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           const oldName = try createName(id, olds)
           const newName = try createName(id, news)
           if (oldName !== newName) return { action: "replace" } as const
@@ -142,7 +146,7 @@ export const PolicyProvider = (): infer _ =>
           // OBSERVE
           let live = iot
             .getPolicy({ policyName }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              when { _tag: "ResourceNotFoundException" }: undefined;
               default: throw e;
             }
 
@@ -150,7 +154,7 @@ export const PolicyProvider = (): infer _ =>
           if (live === undefined) {
             iot
               .createPolicy({ policyName, policyDocument: desiredDocument }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                when { _tag: "ResourceAlreadyExistsException" }: (undefined as void);
                 default: throw e;
               }
             live = try iot.getPolicy({ policyName })
@@ -171,7 +175,7 @@ export const PolicyProvider = (): infer _ =>
                   policyName,
                   policyVersionId: nonDefault[0].versionId,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 }
             }
@@ -209,7 +213,7 @@ export const PolicyProvider = (): infer _ =>
                   policyName,
                   policyVersionId: v.versionId!,
                 }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 },
           )
@@ -223,20 +227,20 @@ export const PolicyProvider = (): infer _ =>
             try Effect.forEach(targets, effect (target) =>
               iot
                 .detachPolicy({ policyName, target }) catch effect (e) => match (e) {
-                  when { _tag: "InvalidRequestException" }: try Effect.void;
+                  when { _tag: "InvalidRequestException" }: (undefined as void);
                   default: throw e;
                 })
           }
           iot.deletePolicy({ policyName }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             when { _tag: "DeleteConflictException" }: try (detachTargets
               |> Effect.andThen(
                 %,
                 effect {
                   return iot
                     .deletePolicy({ policyName }) catch effect (e) => match (e) {
-                      when { _tag: "ResourceNotFoundException" } or { _tag: "DeleteConflictException" }: try Effect
-                        .void;
+                      when { _tag: "ResourceNotFoundException" } or { _tag: "DeleteConflictException" }:
+                        (undefined as void);
                       default: throw e;
                     }
                 },

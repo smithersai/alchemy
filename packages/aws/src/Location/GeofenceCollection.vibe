@@ -90,7 +90,7 @@ const createCollectionName = effect (id: string, props: { collectionName?: strin
 const readCollection = effect (collectionName: string) => {
   const found = location
     .describeGeofenceCollection({ CollectionName: collectionName }) catch effect (e) => match (e) {
-      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      when { _tag: "ResourceNotFoundException" }: undefined;
       default: throw e;
     }
   if (!found) return undefined
@@ -99,7 +99,7 @@ const readCollection = effect (collectionName: string) => {
     collectionArn: found.CollectionArn,
     kmsKeyId: found.KmsKeyId,
     description: found.Description ? found.Description : undefined,
-    tags: toTagRecord(found.Tags),
+    tags: try Effect.orDie(Effect.try({ try: () => toTagRecord(found.Tags), catch: (e) => e })),
   } satisfies GeofenceCollection["Attributes"]
 }
 
@@ -114,7 +114,7 @@ export const GeofenceCollectionProvider = (): infer _ =>
             try (location.listGeofenceCollections.pages({})
               |> EffectStream.runCollect(%)),
           ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.CollectionName))
-          const hydrated = try Effect.forEach(names, (name) => readCollection(name), {
+          const hydrated = try Effect.forEach(names, effect (name) => try readCollection(name), {
             concurrency: 10,
           })
           return hydrated.filter(
@@ -125,13 +125,14 @@ export const GeofenceCollectionProvider = (): infer _ =>
           const collectionName = output?.collectionName ?? (try createCollectionName(id, olds ?? {}))
           const state = try readCollection(collectionName)
           if (!state) return undefined
-          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
         },
         diff: effect ({ id, news = {}, olds = {} }) => {
-          if (!isResolved(news)) return
+          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          if (resolved === undefined) return
           const oldName = try createCollectionName(id, olds)
-          const newName = try createCollectionName(id, news)
-          if (oldName !== newName || olds.kmsKeyId !== news.kmsKeyId) {
+          const newName = try createCollectionName(id, resolved)
+          if (oldName !== newName || olds.kmsKeyId !== resolved.kmsKeyId) {
             return { action: "replace" } as const
           }
         },
@@ -149,7 +150,7 @@ export const GeofenceCollectionProvider = (): infer _ =>
                 KmsKeyId: news.kmsKeyId,
                 Description: news.description,
                 Tags: desiredTags,
-              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: (undefined as void); default: throw e; }
             state = try readCollection(collectionName)
             if (state === undefined) {
               throw new GeofenceCollectionUnexpectedResponse({
@@ -165,7 +166,7 @@ export const GeofenceCollectionProvider = (): infer _ =>
             })
           }
 
-          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }))
           if (removed.length > 0) {
             try location.untagResource({
               ResourceArn: state.collectionArn,
@@ -194,7 +195,7 @@ export const GeofenceCollectionProvider = (): infer _ =>
             .deleteGeofenceCollection({
               CollectionName: output.collectionName,
             }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

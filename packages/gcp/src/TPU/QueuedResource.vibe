@@ -387,7 +387,7 @@ const isPlaceholder = (resource: tpu.QueuedResource): infer _ => {
 const getByName = effect (name: string) =>
   tpu
     .getProjectsLocationsQueuedResources({ name }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -409,25 +409,28 @@ export const QueuedResourceProvider = (): infer _ =>
     stables: ["name", "queuedResourceId", "project", "location", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
 
       const previousId = olds?.queuedResourceId ?? output?.queuedResourceId
-      const nextId = news.queuedResourceId ?? previousId
+      const nextId = resolved.queuedResourceId ?? previousId
       const previousLocation = normalizeLocation(olds?.location ?? output?.location)
-      const nextLocation = normalizeLocation(news.location ?? output?.location)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location)
       const parent = `projects/_/locations/${nextLocation}`
       const previousReservation = olds?.reservationName ?? output?.reservationName ?? ""
-      const nextReservation = news.reservationName ?? previousReservation
+      const nextReservation = resolved.reservationName ?? previousReservation
       const previousSpot = olds?.spot ?? output?.spot ?? false
-      const nextSpot = news.spot ?? previousSpot
+      const nextSpot = resolved.spot ?? previousSpot
       const previousGuaranteed = guaranteedOf(olds?.guaranteed ?? output?.guaranteed)?.minDuration ?? ""
-      const nextGuaranteed = guaranteedOf(news.guaranteed ?? olds?.guaranteed ?? output?.guaranteed)?.minDuration
+      const nextGuaranteed = guaranteedOf(resolved.guaranteed ?? olds?.guaranteed ?? output?.guaranteed)?.minDuration
         ?? previousGuaranteed
       const previousQueueing = queueingKey(
         queueingOf(olds?.queueingPolicy ?? output?.queueingPolicy),
       )
       const nextQueueing = queueingKey(
-        queueingOf(news.queueingPolicy ?? olds?.queueingPolicy ?? output?.queueingPolicy),
+        queueingOf(resolved.queueingPolicy ?? olds?.queueingPolicy ?? output?.queueingPolicy),
       )
 
       return replaceOnIdentity({
@@ -439,7 +442,7 @@ export const QueuedResourceProvider = (): infer _ =>
           || previousSpot !== nextSpot
           || previousGuaranteed !== nextGuaranteed
           || previousQueueing !== nextQueueing
-          || specIdentityChanged(olds ?? output, news, parent),
+          || specIdentityChanged(olds ?? output, resolved, parent),
       })
     },
 
@@ -456,22 +459,26 @@ export const QueuedResourceProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const nested = nestedOwnershipLabels(existing)
-      return (try hasAlchemyLabels(id, nested)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, nested))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (Array.from(
-        try (tpu.listProjectsLocationsQueuedResources
-          .pages({
-            parent: `projects/${env.project}/locations/-`,
-            pageSize: 1000,
-          })
-          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.queuedResources ?? []))
-          |> Stream.filter(%, (resource) => !isPlaceholder(resource) && hasNestedOwnership(resource))
-          |> Stream.map(%, (resource) => toAttrs(resource, env.project))
-          |> Stream.runCollect(%)),
-      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+      return (effect {
+        return (Array.from(
+          try (tpu.listProjectsLocationsQueuedResources
+            .pages({
+              parent: `projects/${env.project}/locations/-`,
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.queuedResources ?? []))
+            |> Stream.filter(%, (resource) => !isPlaceholder(resource) && hasNestedOwnership(resource))
+            |> Stream.map(%, (resource) => toAttrs(resource, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -500,7 +507,7 @@ export const QueuedResourceProvider = (): infer _ =>
               queueingPolicy: news.queueingPolicy,
               tpu: { nodeSpec: desiredSpecs(news, parent, desiredLabels) },
             },
-          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
         if (created !== undefined) {
           try waitForOperation(created)
         }
@@ -521,7 +528,7 @@ export const QueuedResourceProvider = (): infer _ =>
           .deleteProjectsLocationsQueuedResources({
             name: output.name,
             force,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) => error._tag === "Conflict",

@@ -130,36 +130,41 @@ const toAttrs = (view: cci.GoogleCloudContactcenterinsightsV1AuthorizedView, pro
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
   .getProjectsLocationsAuthorizedViewSetsAuthorizedViews({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAtParent = effect (parent: string, project: string) =>
-  (Array.from(
-    try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViews.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authorizedViews ?? []))
-      |> Stream.filter(%, (view) => hasOwnershipMarker(view.displayName))
-      |> Stream.map(%, (view) => toAttrs(view, project))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViews.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authorizedViews ?? []))
+        |> Stream.filter(%, (view) => hasOwnershipMarker(view.displayName))
+        |> Stream.map(%, (view) => toAttrs(view, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 export const AuthorizedViewSetsAuthorizedViewProvider = (): infer _ =>
   Provider.succeed(AuthorizedViewSetsAuthorizedView, {
     stables: ["name", "authorizedViewId", "parent", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const previousParent = olds?.parent ?? output?.parent
-      if (previousParent !== undefined && news.parent !== previousParent) {
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
         return { action: "replace" as const, deleteFirst: false }
       }
       const previousId = olds?.authorizedViewId ?? output?.authorizedViewId
       if (
         previousId !== undefined
-        && news.authorizedViewId !== undefined
-        && news.authorizedViewId !== previousId
+        && resolved.authorizedViewId !== undefined
+        && resolved.authorizedViewId !== previousId
       ) {
         return { action: "replace" as const, deleteFirst: false }
       }
@@ -178,7 +183,9 @@ export const AuthorizedViewSetsAuthorizedViewProvider = (): infer _ =>
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -249,6 +256,6 @@ export const AuthorizedViewSetsAuthorizedViewProvider = (): infer _ =>
       cci
         .deleteProjectsLocationsAuthorizedViewSetsAuthorizedViews({
           name: output.name,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
     },
   })

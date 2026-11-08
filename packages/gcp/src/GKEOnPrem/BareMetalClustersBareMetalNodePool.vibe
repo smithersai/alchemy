@@ -260,21 +260,25 @@ export const BareMetalClustersBareMetalNodePoolProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
-      return replaceOnIdentity({
+      const input = {
         previousId: olds?.bareMetalNodePoolId ?? output?.bareMetalNodePoolId,
-        nextId: news.bareMetalNodePoolId
-          ? rfc1035(news.bareMetalNodePoolId, "baremetalnodepool")
+        nextId: resolved.bareMetalNodePoolId
+          ? rfc1035(resolved.bareMetalNodePoolId, "baremetalnodepool")
           : (olds?.bareMetalNodePoolId ?? output?.bareMetalNodePoolId),
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         previousParent: olds?.bareMetalCluster ?? output?.bareMetalCluster,
-        nextParent: news.bareMetalCluster,
-      })
+        nextParent: resolved.bareMetalCluster,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -285,21 +289,33 @@ export const BareMetalClustersBareMetalNodePoolProvider = (): infer _ =>
         output?.bareMetalNodePoolId,
         "baremetalnodepool",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const cluster = expandParent(
-        olds?.bareMetalCluster ?? output?.bareMetalCluster ?? "",
-        env.project,
-        location,
-        PARENT_COLLECTION,
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
       )
+      const cluster = try Effect.orDie(Effect.try({
+        try: () =>
+          expandParent(
+            olds?.bareMetalCluster ?? output?.bareMetalCluster ?? "",
+            env.project,
+            location,
+            PARENT_COLLECTION,
+          ),
+        catch: (e) => e,
+      }))
       const name = output?.name ?? resourceName(cluster, bareMetalNodePoolId)
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      const fromName = parseOwnership(existing.displayName).labels
-      const owned = (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+      const fromName = (try Effect.orDie(Effect.try({
+        try: () => parseOwnership(existing.displayName),
+        catch: (e) => e,
+      }))).labels
+      const owned = (try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e })),
+      ))
         || (try hasAlchemyLabels(id, fromName))
-      return owned ? attrs : Unowned(attrs)
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -316,12 +332,22 @@ export const BareMetalClustersBareMetalNodePoolProvider = (): infer _ =>
         output?.bareMetalNodePoolId,
         "baremetalnodepool",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const cluster = expandParent(news.bareMetalCluster, env.project, location, PARENT_COLLECTION)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const cluster = try Effect.orDie(Effect.try({
+        try: () => expandParent(news.bareMetalCluster, env.project, location, PARENT_COLLECTION),
+        catch: (e) => e,
+      }))
       const name = resourceName(cluster, bareMetalNodePoolId)
       const ownership = try createInternalLabels(id)
-      const annotations = desiredAnnotations(ownership, news.labels, news.annotations)
-      const displayName = encodeOwnership(ownership, news.displayName)
+      const annotations = try Effect.orDie(Effect.try({
+        try: () => desiredAnnotations(ownership, news.labels, news.annotations),
+        catch: (e) => e,
+      }))
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.displayName), catch: (e) => e }),
+      )
       const body: gkeonprem.BareMetalNodePool = {
         nodePoolConfig: news.nodePoolConfig,
         displayName,
@@ -349,10 +375,16 @@ export const BareMetalClustersBareMetalNodePoolProvider = (): infer _ =>
       }
 
       const mask = fieldMask([
-        differs(current.annotations, annotations) && "annotations",
+        (try Effect.orDie(
+          Effect.try({ try: differs.bind(undefined, current.annotations, annotations), catch: (e) => e }),
+        )) && "annotations",
         !sameText(parseOwnership(current.displayName).text, news.displayName) && "displayName",
-        differs(current.nodePoolConfig, news.nodePoolConfig) && "nodePoolConfig",
-        differs(current.upgradePolicy, news.upgradePolicy) && "upgradePolicy",
+        (try Effect.orDie(
+          Effect.try({ try: differs.bind(undefined, current.nodePoolConfig, news.nodePoolConfig), catch: (e) => e }),
+        )) && "nodePoolConfig",
+        (try Effect.orDie(
+          Effect.try({ try: differs.bind(undefined, current.upgradePolicy, news.upgradePolicy), catch: (e) => e }),
+        )) && "upgradePolicy",
       ])
 
       if (mask.length > 0) {
@@ -375,17 +407,19 @@ export const BareMetalClustersBareMetalNodePoolProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (gkeonprem
-        .deleteProjectsLocationsBareMetalClustersBareMetalNodePools({
-          name: output.name,
-          allowMissing: true,
-          etag: output.etag,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("2 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (gkeonprem
+          .deleteProjectsLocationsBareMetalClustersBareMetalNodePools({
+            name: output.name,
+            allowMissing: true,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

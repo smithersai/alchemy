@@ -215,22 +215,24 @@ const toAttrs = (policy: bqdp.DataPolicy, project: string, region: string): infe
   }
 }
 
-const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : bqdp
+const getByName = effect (name: string) => (name.length === 0 ? undefined : bqdp
   .getProjectsLocationsDataPolicies({ name }) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "NotFound" }: undefined;
     default: throw e;
   })
 
 const listAt = effect (project: string, location: string) =>
-  (Array.from(
-    try (bqdp.listProjectsLocationsDataPolicies
-      .pages({
-        parent: parentOf(project, location),
-        pageSize: 1000,
-      })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dataPolicies ?? []))
-      |> Stream.runCollect(%)),
-  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as bqdp.DataPolicy[]; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (bqdp.listProjectsLocationsDataPolicies
+        .pages({
+          parent: parentOf(project, location),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dataPolicies ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as bqdp.DataPolicy[]; default: throw e; }
 
 const findOwned = effect (items: readonly bqdp.DataPolicy[], id: string, name?: string) => {
   if (name !== undefined && name.length > 0) {
@@ -287,12 +289,15 @@ export const DataPolicyProvider = (): infer _ =>
     stables: ["name", "dataPolicyId", "project", "location"],
 
     diff: effect ({ id, news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousId = olds?.dataPolicyId ?? output?.dataPolicyId
-      const nextId = try toDataPolicyId(id, news.dataPolicyId, previousId)
+      const nextId = try toDataPolicyId(id, resolved.dataPolicyId, previousId)
       const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location, env.region)
       if (
         (previousId === undefined || nextId === previousId)
         && previousLocation === nextLocation
@@ -314,7 +319,9 @@ export const DataPolicyProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
       const resourceId = existing.dataPolicyId ?? lastSegment(existing.name ?? "")
-      return (try ownedByAlchemy(id, resourceId)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, resourceId))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -399,7 +406,7 @@ export const DataPolicyProvider = (): infer _ =>
     delete: effect ({ output }) => {
       bqdp
         .deleteProjectsLocationsDataPolicies({ name: output.name }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "NotFound" }: (undefined as void);
           default: throw e;
         }
     },

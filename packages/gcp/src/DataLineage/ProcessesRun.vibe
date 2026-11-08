@@ -183,21 +183,34 @@ export const ProcessesRunProvider = (): infer _ =>
     stables: ["name", "runId", "process", "project", "location"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
-      const env = try GcpEnvironment.current
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const nextLocation = normalizeLocation(
-        news.location ?? olds?.location ?? output?.location,
-        env.region,
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
       )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
       const previousProcess = olds?.process ?? output?.process
-      return replaceOnIdentity({
-        previousId: olds?.runId ?? output?.runId,
-        nextId: news.runId,
-        previousParent: previousProcess,
-        nextParent: news.process,
-        extra: output !== undefined && previousLocation !== nextLocation,
-      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.runId ?? output?.runId,
+            nextId: resolved.runId,
+            previousParent: previousProcess,
+            nextParent: resolved.process,
+            extra: output !== undefined && previousLocation !== nextLocation,
+          }),
+        catch: (e) => e,
+      }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -210,14 +223,23 @@ export const ProcessesRunProvider = (): infer _ =>
       if (output?.name === undefined && (typeof parentRef !== "string" || parentRef.length === 0)) {
         return undefined
       }
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const process = processOf(olds?.process ?? output?.process ?? "", env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const process = try Effect.orDie(
+        Effect.try({
+          try: () => processOf(olds?.process ?? output?.process ?? "", env.project, location),
+          catch: (e) => e,
+        }),
+      )
       const runId = try toPhysicalId(id, olds?.runId, output?.runId)
       const name = output?.name ?? resourceName(process, runId)
       const existing = (try getByName(name)) ?? (try findOwnedRun(id, process))
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try ownedByAlchemy(id, existing.attributes)) ? attrs : Unowned(attrs)
+      return (try ownedByAlchemy(id, existing.attributes))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -234,12 +256,18 @@ export const ProcessesRunProvider = (): infer _ =>
 
     reconcile: effect ({ id, news, output }) => {
       const env = try GcpEnvironment.current
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const process = processOf(news.process, env.project, location)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const process = try Effect.orDie(
+        Effect.try({ try: () => processOf(news.process, env.project, location), catch: (e) => e }),
+      )
       const runId = try toPhysicalId(id, news.runId, output?.runId)
       const name = output?.name ?? resourceName(process, runId)
       const ownership = try createOwnership(id)
-      const attributes = desiredAttributes(news.attributes, ownership)
+      const attributes = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.attributes, ownership), catch: (e) => e }),
+      )
 
       let current = (try getByName(name)) ?? (try findOwnedRun(id, process))
 
@@ -279,7 +307,10 @@ export const ProcessesRunProvider = (): infer _ =>
       const endChanged = !sameText(current.endTime, endTime)
       const stateChanged = !sameText(current.state, state)
       const displayNameChanged = !sameText(current.displayName, displayName)
-      const attributesChanged = !sameJson(current.attributes, attributes)
+      const attributesChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.attributes, attributes),
+        catch: (e) => e,
+      })))
 
       if (startChanged || endChanged || stateChanged || displayNameChanged || attributesChanged) {
         current = try datalineage.patchProjectsLocationsProcessesRuns({

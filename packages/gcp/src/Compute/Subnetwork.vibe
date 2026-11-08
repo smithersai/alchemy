@@ -372,7 +372,7 @@ const toAttrs = (subnetwork: compute.Subnetwork, project: string): Subnetwork["A
 const getByName = effect (project: string, region: string, subnetworkName: string) =>
   compute
     .getSubnetworks({ project, region, subnetwork: subnetworkName }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: try Effect.undefined;
+      when { _tag: "NotFound" }: undefined;
       default: throw e;
     }
 
@@ -409,21 +409,24 @@ export const SubnetworkProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousName = olds?.subnetworkName ?? output?.subnetworkName
-      const nextName = news.subnetworkName ?? previousName
+      const nextName = resolved.subnetworkName ?? previousName
       const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
-      const nextRegion = normalizeRegion(news.region ?? previousRegion, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? previousRegion, env.region)
       const identityChanged = previousRegion !== nextRegion
         || (previousName !== undefined && nextName !== undefined && previousName !== nextName)
       const replace = identityChanged
-        || linkKey(news.network) !== linkKey(olds?.network ?? output?.network)
-        || news.ipCidrRange !== (olds?.ipCidrRange ?? output?.ipCidrRange ?? "")
-        || (news.description ?? "") !== (olds?.description ?? output?.description ?? "")
-        || (news.purpose !== undefined && news.purpose !== (olds?.purpose ?? output?.purpose))
-        || (news.ipv6AccessType !== undefined
-          && news.ipv6AccessType !== (olds?.ipv6AccessType ?? output?.ipv6AccessType))
+        || linkKey(resolved.network) !== linkKey(olds?.network ?? output?.network)
+        || resolved.ipCidrRange !== (olds?.ipCidrRange ?? output?.ipCidrRange ?? "")
+        || (resolved.description ?? "") !== (olds?.description ?? output?.description ?? "")
+        || (resolved.purpose !== undefined && resolved.purpose !== (olds?.purpose ?? output?.purpose))
+        || (resolved.ipv6AccessType !== undefined
+          && resolved.ipv6AccessType !== (olds?.ipv6AccessType ?? output?.ipv6AccessType))
       if (!replace) return undefined
       return {
         action: "replace" as const,
@@ -446,7 +449,9 @@ export const SubnetworkProvider = (): infer _ =>
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
       const parsed = parseDescription(existing.description)
-      return (try hasAlchemyLabels(id, parsed.labels)) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(id, parsed.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -513,19 +518,21 @@ export const SubnetworkProvider = (): infer _ =>
         if (news.ipv6AccessType !== undefined) {
           body.ipv6AccessType = news.ipv6AccessType
         }
-        ;(try waitRegionOperation(
-          env.project,
-          region,
-          try compute
-            .insertSubnetworks({
-              project: env.project,
-              region,
-              body,
-            }),
-          {
-            ignore: ["RESOURCE_ALREADY_EXISTS"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
+        ;(effect {
+          return (try waitRegionOperation(
+            env.project,
+            region,
+            try compute
+              .insertSubnetworks({
+                project: env.project,
+                region,
+                body,
+              }),
+            {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: (undefined as void); default: throw e; }
         current = try requireSubnetwork(env.project, region, subnetworkName)
       }
 
@@ -602,19 +609,21 @@ export const SubnetworkProvider = (): infer _ =>
       const subnetworkName = output.subnetworkName
       if (!subnetworkName) return
       try (effect {
-        return (try waitRegionOperation(
-          project,
-          region,
-          try compute
-            .deleteSubnetworks({
-              project,
-              region,
-              subnetwork: subnetworkName,
-            }),
-          {
-            ignore: ["RESOURCE_NOT_FOUND"],
-          },
-        )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        return (effect {
+          return (try waitRegionOperation(
+            project,
+            region,
+            try compute
+              .deleteSubnetworks({
+                project,
+                region,
+                subnetwork: subnetworkName,
+              }),
+            {
+              ignore: ["RESOURCE_NOT_FOUND"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
       }
         |> Effect.retry(%, {
           while: (error) =>

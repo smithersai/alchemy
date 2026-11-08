@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as greengrassv2 from "@distilled.cloud/aws/greengrassv2"
 import { Unowned } from "alchemy/AdoptPolicy"
 import { isResolved } from "alchemy/Diff"
@@ -86,24 +89,36 @@ export const ComponentVersion = Resource<ComponentVersion>("AWS.GreengrassV2.Com
  * Raised when the inline recipe does not declare a `ComponentName` and
  * `ComponentVersion` that Alchemy can derive the component identity from.
  */
-export error GreengrassInvalidRecipe {
-  mutable message: string
+export class GreengrassInvalidRecipe extends $MutableErrorBase("GreengrassInvalidRecipe")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "GreengrassInvalidRecipe", true)
+  }
 }
 
 /**
  * Raised when the cloud reports the component version entered the `FAILED`
  * or `DEPRECATED` state instead of becoming `DEPLOYABLE`.
  */
-export error GreengrassComponentFailed {
-  mutable message: string
+export class GreengrassComponentFailed extends $MutableErrorBase("GreengrassComponentFailed")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "GreengrassComponentFailed", true)
+  }
 }
 
 /**
  * Internal signal used to poll a freshly created component version until the
  * cloud marks it `DEPLOYABLE`.
  */
-export error GreengrassComponentNotReady {
-  mutable message: string
+export class GreengrassComponentNotReady extends $MutableErrorBase("GreengrassComponentNotReady")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "GreengrassComponentNotReady", true)
+  }
 }
 
 // Explicitly-typed pipeable retry helper — inlining `Effect.retry` in a
@@ -177,7 +192,7 @@ export const ComponentVersionProvider = (): infer _ =>
       const observeComponent = effect (arn: string) =>
         greengrassv2
           .describeComponent({ arn }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: undefined;
             default: throw e;
           }
 
@@ -194,12 +209,15 @@ export const ComponentVersionProvider = (): infer _ =>
           }[] = []
           for (const component of components) {
             if (component.arn === undefined) continue
-            const versions = (try (greengrassv2.listComponentVersions
-              .items({ arn: component.arn })
-              |> Stream.runCollect(%))) catch effect (e) => match (e) {
-                when { _tag: "ResourceNotFoundException" }: [] as const;
-                default: throw e;
-              }
+            const componentArn = component.arn
+            const versions = (effect {
+              return (try (greengrassv2.listComponentVersions
+                .items({ arn: componentArn })
+                |> Stream.runCollect(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: [] as const;
+              default: throw e;
+            }
             for (const version of versions) {
               if (
                 version.arn !== undefined
@@ -233,10 +251,13 @@ export const ComponentVersionProvider = (): infer _ =>
             componentName: found.componentName,
             componentVersion: found.componentVersion,
           }
-          return (try hasAlchemyTags(id, normalizeTags(found.tags))) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, normalizeTags(found.tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           // Component versions are immutable — any recipe change replaces.
           if (olds !== undefined && news.recipe !== olds.recipe) {
             return { action: "replace" } as const
@@ -260,8 +281,7 @@ export const ComponentVersionProvider = (): infer _ =>
                 inlineRecipe: new TextEncoder().encode(news.recipe),
                 tags: desiredTags,
               }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" } or { _tag: "RequestAlreadyInProgressException" }: try Effect
-                  .undefined;
+                when { _tag: "ConflictException" } or { _tag: "RequestAlreadyInProgressException" }: undefined;
                 default: throw e;
               }
             // Wait until the cloud marks the version DEPLOYABLE (bounded ~30s;
@@ -313,7 +333,7 @@ export const ComponentVersionProvider = (): infer _ =>
         delete: effect ({ output }) => {
           greengrassv2
             .deleteComponent({ arn: output.arn }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: (undefined as void);
               default: throw e;
             }
         },

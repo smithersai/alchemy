@@ -449,20 +449,23 @@ export const BlockchainNodeProvider = (): infer _ =>
     stables: ["name", "blockchainNodeId", "project", "location", "blockchainType", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      if (!isResolved(news)) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
       const env = try GcpEnvironment.current
       const previousType = olds?.blockchainType ?? output?.blockchainType
-      const nextType = news.blockchainType ?? previousType
+      const nextType = resolved.blockchainType ?? previousType
       const previousPsc = olds?.privateServiceConnectEnabled ?? output?.privateServiceConnectEnabled
-      const nextPsc = news.privateServiceConnectEnabled ?? previousPsc ?? false
+      const nextPsc = resolved.privateServiceConnectEnabled ?? previousPsc ?? false
       const previousEthereum = toEthereum(olds?.ethereumDetails ?? output?.ethereumDetails)
-      const nextEthereum = mergeEthereum(previousEthereum, news.ethereumDetails)
-      return replaceOnIdentity({
+      const nextEthereum = mergeEthereum(previousEthereum, resolved.ethereumDetails)
+      const input = {
         previousId: olds?.blockchainNodeId ?? output?.blockchainNodeId,
-        nextId: news.blockchainNodeId ?? olds?.blockchainNodeId ?? output?.blockchainNodeId,
+        nextId: resolved.blockchainNodeId ?? olds?.blockchainNodeId ?? output?.blockchainNodeId,
         previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
         nextLocation: normalizeLocation(
-          news.location ?? olds?.location ?? output?.location,
+          resolved.location ?? olds?.location ?? output?.location,
           env.region,
         ),
         extra: (previousType !== undefined
@@ -471,7 +474,8 @@ export const BlockchainNodeProvider = (): infer _ =>
           || (previousPsc === true) !== (nextPsc === true)
           || (previousEthereum !== undefined
             && ethereumIdentityKey(previousEthereum) !== ethereumIdentityKey(nextEthereum)),
-      })
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
     },
 
     read: effect ({ id, olds, output }) => {
@@ -482,12 +486,22 @@ export const BlockchainNodeProvider = (): infer _ =>
         output?.blockchainNodeId,
         "node",
       )
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
-      const name = output?.name ?? resourceName(env.project, location, blockchainNodeId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, blockchainNodeId), catch: (e) => e }),
+        ))
       const existing = try getByName(name)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, env.region)
-      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -506,10 +520,14 @@ export const BlockchainNodeProvider = (): infer _ =>
         output?.blockchainNodeId,
         "node",
       )
-      const location = normalizeLocation(news.location ?? output?.location, env.region)
-      const name = resourceName(env.project, location, blockchainNodeId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, blockchainNodeId), catch: (e) => e }),
+      )
       const desiredLabels = {
-        ...toLabels(news.labels),
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
         ...(try createInternalLabels(id)),
       }
 
@@ -586,15 +604,17 @@ export const BlockchainNodeProvider = (): infer _ =>
     },
 
     delete: effect ({ output }) => {
-      const operation = (try (bne
-        .deleteProjectsLocationsBlockchainNodes({
-          name: output.name,
-        })
-        |> Effect.retry(%, {
-          while: (error) => error._tag === "Conflict",
-          times: 8,
-          schedule: Schedule.spaced("5 seconds"),
-        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      const operation = (effect {
+        return (try (bne
+          .deleteProjectsLocationsBlockchainNodes({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
       if (operation !== undefined) {
         try waitForOperation(operation, { notFoundOk: true })
       }

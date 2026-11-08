@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
 import * as rum from "@distilled.cloud/aws/rum"
 import { Unowned } from "alchemy/AdoptPolicy"
@@ -171,8 +174,12 @@ export const AppMonitor = Resource<AppMonitor>("AWS.RUM.AppMonitor")
  * Raised when an `AppMonitor` is configured with both or neither of
  * `domain` / `domainList` — the API requires exactly one.
  */
-export error RumAppMonitorInvalidDomains {
-  mutable message: string
+export class RumAppMonitorInvalidDomains extends $MutableErrorBase("RumAppMonitorInvalidDomains")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "RumAppMonitorInvalidDomains", true)
+  }
 }
 
 const validateDomains = effect (props: Pick<AppMonitorProps, "domain" | "domainList">) => {
@@ -247,8 +254,10 @@ export const AppMonitorProvider = (): infer _ =>
       ) => props.appMonitorName ?? (try createPhysicalName({ id, maxLength: 64 }))
 
       const observeMonitor = effect (name: string) =>
-        (try rum.getAppMonitor({ Name: name })).AppMonitor catch effect (e) => match (e) {
-          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        (effect {
+          return (try rum.getAppMonitor({ Name: name })).AppMonitor
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
           default: throw e;
         }
 
@@ -284,10 +293,13 @@ export const AppMonitorProvider = (): infer _ =>
               (t): t is [string, string] => t[1] !== undefined,
             ),
           )
-          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
         },
-        diff: effect ({ id, news, olds }) => {
-          if (!isResolved(news)) return undefined
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
           try validateDomains(news ?? {})
           const oldName = try createName(id, olds ?? {})
           const newName = try createName(id, news ?? {})
@@ -321,20 +333,22 @@ export const AppMonitorProvider = (): infer _ =>
           //    undefined appMonitorId poisons every downstream binding env —
           //    so poll (bounded) until the monitor is observable.
           if (live === undefined) {
-            ;(try (rum
-              .createAppMonitor({
-                Name: name,
-                Domain: news.domain,
-                DomainList: news.domainList,
-                Tags: desiredTags,
-                AppMonitorConfiguration: desiredConfig,
-                CwLogEnabled: desiredCwLogEnabled,
-                CustomEvents: { Status: desiredCustomEvents },
-              })
-              |> Effect.asVoid(%))) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: try Effect.void;
-                default: throw e;
-              }
+            ;(effect {
+              return (try (rum
+                .createAppMonitor({
+                  Name: name,
+                  Domain: news.domain,
+                  DomainList: news.domainList,
+                  Tags: desiredTags,
+                  AppMonitorConfiguration: desiredConfig,
+                  CwLogEnabled: desiredCwLogEnabled,
+                  CustomEvents: { Status: desiredCustomEvents },
+                })
+                |> Effect.asVoid(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (undefined as void);
+              default: throw e;
+            }
             live = try (observeMonitor(name)
               |> Effect.repeat(%, {
                 schedule: Schedule.spaced("2 seconds"),
@@ -391,7 +405,7 @@ export const AppMonitorProvider = (): infer _ =>
         },
         delete: effect ({ output }) => {
           rum.deleteAppMonitor({ Name: output.appMonitorName }) catch effect (e) => match (e) {
-            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
             default: throw e;
           }
 
@@ -416,7 +430,7 @@ export const AppMonitorProvider = (): infer _ =>
             effect (logGroupName) =>
               logs
                 .deleteLogGroup({ logGroupName }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
                   default: throw e;
                 },
           )

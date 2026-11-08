@@ -31,7 +31,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const locationParent = (project: string, location: string) =>
+export const locationParent = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
 export const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
@@ -64,8 +64,11 @@ export const expandParent = (
   return `${locationParent(project, location)}/${collection}/${value}`;
 };
 
-export const expandRepository = (value: string, project: string, location: string) =>
-  expandParent(value, project, location, "repositories");
+export const expandRepository = /** @throws {never} */ (
+  value: string,
+  project: string,
+  location: string,
+) => expandParent(value, project, location, "repositories");
 
 export const rfc1035 = (name: string, maxLength = MAX_ID_LENGTH): string => {
   let next = name
@@ -99,15 +102,18 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
@@ -249,7 +255,7 @@ export const ownedByAlchemy = (id: string, text: string | undefined) =>
     );
   });
 
-export const mergeOwnedVars = (
+export const mergeOwnedVars = /** @throws {never} */ (
   vars: Record<string, string> | undefined,
   ownership: Record<string, string>,
 ): Record<string, string> => ({ ...vars, ...ownership });

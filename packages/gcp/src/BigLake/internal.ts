@@ -31,7 +31,10 @@ export const lastSegment = (value: string) => {
 export const locationParent = (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
-export const normalizeLocation = (location: string | undefined, fallback: string) => {
+export const normalizeLocation = /** @throws {never} */ (
+  location: string | undefined,
+  fallback: string,
+) => {
   const raw = lastSegment(location ?? fallback);
   const upper = raw.toUpperCase();
   if (upper === "US" || upper === "EU") return upper;
@@ -113,12 +116,13 @@ export const toPhysicalId = (
     );
   });
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
-export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined) =>
-  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
+export const hasAlchemyLabelMap = /** @throws {never} */ (
+  labels: Record<string, string | undefined> | null | undefined,
+) => Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"));
 
 export const ownershipMarker = (labels: Record<string, string>) =>
   `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${labels[alchemyLabelKeys.stage]} ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`;
@@ -139,8 +143,10 @@ export const parseOwnershipMarker = (text: string | undefined) => {
 export const hasOwnershipMarker = (text: string | undefined) =>
   Object.keys(parseOwnershipMarker(text)).some((key) => key.startsWith("alchemy-"));
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
 export const canonical = (value: unknown): unknown => {
   if (value === undefined || value === null) return undefined;
