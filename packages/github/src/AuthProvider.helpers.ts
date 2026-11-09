@@ -1,7 +1,9 @@
 import { AuthProviderLayer, refreshHint as providerRefreshHint } from "alchemy/Auth/AuthProvider";
 
 /** @throws {never} */
-export function authProviderLayer<Config extends { method: string }, Credentials>(): ReturnType<typeof AuthProviderLayer<Config, Credentials>> {
+export function authProviderLayer<Config extends { method: string }, Credentials>(): ReturnType<
+  typeof AuthProviderLayer<Config, Credentials>
+> {
   return AuthProviderLayer<Config, Credentials>();
 }
 

@@ -29,4 +29,3 @@ export function compileIgnorePattern(input: string, prefix?: string) {
     .replaceAll("\0", ".*");
   return new RegExp(`^${escaped}(?:/.*)?$`);
 }
-

@@ -1,5 +1,9 @@
 import { Resource } from "alchemy/Resource";
-import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "../Branch.vibe";
+import {
+  type BaseBranchAttributes,
+  type BaseBranchProps,
+  makeBranchProvider,
+} from "../Branch.vibe";
 import type { Providers } from "../Providers.vibe";
 import type { MySQLClusterSize } from "./MySQLClusterSize.vibe";
 import type { MySQLDatabase } from "./MySQLDatabase.ts";

@@ -14,9 +14,7 @@ export function normalizeUrl(value: string) {
     throw new Error("Prisma Management API URL must not contain credentials.");
   }
   if (url.protocol === "http:" && !isLoopbackHost(url.hostname)) {
-    throw new Error(
-      "Prisma Management API URL must use HTTPS unless it targets a loopback host.",
-    );
+    throw new Error("Prisma Management API URL must use HTTPS unless it targets a loopback host.");
   }
   if (
     (url.pathname !== "/" && url.pathname !== "") ||

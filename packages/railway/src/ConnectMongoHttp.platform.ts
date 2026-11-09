@@ -1,2 +1,4 @@
 /** @throws {never} */
-export function environment(): NodeJS.ProcessEnv { return process.env; }
+export function environment(): NodeJS.ProcessEnv {
+  return process.env;
+}
