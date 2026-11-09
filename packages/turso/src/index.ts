@@ -9,7 +9,7 @@ export {
   fromToken,
   Organization,
 } from "./Credentials.vibe";
-export * from "./Database.ts";
+export * from "./Database.vibe";
 export * from "./DatabaseToken.ts";
 export * from "./Group.vibe";
 export * from "./GroupToken.vibe";
