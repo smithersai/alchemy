@@ -34,3 +34,9 @@ Run `pnpm test:vibelang-tools` for the migration regressions, including seeded
 stock-TypeScript consumers that exercise initial generation, an unchanged build,
 and regeneration after deleting the cache. Packages that publish source continue
 to include the generated declarations in their existing source directories.
+
+The website reference command generates native declaration sidecars before reading
+API documentation. A direct generator invocation reports a missing sidecar with
+the source name and the preparation command, so an incomplete cache cannot
+silently remove a reference page. `pnpm docs:check` and the website build share
+this preparation path.
