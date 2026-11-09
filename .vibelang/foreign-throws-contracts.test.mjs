@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
-test("owned synchronous factories and predicates are callable from effect code", () => {
+void test("owned synchronous factories and predicates are callable from effect code", () => {
   const result = spawnSync(
     process.execPath,
     [

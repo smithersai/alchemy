@@ -139,8 +139,8 @@ function witness({ directory, value, entry, readOnly }) {
   }
 }
 
-test("formatting uses an installed unpublished native package", () => witness(corpus));
-test("local native formatting preserves text across package layouts and entrypoints", () => {
+void test("formatting uses an installed unpublished native package", () => witness(corpus));
+void test("local native formatting preserves text across package layouts and entrypoints", () => {
   fc.assert(
     fc.property(
       fc.record({
