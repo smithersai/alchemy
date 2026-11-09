@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as EffectStream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export class KendraDataSourceInvalidProps extends Data.TaggedError("KendraDataSourceInvalidProps")<{
   readonly message: string;

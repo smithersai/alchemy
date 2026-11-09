@@ -8,7 +8,7 @@ import { hasAlchemyTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   collectPages,
   readResourceTags,

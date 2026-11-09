@@ -1,4 +1,4 @@
-export * from "./AutoScalingGroup.ts";
+export * from "./AutoScalingGroup.vibe";
 export * from "./CompleteLifecycleAction.vibe";
 export * from "./CompleteLifecycleActionHttp.vibe";
 export * from "./DescribeAutoScalingGroup.vibe";

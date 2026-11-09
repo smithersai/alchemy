@@ -19,7 +19,7 @@ import {
   WebFunctionPermission,
   type WebFunctionEndpointRef,
 } from "../Lambda/WebFunctionPermission.vibe";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
   MANAGED_CACHING_DISABLED_POLICY_ID,

@@ -21,7 +21,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import type { Scope } from "effect/Scope";
 import * as Stream from "effect/Stream";
-import type { Credentials } from "../Credentials.ts";
+import type { Credentials } from "../Credentials.vibe";
 import {
   makeBunBootstrap,
   makeImageSource,
@@ -33,7 +33,7 @@ import {
 import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export class TaskConflict extends Data.TaggedError("TaskConflict")<{
   readonly message: string;

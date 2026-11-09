@@ -44,7 +44,7 @@ export {
   type KeyEventSourceProps,
 } from "./KeyEventSource.vibe";
 export { ReEncrypt, type ReEncryptRequest } from "./ReEncrypt.vibe";
-export { ReEncryptHttp } from "./ReEncryptHttp.ts";
+export { ReEncryptHttp } from "./ReEncryptHttp.vibe";
 export { Sign, type SignRequest } from "./Sign.vibe";
 export { SignHttp } from "./SignHttp.vibe";
 export { Verify, type VerifyRequest } from "./Verify.vibe";

@@ -7,7 +7,7 @@ export * from "./ExportApiHttp.vibe";
 export * from "./HttpApi.vibe";
 export * from "./Integration.vibe";
 export * from "./ManageConnections.vibe";
-export * from "./ManageConnectionsHttp.ts";
+export * from "./ManageConnectionsHttp.vibe";
 export * from "./ResetAuthorizersCache.vibe";
 export * from "./ResetAuthorizersCacheHttp.vibe";
 export * from "./Route.vibe";

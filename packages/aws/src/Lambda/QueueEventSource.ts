@@ -12,7 +12,7 @@ import {
   type QueueMessagesHandler,
   type SQSBatchResponse,
   type SQSEvent,
-} from "../SQS/QueueEventSource.ts";
+} from "../SQS/QueueEventSource.vibe";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

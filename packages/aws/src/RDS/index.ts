@@ -1,6 +1,6 @@
 export * from "./ApplyPendingMaintenanceAction.vibe";
 export * from "./ApplyPendingMaintenanceActionHttp.vibe";
-export * from "./Aurora.ts";
+export * from "./Aurora.vibe";
 export * from "./Connect.vibe";
 export * from "./ConnectHttp.ts";
 export * from "./CopyDBClusterSnapshot.vibe";

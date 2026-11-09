@@ -17,7 +17,7 @@ export * from "./ListMessageMoveTasksHttp.vibe";
 export * from "./PurgeQueue.vibe";
 export * from "./PurgeQueueHttp.vibe";
 export * from "./Queue.vibe";
-export * from "./QueueEventSource.ts";
+export * from "./QueueEventSource.vibe";
 export * from "./QueueSink.vibe";
 export * from "./QueueSinkHttp.vibe";
 export * from "./ReceiveMessage.vibe";

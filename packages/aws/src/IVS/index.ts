@@ -1,6 +1,6 @@
 export * from "./BatchStartViewerSessionRevocation.vibe";
 export * from "./BatchStartViewerSessionRevocationHttp.vibe";
-export * from "./Channel.ts";
+export * from "./Channel.vibe";
 export * from "./GetStream.vibe";
 export * from "./GetStreamHttp.vibe";
 export * from "./GetStreamSession.vibe";

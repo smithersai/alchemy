@@ -7,7 +7,7 @@ import { Stack } from "alchemy/Stack";
 import { Stage } from "alchemy/Stage";
 import * as Effect from "effect/Effect";
 import { KvEntries } from "../CloudFront/KvEntries.vibe";
-import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.ts";
+import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.vibe";
 import type { WebsiteDomainProps, WebsiteRouterDomainProps } from "./shared.ts";
 
 /**

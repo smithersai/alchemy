@@ -12,7 +12,7 @@ import { Function as CloudFrontFunction } from "../CloudFront/Function.vibe";
 import { Invalidation } from "../CloudFront/Invalidation.vibe";
 import { KeyValueStore } from "../CloudFront/KeyValueStore.vibe";
 import { KvEntries } from "../CloudFront/KvEntries.vibe";
-import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.ts";
+import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.vibe";
 import { MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID } from "../CloudFront/ManagedPolicies.ts";
 import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
 import type { PolicyStatement } from "../IAM/Policy.vibe";

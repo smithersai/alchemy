@@ -50,7 +50,7 @@ import * as Redacted from "effect/Redacted";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as Endpoint from "./Endpoint.ts";
+import * as Endpoint from "./Endpoint.vibe";
 import * as Floci from "./Local/Floci.ts";
 import * as Region from "./Region.ts";
 

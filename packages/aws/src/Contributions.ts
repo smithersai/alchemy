@@ -17,7 +17,7 @@ export default Contributions.make({
     "aws-s3": {
       description: "S3 state store in the profile's AWS account",
       load: Contributions.lazy(
-        () => import("./Alchemist/StateStore.ts"),
+        () => import("./Alchemist/StateStore.vibe"),
         (module) => module.s3StateStore,
       ),
     },

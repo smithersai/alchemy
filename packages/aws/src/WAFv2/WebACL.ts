@@ -9,7 +9,7 @@ import { createInternalTags, createTagsList, hasAlchemyTags } from "alchemy/Tags
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { plainJson } from "../internal/Observe.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   fetchWafTags,
   normalizeWafRules,

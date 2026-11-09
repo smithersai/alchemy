@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { DEFAULT_LOCAL_ENDPOINT, LOCAL_ACCOUNT_ID } from "../AuthProvider.ts";
-import * as Endpoint from "../Endpoint.ts";
+import * as Endpoint from "../Endpoint.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import * as Region from "../Region.ts";
 import * as Floci from "./Floci.ts";

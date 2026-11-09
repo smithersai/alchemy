@@ -10,7 +10,7 @@ import {
 import type { Input } from "alchemy/Input";
 import * as RemovalPolicy from "alchemy/RemovalPolicy";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { Record } from "./Record.ts";
 import { RecordList } from "./RecordList.vibe";
 import { Records } from "./Records.vibe";

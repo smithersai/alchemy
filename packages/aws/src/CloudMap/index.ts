@@ -23,4 +23,4 @@ export * from "./RegisterInstanceHttp.vibe";
 export * from "./Service.vibe";
 export * from "./UpdateInstanceCustomHealthStatus.vibe";
 export * from "./UpdateInstanceCustomHealthStatusHttp.vibe";
-export { awaitOperation, CloudMapOperationFailed } from "./internal.ts";
+export { awaitOperation, CloudMapOperationFailed } from "./internal.vibe";

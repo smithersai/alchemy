@@ -18,7 +18,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import type * as rolldown from "rolldown";
 import { DEFAULT_LOCAL_ENDPOINT } from "./AuthProvider.ts";
-import { Credentials, makeAssumeRoleResolver } from "./Credentials.ts";
+import { Credentials, makeAssumeRoleResolver } from "./Credentials.vibe";
 import { AWSEnvironment } from "./Environment.ts";
 import { AccessKey } from "./IAM/AccessKey.vibe";
 import type { PolicyStatement } from "./IAM/Policy.vibe";

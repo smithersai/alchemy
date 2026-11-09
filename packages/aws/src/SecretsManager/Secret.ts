@@ -12,7 +12,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { PolicyDocument } from "../IAM/Policy.vibe";
 import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export class SecretUnexpectedResponse extends Data.TaggedError("SecretUnexpectedResponse")<{
   readonly message: string;

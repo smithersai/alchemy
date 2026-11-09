@@ -5,7 +5,7 @@ export * from "./GetParameterHttp.vibe";
 export * from "./GetParameters.vibe";
 export * from "./GetParametersByPath.vibe";
 export * from "./GetParametersByPathHttp.vibe";
-export * from "./GetParametersHttp.ts";
+export * from "./GetParametersHttp.vibe";
 export * from "./LabelParameterVersion.vibe";
 export * from "./LabelParameterVersionHttp.vibe";
 export * from "./Parameter.vibe";

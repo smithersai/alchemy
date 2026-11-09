@@ -25,7 +25,7 @@ import * as Stream from "effect/Stream";
 import { ScalableTarget } from "../ApplicationAutoScaling/ScalableTarget.vibe";
 import { ScalingPolicy } from "../ApplicationAutoScaling/ScalingPolicy.vibe";
 import { Service as CloudMapService } from "../CloudMap/Service.vibe";
-import type { Credentials } from "../Credentials.ts";
+import type { Credentials } from "../Credentials.vibe";
 import { domainCertificate, isRoute53Dns, resolveDomainDns } from "../CustomDomain.vibe";
 import {
   SecurityGroup,
@@ -50,7 +50,7 @@ import { TargetGroup, type TargetGroupArn } from "../ELBv2/TargetGroup.vibe";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import { plainJson } from "../internal/Observe.ts";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.ts";
 import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe";
 import type { ClusterArn } from "./Cluster.vibe";

@@ -27,7 +27,7 @@ import {
   type PolicyDocument,
 } from "../IAM/Policy.vibe";
 import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.vibe";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.vibe";
 
 export interface DBInstanceProps {

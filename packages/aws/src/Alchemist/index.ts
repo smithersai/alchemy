@@ -11,7 +11,7 @@ import {
   destroyBootstrap as destroyBootstrapAws,
 } from "../AssetsBucket.vibe";
 import { getAccountId, silentConsole } from "../AuthProvider.ts";
-import * as AWSCredentials from "../Credentials.ts";
+import * as AWSCredentials from "../Credentials.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import * as AWSRegion from "../Region.ts";
 

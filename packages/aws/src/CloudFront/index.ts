@@ -26,7 +26,7 @@ export { Invalidation, InvalidationProvider } from "./Invalidation.vibe";
 export { KeyGroup, KeyGroupProvider } from "./KeyGroup.vibe";
 export { KeyValueStore, KeyValueStoreProvider } from "./KeyValueStore.vibe";
 export { KvEntries, KvEntriesProvider } from "./KvEntries.vibe";
-export { KvRoutesUpdate, KvRoutesUpdateProvider } from "./KvRoutesUpdate.ts";
+export { KvRoutesUpdate, KvRoutesUpdateProvider } from "./KvRoutesUpdate.vibe";
 export {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
   MANAGED_CACHING_DISABLED_POLICY_ID,
