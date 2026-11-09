@@ -15,4 +15,4 @@ export * from "./WorkerPool.vibe";
 export { TopicEventSource } from "./TopicEventSource.vibe";
 export * from "./TopicPullEventSource.vibe";
 export { ScheduleEventSource } from "./ScheduleEventSource.vibe";
-export { EventarcEventSource } from "./EventarcEventSource.ts";
+export { EventarcEventSource } from "./EventarcEventSource.vibe";

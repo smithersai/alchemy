@@ -5,4 +5,4 @@ export * from "./GetFunction.vibe";
 export * from "./GetFunctionHttp.vibe";
 export { TopicEventSource } from "../Run/TopicEventSource.vibe";
 export { ScheduleEventSource } from "../Run/ScheduleEventSource.vibe";
-export { EventarcEventSource } from "../Run/EventarcEventSource.ts";
+export { EventarcEventSource } from "../Run/EventarcEventSource.vibe";
