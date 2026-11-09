@@ -10,7 +10,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 import type { Providers } from "../Providers.vibe";
 import { makeObjectMedia } from "./ObjectMedia.ts";
 

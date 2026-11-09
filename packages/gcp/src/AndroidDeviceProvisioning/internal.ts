@@ -4,7 +4,7 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 
 export const CUSTOMER_PREFIX = "customers/";
 export const MAX_CONFIGURATION_NAME_LENGTH = 100;

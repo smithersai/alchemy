@@ -5,8 +5,8 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { tagRecord } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.ts";
-import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts";
+import { GcpEnvironment } from "../Environment.vibe";
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe";
 import type { Providers } from "../Providers.vibe";
 import {
   AuthProviderNotResolved,

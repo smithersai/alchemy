@@ -10,7 +10,7 @@ import {
   createInternalLabels,
   hasAlchemyLabels,
   stripInternalLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 
 export const GLOBAL_LOCATION = "global";

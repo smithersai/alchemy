@@ -3,7 +3,7 @@ import { createPhysicalName } from "alchemy/PhysicalName";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 
 export const DEFAULT_LOCALE = "en-US";
 export const DEFAULT_DISPLAY_MODE = "standalone";

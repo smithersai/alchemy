@@ -38,10 +38,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import type * as rolldown from "rolldown";
-import { Credentials } from "../Credentials.ts";
-import { GcpEnvironment } from "../Environment.ts";
-import { serviceAccountHostBundle } from "../GCPBindings.ts";
-import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts";
+import { Credentials } from "../Credentials.vibe";
+import { GcpEnvironment } from "../Environment.vibe";
+import { serviceAccountHostBundle } from "../GCPBindings.vibe";
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe";
 import { waitForDeleteOperation, waitForOperation } from "./internal.ts";
 
 export interface BundledImageSource {

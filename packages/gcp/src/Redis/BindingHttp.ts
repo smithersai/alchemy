@@ -1,4 +1,4 @@
-import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.vibe";
 import type { AclPolicy } from "./AclPolicy.vibe";
 import type { Instance } from "./Instance.vibe";
 

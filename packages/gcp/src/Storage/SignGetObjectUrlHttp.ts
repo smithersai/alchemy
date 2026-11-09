@@ -5,9 +5,9 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
-import * as GCPBindings from "../GCPBindings.ts";
+import * as GCPBindings from "../GCPBindings.vibe";
 import { HOST_SERVICE_ACCOUNT } from "../Host.ts";
-import { grantFor } from "../HttpBinding.ts";
+import { grantFor } from "../HttpBinding.vibe";
 import type { Bucket } from "./Bucket.vibe";
 import {
   SignedUrlFailed,

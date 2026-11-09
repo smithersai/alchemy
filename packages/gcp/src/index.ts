@@ -1,8 +1,8 @@
 export * from "./AuthProvider.ts";
-export * from "./Credentials.ts";
-export * from "./Environment.ts";
-export * as GCPBindings from "./GCPBindings.ts";
-export * from "./Labels.ts";
+export * from "./Credentials.vibe";
+export * from "./Environment.vibe";
+export * as GCPBindings from "./GCPBindings.vibe";
+export * from "./Labels.vibe";
 export * from "./Providers.vibe";
 export * from "./Region.vibe";
 export * from "./StateStore/index.ts";

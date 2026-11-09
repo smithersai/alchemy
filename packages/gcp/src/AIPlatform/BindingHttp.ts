@@ -3,7 +3,7 @@ import {
   makeNamedHttpBinding as makeGcpNamedHttpBinding,
   type BindingIam,
   type GcpHttpOp,
-} from "../HttpBinding.ts";
+} from "../HttpBinding.vibe";
 
 /**
  * Shared HTTP scaffolding for AI Platform named-resource bindings.

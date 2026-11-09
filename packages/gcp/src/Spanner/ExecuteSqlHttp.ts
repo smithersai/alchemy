@@ -2,8 +2,8 @@ import * as spanner from "@distilled.cloud/gcp/spanner_v1";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Semaphore from "effect/Semaphore";
-import * as GCPBindings from "../GCPBindings.ts";
-import { grantFor } from "../HttpBinding.ts";
+import * as GCPBindings from "../GCPBindings.vibe";
+import { grantFor } from "../HttpBinding.vibe";
 import type { Database } from "./Database.ts";
 import { ExecuteSql, type ExecuteSqlRequest } from "./ExecuteSql.vibe";
 

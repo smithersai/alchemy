@@ -7,14 +7,14 @@ import { tagRecord } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { GcpEnvironment } from "../Environment.ts";
+import { GcpEnvironment } from "../Environment.vibe";
 import {
   createInternalLabels,
   diffLabels,
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 import type { Providers } from "../Providers.vibe";
 import {
   clusterLocation,

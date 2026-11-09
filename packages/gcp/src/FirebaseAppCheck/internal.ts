@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { isTransientGcpError } from "../Errors.vibe";
-import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 
 export const DEFAULT_SERVICE_ID = "oauth2.googleapis.com";
 export const DEFAULT_ENFORCEMENT_MODE = "UNENFORCED";

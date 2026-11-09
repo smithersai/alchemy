@@ -3,7 +3,7 @@ import { createPhysicalName } from "alchemy/PhysicalName";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { ALCHEMY_LABEL_PREFIX } from "../Labels.ts";
+import { ALCHEMY_LABEL_PREFIX } from "../Labels.vibe";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 
 /** Default instance config: the regional config of the stack's GCP region. */

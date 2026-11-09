@@ -1,5 +1,5 @@
-export * from "./AccountConnector.ts";
-export * from "./Connection.ts";
+export * from "./AccountConnector.vibe";
+export * from "./Connection.vibe";
 export * from "./ConnectionsGitRepositoryLink.vibe";
 export * from "./FetchGitRefs.vibe";
 export * from "./FetchGitRefsHttp.vibe";
@@ -7,4 +7,4 @@ export * from "./FetchReadToken.vibe";
 export * from "./FetchReadTokenHttp.vibe";
 export * from "./FetchReadWriteToken.vibe";
 export * from "./FetchReadWriteTokenHttp.vibe";
-export * from "./InsightsConfig.ts";
+export * from "./InsightsConfig.vibe";

@@ -1,6 +1,6 @@
 export * from "./AutoscalingPolicy.vibe";
 export * from "./Batch.vibe";
-export * from "./Cluster.ts";
+export * from "./Cluster.vibe";
 export * from "./GetCluster.vibe";
 export * from "./GetClusterHttp.vibe";
 export * from "./RegionsAutoscalingPolicy.vibe";

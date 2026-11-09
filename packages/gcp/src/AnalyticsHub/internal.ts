@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { isTransientGcpError } from "../Errors.vibe";
-import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 
 export const MAX_ID_LENGTH = 40;
 export const MAX_DISPLAY_NAME_LENGTH = 63;

@@ -11,7 +11,7 @@ import {
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 
 export const MAX_NAME_LENGTH = 63;

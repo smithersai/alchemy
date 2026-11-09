@@ -5,5 +5,5 @@ export * from "./GetInstance.vibe";
 export * from "./GetInstanceHttp.vibe";
 export * from "./GetInstancesSnapshot.vibe";
 export * from "./GetInstancesSnapshotHttp.vibe";
-export * from "./Instance.ts";
+export * from "./Instance.vibe";
 export * from "./InstancesSnapshot.vibe";

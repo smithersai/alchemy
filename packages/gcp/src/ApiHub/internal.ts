@@ -10,7 +10,7 @@ import {
   createInternalLabels,
   hasAlchemyLabels,
   stripInternalLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 import { waitForOperation as waitForLongRunning, type LongRunningOperation } from "../Operation.ts";
 
 export type AttributeValues = apihub.GoogleCloudApihubV1AttributeValues;

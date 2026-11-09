@@ -1,6 +1,6 @@
 import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import { tagRecord } from "alchemy/Tags";
-import { alchemyLabelKeys, stripInternalLabels } from "../Labels.ts";
+import { alchemyLabelKeys, stripInternalLabels } from "../Labels.vibe";
 
 export const MAX_NAME_LENGTH = 63;
 

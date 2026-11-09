@@ -11,7 +11,7 @@ import {
   createInternalLabels,
   hasAlchemyLabels,
   stripInternalLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 
 // CES resource ids must match `[a-zA-Z0-9][a-zA-Z0-9-_]{4,35}`.
 export const MAX_ID_LENGTH = 36;

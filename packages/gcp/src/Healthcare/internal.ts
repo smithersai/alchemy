@@ -12,7 +12,7 @@ import {
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 
 export const MAX_ID_LENGTH = 256;
 

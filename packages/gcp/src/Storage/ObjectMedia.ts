@@ -7,7 +7,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import type * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Schedule from "effect/Schedule";
-import * as GCPBindings from "../GCPBindings.ts";
+import * as GCPBindings from "../GCPBindings.vibe";
 
 /**
  * Object content transfer over the Cloud Storage JSON API media endpoints

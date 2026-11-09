@@ -20,14 +20,14 @@ import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.ts";
+import { GcpEnvironment } from "../Environment.vibe";
 import {
   createInternalLabels,
   diffLabels,
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 import type { Providers } from "../Providers.vibe";
 import { runInstanceMigrations } from "./Migrations.ts";
 import { waitForDeleteOperation, waitForOperation } from "./operations.vibe";

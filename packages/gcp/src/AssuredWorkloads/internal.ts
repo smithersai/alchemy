@@ -6,8 +6,8 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.ts";
-import { stripInternalLabels } from "../Labels.ts";
+import { GcpEnvironment } from "../Environment.vibe";
+import { stripInternalLabels } from "../Labels.vibe";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 
 export const MAX_DISPLAY_NAME_LENGTH = 30;

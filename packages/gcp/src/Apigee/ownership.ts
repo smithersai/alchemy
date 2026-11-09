@@ -1,5 +1,5 @@
 import type * as apigee from "@distilled.cloud/gcp/apigee_v1";
-import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 
 export { createInternalLabels, hasAlchemyLabels };
 

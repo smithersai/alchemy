@@ -1,4 +1,4 @@
-export * from "./CryptoKey.ts";
+export * from "./CryptoKey.vibe";
 export * from "./CryptoKeyVersion.vibe";
 export * from "./Decrypt.vibe";
 export * from "./DecryptHttp.vibe";

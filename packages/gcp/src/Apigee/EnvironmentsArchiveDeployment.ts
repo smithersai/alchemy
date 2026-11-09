@@ -9,14 +9,14 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.ts";
+import { GcpEnvironment } from "../Environment.vibe";
 import {
   createInternalLabels,
   diffLabels,
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 import type { Providers } from "../Providers.vibe";
 import {
   environmentIdOf,

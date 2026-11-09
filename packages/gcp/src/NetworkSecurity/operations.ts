@@ -5,8 +5,8 @@ import { tagRecord } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { GcpEnvironment } from "../Environment.ts";
-import { stripInternalLabels } from "../Labels.ts";
+import { GcpEnvironment } from "../Environment.vibe";
+import { stripInternalLabels } from "../Labels.vibe";
 import { waitForOperation as waitForLongRunning } from "../Operation.ts";
 
 export const DEFAULT_LOCATION = "global";

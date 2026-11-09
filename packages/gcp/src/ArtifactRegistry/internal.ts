@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { alchemyLabelKeys, hasAlchemyLabels, stripInternalLabels } from "../Labels.ts";
+import { alchemyLabelKeys, hasAlchemyLabels, stripInternalLabels } from "../Labels.vibe";
 import { waitForOperation as waitForLongRunning, type LongRunningOperation } from "../Operation.ts";
 
 export const MAX_NAME_LENGTH = 63;

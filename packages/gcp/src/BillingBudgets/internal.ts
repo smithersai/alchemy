@@ -5,7 +5,7 @@ import { createPhysicalName } from "alchemy/PhysicalName";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.ts";
+import { GcpEnvironment } from "../Environment.vibe";
 
 export const MAX_DISPLAY_NAME_LENGTH = 60;
 

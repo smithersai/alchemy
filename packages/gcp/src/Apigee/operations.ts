@@ -3,8 +3,8 @@ import { createPhysicalName } from "alchemy/PhysicalName";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.ts";
-import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { GcpEnvironment } from "../Environment.vibe";
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 import {
   encodeDescription,

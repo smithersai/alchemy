@@ -1,4 +1,4 @@
-import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.vibe";
 import type { Function as CloudFunction } from "./Function.vibe";
 
 /**

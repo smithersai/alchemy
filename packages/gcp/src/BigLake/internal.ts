@@ -12,7 +12,7 @@ import {
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "../Labels.ts";
+} from "../Labels.vibe";
 
 /** Locations `list` scans: the pre-`GCP.Region` default plus the stack region. */
 export const listLocations = (region: string): string[] => [...new Set(["us-central1", region])];

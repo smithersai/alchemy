@@ -14,8 +14,8 @@ import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { GcpAuth } from "../AuthProvider.ts";
-import * as GcpCredentials from "../Credentials.ts";
-import { fromCredentials, GcpEnvironment } from "../Environment.ts";
+import * as GcpCredentials from "../Credentials.vibe";
+import { fromCredentials, GcpEnvironment } from "../Environment.vibe";
 import { makeObjectMedia } from "../Storage/ObjectMedia.ts";
 
 export interface GcsStateOptions {
