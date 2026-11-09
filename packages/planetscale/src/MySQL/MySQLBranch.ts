@@ -6,7 +6,7 @@ import {
 } from "../Branch.vibe";
 import type { Providers } from "../Providers.vibe";
 import type { MySQLClusterSize } from "./MySQLClusterSize.vibe";
-import type { MySQLDatabase } from "./MySQLDatabase.ts";
+import type { MySQLDatabase } from "./MySQLDatabase.vibe";
 import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.vibe";
 
 /**

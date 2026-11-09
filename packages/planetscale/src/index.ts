@@ -11,4 +11,4 @@ export * from "./Database.ts";
 export * from "./MySQL/index.ts";
 export * from "./Postgres/index.ts";
 export * from "./Providers.vibe";
-export * from "./Util.ts";
+export * from "./Util.vibe";

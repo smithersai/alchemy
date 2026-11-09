@@ -5,8 +5,8 @@ import {
   makeBranchProvider,
 } from "../Branch.vibe";
 import type { Providers } from "../Providers.vibe";
-import type { PostgresClusterSize } from "./PostgresClusterSize.ts";
-import type { PostgresDatabase } from "./PostgresDatabase.ts";
+import type { PostgresClusterSize } from "./PostgresClusterSize.vibe";
+import type { PostgresDatabase } from "./PostgresDatabase.vibe";
 import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.vibe";
 
 /**
