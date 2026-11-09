@@ -61,7 +61,9 @@ const depot = effect <A>(
       throw fail(String(cause))
     }
   if (res.status < 200 || res.status >= 300) {
-    const text = (effect { return (try res.text) }) catch () => ""
+    const text = (effect {
+      return (try res.text)
+    }) catch () => ""
     throw fail(`HTTP ${res.status}: ${text}`)
   }
   return HttpClientResponse.schemaBodyJson(response)(res) catch effect (e) => {
@@ -189,23 +191,25 @@ export const buildOnRemoteBuilder = effect (input: {
     // to registry.fly.io. Machines pull from there, so confirm the tag landed
     // (usually within seconds) while the builder is still held.
     const started = try Clock.currentTimeMillis
-    ;(effect { return (try (effect {
-      return try effect {
-        provide DockerEnvironment = {
-            DOCKER_AUTH_CONFIG: JSON.stringify({
-              auths: { [input.registry.server]: { auth: basicAuth(input.registry) } },
-            }),
-          } {
-          return try input.docker.run(["buildx", "imagetools", "inspect", "--raw", input.imageRef])
+    ;(effect {
+      return (try (effect {
+        return try effect {
+          provide DockerEnvironment = {
+              DOCKER_AUTH_CONFIG: JSON.stringify({
+                auths: { [input.registry.server]: { auth: basicAuth(input.registry) } },
+              }),
+            } {
+            return try input.docker.run(["buildx", "imagetools", "inspect", "--raw", input.imageRef])
+          }
         }
       }
+        |> Effect.retry(%, { schedule: Schedule.spaced(UPSTREAM_POLL), times: MAX_UPSTREAM_POLLS })))
+    }) catch effect (e) => {
+      throw new RemoteBuilderError({
+        operation: "upload",
+        message: `${input.imageRef} did not reach ${input.registry.server}`,
+      })
     }
-      |> Effect.retry(%, { schedule: Schedule.spaced(UPSTREAM_POLL), times: MAX_UPSTREAM_POLLS }))) }) catch effect (e) => {
-          throw new RemoteBuilderError({
-            operation: "upload",
-            message: `${input.imageRef} did not reach ${input.registry.server}`,
-          })
-        }
     const waited = (try Clock.currentTimeMillis) - started
     try note(`${input.imageRef} available on ${input.registry.server} after ${waited}ms`)
   }
