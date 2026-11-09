@@ -13,17 +13,17 @@ export * from "./ConnectAuth.vibe";
 export * from "./QueryDataApi.vibe";
 export * from "./QueryAIGateway.vibe";
 export * from "./LanguageModel.vibe";
-export * from "./Branch.ts";
+export * from "./Branch.vibe";
 export * from "./Connect.vibe";
 export * from "./BranchScope.ts";
-export * from "./Credential.ts";
+export * from "./Credential.vibe";
 export * from "./Role.vibe";
-export * from "./Bucket.ts";
+export * from "./Bucket.vibe";
 export * from "./Object.ts";
 export * from "./ReadBucket.vibe";
 export * from "./WriteBucket.vibe";
 export * from "./ReadWriteBucket.vibe";
-export * from "./ReadBucketHttp.ts";
+export * from "./ReadBucketHttp.vibe";
 export * from "./WriteBucketHttp.vibe";
 export * from "./ReadWriteBucketHttp.vibe";
 export * from "./ReadObject.vibe";
@@ -32,14 +32,14 @@ export * from "./ReadObjectHttp.vibe";
 export * from "./WriteObjectHttp.vibe";
 export * from "./Credentials.vibe";
 export * from "./PostgresOrigin.vibe";
-export * from "./Project.ts";
+export * from "./Project.vibe";
 export {
   OrganizationApiKey,
   OrganizationApiKeyProvider,
   OrganizationApiKeyRecoveryError,
   type OrganizationApiKeyProps,
   type OrganizationApiKeyAttributes,
-} from "./OrganizationApiKey.ts";
+} from "./OrganizationApiKey.vibe";
 export {
   OrganizationMemberRole,
   OrganizationMemberRoleProvider,
@@ -48,7 +48,7 @@ export {
   type OrganizationMemberRoleAttributes,
   type OrganizationRole,
   type GovernanceRoleBaseline,
-} from "./OrganizationMemberRole.ts";
+} from "./OrganizationMemberRole.vibe";
 export {
   ProjectMemberRole,
   ProjectMemberRoleProvider,
@@ -62,14 +62,14 @@ export {
   InvalidOrganizationSpendingLimit,
   type OrganizationSpendingLimitProps,
   type OrganizationSpendingLimitAttributes,
-} from "./OrganizationSpendingLimit.ts";
+} from "./OrganizationSpendingLimit.vibe";
 export {
   OrganizationVPCEndpoint,
   OrganizationVPCEndpointProvider,
   InvalidOrganizationVPCEndpoint,
   type OrganizationVPCEndpointProps,
   type OrganizationVPCEndpointAttributes,
-} from "./OrganizationVPCEndpoint.ts";
+} from "./OrganizationVPCEndpoint.vibe";
 export {
   ProjectVPCEndpoint,
   ProjectVPCEndpointProvider,

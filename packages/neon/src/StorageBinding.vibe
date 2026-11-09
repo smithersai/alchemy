@@ -1,0 +1,183 @@
+import * as Binding from "alchemy/Binding"
+import * as Output from "alchemy/Output"
+import { defaultProviderMode } from "alchemy/ProviderMode"
+import { CurrentRuntimeContext, type RuntimeContext } from "alchemy/RuntimeContext"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as HttpClient from "effect/http/HttpClient"
+import * as Option from "effect/Option"
+import * as Redacted from "effect/Redacted"
+import { bindBackendEnvironment } from "./BackendConnection.vibe"
+import type { Bucket } from "./Bucket.vibe"
+import { Credential, validateCredential } from "./Credential.vibe"
+import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe"
+import { FunctionEnvironment } from "./FunctionEnvironment.vibe"
+import { makeStorageClient, type StorageClient, type StorageConfig } from "./Storage.vibe"
+import { sha256Hex } from "./StorageBinding.platform.js"
+
+export interface StorageBindingOptions {
+  /** Explicit sharing; validated against the requested scope and branch lineage. */
+  credential?: Credential
+}
+export class StorageBindingError extends Data.TaggedError("StorageBindingError")<{
+  message: string
+}> {}
+
+export type RuntimeStorageMethods<K extends keyof StorageClient> = {
+  [P in K]: (
+    ...args: Parameters<StorageClient[P]>
+  ) => Effect.Effect<
+    Effect.Success<ReturnType<StorageClient[P]>>,
+    Effect.Error<ReturnType<StorageClient[P]>> | StorageBindingError,
+    RuntimeContext
+  >
+}
+
+/** Internal host wiring shared by read/write and object-bound capabilities. */
+export const makeStorageBinding = (scope: "storage:read" | "storage:write") =>
+  effect {
+    const http = try HttpClient.HttpClient
+    const runtime = try CurrentRuntimeContext
+    if (!runtime) {
+      return try Effect.die(
+        new StorageBindingError({
+          message: "Storage bindings require a Platform host",
+        }),
+      )
+    }
+    const environment = try Effect.serviceOption(FunctionEnvironment)
+    const createCredential = try Credential
+    return Effect.fn(effect function(bucket: Bucket, options: StorageBindingOptions = {}) {
+      const host = try Binding.Host
+      if (!host) {
+        return try Effect.die(
+          new StorageBindingError({
+            message: "Storage binding requires a runtime host",
+          }),
+        )
+      }
+      const digest = try Effect.sync(() =>
+        sha256Hex(
+          `${host.FQN}:${scopeIdentity(bucket.Props) ?? bucket.FQN}:${scope}:${options.credential?.FQN ?? "managed"}`,
+        ).slice(0, 24)
+      )
+      const prefix = `NEON_STORAGE_${digest.toUpperCase()}`
+      const bucketKey = `${prefix}_${try Effect.sync(() => sha256Hex(bucket.FQN).slice(0, 12).toUpperCase())}_BUCKET`
+      const keys = {
+        injected: `${prefix}_INJECTED`,
+        endpoint: `${prefix}_ENDPOINT`,
+        region: `${prefix}_REGION`,
+        accessKeyId: `${prefix}_ACCESS_KEY_ID`,
+        secretAccessKey: `${prefix}_SECRET_ACCESS_KEY`,
+      }
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const mode = host.Mode ?? (try defaultProviderMode)
+        const injected = !options.credential && usesInjectedCredentials(host, bucket.Props, mode)
+        const env: Record<string, Output.Output<string | Redacted.Redacted<string>>> = {
+          [bucketKey]: bucket.bucketName,
+          [keys.injected]: (try Effect.orDie(Effect.try({
+            try: () => Output.literal(injected ? "yes" : "no"),
+            catch: (e) => e,
+          }))),
+          [keys.endpoint]: bucket.endpoint,
+          [keys.region]: bucket.region,
+        }
+        if (!injected) {
+          const credential = options.credential
+            ?? (try createCredential(`Storage${digest}`, {
+              ...(bucket.Props.branch !== undefined
+                ? { branch: bucket.Props.branch }
+                : { project: bucket.Props.project }),
+              scopes: scope === "storage:write" ? ["storage:read", "storage:write"] : [scope],
+            }))
+          const validated = Output.all(
+            try Effect.orDie(Effect.try({
+              try: () => Output.of(credential),
+              catch: (e) => e,
+            })),
+            try Effect.orDie(Effect.try({ try: () => Output.of(bucket), catch: (e) => e })),
+          ).pipe(
+            Output.mapEffect(
+              Effect.fn(effect function([credential, target]) {
+                try validateCredential(credential, target, scope)
+                if (scope === "storage:write") {
+                  try validateCredential(credential, target, "storage:read")
+                }
+                return credential
+              }, Effect.orDie),
+            ),
+          )
+          env[keys.accessKeyId] = validated.tokenId
+          env[keys.secretAccessKey] = validated.s3SecretAccessKey
+        }
+        try bindBackendEnvironment(`Storage${digest}:${bucket.FQN}`, env)
+      }
+      const required = (key: string) =>
+        runtime.get<string | Redacted.Redacted<string>>(key).pipe(
+          Effect.flatMap((value) =>
+            value === undefined
+              ? Effect.fail(
+                new StorageBindingError({
+                  message: `Missing storage binding variable ${key}`,
+                }),
+              )
+              : Effect.succeed(Redacted.isRedacted(value) ? Redacted.value(value) : value)
+          ),
+        )
+      const config = effect {
+        if ((try required(keys.injected)) === "yes") {
+          const env = Option.getOrUndefined(environment)
+          if (
+            !env?.AWS_ACCESS_KEY_ID
+            || !env.AWS_SECRET_ACCESS_KEY
+            || !env.AWS_ENDPOINT_URL_S3
+            || !env.AWS_REGION
+          ) {
+            return try new StorageBindingError({
+              message: "Neon Function did not inject complete S3 credentials",
+            })
+          }
+          return {
+            endpoint: env.AWS_ENDPOINT_URL_S3,
+            region: env.AWS_REGION,
+            accessKeyId: env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: Redacted.make(env.AWS_SECRET_ACCESS_KEY),
+          } satisfies StorageConfig
+        }
+        return {
+          endpoint: try required(keys.endpoint),
+          region: try required(keys.region),
+          accessKeyId: try required(keys.accessKeyId),
+          secretAccessKey: Redacted.make(try required(keys.secretAccessKey)),
+        } satisfies StorageConfig
+      }
+      const client = effect {
+        return try makeStorageClient(try config, try required(bucketKey))
+      }.pipe(Effect.provideService(HttpClient.HttpClient, http))
+      return {
+        get: (key: string) => client.pipe(Effect.flatMap((c) => c.get(key))),
+        head: (key: string) => client.pipe(Effect.flatMap((c) => c.head(key))),
+        list: (options?: Parameters<StorageClient["list"]>[0]) => client.pipe(Effect.flatMap((c) => c.list(options))),
+        presign: (...args: Parameters<StorageClient["presign"]>) =>
+          client.pipe(Effect.flatMap((c) => c.presign(...args))),
+        put: (...args: Parameters<StorageClient["put"]>) => client.pipe(Effect.flatMap((c) => c.put(...args))),
+        delete: (key: string) => client.pipe(Effect.flatMap((c) => c.delete(key))),
+        deleteMany: (keys: string[]) => client.pipe(Effect.flatMap((c) => c.deleteMany(keys))),
+        createMultipartUpload: (...args: Parameters<StorageClient["createMultipartUpload"]>) =>
+          client.pipe(Effect.flatMap((c) => c.createMultipartUpload(...args))),
+        uploadPart: (...args: Parameters<StorageClient["uploadPart"]>) =>
+          client.pipe(Effect.flatMap((c) => c.uploadPart(...args))),
+        completeMultipartUpload: (...args: Parameters<StorageClient["completeMultipartUpload"]>) =>
+          client.pipe(Effect.flatMap((c) => c.completeMultipartUpload(...args))),
+        abortMultipartUpload: (...args: Parameters<StorageClient["abortMultipartUpload"]>) =>
+          client.pipe(Effect.flatMap((c) => c.abortMultipartUpload(...args))),
+        listMultipartUploads: (...args: Parameters<StorageClient["listMultipartUploads"]>) =>
+          client.pipe(Effect.flatMap((c) => c.listMultipartUploads(...args))),
+        listParts: (...args: Parameters<StorageClient["listParts"]>) =>
+          client.pipe(Effect.flatMap((c) => c.listParts(...args))),
+      }
+    })
+  }
+
+export const storageHttpLayer = FetchHttpClient.layer

@@ -1,0 +1,147 @@
+import { isResource } from "alchemy/Resource"
+import { CurrentRuntimeContext } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+import { bindBackendEnvironment } from "./BackendConnection.vibe"
+import type { Bucket } from "./Bucket.vibe"
+import { ObjectDecodeError, serializeObjectValue, storageBodyBytes, type Object } from "./Object.ts"
+import type { ReadObjectClient, ObjectValue } from "./ReadObject.vibe"
+import { makeStorageBinding, StorageBindingError, type StorageBindingOptions } from "./StorageBinding.vibe"
+import { sha256Hex } from "./StorageObjectBinding.platform.js"
+import type { WriteObjectClient } from "./WriteObject.vibe"
+
+const isBucket = (value: unknown): value is Bucket => isResource(value) && value.Type === "Neon.Bucket"
+
+export const makeReadObjectHttp = () =>
+  effect {
+    const bind = try makeStorageBinding("storage:read")
+    const runtime = try CurrentRuntimeContext
+    if (!runtime) {
+      return try Effect.die(
+        new StorageBindingError({
+          message: "Object bindings require a Platform host",
+        }),
+      )
+    }
+    return Effect.fn(effect function<T>(object: Object<T>, options?: StorageBindingOptions) {
+      const target = object.Props.bucket
+      if (!isBucket(target)) {
+        return try Effect.die(
+          new StorageBindingError({
+            message: "Object bindings require a Neon.Bucket resource reference",
+          }),
+        )
+      }
+      const bucket = try bind(target, options)
+      const name = try Effect.sync(
+        () => `NEON_OBJECT_${sha256Hex(object.FQN).slice(0, 24).toUpperCase()}_KEY`,
+      )
+      try bindBackendEnvironment(`${object.FQN}:ReadObject`, {
+        [name]: object.key,
+      })
+      const key = runtime.get<string>(name).pipe(
+        Effect.flatMap((key) =>
+          key === undefined
+            ? Effect.fail(
+              new StorageBindingError({
+                message: "Object key was not bound",
+              }),
+            )
+            : Effect.succeed(key)
+        ),
+      )
+      const bytes = effect {
+        const object = try bucket.get(try key)
+        return object ? try storageBodyBytes(object.Body) : undefined
+      }
+      const get = effect {
+        const body = try bytes
+        if (body === undefined) return undefined
+        if (!("value" in object.Props)) return body as ObjectValue<T>
+        const parsed: unknown = try Effect.try({
+          try: () => JSON.parse(new TextDecoder().decode(body)),
+          catch: () =>
+            new ObjectDecodeError({
+              message: "Stored object is not valid JSON",
+            }),
+        })
+        if (!object.Props.schema) return parsed as ObjectValue<T>
+        return (try Schema.decodeUnknownEffect(object.Props.schema)(parsed).pipe(
+          Effect.mapError(
+            () =>
+              new ObjectDecodeError({
+                message: "Stored JSON does not satisfy the object's schema",
+              }),
+          ),
+        )) as ObjectValue<T>
+      }
+      return {
+        get: () => get,
+        bytes: () => bytes,
+      } satisfies ReadObjectClient<T>
+    })
+  }
+
+export const makeWriteObjectHttp = () =>
+  effect {
+    const bind = try makeStorageBinding("storage:write")
+    const runtime = try CurrentRuntimeContext
+    if (!runtime) {
+      return try Effect.die(
+        new StorageBindingError({
+          message: "Object bindings require a Platform host",
+        }),
+      )
+    }
+    return Effect.fn(effect function<T>(object: Object<T>, options?: StorageBindingOptions) {
+      const target = object.Props.bucket
+      if (!isBucket(target)) {
+        return try Effect.die(
+          new StorageBindingError({
+            message: "Object bindings require a Neon.Bucket resource reference",
+          }),
+        )
+      }
+      const bucket = try bind(target, options)
+      const name = try Effect.sync(
+        () => `NEON_OBJECT_${sha256Hex(object.FQN).slice(0, 24).toUpperCase()}_KEY`,
+      )
+      try bindBackendEnvironment(`${object.FQN}:WriteObject`, {
+        [name]: object.key,
+      })
+      const put = Effect.fn(effect function(value: [T] extends [never] ? string | Uint8Array : T) {
+        const key = try runtime.get<string>(name)
+        if (key === undefined) {
+          return try new StorageBindingError({
+            message: "Object key was not bound",
+          })
+        }
+        const observed = try bucket.head(key)
+        const metadata = {
+          ContentType: observed?.ContentType,
+          CacheControl: observed?.CacheControl,
+          ContentDisposition: observed?.ContentDisposition,
+          ContentEncoding: observed?.ContentEncoding,
+          Metadata: observed?.Metadata,
+        }
+        if (!("value" in object.Props)) {
+          return try bucket.put(key, value as string | Uint8Array, metadata)
+        }
+        const checked = object.Props.schema
+          ? try Schema.decodeUnknownEffect(object.Props.schema)(value).pipe(
+            Effect.mapError(
+              () =>
+                new ObjectDecodeError({
+                  message: "Written JSON does not satisfy the object's schema",
+                }),
+            ),
+          )
+          : value
+        return try bucket.put(key, try serializeObjectValue(checked), {
+          ...metadata,
+          ContentType: metadata.ContentType ?? "application/json",
+        })
+      })
+      return { put } satisfies WriteObjectClient<T>
+    })
+  }

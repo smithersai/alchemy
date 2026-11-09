@@ -10,9 +10,9 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { bucketStorageClient, type BucketAttributes } from "./Bucket.ts";
+import { bucketStorageClient, type BucketAttributes } from "./Bucket.vibe";
 import type { Providers } from "./Providers.vibe";
-import type { StoragePutOptions } from "./Storage.ts";
+import type { StoragePutOptions } from "./Storage.vibe";
 
 export type ObjectProps<T = never> = {
   /** Target bucket; its branch and credentials are inferred. */

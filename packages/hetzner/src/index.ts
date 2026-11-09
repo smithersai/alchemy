@@ -23,7 +23,7 @@ export * from "./ReadWriteDnsHttp.vibe";
 export * from "./RecordSet.vibe";
 export * from "./Server.ts";
 export * from "./Service.vibe";
-export * from "./Ssh.ts";
+export * from "./Ssh.vibe";
 export * from "./SshKey.vibe";
 export * from "./Volume.vibe";
 export * from "./VolumeAttachment.vibe";

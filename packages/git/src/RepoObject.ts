@@ -63,7 +63,7 @@ import { BlobStore, type BlobStoreShape } from "./BlobStore.ts";
 import { type HasherShape, type HashPartResult } from "./Hasher/Hasher.ts";
 import { bundleCovers, runBundleJob, type BundleInfo } from "./Jobs/Bundle.vibe";
 import { runCompactJob, runGeometricMergeJob, shouldCompact } from "./Jobs/Compact.vibe";
-import { runForkJob, snapshotStream, type SnapshotChunk } from "./Jobs/Fork.ts";
+import { runForkJob, snapshotStream, type SnapshotChunk } from "./Jobs/Fork.vibe";
 import { runImport, type ImportSource } from "./Jobs/Import.ts";
 import { runPurgeJob } from "./Jobs/Purge.vibe";
 import { applyDelta } from "./Protocol/Delta.ts";
@@ -116,7 +116,7 @@ import { decodeStagedBatch } from "./PushWire.ts";
 import { RegistryStore, ulid } from "./RegistryObject.ts";
 import { computeClosure } from "./Store/Closure.ts";
 import { encodeHeadSnapshot, type HeadSnapshot } from "./Store/HeadSnapshot.ts";
-import { SPILL_PART_BYTES } from "./Store/IncomingBody.ts";
+import { SPILL_PART_BYTES } from "./Store/IncomingBody.vibe";
 import { headKey, packKeyOf } from "./Store/Keys.ts";
 import {
   makeObjectStore,

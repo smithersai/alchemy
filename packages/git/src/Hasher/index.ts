@@ -19,7 +19,7 @@ export {
 } from "./Hasher.ts";
 export { HashError, HASH_ROUTE } from "./Protocol.ts";
 export { HasherLambda } from "./Lambda.ts";
-export { default as HasherFunction } from "./LambdaFunction.ts";
+export { default as HasherFunction } from "./LambdaFunction.vibe";
 export {
   boundScan,
   decodeHashResponse,

@@ -9,7 +9,7 @@ import { sidebandFrames } from "../Protocol/Sideband.vibe";
 import { StoreError } from "../Protocol/Store.vibe";
 import { incomingStates, type PushInput } from "../Push.vibe";
 import { parseReceivePackRequest, type CommitPushResult } from "../RepoObject.ts";
-import { feedBody, HEAD_BYTES } from "../Store/IncomingBody.ts";
+import { feedBody, HEAD_BYTES } from "../Store/IncomingBody.vibe";
 import { makeStreamingSource } from "../Store/StreamingSource.vibe";
 
 export { ReceivePack as endpoint } from "../Api/Protocol.vibe";

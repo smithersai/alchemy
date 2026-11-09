@@ -20,7 +20,7 @@ import {
   ClusterNotFoundError,
   findClusterAdapter,
   type ClusterTransport,
-} from "./ClusterAdapter.ts";
+} from "./ClusterAdapter.vibe";
 import type { Connection } from "./Connection.ts";
 import { driftMask, hashDriftSelection } from "./internal/declared.ts";
 import {
