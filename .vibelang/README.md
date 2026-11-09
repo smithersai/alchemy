@@ -48,3 +48,6 @@ props, and getter or Proxy failures keep their original defect identity.
 
 Trace JSON parsing uses an Effect boundary after file reading, so filesystem
 and parsing failures retain their original order.
+
+Guard operand order is preserved: a provider that inspects props before checking
+its prior output keeps that order, including getter and Proxy failures.
