@@ -2,6 +2,7 @@
 // metadata tags (`@resource`, `@product`, …) to the end of the block and
 // rewrites legacy `@section` / `@example` tags into `###` / `**Example:**`.
 //
+// Generated declaration sidecars are checked through their authored sources.
 // Usage: node scripts/fix-api-jsdocs.ts [--check]
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -112,7 +113,12 @@ const sourceFiles = Effect.fn(function* (root: string) {
   const path = yield* Path.Path;
   const entries = yield* fs.readDirectory(root, { recursive: true });
   return entries
-    .filter((entry) => /\.(?:[cm]?tsx?|vibe)$/.test(entry) && !entry.endsWith(".d.ts"))
+    .filter(
+      (entry) =>
+        /\.(?:[cm]?tsx?|vibe)$/.test(entry) &&
+        !entry.endsWith(".d.ts") &&
+        !entry.endsWith(".d.vibe.ts"),
+    )
     .map((entry) => path.join(root, entry));
 });
 

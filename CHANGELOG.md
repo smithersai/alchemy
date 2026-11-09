@@ -2,6 +2,8 @@
 
 ### Bug fixes
 
+- API documentation ignores declaration sidecars for restored TypeScript modules, and JSDoc checks inspect authored sources without rewriting generated declarations.
+
 - Programmatic Vinext Node builds could fail parsing Redis declarations. The error and runtime-context entries now retain their original TypeScript sources and unchanged public declarations.
 
 - Native test imports under Bun could bind undefined runtime helpers. This checkout now installs the runtime entry fix with unchanged declarations.

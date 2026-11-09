@@ -181,6 +181,7 @@ const isSourceFile = (baseName: string) =>
   baseName !== "index.ts";
 
 // A .vibe module's declarations and docs live in its sidecar, x.d.vibe.ts; its source is x.vibe.
+// A sidecar left after restoring TypeScript is stale and must not create a second page.
 const sourceName = (file: string) => normalizeSlashes(file).replace(/\.d\.vibe\.ts$/, ".vibe");
 
 const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
@@ -195,6 +196,11 @@ const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
     const files = yield* fs.readDirectory(srcRoot, { recursive: true });
     for (const file of files) {
       if (!isSourceFile(path.basename(file))) continue;
+      if (
+        file.endsWith(".d.vibe.ts") &&
+        !(yield* fs.exists(path.join(srcRoot, file.replace(/\.d\.vibe\.ts$/, ".vibe"))))
+      )
+        continue;
       entries.push({
         relativePath: path.join(root.providerPrefix, file),
         absolutePath: path.join(srcRoot, file),
@@ -215,6 +221,11 @@ const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
 
     for (const file of files) {
       if (!isSourceFile(path.basename(file))) continue;
+      if (
+        file.endsWith(".d.vibe.ts") &&
+        !(yield* fs.exists(path.join(dirPath, file.replace(/\.d\.vibe\.ts$/, ".vibe"))))
+      )
+        continue;
 
       const relativePath = path.join(dir, file);
       entries.push({
