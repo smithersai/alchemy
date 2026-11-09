@@ -18,7 +18,7 @@ export {
   withPgExecutor,
   type ConnectOptions,
   type Rows,
-} from "./Executors.ts";
+} from "./Executors.vibe";
 export {
   describeRewrittenHistory,
   DrizzleV0LayoutError,
