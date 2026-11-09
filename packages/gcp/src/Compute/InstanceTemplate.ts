@@ -16,7 +16,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_MACHINE_TYPE = "e2-micro";

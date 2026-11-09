@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { OperationFailed } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { MAX_POLLS, waitForOperation } from "./internal.ts";
 
 const DEFAULT_CLUSTER_TYPE = "SINGLE_NODE";

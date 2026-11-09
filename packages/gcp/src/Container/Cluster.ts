@@ -25,7 +25,7 @@ import {
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 import { matchesDesired } from "../Proto.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   apiServerEndpoint,
   gkeConnectionOf,

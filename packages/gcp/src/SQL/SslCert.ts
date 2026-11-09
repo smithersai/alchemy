@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { ALCHEMY_LABEL_PREFIX } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { recoverIfInstanceMissing, waitForSqlOperation } from "./operations.ts";
 
 const MAX_COMMON_NAME_LENGTH = 64;

@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_TIER = "BASIC";
 const DEFAULT_CONNECT_MODE = "DIRECT_PEERING";

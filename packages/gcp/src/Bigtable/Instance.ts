@@ -15,7 +15,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   clusterLocation,
   DEFAULT_CLUSTER_ID,

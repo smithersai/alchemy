@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_TYPE: privateca.CertificateAuthorityTypeEnum = "SELF_SIGNED";
 const DEFAULT_LIFETIME = "315360000s";

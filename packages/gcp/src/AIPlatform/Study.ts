@@ -10,7 +10,7 @@ import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { listLocations } from "./names.vibe";
 import { lastSegment, locationOf, locationParent } from "./ownership.vibe";
 

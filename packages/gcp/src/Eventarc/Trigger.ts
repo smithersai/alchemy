@@ -18,7 +18,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { waitForOperation } from "./internal.ts";
 
 const DEFAULT_CONTENT_TYPE = "application/json";

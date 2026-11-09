@@ -31,7 +31,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   DEFAULT_NODE_RUNTIME,
   FUNCTION_ENTRY_POINT,

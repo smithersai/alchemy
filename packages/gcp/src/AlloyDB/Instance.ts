@@ -28,7 +28,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { runInstanceMigrations } from "./Migrations.ts";
 import { waitForDeleteOperation, waitForOperation } from "./operations.vibe";
 

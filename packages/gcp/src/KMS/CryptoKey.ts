@@ -20,7 +20,7 @@ import {
   type OperationTimedOut,
   waitForOperation as waitForGcpOperation,
 } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { deterministicKmsId } from "./internal.ts";
 
 const DEFAULT_PURPOSE: kms.CryptoKeyPurposeEnum = "ENCRYPT_DECRYPT";

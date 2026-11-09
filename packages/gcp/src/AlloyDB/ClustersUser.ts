@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { ALCHEMY_LABEL_PREFIX } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_USER_TYPE = "ALLOYDB_BUILT_IN";
 const MAX_NAME_LENGTH = 63;

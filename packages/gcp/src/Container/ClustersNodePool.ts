@@ -18,7 +18,7 @@ import {
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 import { matchesDesired } from "../Proto.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 // A zone, not a region: `GCP.Region` has no zone and a regional default would triple node count.
 const DEFAULT_ZONE = "us-central1-a";

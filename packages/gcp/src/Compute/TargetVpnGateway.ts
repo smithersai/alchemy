@@ -17,7 +17,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { waitRegionOperation } from "./operations.vibe";
 
 const MAX_NAME_LENGTH = 63;

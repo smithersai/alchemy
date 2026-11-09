@@ -17,7 +17,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { ignoredCodes } from "./internal.vibe";
 import { waitRegionOperation } from "./operations.vibe";
 import type {

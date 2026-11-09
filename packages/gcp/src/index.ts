@@ -3,7 +3,7 @@ export * from "./Credentials.ts";
 export * from "./Environment.ts";
 export * as GCPBindings from "./GCPBindings.ts";
 export * from "./Labels.ts";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * from "./Region.vibe";
 export * from "./StateStore/index.ts";
 export * as AIPlatform from "./AIPlatform/index.ts";

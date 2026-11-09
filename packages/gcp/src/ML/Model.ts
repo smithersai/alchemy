@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels, toLabels } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   encodeOwnership,
   expandModel,
@@ -30,7 +30,7 @@ import {
   waitUntilExists,
   waitUntilGone,
 } from "./internal.vibe";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 
 export type ModelProps = {
   /**

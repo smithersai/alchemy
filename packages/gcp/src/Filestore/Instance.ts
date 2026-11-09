@@ -19,7 +19,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { waitForOperation as waitForLongRunningOperation } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_ZONAL_LOCATION = "us-central1-a";
 const DEFAULT_TIER = "BASIC_HDD";

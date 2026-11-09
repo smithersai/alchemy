@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_NODE_COUNT = 1;
 const DEFAULT_CPU_COUNT = 1;

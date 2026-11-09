@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 import { waitGlobalOperation } from "../Compute/operations.vibe";
 import { GcpEnvironment } from "../Environment.ts";
 import { waitForOperation as waitForLongRunning } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_SERVICE = "servicenetworking.googleapis.com";
 const DEFAULT_PEERING = "servicenetworking-googleapis-com";

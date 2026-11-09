@@ -19,7 +19,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { ALCHEMY_LABEL_PREFIX, createInternalLabels } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { runDatabaseMigrations, type MigrationsTransport } from "./Migrations.ts";
 import { recoverIfInstanceMissing, waitForSqlOperation } from "./operations.ts";
 

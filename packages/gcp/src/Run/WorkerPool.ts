@@ -41,7 +41,7 @@ import {
   type LongRunningOperation,
   waitForOperation as waitForLongRunningOperation,
 } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const DEFAULT_IMAGE = "us-docker.pkg.dev/cloudrun/container/worker-pool";
 const MAX_NAME_LENGTH = 49;

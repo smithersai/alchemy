@@ -18,7 +18,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { waitForSqlOperation } from "./operations.ts";
 
 const DEFAULT_DATABASE_VERSION = "MYSQL_8_0";

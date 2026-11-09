@@ -16,7 +16,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "../Labels.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { waitZoneOperation } from "./operations.vibe";
 
 const DEFAULT_ZONE = "us-central1-a";

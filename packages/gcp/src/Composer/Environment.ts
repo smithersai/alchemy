@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 // Composer rejects 64-character ids (even on GET) despite documenting
 // "a letter followed by up to 63" characters.

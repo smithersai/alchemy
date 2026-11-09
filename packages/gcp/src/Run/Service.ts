@@ -43,7 +43,7 @@ import {
   type LongRunningOperation,
   waitForOperation as waitForLongRunningOperation,
 } from "../Operation.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   boundContainersOf,
   directContainerNames,
