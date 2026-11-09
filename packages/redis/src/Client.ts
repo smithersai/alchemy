@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
-import type { CommandError, UrlMissing } from "./Errors.vibe";
+import type { CommandError, UrlMissing } from "./Errors.ts";
 import { command, commandPipeline } from "./Protocol.ts";
 import type { Arg, Reply } from "./Resp.ts";
-import type { RuntimeContext } from "./RuntimeContext.vibe";
+import type { RuntimeContext } from "./RuntimeContext.ts";
 
 /**
  * A Redis URL that resolves from the Function/Service environment at

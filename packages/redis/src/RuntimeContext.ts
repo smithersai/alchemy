@@ -1,4 +1,4 @@
-import type * as Context from "effect/Context"
+import type * as Context from "effect/Context";
 
 /**
  * Structural twin of `alchemy/RuntimeContext`'s service identifier, so this

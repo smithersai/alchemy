@@ -7,7 +7,7 @@
  * Algorithm: the same as NodeRedis/node-redis-parser, reimplemented here
  * so alchemy does not take a Redis client dependency.
  */
-import { ProtocolError, ReplyError } from "./Errors.vibe";
+import { ProtocolError, ReplyError } from "./Errors.ts";
 
 export type Arg = string | number | Uint8Array;
 

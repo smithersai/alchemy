@@ -2,6 +2,8 @@
 
 ### Bug fixes
 
+- Programmatic Vinext Node builds could fail parsing Redis declarations. The error and runtime-context entries now retain their original TypeScript sources and unchanged public declarations.
+
 - Native test imports under Bun could bind undefined runtime helpers. This checkout now installs the runtime entry fix with unchanged declarations.
 
 - This migration checkout installs its bundled VibeLang packages without waiting for an npm release.
