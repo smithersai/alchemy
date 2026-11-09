@@ -1,29 +1,25 @@
-import { authProviderLayer as AuthProviderLayer, refreshHint } from "./AuthProvider.helpers.js";
+import { authProviderLayer as AuthProviderLayer, refreshHint } from "./AuthProvider.helpers.js"
 import {
   AuthError,
   NeedsReauth,
   type ConfigureField,
   type ConfigureMethod,
   type ProviderDetails,
-} from "alchemy/Auth/AuthProvider";
-import { displayRedacted } from "alchemy/Auth/Credentials";
-import { getEnvRedacted, mapPromptCancellation } from "alchemy/Auth/Env";
-import {
-  storedSecret,
-  storedValueText,
-  validateFieldValues,
-} from "alchemy/Auth/StoredAuthProvider";
-import * as Interaction from "alchemy/Interaction";
-import * as Effect from "effect/Effect";
-import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
-import * as Redacted from "effect/Redacted";
-import * as Schema from "effect/Schema";
-import { githubHostname, normalizeGitHubBaseUrl, resolveGitHubBaseUrlFromEnv } from "./BaseUrl.ts";
+} from "alchemy/Auth/AuthProvider"
+import { displayRedacted } from "alchemy/Auth/Credentials"
+import { getEnvRedacted, mapPromptCancellation } from "alchemy/Auth/Env"
+import { storedSecret, storedValueText, validateFieldValues } from "alchemy/Auth/StoredAuthProvider"
+import * as Interaction from "alchemy/Interaction"
+import * as Effect from "effect/Effect"
+import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner"
+import * as Redacted from "effect/Redacted"
+import * as Schema from "effect/Schema"
+import { githubHostname, normalizeGitHubBaseUrl, resolveGitHubBaseUrlFromEnv } from "./BaseUrl.ts"
 
 const options: Array<{
-  value: GitHubAuthConfig["method"];
-  label: string;
-  description?: string;
+  value: GitHubAuthConfig["method"]
+  label: string
+  description?: string
 }> = [
   {
     value: "gh-cli",
@@ -35,7 +31,7 @@ const options: Array<{
     label: "Personal Access Token",
     description: "enter PAT interactively and store it in the profile",
   },
-];
+]
 
 /** Typed values stored in a GitHub provider profile document. */
 export const GitHubAuthConfigSchema = Schema.Union([
@@ -52,57 +48,56 @@ export const GitHubAuthConfigSchema = Schema.Union([
     token: Schema.optionalKey(Schema.String),
     baseUrl: Schema.optionalKey(Schema.String),
   }),
-]);
-export type GitHubAuthConfig = typeof GitHubAuthConfigSchema.Type;
+])
+export type GitHubAuthConfig = typeof GitHubAuthConfigSchema.Type
 
 export interface GitHubResolvedCredentials {
-  type: "token";
-  token: Redacted.Redacted<string>;
+  type: "token"
+  token: Redacted.Redacted<string>
   /**
    * Normalized REST API base URL for GitHub Enterprise (e.g.
    * `https://github.example.com/api/v3` or `https://api.acme.ghe.com`).
    * `undefined` means github.com.
    */
-  baseUrl?: string;
-  source: { type: GitHubAuthConfig["method"] | "env"; details?: string };
+  baseUrl?: string
+  source: { type: GitHubAuthConfig["method"] | "env"; details?: string }
 }
 
-export const GITHUB_AUTH_PROVIDER_NAME = "GitHub";
+export const GITHUB_AUTH_PROVIDER_NAME = "GitHub"
 
 error GhCliError {
-  message: string;
+  message: string
 }
 
 const readEnvTokenFor = effect (
   baseUrl: string | undefined,
 ): GitHubResolvedCredentials!AuthError => {
-  const candidates =
-    baseUrl !== undefined
-      ? ["GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GITHUB_ACCESS_TOKEN", "GITHUB_TOKEN"]
-      : ["GITHUB_ACCESS_TOKEN", "GITHUB_TOKEN"];
+  const candidates = baseUrl !== undefined
+    ? ["GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GITHUB_ACCESS_TOKEN", "GITHUB_TOKEN"]
+    : ["GITHUB_ACCESS_TOKEN", "GITHUB_TOKEN"]
   for (const key of candidates) {
-    const token = try getEnvRedacted(key);
+    const token = try getEnvRedacted(key)
     if (token) {
       return {
         type: "token" as const,
         token,
         baseUrl,
         source: { type: "env" as const, details: key },
-      };
+      }
     }
   }
   throw AuthError.make({
     message: `GitHub env credentials not found. Set ${candidates.join(", ")}.`,
-  });
-};
+  })
+}
 
 /** Resolve standalone GitHub credentials from environment variables. */
 export const readEnvCredentials = effect (
   configBaseUrl?: string,
 ): GitHubResolvedCredentials!AuthError => {
-  const baseUrl = configBaseUrl ?? (try resolveGitHubBaseUrlFromEnv);
-  return try readEnvTokenFor(baseUrl);
-};
+  const baseUrl = configBaseUrl ?? (try resolveGitHubBaseUrlFromEnv)
+  return try readEnvTokenFor(baseUrl)
+}
 
 /**
  * Build the Layer that registers the GitHub {@link AuthProvider} into the
@@ -133,7 +128,7 @@ export interface GitHubAuthOptions {
    * method authenticates against this host. `GitHub.providers({ baseUrl })`
    * threads its option here.
    */
-  readonly baseUrl?: string;
+  readonly baseUrl?: string
 }
 
 export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
@@ -144,18 +139,17 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
       // at impl build would put the terminal in the registration layer's
       // requirements, and child processes (which only ever call `read`) build
       // this layer with no interaction services at all.
-      const cp = try ChildProcessSpawner;
+      const cp = try ChildProcessSpawner
 
       // Hard-coded host from `providers({ baseUrl })`, resolved once at layer
       // build. Kept as an object so "no option" (undefined) is distinct from
       // "option normalized to the github.com default" ({ baseUrl: undefined })
       // — both matter: the latter still pins the host and mutes the prompt.
-      const fixed =
-        authOptions?.baseUrl !== undefined
-          ? {
-              baseUrl: try (normalizeGitHubBaseUrl(authOptions.baseUrl) |> Effect.orDie(%)),
-            }
-          : undefined;
+      const fixed = authOptions?.baseUrl !== undefined
+        ? {
+          baseUrl: try (normalizeGitHubBaseUrl(authOptions.baseUrl) |> Effect.orDie(%)),
+        }
+        : undefined
 
       // The host every method authenticates against: the hard-coded value
       // wins, then the profile's configured host, then the environment.
@@ -165,8 +159,8 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
         fixed !== undefined
           ? Effect.succeed(fixed.baseUrl)
           : config.baseUrl !== undefined
-            ? Effect.succeed(config.baseUrl)
-            : resolveGitHubBaseUrlFromEnv;
+          ? Effect.succeed(config.baseUrl)
+          : resolveGitHubBaseUrlFromEnv
 
       const ghCliToken = (hostname?: string): string!AuthError =>
         effect {
@@ -176,7 +170,7 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
               ["auth", "token", ...(hostname !== undefined ? ["--hostname", hostname] : [])],
               { shell: false },
             ),
-          );
+          )
           const [exitCode, stdout, stderr] = try Effect.all(
             [
               handle.exitCode,
@@ -184,101 +178,96 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
               handle.stderr.pipe(Stream.decodeText, Stream.mkString),
             ],
             { concurrency: 3 },
-          );
+          )
           if (exitCode !== 0) {
             throw new GhCliError({
               message: `gh auth token exited with ${exitCode}: ${stderr.trim() || stdout.trim()}`,
-            });
+            })
           }
-          const token = stdout.trim();
+          const token = stdout.trim()
           if (!token) {
-            throw new GhCliError({ message: "gh auth token returned empty output" });
+            throw new GhCliError({ message: "gh auth token returned empty output" })
           }
-          return token;
+          return token
         }
-          |> Effect.scoped(%)
-          |> Effect.mapError(%, (e) =>
-            e instanceof GhCliError
-              ? AuthError.make({ message: e.message, cause: e })
-              : AuthError.make({
-                  message:
-                    "Could not invoke `gh`. Install GitHub CLI from https://cli.github.com/ and run `gh auth login`.",
-                  cause: e,
-                }),
-          );
+        |> Effect.scoped(%)
+        |> Effect.mapError(%, (e) =>
+          e instanceof GhCliError
+            ? AuthError.make({ message: e.message, cause: e })
+            : AuthError.make({
+              message:
+                "Could not invoke `gh`. Install GitHub CLI from https://cli.github.com/ and run `gh auth login`.",
+              cause: e,
+            }))
 
       const ghCliTokenFor = effect (baseUrl?: string | undefined): string!AuthError => {
         const hostname = baseUrl === undefined
           ? undefined
-          : try Effect.orDie(Effect.try({ try: () => githubHostname(baseUrl), catch: (e) => e }));
-        return try ghCliToken(hostname);
-      };
+          : try Effect.orDie(Effect.try({ try: () => githubHostname(baseUrl), catch: (e) => e }))
+        return try ghCliToken(hostname)
+      }
 
       const loginStored = effect (baseUrl?: string | undefined) => {
         const token = try (Interaction.password({
           message: "GitHub Personal Access Token",
           description: "Requires `repo` scope and `workflow` for GitHub Actions.",
           validate: (v) => (v.length === 0 ? "Required" : undefined),
-        }).pipe(mapPromptCancellation));
-        try Interaction.success("GitHub: credentials saved.");
-        return { method: "stored" as const, token, baseUrl };
-      };
+        }).pipe(mapPromptCancellation))
+        try Interaction.success("GitHub: credentials saved.")
+        return { method: "stored" as const, token, baseUrl }
+      }
 
       // Optional GitHub Enterprise host. Blank means github.com; anything else
       // is normalized into the REST API base URL (GHES gets `/api/v3`
       // appended, data-residency hosts get the `api.` prefix).
       const promptBaseUrl = Interaction.text({
         message: "GitHub host",
-        description:
-          "Leave blank for github.com; use a hostname such as github.example.com for GitHub Enterprise.",
+        description: "Leave blank for github.com; use a hostname such as github.example.com for GitHub Enterprise.",
         placeholder: "github.com",
         defaultValue: "",
       }).pipe(
         mapPromptCancellation,
         Effect.flatMap((input) => {
-          const trimmed = (input ?? "").trim();
-          return trimmed === "" ? Effect.undefined : normalizeGitHubBaseUrl(trimmed);
+          const trimmed = (input ?? "").trim()
+          return trimmed === "" ? Effect.undefined : normalizeGitHubBaseUrl(trimmed)
         }),
-      );
+      )
 
       const configureInteractive = effect (_profileName: string) => {
         const method = try Interaction.select({
           message: "GitHub authentication method",
           options,
-        });
+        })
         // The host prompt is skipped when providers({ baseUrl }) pinned it —
         // nothing is stored in the profile config; `read` re-applies the
         // pinned value from code on every resolution.
-        const baseUrl = fixed !== undefined ? undefined : try promptBaseUrl;
-        const verifyHost = fixed !== undefined ? fixed.baseUrl : baseUrl;
+        const baseUrl = fixed !== undefined ? undefined : try promptBaseUrl
+        const verifyHost = fixed !== undefined ? fixed.baseUrl : baseUrl
         return try Match.value(method).pipe(
           Match.when("gh-cli", () =>
             ghCliTokenFor(verifyHost)
-              |> Effect.map(%, (token) => ({
-                method: "gh-cli" as const,
-                token,
-                baseUrl,
-              }))
-              |> Effect.mapError(%, (e) =>
-                AuthError.make({
-                  message: `gh CLI not available: ${e.message}`,
-                  cause: e,
-                }),
-              ),
-          ),
+            |> Effect.map(%, (token) => ({
+              method: "gh-cli" as const,
+              token,
+              baseUrl,
+            }))
+            |> Effect.mapError(%, (e) =>
+              AuthError.make({
+                message: `gh CLI not available: ${e.message}`,
+                cause: e,
+              }))),
           Match.when("stored", () => loginStored(baseUrl)),
           Match.exhaustive,
-        );
-      };
+        )
+      }
 
       const configureCredentials = (profileName: string) =>
         configureInteractive(profileName)
-          |> Effect.mapError(%, (e) =>
-            AuthError.make({
-              message: "failed to configure credentials",
-              cause: e,
-            }),
-          );
+        |> Effect.mapError(%, (e) =>
+          AuthError.make({
+            message: "failed to configure credentials",
+            cause: e,
+          }))
 
       const resolveCredentials = (
         profileName: string,
@@ -289,64 +278,60 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
           Match.when(
             { method: "stored" },
             effect (c) => {
-              const baseUrl = try effectiveBaseUrl(c);
+              const baseUrl = try effectiveBaseUrl(c)
               return {
                 type: "token" as const,
                 token: Redacted.make(c.token),
                 baseUrl,
                 source: { type: "stored" as const },
-              };
+              }
             },
           ),
           Match.when(
             { method: "gh-cli" },
             effect (c) => {
-              const baseUrl = try effectiveBaseUrl(c);
-              const token =
-                c.token ??
-                (try (ghCliTokenFor(baseUrl)
+              const baseUrl = try effectiveBaseUrl(c)
+              const token = c.token
+                ?? (try (ghCliTokenFor(baseUrl)
                   |> Effect.mapError(%, (cause) =>
                     NeedsReauth.make({
                       provider: GITHUB_AUTH_PROVIDER_NAME,
                       profile: profileName,
-                      message: `GitHub CLI credentials need to be refreshed. ${refreshHint(GITHUB_AUTH_PROVIDER_NAME, profileName)}`,
+                      message: `GitHub CLI credentials need to be refreshed. ${
+                        refreshHint(GITHUB_AUTH_PROVIDER_NAME, profileName)
+                      }`,
                       cause,
-                    }),
-                  )));
+                    }))))
               if (c.token === undefined && updateConfig !== undefined) {
-                try updateConfig({ ...c, token });
+                try updateConfig({ ...c, token })
               }
               return {
                 type: "token" as const,
                 token: Redacted.make(token),
                 baseUrl,
                 source: { type: "gh-cli" as const },
-              };
+              }
             },
           ),
           Match.exhaustive,
-        );
+        )
 
-      const logout = (_profileName: string, config: GitHubAuthConfig) =>
-        match (config) {
-          when { method: "gh-cli" }: Effect.void;
-          when { method: "stored" }: Effect.void;
-        };
+      const logout = (_profileName: string, config: GitHubAuthConfig) => match (config) {
+        when { method: "gh-cli" }: Effect.void;
+        when { method: "stored" }: Effect.void;
+      }
 
       const login = (_profileName: string, config: GitHubAuthConfig) =>
         Match.value(config).pipe(
           Match.when({ method: "gh-cli" }, (c) =>
             effectiveBaseUrl(c)
-              |> Effect.flatMap(%, (baseUrl) =>
-                ghCliTokenFor(baseUrl),
-              )
-              |> Effect.tap(%, () => Interaction.success("GitHub: gh CLI authentication available."))
-              |> Effect.map(%, (token) => ({ ...c, token })),
-          ),
+            |> Effect.flatMap(%, (baseUrl) => ghCliTokenFor(baseUrl))
+            |> Effect.tap(%, () => Interaction.success("GitHub: gh CLI authentication available."))
+            |> Effect.map(%, (token) => ({ ...c, token }))),
           Match.when({ method: "stored" }, (c) => Effect.succeed(c)),
           Match.exhaustive,
           Effect.mapError((e) => AuthError.make({ message: "login failed", cause: e })),
-        );
+        )
 
       const details = (
         profileName: string,
@@ -354,18 +339,18 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
         updateConfig?: (config: GitHubAuthConfig) => void!AuthError,
       ): ProviderDetails!(AuthError | NeedsReauth)! =>
         resolveCredentials(profileName, config, updateConfig)
-          |> Effect.map(%, (creds) => {
-            const sourceStr = creds.source.details
-              ? `${creds.source.type} - ${creds.source.details}`
-              : creds.source.type;
-            return {
-              lines: [
-                { key: "token", value: displayRedacted(creds.token, 6) },
-                { key: "source", value: sourceStr },
-                ...(creds.baseUrl !== undefined ? [{ key: "baseUrl", value: creds.baseUrl }] : []),
-              ],
-            };
-          });
+        |> Effect.map(%, (creds) => {
+          const sourceStr = creds.source.details
+            ? `${creds.source.type} - ${creds.source.details}`
+            : creds.source.type
+          return {
+            lines: [
+              { key: "token", value: displayRedacted(creds.token, 6) },
+              { key: "source", value: sourceStr },
+              ...(creds.baseUrl !== undefined ? [{ key: "baseUrl", value: creds.baseUrl }] : []),
+            ],
+          }
+        })
 
       // Flag-driven configuration covers the "stored" (PAT) method only;
       // "gh-cli" requires an interactive `gh auth login` session and is
@@ -380,46 +365,51 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
         {
           name: "baseUrl",
           label: "GitHub host",
-          description:
-            "Leave blank for github.com; use a hostname such as github.example.com for GitHub Enterprise.",
+          description: "Leave blank for github.com; use a hostname such as github.example.com for GitHub Enterprise.",
           optional: true,
         },
-      ];
+      ]
 
       const configureMethods: ReadonlyArray<ConfigureMethod> = [
         { method: "stored", fields: storedFields },
-      ];
+      ]
 
       const configureWith = (
         _profileName: string,
         input: {
-          readonly method: string;
-          readonly values: Record<string, string>;
+          readonly method: string
+          readonly values: Record<string, string>
         },
       ): GitHubAuthConfig!AuthError!Interaction.Interaction =>
         input.method === "stored"
           ? (validateFieldValues(GITHUB_AUTH_PROVIDER_NAME, storedFields, input.values)
-              |> Effect.flatMap(
-                %, effect (values) => {
-                  // A hard-coded providers({ baseUrl }) pins the host; nothing
-                  // is stored in the profile config in that case (mirrors the
-                  // interactive configure flow).
-                  const baseUrl =
-                    fixed !== undefined
-                      ? undefined
-                      : values.baseUrl !== undefined
-                        ? try normalizeGitHubBaseUrl((try Effect.orDie(Effect.try({ try: () => storedValueText(values.baseUrl), catch: (e) => e }))) ?? "")
-                        : undefined;
-                  const token = Redacted.value((try Effect.orDie(Effect.try({ try: () => storedSecret(values.token), catch: (e) => e }))) ?? Redacted.make(""));
-                  try Interaction.success("GitHub: credentials saved.");
-                  return { method: "stored" as const, token, baseUrl };
-                },
-              ))
+            |> Effect.flatMap(
+              %,
+              effect (values) => {
+                // A hard-coded providers({ baseUrl }) pins the host; nothing
+                // is stored in the profile config in that case (mirrors the
+                // interactive configure flow).
+                const baseUrl = fixed !== undefined
+                  ? undefined
+                  : values.baseUrl !== undefined
+                  ? try normalizeGitHubBaseUrl(
+                    (try Effect.orDie(Effect.try({ try: () => storedValueText(values.baseUrl), catch: (e) => e })))
+                      ?? "",
+                  )
+                  : undefined
+                const token = Redacted.value(
+                  (try Effect.orDie(Effect.try({ try: () => storedSecret(values.token), catch: (e) => e })))
+                    ?? Redacted.make(""),
+                )
+                try Interaction.success("GitHub: credentials saved.")
+                return { method: "stored" as const, token, baseUrl }
+              },
+            ))
           : Effect.fail(
-              AuthError.make({
-                message: `GitHub: unknown method '${input.method}'. Valid methods: stored. (gh-cli is interactive-only.)`,
-              }),
-            );
+            AuthError.make({
+              message: `GitHub: unknown method '${input.method}'. Valid methods: stored. (gh-cli is interactive-only.)`,
+            }),
+          )
 
       return {
         configSchema: GitHubAuthConfigSchema,
@@ -447,13 +437,13 @@ export const makeGitHubAuth = (authOptions?: GitHubAuthOptions) =>
             description: "GitHub Enterprise host or REST API base URL.",
           },
         ],
-      };
+      }
     },
-  );
+  )
 
 /**
  * The default GitHub AuthProvider layer — {@link makeGitHubAuth} with no
  * hard-coded host. Use `GitHub.providers({ baseUrl })` (or
  * `makeGitHubAuth({ baseUrl })` directly) to pin a GitHub Enterprise host.
  */
-export const GitHubAuth = makeGitHubAuth();
+export const GitHubAuth = makeGitHubAuth()

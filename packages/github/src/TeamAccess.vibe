@@ -1,27 +1,27 @@
-import * as Repos from "@distilled.cloud/github/repos";
-import * as Teams from "@distilled.cloud/github/teams";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import { gitHubBaseUrlChanged } from "./BaseUrl.ts";
-import { withBaseUrl } from "./BaseUrl.helpers.js";
-import type * as GitHub from "./Providers.vibe";
+import * as Repos from "@distilled.cloud/github/repos"
+import * as Teams from "@distilled.cloud/github/teams"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { gitHubBaseUrlChanged } from "./BaseUrl.ts"
+import { withBaseUrl } from "./BaseUrl.helpers.js"
+import type * as GitHub from "./Providers.vibe"
 
 export interface TeamAccessProps {
   /**
    * Repository owner — must be an organization login.
    */
-  owner: string;
+  owner: string
 
   /**
    * Repository name.
    */
-  repository: string;
+  repository: string
 
   /**
    * Team slug within the organization (e.g. `platform`, `frontend`).
    */
-  teamSlug: string;
+  teamSlug: string
 
   /**
    * Permission level to grant.
@@ -33,7 +33,7 @@ export interface TeamAccessProps {
    *
    * @default "push"
    */
-  permission?: "pull" | "push" | "maintain" | "triage" | "admin";
+  permission?: "pull" | "push" | "maintain" | "triage" | "admin"
 
   /**
    * Override the GitHub host or API base URL for this resource only (e.g.
@@ -42,26 +42,28 @@ export interface TeamAccessProps {
    * provider. Changing it replaces the resource — the same name on a
    * different GitHub instance is a different physical resource.
    */
-  baseUrl?: string;
+  baseUrl?: string
 }
 
-export interface TeamAccess extends Resource<
-  "GitHub.TeamAccess",
-  TeamAccessProps,
-  {
-    /**
-     * Team slug.
-     */
-    teamSlug: string;
+export interface TeamAccess extends
+  Resource<
+    "GitHub.TeamAccess",
+    TeamAccessProps,
+    {
+      /**
+       * Team slug.
+       */
+      teamSlug: string
 
-    /**
-     * Permission level granted.
-     */
-    permission: string;
-  },
-  never,
-  GitHub.Providers
-> {}
+      /**
+       * Permission level granted.
+       */
+      permission: string
+    },
+    never,
+    GitHub.Providers
+  >
+{}
 
 /**
  * A GitHub team repository access grant.
@@ -146,25 +148,25 @@ export interface TeamAccess extends Resource<
  */
 export const TeamAccess = Resource<TeamAccess>("GitHub.TeamAccess", {
   defaultRemovalPolicy: "retain",
-});
+})
 
 export const TeamAccessProvider = () =>
   Provider.succeed(TeamAccess, {
-    diff: Effect.fn(function* ({ news, olds }) {
-      if (!isResolved(news)) return;
-      if (olds === undefined) return;
+    diff: Effect.fn(function*({ news, olds }) {
+      if (!isResolved(news)) return
+      if (olds === undefined) return
       if (
-        news.owner !== olds.owner ||
-        news.repository !== olds.repository ||
-        news.teamSlug !== olds.teamSlug ||
-        (yield* gitHubBaseUrlChanged(olds, news))
+        news.owner !== olds.owner
+        || news.repository !== olds.repository
+        || news.teamSlug !== olds.teamSlug
+        || (yield* gitHubBaseUrlChanged(olds, news))
       ) {
-        return { action: "replace" };
+        return { action: "replace" }
       }
     }),
 
     reconcile: Effect.fn(
-      function* ({ news }) {
+      function*({ news }) {
         // Ensure & Sync — PUT is idempotent; adds team or updates permission
         yield* Teams.addOrUpdateRepoPermissionsInOrg({
           org: news.owner,
@@ -172,12 +174,12 @@ export const TeamAccessProvider = () =>
           owner: news.owner,
           repo: news.repository,
           permission: news.permission ?? "push",
-        });
+        })
 
         return {
           teamSlug: news.teamSlug,
           permission: news.permission ?? "push",
-        };
+        }
       },
       (effect, { news }) => effect |> withBaseUrl(news.baseUrl)(%),
     ),
@@ -185,7 +187,7 @@ export const TeamAccessProvider = () =>
     list: effect () => {
       const repos = try Stream.runCollect(
         Repos.listForAuthenticatedUser.items({ per_page: 100 }),
-      );
+      )
       const perRepo = try Effect.forEach(
         repos,
         (repo) =>
@@ -196,29 +198,28 @@ export const TeamAccessProvider = () =>
               per_page: 100,
             }),
           )
-            |> Effect.map(%, (teams) =>
-              teams.map((team) => ({
-                teamSlug: team.slug,
-                permission: (team.permission ?? "push") as NonNullable<
-                  TeamAccessProps["permission"]
-                >,
-              })),
-            )
-            |> Effect.catchTag(%, ["Forbidden", "NotFound"], () => Effect.succeed([])),
+          |> Effect.map(%, (teams) =>
+            teams.map((team) => ({
+              teamSlug: team.slug,
+              permission: (team.permission ?? "push") as NonNullable<
+                TeamAccessProps["permission"]
+              >,
+            })))
+          |> Effect.catchTag(%, ["Forbidden", "NotFound"], () => Effect.succeed([])),
         { concurrency: 10 },
-      );
-      return perRepo.flat();
+      )
+      return perRepo.flat()
     },
 
     delete: Effect.fn(
-      function* ({ olds }) {
+      function*({ olds }) {
         yield* Teams.removeRepoInOrg({
           org: olds.owner,
           team_slug: olds.teamSlug,
           owner: olds.owner,
           repo: olds.repository,
-        }) |> Effect.catchTag(%, "NotFound", () => Effect.void);
+        }) |> Effect.catchTag(%, "NotFound", () => Effect.void)
       },
       (effect, { olds }) => effect |> withBaseUrl(olds.baseUrl)(%),
     ),
-  });
+  })

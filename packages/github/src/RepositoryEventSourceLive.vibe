@@ -1,9 +1,9 @@
-import { deliveryResponse, importHmacKey, signHmac } from "./RepositoryEventSourceLive.platform.js";
-import * as Namespace from "alchemy/Namespace";
-import * as Output from "alchemy/Output";
-import { Random } from "alchemy/Random";
-import { WebhookHost } from "alchemy/WebhookHost";
-import * as Layer from "effect/Layer";
+import { deliveryResponse, importHmacKey, signHmac } from "./RepositoryEventSourceLive.platform.js"
+import * as Namespace from "alchemy/Namespace"
+import * as Output from "alchemy/Output"
+import { Random } from "alchemy/Random"
+import { WebhookHost } from "alchemy/WebhookHost"
+import * as Layer from "effect/Layer"
 import {
   RepositoryEventSource,
   webhookPath,
@@ -11,8 +11,8 @@ import {
   type RepositoryEventSourceProps,
   type RepositoryEventSourceService,
   type WebhookEvent,
-} from "./RepositoryEventSource.vibe";
-import { Webhook } from "./Webhook.vibe";
+} from "./RepositoryEventSource.vibe"
+import { Webhook } from "./Webhook.vibe"
 
 /**
  * GitHub event source on any {@link WebhookHost}.
@@ -38,26 +38,25 @@ import { Webhook } from "./Webhook.vibe";
 export const RepositoryEventSourceLive = Layer.effect(
   RepositoryEventSource,
   effect {
-    const ctx = try WebhookHost;
+    const ctx = try WebhookHost
     // Loosely-typed constructor — yielding the resource class erases its
     // `GitHub.Providers` requirement. The requirement is satisfied by the
     // stack at plan time.
-    const createWebhook = try Webhook;
+    const createWebhook = try Webhook
 
     return (effect (
       props: RepositoryEventSourceProps,
       process: (event: WebhookEvent) => void!never!never,
     ) => {
-      const path = webhookPath(props);
+      const path = webhookPath(props)
 
       // Every delivery is verified: without a caller-supplied secret, mint a
       // stable random one shared by the webhook and the host.
-      const webhookSecret =
-        props.secret ??
-        (try Namespace.push(
+      const webhookSecret = props.secret
+        ?? (try Namespace.push(
           ctx.LogicalId,
           Random(`${props.owner}/${props.repository}WebhookSecret`),
-        )).text;
+        )).text
 
       // Deploy-time: provision the repository webhook pointing at the host.
       // Skipped once running inside the deployed host (the global guard).
@@ -76,22 +75,26 @@ export const RepositoryEventSourceLive = Layer.effect(
               contentType: "json",
             }),
           ),
-        );
+        )
       }
 
       // Bind the webhook secret as an env accessor under a deterministic key.
       // This single `yield*` does both halves: at plan time it registers the
       // secret on the host, and it returns an Effect that reads the value
       // back at runtime, reconstructing the `Redacted` wrapper.
-      const secret = try try Effect.orDie(Effect.try({ try: () => Output.named(
-        Output.asOutput(webhookSecret),
-        webhookSecretEnvName(props),
-      ).asEffect(), catch: (e) => e }));
+      const secret = try try Effect.orDie(Effect.try({
+        try: () =>
+          Output.named(
+            Output.asOutput(webhookSecret),
+            webhookSecretEnvName(props),
+          ).asEffect(),
+        catch: (e) => e,
+      }))
 
-      try ctx.route(path, (request) => handleDelivery(request, secret, process));
-    }) as RepositoryEventSourceService;
+      try ctx.route(path, (request) => handleDelivery(request, secret, process))
+    }) as RepositoryEventSourceService
   },
-);
+)
 
 const handleDelivery = effect <Req>(
   request: Request,
@@ -100,37 +103,37 @@ const handleDelivery = effect <Req>(
   process: (event: WebhookEvent<any>) => void!!Req,
 ): Response!!Req => {
   if (request.method !== "POST") {
-    return deliveryResponse("method not allowed", 405);
+    return deliveryResponse("method not allowed", 405)
   }
 
-  const body = try Effect.promise(() => request.text());
+  const body = try Effect.promise(() => request.text())
 
-  const resolved = try secret;
-  const signature = request.headers.get("x-hub-signature-256") ?? undefined;
+  const resolved = try secret
+  const signature = request.headers.get("x-hub-signature-256") ?? undefined
   const valid = try verifySignature(
     resolved ? Redacted.value(resolved) : undefined,
     body,
     signature,
-  );
+  )
   if (!valid) {
-    return deliveryResponse("invalid signature", 401);
+    return deliveryResponse("invalid signature", 401)
   }
 
-  const name = request.headers.get("x-github-event") ?? "unknown";
-  const id = request.headers.get("x-github-delivery") ?? "";
+  const name = request.headers.get("x-github-event") ?? "unknown"
+  const id = request.headers.get("x-github-delivery") ?? ""
 
-  const payload: unknown = Effect.try(() => JSON.parse(body) as unknown) catch () => body;
+  const payload: unknown = Effect.try(() => JSON.parse(body) as unknown) catch () => body
 
   // The wire shape matches `WebhookEvent`, but the runtime can't
   // statically prove `name`/`payload` line up with a specific member of
   // the discriminated union — GitHub's headers are the source of truth, so
   // cast across the boundary.
-  const delivery = { id, name, payload } as unknown as WebhookEvent;
+  const delivery = { id, name, payload } as unknown as WebhookEvent
 
-  try (process(delivery) |> Effect.orDie(%));
+  try (process(delivery) |> Effect.orDie(%))
 
-  return deliveryResponse(null, 202);
-};
+  return deliveryResponse(null, 202)
+}
 
 const verifySignature = effect (
   secret: string | undefined,
@@ -138,19 +141,19 @@ const verifySignature = effect (
   signature: string | undefined,
 ): boolean!! => {
   if (!secret || !signature || !signature.startsWith("sha256=")) {
-    return false;
+    return false
   }
   const expected = try Effect.promise(async () => {
-    const encoder = new TextEncoder();
-    const key = await importHmacKey(encoder.encode(secret));
-    const digest = await signHmac(key, encoder.encode(body));
+    const encoder = new TextEncoder()
+    const key = await importHmacKey(encoder.encode(secret))
+    const digest = await signHmac(key, encoder.encode(body))
     const hex = Array.from(new Uint8Array(digest))
       .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-    return `sha256=${hex}`;
-  });
-  return timingSafeEqual(expected, signature);
-};
+      .join("")
+    return `sha256=${hex}`
+  })
+  return timingSafeEqual(expected, signature)
+}
 
 /**
  * Constant-time string comparison. Avoids leaking signature bytes through
@@ -158,10 +161,10 @@ const verifySignature = effect (
  * available on Workers without `nodejs_compat`, so we roll a small one.
  */
 const timingSafeEqual = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
+  if (a.length !== b.length) return false
+  let mismatch = 0
   for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
   }
-  return mismatch === 0;
-};
+  return mismatch === 0
+}
