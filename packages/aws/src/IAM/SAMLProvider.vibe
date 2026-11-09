@@ -107,7 +107,9 @@ export const SAMLProviderProvider = (): infer _ =>
   Provider.succeed(SAMLProvider, {
     stables: ["samlProviderArn", "name"],
     diff: effect ({ id, olds, news }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return
       if ((try toName(id, olds ?? {})) !== (try toName(id, resolved))) {
         return { action: "replace" } as const
@@ -144,18 +146,20 @@ export const SAMLProviderProvider = (): infer _ =>
       const rows = try Effect.forEach(
         arns,
         effect (samlProviderArn) =>
-          (effect { return (try effect {
-            const response = try iam.getSAMLProvider({ SAMLProviderArn: samlProviderArn })
-            const tags = try iam.listSAMLProviderTags({ SAMLProviderArn: samlProviderArn })
-            return {
-              samlProviderArn,
-              name: samlProviderArn.split("saml-provider/").pop() ?? "",
-              samlProviderUUID: response.SAMLProviderUUID,
-              samlMetadataDocument: response.SAMLMetadataDocument,
-              assertionEncryptionMode: response.AssertionEncryptionMode,
-              tags: toTagRecord(tags.Tags),
-            }
-          }) }) catch effect (e) => match (e) {
+          (effect {
+            return (try effect {
+              const response = try iam.getSAMLProvider({ SAMLProviderArn: samlProviderArn })
+              const tags = try iam.listSAMLProviderTags({ SAMLProviderArn: samlProviderArn })
+              return {
+                samlProviderArn,
+                name: samlProviderArn.split("saml-provider/").pop() ?? "",
+                samlProviderUUID: response.SAMLProviderUUID,
+                samlMetadataDocument: response.SAMLMetadataDocument,
+                assertionEncryptionMode: response.AssertionEncryptionMode,
+                tags: toTagRecord(tags.Tags),
+              }
+            })
+          }) catch effect (e) => match (e) {
             when { _tag: "NoSuchEntityException" }: undefined;
             default: throw e;
           },
@@ -181,32 +185,36 @@ export const SAMLProviderProvider = (): infer _ =>
       // Ensure — create when missing. Race with a peer is recovered by
       // verifying alchemy ownership tags on the existing provider.
       if (!observed) {
-        const created = effect { return (try (iam
-          .createSAMLProvider({
-            Name: name,
-            SAMLMetadataDocument: news.samlMetadataDocument,
-            AssertionEncryptionMode: news.assertionEncryptionMode,
-            AddPrivateKey: news.addPrivateKey
-              ? unwrapRedactedString(news.addPrivateKey)
-              : undefined,
-            Tags: Object.entries(desiredTags).map(([Key, Value]) => ({ Key, Value })),
-          })
-          |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule }))) } catch effect (
-            e,
-          ) => match (e) {
-            when { _tag: "EntityAlreadyExistsException" }: try effect {
-              const existingTags = try iam.listSAMLProviderTags({
-                SAMLProviderArn: samlProviderArn,
+        const created = effect {
+          return (try (iam
+            .createSAMLProvider({
+              Name: name,
+              SAMLMetadataDocument: news.samlMetadataDocument,
+              AssertionEncryptionMode: news.assertionEncryptionMode,
+              AddPrivateKey: news.addPrivateKey
+                ? unwrapRedactedString(news.addPrivateKey)
+                : undefined,
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({ Key, Value })),
+            })
+            |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule })))
+        } catch effect (
+          e,
+        ) => match (e) {
+          when { _tag: "EntityAlreadyExistsException" }: try effect {
+            const existingTags = try iam.listSAMLProviderTags({
+              SAMLProviderArn: samlProviderArn,
+            })
+            if (
+              !(try Effect.orDie(Effect.try({ try: () => hasTags(internalTags, existingTags.Tags), catch: (e) => e })))
+            ) {
+              throw new SAMLProviderConflict({
+                message: `SAML provider '${name}' already exists and is not managed by alchemy`,
               })
-              if (!(try Effect.orDie(Effect.try({ try: () => hasTags(internalTags, existingTags.Tags), catch: (e) => e })))) {
-                throw new SAMLProviderConflict({
-                  message: `SAML provider '${name}' already exists and is not managed by alchemy`,
-                })
-              }
-              return { SAMLProviderArn: samlProviderArn }
-            };
-            default: throw e;
-          }
+            }
+            return { SAMLProviderArn: samlProviderArn }
+          };
+          default: throw e;
+        }
         observed = try iam.getSAMLProvider({
           SAMLProviderArn: created.SAMLProviderArn ?? samlProviderArn,
         })
@@ -240,7 +248,9 @@ export const SAMLProviderProvider = (): infer _ =>
         SAMLProviderArn: samlProviderArn,
       })
       const observedTags = toTagRecord(observedTagsResp.Tags)
-      const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
+      const { removed, upsert } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+      )
       if (upsert.length > 0) {
         try iam.tagSAMLProvider({ SAMLProviderArn: samlProviderArn, Tags: upsert })
       }

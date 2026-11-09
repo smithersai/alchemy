@@ -194,22 +194,24 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           )
           if (!owned) return
 
-          const deleted = (effect { return (try effect {
-            iam
-              .detachRolePolicy({
-                RoleName: DMS_VPC_ROLE_NAME,
-                PolicyArn: DMS_VPC_POLICY_ARN,
-              }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: (undefined as void);
-                default: throw e;
-              }
-            iam
-              .deleteRole({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
-                when { _tag: "NoSuchEntityException" }: (undefined as void);
-                default: throw e;
-              }
-            return true
-          }) }) catch effect (e) => match (e) {
+          const deleted = (effect {
+            return (try effect {
+              iam
+                .detachRolePolicy({
+                  RoleName: DMS_VPC_ROLE_NAME,
+                  PolicyArn: DMS_VPC_POLICY_ARN,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NoSuchEntityException" }: (undefined as void);
+                  default: throw e;
+                }
+              iam
+                .deleteRole({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
+                  when { _tag: "NoSuchEntityException" }: (undefined as void);
+                  default: throw e;
+                }
+              return true
+            })
+          }) catch effect (e) => match (e) {
             when { _tag: "ConcurrentModificationException" } or { _tag: "DeleteConflictException" } or { _tag: "LimitExceededException" } or { _tag: "ServiceFailureException" }:
               false;
             default: throw e;
@@ -264,7 +266,9 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
         stables: ["replicationSubnetGroupIdentifier", "replicationSubnetGroupArn"],
 
         diff: effect ({ id, olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return undefined
           if (
             (try toName(id, olds ?? ({ subnetIds: [] } as ReplicationSubnetGroupProps)))
@@ -280,7 +284,9 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           const group = try findGroup(name)
           if (!group?.ReplicationSubnetGroupIdentifier) return undefined
           const attrs = try toAttrs(group)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -295,30 +301,32 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
           if (observed === undefined) {
             try ensureDmsVpcRole
-            ;(effect { return (try (effect {
-              return dms
-                .createReplicationSubnetGroup({
-                  ReplicationSubnetGroupIdentifier: name,
-                  ReplicationSubnetGroupDescription: description,
-                  SubnetIds: news.subnetIds,
-                  Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
-                    Key,
-                    Value,
-                  })),
-                }) catch effect (error) => match (error) {
-                  when { _tag: "AccessDeniedFault" }: try (ensureDmsVpcRole
-                    |> Effect.andThen(%, Effect.fail(error)));
-                  default: throw error;
-                }
-            }
-              |> Effect.retry(%, {
-                while: (e) => e._tag === "AccessDeniedFault",
-                schedule: Schedule.spaced("5 seconds"),
-                times: 10,
-              }))) }) catch effect (e) => match (e) {
-                when { _tag: "ResourceAlreadyExistsFault" }: (undefined as void);
-                default: throw e;
+            ;(effect {
+              return (try (effect {
+                return dms
+                  .createReplicationSubnetGroup({
+                    ReplicationSubnetGroupIdentifier: name,
+                    ReplicationSubnetGroupDescription: description,
+                    SubnetIds: news.subnetIds,
+                    Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                      Key,
+                      Value,
+                    })),
+                  }) catch effect (error) => match (error) {
+                    when { _tag: "AccessDeniedFault" }: try (ensureDmsVpcRole
+                      |> Effect.andThen(%, Effect.fail(error)));
+                    default: throw error;
+                  }
               }
+                |> Effect.retry(%, {
+                  while: (e) => e._tag === "AccessDeniedFault",
+                  schedule: Schedule.spaced("5 seconds"),
+                  times: 10,
+                })))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceAlreadyExistsFault" }: (undefined as void);
+              default: throw e;
+            }
             observed = try findGroup(name)
           } else {
             // 3. Sync — modify description / subnet set in place when they drift.
@@ -347,7 +355,9 @@ export const ReplicationSubnetGroupProvider = (): infer _ =>
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const arn = try toArn(name)
           const observedTags = try readTags(arn)
-          const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
+          const { upsert, removed } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try dms.addTagsToResource({ ResourceArn: arn, Tags: upsert })
           }

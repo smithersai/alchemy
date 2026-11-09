@@ -87,29 +87,33 @@ export const LogStreamProvider = (): infer _ =>
           const perGroup = try Effect.forEach(
             groups,
             effect (logGroupName) =>
-              (effect { return (Array.from(
-                try (logs.describeLogStreams.pages({ logGroupName })
-                  |> Stream.runCollect(%)),
-              )
-                .flatMap((page) => page.logStreams ?? [])
-                .filter(
-                  (
-                    stream,
-                  ): stream is logs.LogStream & {
-                    logStreamName: string
-                  } => stream.logStreamName != null,
+              (effect {
+                return (Array.from(
+                  try (logs.describeLogStreams.pages({ logGroupName })
+                    |> Stream.runCollect(%)),
                 )
-                .map((stream) => ({
-                  logStreamName: stream.logStreamName,
-                  logGroupName,
-                  logStreamArn: stream.arn,
-                }))) }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+                  .flatMap((page) => page.logStreams ?? [])
+                  .filter(
+                    (
+                      stream,
+                    ): stream is logs.LogStream & {
+                      logStreamName: string
+                    } => stream.logStreamName != null,
+                  )
+                  .map((stream) => ({
+                    logStreamName: stream.logStreamName,
+                    logGroupName,
+                    logStreamArn: stream.arn,
+                  })))
+              }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
             { concurrency: 10 },
           )
           return perGroup.flat()
         },
         diff: effect ({ id, olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return
           if (olds.logGroupName !== resolved.logGroupName) {
             return { action: "replace" } as const
@@ -155,21 +159,23 @@ export const LogStreamProvider = (): infer _ =>
           }
         },
         delete: effect ({ output }) => {
-          ;(effect { return (try (logs
-            .deleteLogStream({
-              logGroupName: output.logGroupName,
-              logStreamName: output.logStreamName,
-            })
-            |> Effect.retry(%, {
-              while: (error) =>
-                error._tag === "OperationAbortedException"
-                || error._tag === "ServiceUnavailableException",
-              schedule: Schedule.exponential(100),
-              times: 8,
-            }))) }) catch effect (e) => match (e) {
-              when { _tag: "ResourceNotFoundException" }: (undefined as void);
-              default: throw e;
-            }
+          ;(effect {
+            return (try (logs
+              .deleteLogStream({
+                logGroupName: output.logGroupName,
+                logStreamName: output.logStreamName,
+              })
+              |> Effect.retry(%, {
+                while: (error) =>
+                  error._tag === "OperationAbortedException"
+                  || error._tag === "ServiceUnavailableException",
+                schedule: Schedule.exponential(100),
+                times: 8,
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          }
 
           const remaining = try Effect.repeat(
             observe(output.logGroupName, output.logStreamName),

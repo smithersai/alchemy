@@ -129,7 +129,9 @@ const OPEN_STATUSES = ["PENDING", "CASE_OPENED"] as const
 // Read a request by ID; a typed NoSuchResourceException collapses to
 // undefined (requests eventually age out of the 90-day history).
 const getRequest = effect (requestId: string) =>
-  (effect { return (try servicequotas.getRequestedServiceQuotaChange({ RequestId: requestId })).RequestedQuota }) catch effect (e) => match (e) {
+  (effect {
+    return (try servicequotas.getRequestedServiceQuotaChange({ RequestId: requestId })).RequestedQuota
+  }) catch effect (e) => match (e) {
     when { _tag: "NoSuchResourceException" }: undefined;
     default: throw e;
   }
@@ -137,22 +139,26 @@ const getRequest = effect (requestId: string) =>
 // Observe the applied quota value; quotas without an applied (account-level)
 // value fall back to the AWS default value.
 const observeQuota = effect (serviceCode: string, quotaCode: string, contextId: string | undefined) =>
-  (effect { return (try servicequotas
-    .getServiceQuota({
-      ServiceCode: serviceCode,
-      QuotaCode: quotaCode,
-      ContextId: contextId,
-    })).Quota }) catch effect (e) => match (e) {
-      when { _tag: "NoSuchResourceException" }: (effect { return (try servicequotas
+  (effect {
+    return (try servicequotas
+      .getServiceQuota({
+        ServiceCode: serviceCode,
+        QuotaCode: quotaCode,
+        ContextId: contextId,
+      })).Quota
+  }) catch effect (e) => match (e) {
+    when { _tag: "NoSuchResourceException" }: (effect {
+      return (try servicequotas
         .getAWSDefaultServiceQuota({
           ServiceCode: serviceCode,
           QuotaCode: quotaCode,
-        })).Quota }) catch effect (e) => match (e) {
-          when { _tag: "NoSuchResourceException" }: undefined;
-          default: throw e;
-        };
+        })).Quota
+    }) catch effect (e) => match (e) {
+      when { _tag: "NoSuchResourceException" }: undefined;
       default: throw e;
-    }
+    };
+    default: throw e;
+  }
 
 // Find an open (PENDING / CASE_OPENED) increase request for the quota,
 // optionally constrained to an exact desired value.
@@ -162,15 +168,17 @@ const findOpenRequest = effect (
   desiredValue?: number | undefined,
 ) => {
   for (const status of OPEN_STATUSES) {
-    const page = (effect { return ((try servicequotas
-      .listRequestedServiceQuotaChangeHistoryByQuota({
-        ServiceCode: serviceCode,
-        QuotaCode: quotaCode,
-        Status: status,
-      })).RequestedQuotas ?? []) }) catch effect (e) => match (e) {
-        when { _tag: "NoSuchResourceException" }: [] as servicequotas.RequestedServiceQuotaChange[];
-        default: throw e;
-      }
+    const page = (effect {
+      return ((try servicequotas
+        .listRequestedServiceQuotaChangeHistoryByQuota({
+          ServiceCode: serviceCode,
+          QuotaCode: quotaCode,
+          Status: status,
+        })).RequestedQuotas ?? [])
+    }) catch effect (e) => match (e) {
+      when { _tag: "NoSuchResourceException" }: [] as servicequotas.RequestedServiceQuotaChange[];
+      default: throw e;
+    }
     const match = page.find((r) => desiredValue === undefined || r.DesiredValue === desiredValue)
     if (match !== undefined) return match
   }
@@ -260,7 +268,9 @@ export const ServiceQuotaIncreaseRequestProvider = (): infer _ =>
             // Requests are not taggable, so ownership cannot be verified
             // from cloud state alone. An open request discovered without
             // prior state is gated behind --adopt.
-            return output !== undefined ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+            return output !== undefined
+              ? attrs
+              : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
           }
           // No request on record. When WE previously reconciled this
           // resource (output present) and the applied quota still satisfies
@@ -279,7 +289,9 @@ export const ServiceQuotaIncreaseRequestProvider = (): infer _ =>
         },
 
         diff: effect ({ news, olds }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return undefined
           if (
             resolved.serviceCode !== olds.serviceCode
@@ -318,17 +330,19 @@ export const ServiceQuotaIncreaseRequestProvider = (): infer _ =>
           if (request === undefined) {
             const satisfied = quota?.Value !== undefined && quota.Value >= desiredValue
             if (!satisfied) {
-              request = (effect { return (try servicequotas
-                .requestServiceQuotaIncrease({
-                  ServiceCode: serviceCode,
-                  QuotaCode: quotaCode,
-                  DesiredValue: desiredValue,
-                  ContextId: news.contextId,
-                  SupportCaseAllowed: news.supportCaseAllowed,
-                })).RequestedQuota }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceAlreadyExistsException" }: try findOpenRequest(serviceCode, quotaCode);
-                  default: throw e;
-                }
+              request = (effect {
+                return (try servicequotas
+                  .requestServiceQuotaIncrease({
+                    ServiceCode: serviceCode,
+                    QuotaCode: quotaCode,
+                    DesiredValue: desiredValue,
+                    ContextId: news.contextId,
+                    SupportCaseAllowed: news.supportCaseAllowed,
+                  })).RequestedQuota
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: try findOpenRequest(serviceCode, quotaCode);
+                default: throw e;
+              }
             }
           }
 

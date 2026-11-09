@@ -166,7 +166,9 @@ export const EventBusProvider = (): infer _ =>
       return {
         stables: ["eventBusName", "eventBusArn"],
         diff: effect ({ id, news, olds }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return
           const oldName = try createEventBusName(id, olds)
           const newName = try createEventBusName(id, resolved)
@@ -206,7 +208,9 @@ export const EventBusProvider = (): infer _ =>
                 eventBusArn: described.Arn as EventBusArn,
                 description: described.Description,
               }
-              return (try hasAlchemyTags(id, Tags ?? [])) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+              return (try hasAlchemyTags(id, Tags ?? []))
+                ? attrs
+                : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
             },
           )
         },
@@ -321,7 +325,9 @@ export const EventBusProvider = (): infer _ =>
                   observedTags[tag.Key] = tag.Value
                 }
               }
-              const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
+              const { removed, upsert } = try Effect.orDie(
+                Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+              )
 
               if (removed.length > 0) {
                 try eventbridge.untagResource({
@@ -357,68 +363,74 @@ export const EventBusProvider = (): infer _ =>
               // AWS-managed rules (`ManagedBy` set) are always swept; rules
               // created out-of-band by the user are only swept when
               // `forceDestroy` is enabled.
-              ;(effect { return (try effect {
-                let nextToken: string | undefined
-                do {
-                  const page = try eventbridge.listRules({
-                    EventBusName: eventBusName,
-                    NextToken: nextToken,
-                  })
-                  for (const rule of page.Rules ?? []) {
-                    if (!rule.Name) continue
-                    if (!rule.ManagedBy && !olds.forceDestroy) continue
-                    const targets = eventbridge
-                      .listTargetsByRule({
-                        Rule: rule.Name,
-                        EventBusName: eventBusName,
-                      }) catch effect (e) => match (e) {
-                        when { _tag: "ResourceNotFoundException" }: { Targets: [] };
-                        default: throw e;
-                      }
-                    const targetIds = (targets.Targets ?? []).map((t) => t.Id)
-                    if (targetIds.length > 0) {
-                      eventbridge
-                        .removeTargets({
+              ;(effect {
+                return (try effect {
+                  let nextToken: string | undefined
+                  do {
+                    const page = try eventbridge.listRules({
+                      EventBusName: eventBusName,
+                      NextToken: nextToken,
+                    })
+                    for (const rule of page.Rules ?? []) {
+                      if (!rule.Name) continue
+                      if (!rule.ManagedBy && !olds.forceDestroy) continue
+                      const targets = eventbridge
+                        .listTargetsByRule({
                           Rule: rule.Name,
                           EventBusName: eventBusName,
-                          Ids: targetIds,
+                        }) catch effect (e) => match (e) {
+                          when { _tag: "ResourceNotFoundException" }: { Targets: [] };
+                          default: throw e;
+                        }
+                      const targetIds = (targets.Targets ?? []).map((t) => t.Id)
+                      if (targetIds.length > 0) {
+                        eventbridge
+                          .removeTargets({
+                            Rule: rule.Name,
+                            EventBusName: eventBusName,
+                            Ids: targetIds,
+                            Force: true,
+                          }) catch effect (e) => match (e) {
+                            when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }:
+                              (undefined as void);
+                            default: throw e;
+                          }
+                      }
+                      eventbridge
+                        .deleteRule({
+                          Name: rule.Name,
+                          EventBusName: eventBusName,
                           Force: true,
                         }) catch effect (e) => match (e) {
-                          when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: (undefined as void);
+                          when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }:
+                            (undefined as void);
                           default: throw e;
                         }
                     }
-                    eventbridge
-                      .deleteRule({
-                        Name: rule.Name,
-                        EventBusName: eventBusName,
-                        Force: true,
-                      }) catch effect (e) => match (e) {
-                        when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: (undefined as void);
-                        default: throw e;
-                      }
-                  }
-                  nextToken = page.NextToken
-                } while (nextToken)
-              }) }) catch effect (e) => match (e) {
+                    nextToken = page.NextToken
+                  } while (nextToken)
+                })
+              }) catch effect (e) => match (e) {
                 when { _tag: "ResourceNotFoundException" }: (undefined as void);
                 default: throw e;
               } // The sweep and EventBridge's own bookkeeping are eventually
                // consistent — a just-deleted rule can still count against the bus
               // for a few seconds. Retry the typed dependency violation on a
               // bounded schedule.
-              ;(effect { return (try (eventbridge
-                .deleteEventBus({
-                  Name: eventBusName,
-                })
-                |> Effect.retry(%, {
-                  while: (e): boolean => e._tag === "EventBusHasRules",
-                  schedule: Schedule.spaced("3 seconds"),
-                  times: 10,
-                }))) }) catch effect (e) => match (e) {
-                  when { _tag: "ResourceNotFoundException" }: (undefined as void);
-                  default: throw e;
-                }
+              ;(effect {
+                return (try (eventbridge
+                  .deleteEventBus({
+                    Name: eventBusName,
+                  })
+                  |> Effect.retry(%, {
+                    while: (e): boolean => e._tag === "EventBusHasRules",
+                    schedule: Schedule.spaced("3 seconds"),
+                    times: 10,
+                  })))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: (undefined as void);
+                default: throw e;
+              }
             },
           ),
       }

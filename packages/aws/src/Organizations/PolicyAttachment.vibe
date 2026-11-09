@@ -109,7 +109,9 @@ export const PolicyAttachmentProvider = (): infer _ =>
       return {
         stables: ["policyId", "targetId"],
         diff: effect ({ olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return
           if (olds?.policyId !== resolved.policyId || olds?.targetId !== resolved.targetId) {
             return { action: "replace" } as const
@@ -137,30 +139,32 @@ export const PolicyAttachmentProvider = (): infer _ =>
         // AccessDeniedException / AWSOrganizationsNotInUseException, which we
         // degrade to [].
         list: effect () =>
-          (effect { return (try effect {
-            const perType = try Effect.forEach(
-              POLICY_TYPES,
-              effect (Filter) => {
-                const policies = try retryOrganizations(
-                  collectPages(
-                    effect (NextToken) => try organizations.listPolicies({ Filter, NextToken }),
-                    (page) => page.Policies,
-                  ),
-                )
-                const policyIds = policies
-                  .map((policy) => policy.Id)
-                  .filter((id): id is string => id != null)
-                const perPolicy = try Effect.forEach(
-                  policyIds,
-                  effect (policyId) => try listAttachmentsForPolicy(policyId),
-                  { concurrency: 10 },
-                )
-                return perPolicy.flat()
-              },
-              { concurrency: 10 },
-            )
-            return perType.flat()
-          }) }) catch effect (e) => match (e) {
+          (effect {
+            return (try effect {
+              const perType = try Effect.forEach(
+                POLICY_TYPES,
+                effect (Filter) => {
+                  const policies = try retryOrganizations(
+                    collectPages(
+                      effect (NextToken) => try organizations.listPolicies({ Filter, NextToken }),
+                      (page) => page.Policies,
+                    ),
+                  )
+                  const policyIds = policies
+                    .map((policy) => policy.Id)
+                    .filter((id): id is string => id != null)
+                  const perPolicy = try Effect.forEach(
+                    policyIds,
+                    effect (policyId) => try listAttachmentsForPolicy(policyId),
+                    { concurrency: 10 },
+                  )
+                  return perPolicy.flat()
+                },
+                { concurrency: 10 },
+              )
+              return perType.flat()
+            })
+          }) catch effect (e) => match (e) {
             when { _tag: "AccessDeniedException" }: [] as PolicyAttachment["Attributes"][];
             when { _tag: "AWSOrganizationsNotInUseException" }: [] as PolicyAttachment["Attributes"][];
             default: throw e;
@@ -238,32 +242,34 @@ const POLICY_TYPES = [
 ] as const satisfies readonly organizations.PolicyType[]
 
 const listAttachmentsForPolicy = effect (policyId: string) =>
-  (effect { return ((try retryOrganizations(
-    collectPages(
-      effect (NextToken) => try organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
-      (page) => page.Targets,
-    ),
-  ))
-    .filter(
-      (
-        target,
-      ): target is organizations.PolicyTargetSummary & {
-        TargetId: string
-      } => target.TargetId != null,
-    )
-    .map(
-      (target) =>
-        ({
-          policyId,
-          targetId: target.TargetId,
-          targetArn: target.Arn,
-          targetName: target.Name,
-          targetType: target.Type,
-        }) satisfies PolicyAttachment["Attributes"],
-    )) }) catch effect (e) => match (e) {
-      when { _tag: "PolicyNotFoundException" }: [] as PolicyAttachment["Attributes"][];
-      default: throw e;
-    }
+  (effect {
+    return ((try retryOrganizations(
+      collectPages(
+        effect (NextToken) => try organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
+        (page) => page.Targets,
+      ),
+    ))
+      .filter(
+        (
+          target,
+        ): target is organizations.PolicyTargetSummary & {
+          TargetId: string
+        } => target.TargetId != null,
+      )
+      .map(
+        (target) =>
+          ({
+            policyId,
+            targetId: target.TargetId,
+            targetArn: target.Arn,
+            targetName: target.Name,
+            targetType: target.Type,
+          }) satisfies PolicyAttachment["Attributes"],
+      ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "PolicyNotFoundException" }: [] as PolicyAttachment["Attributes"][];
+    default: throw e;
+  }
 
 const readAttachment = effect ({ policyId, targetId }: PolicyAttachmentProps) => {
   const targets = try retryOrganizations(

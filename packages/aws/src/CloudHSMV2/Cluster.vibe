@@ -255,7 +255,9 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterId", "vpcId", "securityGroup"],
 
         diff: effect ({ olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return undefined
           const n = resolved ?? { hsmType: "", subnetIds: [] }
           const o = olds ?? { hsmType: "", subnetIds: [] }
@@ -285,14 +287,18 @@ export const ClusterProvider = (): infer _ =>
             return undefined
           }
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
           const props = news!
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...internalTags, ...props.tags }
-          const backupRetentionDays = try Effect.orDie(Effect.try({ try: () => toWireDays(props.backupRetention), catch: (e) => e }))
+          const backupRetentionDays = try Effect.orDie(
+            Effect.try({ try: () => toWireDays(props.backupRetention), catch: (e) => e }),
+          )
 
           // 1. Observe — cloud state is authoritative; output is only an id
           //    cache. Without one, recover by alchemy tags (crash recovery /
@@ -347,7 +353,9 @@ export const ClusterProvider = (): infer _ =>
 
           // 3b. Sync tags — diff against OBSERVED cloud tags.
           const observedTags = try readClusterTags(clusterId)
-          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
           if (upsert.length > 0) {
             try cloudhsm.tagResource({
               ResourceId: clusterId,
@@ -372,21 +380,25 @@ export const ClusterProvider = (): infer _ =>
           // HSM deletion initiated by dependent resources may still be
           // propagating, which surfaces as CloudHsmInvalidRequestException.
           // Bounded retry through that window (10 min = 40 * 15s).
-          ;(effect { return (try (cloudhsm.deleteCluster({ ClusterId: clusterId })
-            |> Effect.retry(%, {
-              while: (e) => e._tag === "CloudHsmInvalidRequestException",
-              schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
-            }))) }) catch effect (e) => match (e) {
-              when { _tag: "CloudHsmResourceNotFoundException" }: (undefined as void);
-              default: throw e;
-            } // CloudHSM writes audit logs to `/aws/cloudhsm/<clusterId>` and
+          ;(effect {
+            return (try (cloudhsm.deleteCluster({ ClusterId: clusterId })
+              |> Effect.retry(%, {
+                while: (e) => e._tag === "CloudHsmInvalidRequestException",
+                schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "CloudHsmResourceNotFoundException" }: (undefined as void);
+            default: throw e;
+          } // CloudHSM writes audit logs to `/aws/cloudhsm/<clusterId>` and
            // never deletes the group. Wait (bounded) for the deletion to
           // finish so no late flush recreates it, then reap it.
-          ;(effect { return (try (findClusterById(clusterId)
-            |> Effect.repeat(%, {
-              schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(18)]),
-              until: (cluster) => cluster === undefined || cluster.State === "DELETED",
-            }))) }) catch effect (e) => (undefined as void)
+          ;(effect {
+            return (try (findClusterById(clusterId)
+              |> Effect.repeat(%, {
+                schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(18)]),
+                until: (cluster) => cluster === undefined || cluster.State === "DELETED",
+              })))
+          }) catch effect (e) => (undefined as void)
           try reapLogGroupsByPrefix(`/aws/cloudhsm/${clusterId}`)
         },
 

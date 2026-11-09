@@ -307,7 +307,9 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterName", "clusterArn"],
 
         diff: effect ({ id, olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return undefined
           const n = resolved ?? { iamRoleArn: "" }
           const o = olds ?? { iamRoleArn: "" }
@@ -350,7 +352,9 @@ export const ClusterProvider = (): infer _ =>
           const cluster = try readCluster(name)
           if (!cluster?.ClusterArn) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -365,31 +369,33 @@ export const ClusterProvider = (): infer _ =>
 
           // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
           if (observed === undefined) {
-            ;effect { return (try (dax
-              .createCluster({
-                ClusterName: name,
-                NodeType: props.nodeType ?? DEFAULT_NODE_TYPE,
-                ReplicationFactor: desiredReplicationFactor,
-                IamRoleArn: props.iamRoleArn,
-                Description: props.description,
-                AvailabilityZones: props.availabilityZones,
-                SubnetGroupName: props.subnetGroupName,
-                SecurityGroupIds: props.securityGroupIds,
-                PreferredMaintenanceWindow: props.preferredMaintenanceWindow,
-                NotificationTopicArn: props.notificationTopicArn,
-                ParameterGroupName: props.parameterGroupName,
-                SSESpecification: props.sseEnabled !== undefined ? { Enabled: props.sseEnabled } : undefined,
-                ClusterEndpointEncryptionType: props.clusterEndpointEncryptionType,
-                NetworkType: props.networkType,
-                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
-                  Key,
-                  Value,
-                })),
-              })
-              |> retryIamRolePropagation(%))) } catch effect (e) => match (e) {
-                when { _tag: "ClusterAlreadyExistsFault" }: (undefined as void);
-                default: throw e;
-              }
+            effect {
+              return (try (dax
+                .createCluster({
+                  ClusterName: name,
+                  NodeType: props.nodeType ?? DEFAULT_NODE_TYPE,
+                  ReplicationFactor: desiredReplicationFactor,
+                  IamRoleArn: props.iamRoleArn,
+                  Description: props.description,
+                  AvailabilityZones: props.availabilityZones,
+                  SubnetGroupName: props.subnetGroupName,
+                  SecurityGroupIds: props.securityGroupIds,
+                  PreferredMaintenanceWindow: props.preferredMaintenanceWindow,
+                  NotificationTopicArn: props.notificationTopicArn,
+                  ParameterGroupName: props.parameterGroupName,
+                  SSESpecification: props.sseEnabled !== undefined ? { Enabled: props.sseEnabled } : undefined,
+                  ClusterEndpointEncryptionType: props.clusterEndpointEncryptionType,
+                  NetworkType: props.networkType,
+                  Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                    Key,
+                    Value,
+                  })),
+                })
+                |> retryIamRolePropagation(%)))
+            } catch effect (e) => match (e) {
+              when { _tag: "ClusterAlreadyExistsFault" }: (undefined as void);
+              default: throw e;
+            }
           }
 
           // Provisioning and in-flight modifications both surface as a
@@ -462,7 +468,9 @@ export const ClusterProvider = (): infer _ =>
           const arn = observed.ClusterArn
           if (arn) {
             const observedTags = try readDaxTags(arn)
-            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
+            const { removed, upsert } = try Effect.orDie(
+              Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+            )
             if (upsert.length > 0) {
               try dax.tagResource({ ResourceName: arn, Tags: upsert })
             }
@@ -485,19 +493,21 @@ export const ClusterProvider = (): infer _ =>
             return
           }
           if (settled.Status !== "deleting") {
-            ;(effect { return (try (effect {
-              return dax.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
-                when { _tag: "ClusterNotFoundFault" }: (undefined as void);
-                default: throw e;
+            ;(effect {
+              return (try (effect {
+                return dax.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
+                  when { _tag: "ClusterNotFoundFault" }: (undefined as void);
+                  default: throw e;
+                }
               }
+                |> Effect.retry(%, {
+                  while: (e) => e._tag === "InvalidClusterStateFault",
+                  schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
+                })))
+            }) catch effect (e) => match (e) {
+              when { _tag: "InvalidClusterStateFault" }: (undefined as void);
+              default: throw e;
             }
-              |> Effect.retry(%, {
-                while: (e) => e._tag === "InvalidClusterStateFault",
-                schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
-              }))) }) catch effect (e) => match (e) {
-                when { _tag: "InvalidClusterStateFault" }: (undefined as void);
-                default: throw e;
-              }
           }
           // Wait until the cluster is actually gone: a `deleting` cluster
           // still holds its subnet/parameter groups, so dependents deleted

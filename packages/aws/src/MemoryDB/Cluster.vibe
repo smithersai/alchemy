@@ -303,7 +303,9 @@ export const ClusterProvider = (): infer _ =>
         stables: ["clusterName", "clusterArn"],
 
         diff: effect ({ id, olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return undefined
           const n = resolved ?? { aclName: "" }
           const o = olds ?? { aclName: "" }
@@ -343,7 +345,9 @@ export const ClusterProvider = (): infer _ =>
           const cluster = try readCluster(name)
           if (!cluster?.ARN) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -352,7 +356,9 @@ export const ClusterProvider = (): infer _ =>
           const internalTags = try createInternalTags(id)
           const desiredTags = { ...internalTags, ...props.tags }
           // The wire field is whole days.
-          const snapshotRetentionDays = try Effect.orDie(Effect.try({ try: () => toWireDays(props.snapshotRetentionLimit), catch: (e) => e }))
+          const snapshotRetentionDays = try Effect.orDie(
+            Effect.try({ try: () => toWireDays(props.snapshotRetentionLimit), catch: (e) => e }),
+          )
 
           // 1. Observe — cloud state is authoritative.
           let observed = try readCluster(name)
@@ -473,7 +479,9 @@ export const ClusterProvider = (): infer _ =>
           const arn = observed.ARN
           if (arn) {
             const observedTags = try readMemoryDbTags(arn)
-            const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }))
+            const { removed, upsert } = try Effect.orDie(
+              Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+            )
             if (upsert.length > 0) {
               try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
             }
@@ -499,19 +507,21 @@ export const ClusterProvider = (): infer _ =>
             return
           }
           if (settled.Status !== "deleting") {
-            ;(effect { return (try (effect {
-              return memorydb.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
-                when { _tag: "ClusterNotFoundFault" }: (undefined as void);
-                default: throw e;
+            ;(effect {
+              return (try (effect {
+                return memorydb.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
+                  when { _tag: "ClusterNotFoundFault" }: (undefined as void);
+                  default: throw e;
+                }
               }
+                |> Effect.retry(%, {
+                  while: (e) => e._tag === "InvalidClusterStateFault",
+                  schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
+                })))
+            }) catch effect (e) => match (e) {
+              when { _tag: "InvalidClusterStateFault" }: (undefined as void);
+              default: throw e;
             }
-              |> Effect.retry(%, {
-                while: (e) => e._tag === "InvalidClusterStateFault",
-                schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
-              }))) }) catch effect (e) => match (e) {
-                when { _tag: "InvalidClusterStateFault" }: (undefined as void);
-                default: throw e;
-              }
           }
           // Wait until the cluster is actually gone: a `deleting` cluster
           // still holds its subnet group and ACL, so dependents deleted right

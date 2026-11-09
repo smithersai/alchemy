@@ -74,7 +74,9 @@ export const SSHPublicKeyProvider = (): infer _ =>
   Provider.succeed(SSHPublicKey, {
     stables: ["sshPublicKeyId"],
     diff: effect ({ olds, news }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return
       if (olds.userName !== resolved.userName || olds.sshPublicKeyBody !== resolved.sshPublicKeyBody) {
         return { action: "replace" } as const
@@ -111,15 +113,17 @@ export const SSHPublicKeyProvider = (): infer _ =>
       // and identity are immutable (`diff` triggers replacement on body
       // change), so a missing key always means we need to upload.
       const observed = output
-        ? (effect { return (try iam
-          .getSSHPublicKey({
-            UserName: output.userName,
-            SSHPublicKeyId: output.sshPublicKeyId,
-            Encoding: "SSH",
-          })).SSHPublicKey }) catch effect (e) => match (e) {
-            when { _tag: "NoSuchEntityException" }: undefined;
-            default: throw e;
-          }
+        ? (effect {
+          return (try iam
+            .getSSHPublicKey({
+              UserName: output.userName,
+              SSHPublicKeyId: output.sshPublicKeyId,
+              Encoding: "SSH",
+            })).SSHPublicKey
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: undefined;
+          default: throw e;
+        }
         : undefined
 
       // Ensure — upload when missing.
@@ -177,32 +181,36 @@ export const SSHPublicKeyProvider = (): infer _ =>
       const perUser = try Effect.forEach(
         users,
         effect (user) =>
-          (effect { return ((try Effect.forEach(
-            Array.from(
-              try (iam.listSSHPublicKeys.pages({ UserName: user.UserName })
-                |> Stream.runCollect(%)),
-            ).flatMap((page) => page.SSHPublicKeys ?? []),
-            effect (meta) =>
-              (effect { return (try iam
-                .getSSHPublicKey({
-                  UserName: meta.UserName,
-                  SSHPublicKeyId: meta.SSHPublicKeyId,
-                  Encoding: "SSH",
-                })).SSHPublicKey }) catch effect (e) => match (e) {
+          (effect {
+            return ((try Effect.forEach(
+              Array.from(
+                try (iam.listSSHPublicKeys.pages({ UserName: user.UserName })
+                  |> Stream.runCollect(%)),
+              ).flatMap((page) => page.SSHPublicKeys ?? []),
+              effect (meta) =>
+                (effect {
+                  return (try iam
+                    .getSSHPublicKey({
+                      UserName: meta.UserName,
+                      SSHPublicKeyId: meta.SSHPublicKeyId,
+                      Encoding: "SSH",
+                    })).SSHPublicKey
+                }) catch effect (e) => match (e) {
                   when { _tag: "NoSuchEntityException" }: undefined;
                   default: throw e;
                 },
-            { concurrency: 10 },
-          ))
-            .filter((key): key is iam.SSHPublicKey => key?.SSHPublicKeyId != null)
-            .map((key) => ({
-              userName: key.UserName,
-              sshPublicKeyId: key.SSHPublicKeyId,
-              fingerprint: key.Fingerprint,
-              sshPublicKeyBody: key.SSHPublicKeyBody,
-              status: key.Status,
-              uploadDate: key.UploadDate,
-            }))) }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
+              { concurrency: 10 },
+            ))
+              .filter((key): key is iam.SSHPublicKey => key?.SSHPublicKeyId != null)
+              .map((key) => ({
+                userName: key.UserName,
+                sshPublicKeyId: key.SSHPublicKeyId,
+                fingerprint: key.Fingerprint,
+                sshPublicKeyBody: key.SSHPublicKeyBody,
+                status: key.Status,
+                uploadDate: key.UploadDate,
+              })))
+          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: []; default: throw e; },
         { concurrency: 10 },
       )
       return perUser.flat()

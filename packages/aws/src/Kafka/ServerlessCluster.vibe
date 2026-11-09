@@ -153,7 +153,9 @@ export const ServerlessClusterProvider = (): infer _ =>
       }
 
       const readBrokers = effect (arn: string) =>
-        (effect { return (try kafka.getBootstrapBrokers({ ClusterArn: arn })).BootstrapBrokerStringSaslIam }) catch effect (e) => match (e) {
+        (effect {
+          return (try kafka.getBootstrapBrokers({ ClusterArn: arn })).BootstrapBrokerStringSaslIam
+        }) catch effect (e) => match (e) {
           when { _tag: "BadRequestException" }: undefined;
           when { _tag: "ConflictException" }: undefined;
           default: throw e;
@@ -212,7 +214,9 @@ export const ServerlessClusterProvider = (): infer _ =>
         stables: ["clusterName", "clusterArn", "clusterType"],
 
         diff: effect ({ id, olds, news }) => {
-          const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
           if (resolved === undefined) return undefined
           if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
             return { action: "replace" } as const
@@ -235,7 +239,9 @@ export const ServerlessClusterProvider = (): infer _ =>
             : try findByName(try toName(id, olds ?? {}))
           if (!cluster?.ClusterArn) return undefined
           const attrs = try toAttrs(cluster)
-          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return (try hasAlchemyTags(id, attrs.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         reconcile: effect ({ id, news, output, session }) => {
@@ -252,23 +258,25 @@ export const ServerlessClusterProvider = (): infer _ =>
           // 2. Ensure — create if missing; tolerate a concurrent create
           //    (ConflictException) by re-scanning for the cluster by name.
           if (!observed?.ClusterArn) {
-            const created = (effect { return (try kafka
-              .createClusterV2({
-                ClusterName: name,
-                Tags: desiredTags,
-                Serverless: {
-                  VpcConfigs: [
-                    {
-                      SubnetIds: news.subnetIds,
-                      SecurityGroupIds: news.securityGroupIds,
-                    },
-                  ],
-                  ClientAuthentication: { Sasl: { Iam: { Enabled: true } } },
-                },
-              })).ClusterArn }) catch effect (e) => match (e) {
-                when { _tag: "ConflictException" }: (try findByName(name))?.ClusterArn;
-                default: throw e;
-              }
+            const created = (effect {
+              return (try kafka
+                .createClusterV2({
+                  ClusterName: name,
+                  Tags: desiredTags,
+                  Serverless: {
+                    VpcConfigs: [
+                      {
+                        SubnetIds: news.subnetIds,
+                        SecurityGroupIds: news.securityGroupIds,
+                      },
+                    ],
+                    ClientAuthentication: { Sasl: { Iam: { Enabled: true } } },
+                  },
+                })).ClusterArn
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: (try findByName(name))?.ClusterArn;
+              default: throw e;
+            }
             if (!created) {
               return try Effect.die(
                 new Error(`MSK ServerlessCluster(${id}) could not be created`),
@@ -290,7 +298,9 @@ export const ServerlessClusterProvider = (): infer _ =>
           // 3. Sync tags — diff against OBSERVED cloud tags so adoption
           //    rewrites ownership tags correctly.
           const oldTags = toTagRecord(observed.Tags)
-          const { removed, upsert } = try Effect.orDie(Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }))
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(oldTags, desiredTags), catch: (e) => e }),
+          )
           if (removed.length > 0) {
             try kafka.untagResource({ ResourceArn: arn, TagKeys: removed })
           }
@@ -308,19 +318,21 @@ export const ServerlessClusterProvider = (): infer _ =>
         },
 
         delete: effect ({ output }) => {
-          ;(effect { return (try (effect {
-            return kafka.deleteCluster({ ClusterArn: output.clusterArn }) catch effect (e) => match (e) {
-              when { _tag: "NotFoundException" }: (undefined as void);
-              default: throw e;
+          ;(effect {
+            return (try (effect {
+              return kafka.deleteCluster({ ClusterArn: output.clusterArn }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: (undefined as void);
+                default: throw e;
+              }
             }
+              |> Effect.retry(%, {
+                while: (e) => e._tag === "BadRequestException",
+                schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "BadRequestException" }: (undefined as void);
+            default: throw e;
           }
-            |> Effect.retry(%, {
-              while: (e) => e._tag === "BadRequestException",
-              schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
-            }))) }) catch effect (e) => match (e) {
-              when { _tag: "BadRequestException" }: (undefined as void);
-              default: throw e;
-            }
         },
 
         list: effect () =>
