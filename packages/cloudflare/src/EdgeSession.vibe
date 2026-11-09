@@ -1,23 +1,23 @@
-import { DEFAULT_COMPATIBILITY_DATE } from "@alchemy.run/cloudflare-runtime/core/internal/constants";
-import { Credentials } from "@distilled.cloud/cloudflare/Credentials";
-import * as workers from "@distilled.cloud/cloudflare/workers";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as HttpClient from "effect/http/HttpClient";
-import { Access } from "./Access.ts";
-import { CloudflareEnvironment } from "./CloudflareEnvironment.ts";
+import { DEFAULT_COMPATIBILITY_DATE } from "@alchemy.run/cloudflare-runtime/core/internal/constants"
+import { Credentials } from "@distilled.cloud/cloudflare/Credentials"
+import * as workers from "@distilled.cloud/cloudflare/workers"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import { Access } from "./Access.ts"
+import { CloudflareEnvironment } from "./CloudflareEnvironment.ts"
 
 /**
  * A "remote binding" as understood by the Cloudflare Workers
  * edge-preview API. We reuse the distilled request schema so the
  * shape tracks Cloudflare's surface.
  */
-type EdgeMetadata = NonNullable<NonNullable<workers.CreateScriptEdgePreviewRequest["metadata"]>>;
-export type EdgeBinding = NonNullable<NonNullable<EdgeMetadata["bindings"]>>[number];
+type EdgeMetadata = NonNullable<NonNullable<workers.CreateScriptEdgePreviewRequest["metadata"]>>
+export type EdgeBinding = NonNullable<NonNullable<EdgeMetadata["bindings"]>>[number]
 
 export class EdgeSessionError extends Data.TaggedError("EdgeSessionError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 export interface EdgeSessionOptions {
@@ -25,19 +25,19 @@ export interface EdgeSessionOptions {
    * Name used as the preview script identifier on Cloudflare's side.
    * Shows up as the hostname: `{scriptName}.{subdomain}.workers.dev`.
    */
-  readonly scriptName: string;
+  readonly scriptName: string
   /** ES-module worker script(s). The first file is the entrypoint. */
-  readonly files: ReadonlyArray<File>;
+  readonly files: ReadonlyArray<File>
   /** Remote bindings attached to the preview worker. */
-  readonly bindings: ReadonlyArray<EdgeBinding>;
+  readonly bindings: ReadonlyArray<EdgeBinding>
   /** @default "2026-08-31" */
-  readonly compatibilityDate?: string;
+  readonly compatibilityDate?: string
   /**
    * Serve the preview on a custom domain or route host in a zone instead of
    * `{scriptName}.{subdomain}.workers.dev`. The script must already serve
    * that host.
    */
-  readonly route?: { readonly zoneId: string; readonly host: string };
+  readonly route?: { readonly zoneId: string; readonly host: string }
 }
 
 /**
@@ -46,12 +46,12 @@ export interface EdgeSessionOptions {
  * `url` or a path under it.
  */
 export interface EdgeSessionHandle {
-  readonly url: string;
-  readonly headers: Record<string, string>;
+  readonly url: string
+  readonly headers: Record<string, string>
 }
 
 const wrap = <A, E, R>(effect: Effect.Effect<A, E, R>, message: string) =>
-  effect.pipe(Effect.mapError((cause) => new EdgeSessionError({ message, cause })));
+  effect.pipe(Effect.mapError((cause) => new EdgeSessionError({ message, cause })))
 
 /**
  * Ask Cloudflare for a preview upload token. Some accounts return an
@@ -60,32 +60,32 @@ const wrap = <A, E, R>(effect: Effect.Effect<A, E, R>, message: string) =>
  * to the original if the exchange fails.
  */
 const createUploadToken = effect (route: EdgeSessionOptions["route"]) => {
-  const env = try ((try CloudflareEnvironment));
-  const http = try HttpClient.HttpClient;
+  const env = try (try CloudflareEnvironment)
+  const http = try HttpClient.HttpClient
   const { token, exchangeUrl } = route
     ? (try workers.createZoneEdgePreviewSession({ zoneId: route.zoneId }))
-    : (try workers.createSubdomainEdgePreviewSession({ accountId: env.accountId }));
-  if (!exchangeUrl) return token;
+    : (try workers.createSubdomainEdgePreviewSession({ accountId: env.accountId }))
+  if (!exchangeUrl) return token
   const json = try http.get(exchangeUrl).pipe(
     Effect.flatMap((r) => r.json),
     Effect.timeout(30_000),
     Effect.orElseSucceed(() => null as unknown),
-  );
+  )
   if (
-    typeof json === "object" &&
-    json !== null &&
-    "token" in json &&
-    typeof (json as Record<string, unknown>).token === "string"
+    typeof json === "object"
+    && json !== null
+    && "token" in json
+    && typeof (json as Record<string, unknown>).token === "string"
   ) {
-    return (json as { token: string }).token;
+    return (json as { token: string }).token
   }
-  return token;
-};
+  return token
+}
 
 const uploadScript = (options: EdgeSessionOptions, uploadToken: string) =>
   effect {
-    const env = try ((try CloudflareEnvironment));
-    const createScriptEdgePreview = try workers.createScriptEdgePreview;
+    const env = try (try CloudflareEnvironment)
+    const createScriptEdgePreview = try workers.createScriptEdgePreview
     return try createScriptEdgePreview({
       accountId: env.accountId,
       scriptName: options.scriptName,
@@ -102,17 +102,17 @@ const uploadScript = (options: EdgeSessionOptions, uploadToken: string) =>
       // public surface keeps `readonly` so callers can pass a frozen
       // tuple without a cast on their side.
       files: options.files.slice(),
-    }).pipe(Effect.timeout(30_000));
-  };
+    }).pipe(Effect.timeout(30_000))
+  }
 
 const workerHost = (scriptName: string) =>
   effect {
-    const env = try ((try CloudflareEnvironment));
+    const env = try (try CloudflareEnvironment)
     const { subdomain } = try workers.getSubdomain({
       accountId: env.accountId,
-    });
-    return `${scriptName}.${subdomain}.workers.dev`;
-  };
+    })
+    return `${scriptName}.${subdomain}.workers.dev`
+  }
 
 /**
  * Upload a short-lived preview worker to Cloudflare's edge and
@@ -136,16 +136,16 @@ export const createEdgeSession = (
         (options.route ? Effect.succeed(options.route.host) : workerHost(options.scriptName)).pipe(
           Effect.flatMap(
             effect (host) => {
-              const headers = try Access.use((access) => access.getAccessHeaders(host));
-              return { url: `https://${host}`, headers };
+              const headers = try Access.use((access) => access.getAccessHeaders(host))
+              return { url: `https://${host}`, headers }
             },
           ),
         ),
       ],
       { concurrency: "unbounded" },
-    );
+    )
     return {
       url,
       headers: { ...headers, "cf-workers-preview-token": previewToken },
-    } satisfies EdgeSessionHandle;
-  }).pipe((e) => wrap(e, "Failed to create edge preview session"));
+    } satisfies EdgeSessionHandle
+  }).pipe((e) => wrap(e, "Failed to create edge preview session"))
