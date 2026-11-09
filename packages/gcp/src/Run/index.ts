@@ -1,12 +1,12 @@
 export * from "./BindContainer.vibe";
 export * from "./Container.vibe";
-export { ServeHttpApi, ServeRpc } from "./EffectApis.ts";
+export { ServeHttpApi, ServeRpc } from "./EffectApis.vibe";
 export * from "./GetService.vibe";
 export * from "./GetServiceHttp.vibe";
 export * from "./GetWorkerPool.vibe";
 export * from "./GetWorkerPoolHttp.vibe";
 export * from "./InvokeService.vibe";
-export * from "./InvokeServiceHttp.ts";
+export * from "./InvokeServiceHttp.vibe";
 export * from "./Job.vibe";
 export * from "./RunJob.vibe";
 export * from "./RunJobHttp.vibe";

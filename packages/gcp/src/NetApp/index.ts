@@ -7,5 +7,5 @@ export * from "./KmsConfig.vibe";
 export * from "./StoragePool.vibe";
 export * from "./Volume.vibe";
 export * from "./VolumesQuotaRule.vibe";
-export * from "./VolumesReplication.ts";
+export * from "./VolumesReplication.vibe";
 export * from "./VolumesSnapshot.vibe";

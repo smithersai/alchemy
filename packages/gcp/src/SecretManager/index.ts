@@ -3,7 +3,7 @@ export * from "./AccessSecretVersionHttp.vibe";
 export * from "./AddSecretVersion.vibe";
 export * from "./AddSecretVersionHttp.vibe";
 export * from "./LocationsSecret.vibe";
-export * from "./Secret.ts";
+export * from "./Secret.vibe";
 export * from "./ReadSecret.vibe";
 export * from "./ReadSecretHttp.vibe";
 export * from "./WriteSecret.vibe";

@@ -12,7 +12,7 @@ export * from "./Subscription.vibe";
 export * from "./Topic.vibe";
 export * from "./ValidateMessage.vibe";
 export * from "./ValidateMessageHttp.vibe";
-export * from "./TopicEventSource.ts";
+export * from "./TopicEventSource.vibe";
 export * from "./WriteTopic.vibe";
 export * from "./WriteTopicHttp.vibe";
 export * from "./ReadSubscription.vibe";

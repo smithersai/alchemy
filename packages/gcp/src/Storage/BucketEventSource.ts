@@ -2,7 +2,7 @@ import type * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { TopicEventSourceProps, TopicMessage } from "../PubSub/TopicEventSource.ts";
+import type { TopicEventSourceProps, TopicMessage } from "../PubSub/TopicEventSource.vibe";
 import type { Bucket } from "./Bucket.vibe";
 
 /** Cloud Storage object event types delivered through Pub/Sub. */
