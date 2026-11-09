@@ -31,7 +31,7 @@ const ModuleRunnerWorker = {
 const WrapperWorker = {
   worker: () => loadInternalWorker("#cloudflare-runtime-vite-worker/module-runner/wrapper.worker"),
 };
-import * as ViteAssets from "./assets/ViteAssets.vibe";
+import * as ViteAssets from "./assets/ViteAssets.ts";
 import { renderExportWrappers } from "./export-types.ts";
 import type { EntryEnvironment } from "./module-runner/constants.shared.ts";
 import {

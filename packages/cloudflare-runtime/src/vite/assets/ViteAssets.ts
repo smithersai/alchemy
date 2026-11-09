@@ -1,3 +1,4 @@
+import * as NodeFs from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -10,7 +11,6 @@ import { DEFAULT_COMPATIBILITY_DATE } from "../../core/internal/constants.ts";
 // This file includes third-party code; see /THIRD_PARTY_LICENSES.md.
 import { loadInternalWorker } from "../../core/internal/internal-worker.ts";
 import { PluginContext } from "../../core/PluginContext.ts";
-import { delay, readFileBytes, readFileUtf8, statPath, toBuffer } from "./ViteAssets.platform.ts";
 const AssetsWorker = {
   worker: () => loadInternalWorker("#cloudflare-runtime-vite-worker/assets/assets.worker"),
 };
@@ -57,32 +57,32 @@ export const ViteAssetsLive = (
 ) =>
   Layer.effect(
     Assets.Assets,
-    effect {
-      const loopback = try Loopback.Loopback;
+    Effect.gen(function* () {
+      const loopback = yield* Loopback.Loopback;
 
       if (Effect.isEffect(loopback)) {
-        return try Effect.die("Expected loopback to be initialized");
+        return yield* Effect.die("Expected loopback to be initialized");
       }
 
       return Assets.Assets.of(
-        effect {
-          const { worker } = try PluginContext;
-          const { assetsConfig, routerConfig } = try Assets.buildAssetConfigs(worker);
+        Effect.gen(function* () {
+          const { worker } = yield* PluginContext;
+          const { assetsConfig, routerConfig } = yield* Assets.buildAssetConfigs(worker);
 
           const prefix = `vite-assets:${encodeURIComponent(worker.name)}`;
-          const htmlExistsService = try loopback.api.route(
+          const htmlExistsService = yield* loopback.api.route(
             `${prefix}:html-exists`,
             viteHtmlExistsHandler(viteDevServer),
           );
-          const fetchHtmlService = try loopback.api.route(
+          const fetchHtmlService = yield* loopback.api.route(
             `${prefix}:fetch-html`,
             viteFetchHtmlHandler(viteDevServer),
           );
-          const viteMiddlewareService = try loopback.api.route(
+          const viteMiddlewareService = yield* loopback.api.route(
             `${prefix}:vite-middleware`,
             viteMiddlewareHandler(viteDevServer),
           );
-          const [assetsWorker, routerWorker, viteProxyWorker] = try Effect.forEach(
+          const [assetsWorker, routerWorker, viteProxyWorker] = yield* Effect.forEach(
             [AssetsWorker, RouterWorker, ViteProxyWorker],
             (worker) =>
               Effect.map(Effect.promise(worker.worker), ({ modules }) => modulesToWorkerd(modules)),
@@ -161,9 +161,9 @@ export const ViteAssetsLive = (
             ],
             api: { isConfigured: true },
           };
-        },
+        }),
       );
-    },
+    }),
   );
 
 /**
@@ -201,7 +201,7 @@ const viteHtmlExistsHandler =
     ].filter((candidate) => candidate !== undefined);
     for (const resolved of candidates) {
       try {
-        const stats = await statPath(resolved);
+        const stats = await NodeFs.stat(resolved);
         if (stats.isFile()) {
           return json(
             resolved === publicDirFilePath ? `${PUBLIC_DIR_PREFIX}${pathname}` : pathname,
@@ -231,7 +231,7 @@ const viteFetchHtmlHandler =
 
     try {
       if (isInPublicDir && !resolved.endsWith(".html")) {
-        const body = await readFileBytes(resolved);
+        const body = await NodeFs.readFile(resolved);
         res.writeHead(200, {
           "content-type": mime.getType(resolved) ?? "application/octet-stream",
         });
@@ -244,10 +244,10 @@ const viteFetchHtmlHandler =
       if (bundledDev) {
         const source = await readBundledFile(bundledDev, pathname.slice(1));
         res.writeHead(200, { "content-type": "text/html" });
-        res.end(typeof source === "string" ? source : toBuffer(source));
+        res.end(typeof source === "string" ? source : Buffer.from(source));
         return;
       }
-      let html = await readFileUtf8(resolved);
+      let html = await NodeFs.readFile(resolved, "utf-8");
       if (!isInPublicDir) {
         html = await viteDevServer.transformIndexHtml(resolved, html);
       }
@@ -273,7 +273,7 @@ const readBundledFile = async (bundledDev: BundledDev, key: string) => {
   const deadline = Date.now() + 10_000;
   let file = bundledDev.memoryFiles.get(key);
   while (!file && Date.now() < deadline) {
-    await delay(10);
+    await new Promise((resolve) => setTimeout(resolve, 10));
     file = bundledDev.memoryFiles.get(key);
   }
   if (!file) {
