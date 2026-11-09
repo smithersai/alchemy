@@ -40,3 +40,8 @@ API documentation. A direct generator invocation reports a missing sidecar with
 the source name and the preparation command, so an incomplete cache cannot
 silently remove a reference page. `pnpm docs:check` and the website build share
 this preparation path.
+
+Provider guards that call a foreign predicate run it in an Effect boundary.
+The guarded callback returns the narrowed value, so the continuation can use its
+resolved type. A missing prior output still short-circuits before inspecting
+props, and getter or Proxy failures keep their original defect identity.
