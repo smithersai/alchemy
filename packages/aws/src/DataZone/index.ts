@@ -13,7 +13,7 @@ export * from "./CreateSubscriptionRequestHttp.vibe";
 export * from "./DataZoneEventSource.vibe";
 export * from "./Domain.vibe";
 export * from "./Environment.vibe";
-export * from "./EnvironmentBlueprintConfiguration.ts";
+export * from "./EnvironmentBlueprintConfiguration.vibe";
 export * from "./GetAsset.vibe";
 export * from "./GetAssetHttp.vibe";
 export * from "./GetDataSourceRun.vibe";

@@ -1,6 +1,6 @@
 import * as apprunner from "@distilled.cloud/aws/apprunner";
 import { AssociateCustomDomain } from "./AssociateCustomDomain.vibe";
-import { makeAppRunnerHttpBinding } from "./BindingHttp.ts";
+import { makeAppRunnerHttpBinding } from "./BindingHttp.vibe";
 import type { Service } from "./Service.vibe";
 
 /**

@@ -40,7 +40,7 @@ import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
-import { Assets } from "../Assets.ts";
+import { Assets } from "../Assets.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import * as IAM from "../IAM/index.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";

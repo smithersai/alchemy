@@ -1,6 +1,6 @@
 import * as codeartifact from "@distilled.cloud/aws/codeartifact";
 import * as Layer from "effect/Layer";
-import { makeRepositoryHttpBinding, packageArns } from "./BindingHttp.ts";
+import { makeRepositoryHttpBinding, packageArns } from "./BindingHttp.vibe";
 import { ListPackageVersionDependencies } from "./ListPackageVersionDependencies.vibe";
 
 /** HTTP implementation of {@link ListPackageVersionDependencies} over the CodeArtifact API. */

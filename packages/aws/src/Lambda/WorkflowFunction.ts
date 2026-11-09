@@ -27,7 +27,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { Workflow, WorkflowEngine } from "effect/workflow";
-import * as AWSBindings from "../AWSBindings.ts";
+import * as AWSBindings from "../AWSBindings.vibe";
 import { DurableStep } from "./Durable.vibe";
 import {
   DurableFunction,

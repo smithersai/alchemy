@@ -1,6 +1,6 @@
 import * as dataexchange from "@distilled.cloud/aws/dataexchange";
 import * as Layer from "effect/Layer";
-import { makeRevisionHttpBinding, revisionAssetArns } from "./BindingHttp.ts";
+import { makeRevisionHttpBinding, revisionAssetArns } from "./BindingHttp.vibe";
 import { DeleteAsset } from "./DeleteAsset.vibe";
 
 export const DeleteAssetHttp = Layer.effect(

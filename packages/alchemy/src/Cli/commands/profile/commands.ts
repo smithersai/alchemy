@@ -23,8 +23,8 @@ import {
   profileTui,
   renameProfileFlow,
   showProfileFlow,
-} from "./flows.ts";
-import { profileHub } from "./hub.ts";
+} from "./flows.vibe";
+import { profileHub } from "./hub.vibe";
 
 const profileName = Argument.String("name").pipe(Argument.withDescription("Profile name"));
 

@@ -10,7 +10,7 @@ import {
   AWS_AUTH_PROVIDER_NAME,
   LOCAL_ACCOUNT_ID,
   type AwsResolvedCredentials,
-} from "./AuthProvider.ts";
+} from "./AuthProvider.vibe";
 
 export const AWS_PROFILE = Config.String("AWS_PROFILE").pipe(Config.withDefault("default"));
 

@@ -9,7 +9,7 @@ import { Interaction } from "../../../Interaction.ts";
 import type { Result as NukeResult, Target } from "../../../Nuke.ts";
 import type { ProviderMode } from "../../../ProviderMode.ts";
 import { currentConsoleSettings } from "../../GlobalLog.ts";
-import { present } from "../../Present.ts";
+import { present } from "../../Present.vibe";
 import {
   LiveStore,
   ProgressBar,

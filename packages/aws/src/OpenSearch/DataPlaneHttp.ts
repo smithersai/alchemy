@@ -18,7 +18,7 @@ import * as Output from "alchemy/Output";
 import type { SourceError } from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import * as AWSBindings from "../AWSBindings.ts";
+import * as AWSBindings from "../AWSBindings.vibe";
 import type {
   BulkResponse,
   CountResponse,

@@ -5,7 +5,7 @@ import {
 } from "@alchemy.run/docker/ImageSource";
 import * as ecr from "@distilled.cloud/aws/ecr";
 import * as Effect from "effect/Effect";
-import { roleHostBundle } from "../AWSBindings.ts";
+import { roleHostBundle } from "../AWSBindings.vibe";
 import { getEcrRegistryCredentials } from "./Image.vibe";
 
 /**

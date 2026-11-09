@@ -1,6 +1,6 @@
 import * as dataexchange from "@distilled.cloud/aws/dataexchange";
 import * as Layer from "effect/Layer";
-import { makeDataSetHttpBinding, dataSetAssetArns } from "./BindingHttp.ts";
+import { makeDataSetHttpBinding, dataSetAssetArns } from "./BindingHttp.vibe";
 import { SendApiAsset } from "./SendApiAsset.vibe";
 
 export const SendApiAssetHttp = Layer.effect(

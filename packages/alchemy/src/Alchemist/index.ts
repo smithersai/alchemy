@@ -30,9 +30,9 @@ export {
 
 export type { ConfiguredStack } from "../Stack.ts";
 
-export * as Drift from "./Drift.ts";
-export * as Logs from "./Logs.ts";
+export * as Drift from "./Drift.vibe";
+export * as Logs from "./Logs.vibe";
 export * as Nuke from "./Nuke.vibe";
 export * as Profile from "./Profile.vibe";
 export * as Provider from "./Provider.vibe";
-export * as State from "./State.ts";
+export * as State from "./State.vibe";

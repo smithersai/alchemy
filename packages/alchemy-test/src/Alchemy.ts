@@ -38,7 +38,7 @@ export {
   WorkerNotReady,
   type EdgeGuardOptions,
   type WhenReadyOptions,
-} from "./Http.ts";
+} from "./Http.vibe";
 
 export type MakeOptions<ROut = any> = Core.MakeOptions<ROut>;
 export type ScratchStack = Core.ScratchStack;

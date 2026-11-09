@@ -36,7 +36,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { Assets, AssetsLive } from "../Assets.ts";
+import { Assets, AssetsLive } from "../Assets.vibe";
 import { flociProvidersUrl, makeDevWatchProvider } from "../Local/DevWatchProvider.ts";
 import {
   Function,

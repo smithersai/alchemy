@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import * as Duration from "effect/Duration";
 import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
-import type { SubnetId } from "../EC2/Subnet.ts";
+import type { SubnetId } from "../EC2/Subnet.vibe";
 import { Function as LambdaFunction } from "../Lambda/Function.ts";
 
 export interface MigrationRunnerProps {

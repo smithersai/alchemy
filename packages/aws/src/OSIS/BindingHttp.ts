@@ -23,7 +23,7 @@ import type * as Output from "alchemy/Output";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import * as AWSBindings from "../AWSBindings.ts";
+import * as AWSBindings from "../AWSBindings.vibe";
 import type { Pipeline } from "./Pipeline.vibe";
 
 /**

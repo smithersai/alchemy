@@ -20,7 +20,7 @@ import {
 import { formatElapsed } from "./Format.ts";
 import { formatModeNote } from "./ModeTag.ts";
 import { actionHasPlannedWork, buildPlanSummary } from "./NamespaceTree.ts";
-import { present } from "./Present.ts";
+import { present } from "./Present.vibe";
 import { formatDeclaredPropertyYaml, matchYamlChange, matchYamlKey } from "./PropertyDiff.ts";
 
 const ESC = "\x1b[";

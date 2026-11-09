@@ -3,7 +3,7 @@ import * as Contributions from "alchemy/Contributions";
 export default Contributions.make({
   name: "aws",
   auth: Contributions.lazy(
-    () => import("./AuthProvider.ts"),
+    () => import("./AuthProvider.vibe"),
     (module) => module.AwsAuth,
   ),
   stateStores: {

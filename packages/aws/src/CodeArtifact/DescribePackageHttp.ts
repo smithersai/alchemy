@@ -1,6 +1,6 @@
 import * as codeartifact from "@distilled.cloud/aws/codeartifact";
 import * as Layer from "effect/Layer";
-import { makeRepositoryHttpBinding, packageArns } from "./BindingHttp.ts";
+import { makeRepositoryHttpBinding, packageArns } from "./BindingHttp.vibe";
 import { DescribePackage } from "./DescribePackage.vibe";
 
 /** HTTP implementation of {@link DescribePackage} over the CodeArtifact API. */

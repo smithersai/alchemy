@@ -1,7 +1,7 @@
 import * as appconfig from "@distilled.cloud/aws/appconfig";
 import * as Output from "alchemy/Output";
 import type { Application } from "./Application.vibe";
-import { makeAppConfigHttpBinding } from "./BindingHttp.ts";
+import { makeAppConfigHttpBinding } from "./BindingHttp.vibe";
 import type { ConfigurationProfile } from "./ConfigurationProfile.vibe";
 import type { DeploymentStrategy } from "./DeploymentStrategy.vibe";
 import type { Environment } from "./Environment.vibe";

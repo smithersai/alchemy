@@ -1,4 +1,4 @@
-export * from "./Analyzer.ts";
+export * from "./Analyzer.vibe";
 export * from "./ApplyArchiveRule.vibe";
 export * from "./ApplyArchiveRuleHttp.vibe";
 export * from "./ArchiveRule.vibe";

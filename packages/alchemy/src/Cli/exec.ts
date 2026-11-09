@@ -29,7 +29,7 @@ import { PlatformServices } from "../Util/PlatformServices.ts";
 import { logShutdown } from "../Util/Shutdown.ts";
 import { processTrace, withTraceParent } from "../Util/TraceParent.ts";
 import { handleCliErrors, installShutdownFeedback } from "./commands/errors.ts";
-import { renderPlanning } from "./commands/render.ts";
+import { renderPlanning } from "./commands/render.vibe";
 import { stackOutputsView } from "./components/view/StackOutputs.tsx";
 import { DEV_RELOAD_EXIT_CODE, DevOptions } from "./DevOptions.vibe";
 import { ConsoleLogLive } from "./GlobalLog.ts";

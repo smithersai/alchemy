@@ -6,7 +6,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import * as AWSBindings from "../AWSBindings.ts";
+import * as AWSBindings from "../AWSBindings.vibe";
 import { generateDbAuthToken } from "../Connection/DbAuthToken.vibe";
 import { formatSqlConnectionUrl } from "../Connection/internal.vibe";
 import { Connect, type ConnectOptions, type ConnectResource } from "./Connect.vibe";

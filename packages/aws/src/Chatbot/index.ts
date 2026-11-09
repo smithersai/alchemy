@@ -1,6 +1,6 @@
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
-export * from "./Association.ts";
-export * from "./CustomAction.ts";
+export * from "./Association.vibe";
+export * from "./CustomAction.vibe";
 export * from "./DeleteMicrosoftTeamsConfiguredTeam.vibe";
 export * from "./DeleteMicrosoftTeamsConfiguredTeamHttp.vibe";
 export * from "./DeleteMicrosoftTeamsUserIdentity.vibe";
@@ -19,7 +19,7 @@ export * from "./ListMicrosoftTeamsConfiguredTeams.vibe";
 export * from "./ListMicrosoftTeamsConfiguredTeamsHttp.vibe";
 export * from "./ListMicrosoftTeamsUserIdentities.vibe";
 export * from "./ListMicrosoftTeamsUserIdentitiesHttp.vibe";
-export * from "./MicrosoftTeamsChannelConfiguration.ts";
-export * from "./SlackChannelConfiguration.ts";
+export * from "./MicrosoftTeamsChannelConfiguration.vibe";
+export * from "./SlackChannelConfiguration.vibe";
 export * from "./UpdateAccountPreferences.vibe";
 export * from "./UpdateAccountPreferencesHttp.vibe";

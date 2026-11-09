@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import { hashDirectory, type MemoOptions } from "../Command/Memo.ts";
+import { hashDirectory, type MemoOptions } from "../Command/Memo.vibe";
 import { havePropsChanged, isResolved } from "../Diff.ts";
 import * as LocalProvider from "../Local/LocalProvider.ts";
 import * as ProviderLayer from "../Local/ProviderLayer.vibe";

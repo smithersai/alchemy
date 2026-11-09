@@ -36,7 +36,7 @@ import { Self } from "./Self.vibe";
 import type { Stack, StackServices } from "./Stack.ts";
 import { StackContext } from "./StackContext.vibe";
 import type { Stage } from "./Stage.ts";
-import { effectClass } from "./Util/effect.ts";
+import { effectClass } from "./Util/effect.vibe";
 
 export interface PlatformProps {
   /**

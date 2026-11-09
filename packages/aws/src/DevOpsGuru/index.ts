@@ -36,7 +36,7 @@ export * from "./ListOrganizationInsights.vibe";
 export * from "./ListOrganizationInsightsHttp.vibe";
 export * from "./ListRecommendations.vibe";
 export * from "./ListRecommendationsHttp.vibe";
-export * from "./NotificationChannel.ts";
+export * from "./NotificationChannel.vibe";
 export * from "./PutFeedback.vibe";
 export * from "./PutFeedbackHttp.vibe";
 export * from "./ResourceCollection.vibe";

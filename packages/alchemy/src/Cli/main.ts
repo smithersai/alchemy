@@ -71,19 +71,19 @@ const loadCommand = async (name: CommandName) => {
     case "provider":
       return (await import("./commands/provider.ts")).providerCommand(await loadContributions());
     case "deploy":
-      return (await import("./commands/deploy.ts")).deployCommand;
+      return (await import("./commands/deploy.vibe")).deployCommand;
     case "dev":
       return (await import("./commands/dev.ts")).devCommand;
     case "destroy":
-      return (await import("./commands/deploy.ts")).destroyCommand;
+      return (await import("./commands/deploy.vibe")).destroyCommand;
     case "plan":
-      return (await import("./commands/deploy.ts")).planCommand;
+      return (await import("./commands/deploy.vibe")).planCommand;
     case "logs":
       return (await import("./commands/logs.vibe")).logsCommand;
     case "profile":
       return (await import("./commands/profile/index.ts")).profileCommand;
     case "state":
-      return (await import("./commands/state.ts")).stateCommand;
+      return (await import("./commands/state.vibe")).stateCommand;
     case "drift":
       return (await import("./commands/drift.vibe")).driftCommand;
     case "unsafe":

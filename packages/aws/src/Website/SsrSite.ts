@@ -4,7 +4,7 @@ import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { Distribution } from "../CloudFront/Distribution.ts";
+import { Distribution } from "../CloudFront/Distribution.vibe";
 import { Invalidation } from "../CloudFront/Invalidation.vibe";
 import {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,

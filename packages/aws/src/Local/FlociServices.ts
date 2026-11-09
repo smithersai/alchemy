@@ -8,7 +8,7 @@ import type { ResourceClassLike, ResourceLike } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import { DEFAULT_LOCAL_ENDPOINT, LOCAL_ACCOUNT_ID } from "../AuthProvider.ts";
+import { DEFAULT_LOCAL_ENDPOINT, LOCAL_ACCOUNT_ID } from "../AuthProvider.vibe";
 import * as Endpoint from "../Endpoint.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import * as Region from "../Region.vibe";

@@ -9,7 +9,7 @@ export * from "./DescribeDomainControllers.vibe";
 export * from "./DescribeDomainControllersHttp.vibe";
 export * from "./DescribeSnapshots.vibe";
 export * from "./DescribeSnapshotsHttp.vibe";
-export * from "./Directory.ts";
+export * from "./Directory.vibe";
 export * from "./DirectoryEventSource.vibe";
 export * from "./EventTopic.vibe";
 export * from "./GetDirectoryLimits.vibe";

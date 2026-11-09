@@ -8,20 +8,20 @@ import type { EIP as EIPResource } from "./EIP.vibe";
 import { EIP } from "./EIP.vibe";
 import type { InternetGateway as InternetGatewayResource } from "./InternetGateway.vibe";
 import { InternetGateway } from "./InternetGateway.vibe";
-import type { NatGateway as NatGatewayResource } from "./NatGateway.ts";
-import { NatGateway } from "./NatGateway.ts";
+import type { NatGateway as NatGatewayResource } from "./NatGateway.vibe";
+import { NatGateway } from "./NatGateway.vibe";
 import type { Route as RouteResource } from "./Route.vibe";
 import { Route } from "./Route.vibe";
 import type { RouteTable as RouteTableResource } from "./RouteTable.vibe";
 import { RouteTable } from "./RouteTable.vibe";
 import type { RouteTableAssociation as RouteTableAssociationResource } from "./RouteTableAssociation.vibe";
 import { RouteTableAssociation } from "./RouteTableAssociation.vibe";
-import type { Subnet as SubnetResource } from "./Subnet.ts";
-import { Subnet } from "./Subnet.ts";
+import type { Subnet as SubnetResource } from "./Subnet.vibe";
+import { Subnet } from "./Subnet.vibe";
 import type { Vpc as VpcResource } from "./Vpc.vibe";
 import { Vpc } from "./Vpc.vibe";
-import type { VpcEndpoint as VpcEndpointResource } from "./VpcEndpoint.ts";
-import { VpcEndpoint } from "./VpcEndpoint.ts";
+import type { VpcEndpoint as VpcEndpointResource } from "./VpcEndpoint.vibe";
+import { VpcEndpoint } from "./VpcEndpoint.vibe";
 
 export class NetworkInvalidProps extends Data.TaggedError("NetworkInvalidProps")<{
   readonly message: string;

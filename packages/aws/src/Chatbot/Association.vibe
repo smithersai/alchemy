@@ -1,0 +1,234 @@
+import * as chatbot from "@distilled.cloud/aws/chatbot"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { inChatbotRegion } from "./internal.vibe"
+
+/**
+ * Raised when a freshly created Chatbot association has not become visible
+ * to `listAssociations` within the bounded eventual-consistency window.
+ */
+export class AssociationNotVisible extends Data.TaggedError("AssociationNotVisible")<{
+  readonly chatConfiguration: string
+  readonly resource: string
+}> {}
+
+export interface AssociationProps {
+  /**
+   * ARN of the Slack or Microsoft Teams channel configuration to associate
+   * the resource with (e.g.
+   * `arn:aws:chatbot::123456789012:chat-configuration/slack-channel/alerts`).
+   *
+   * Changing the configuration replaces the association.
+   */
+  chatConfiguration: string
+  /**
+   * ARN of the resource to associate with the channel configuration — a
+   * Chatbot custom action ARN (e.g.
+   * `arn:aws:chatbot::123456789012:custom-action/describe-alarm`).
+   *
+   * Changing the resource replaces the association.
+   */
+  resource: string
+}
+
+export interface Association extends
+  Resource<
+    "AWS.Chatbot.Association",
+    AssociationProps,
+    {
+      /**
+       * ARN of the channel configuration the resource is associated with.
+       */
+      chatConfigurationArn: string
+      /**
+       * ARN of the associated resource (the custom action).
+       */
+      resourceArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Chatbot (Amazon Q Developer in chat applications) association that
+ * links a resource — a {@link CustomAction} — to a Slack or Microsoft Teams
+ * channel configuration so the action is available in that channel.
+ *
+ * ### Associating Custom Actions
+ * **Example:** Attach a custom action to a Slack channel configuration
+ * ```typescript
+ * import * as Chatbot from "@alchemy.run/aws/Chatbot";
+ *
+ * const action = yield* Chatbot.CustomAction("DescribeAlarm", {
+ *   commandText: "aws cloudwatch describe-alarms --alarm-names $AlarmName",
+ * });
+ *
+ * const config = yield* Chatbot.SlackChannelConfiguration("Alerts", {
+ *   slackTeamId: "T012ABCDEFG",
+ *   slackChannelId: "C012AB3CD",
+ *   iamRoleArn: role.roleArn,
+ * });
+ *
+ * const association = yield* Chatbot.Association("AlarmAction", {
+ *   chatConfiguration: config.chatConfigurationArn,
+ *   resource: action.customActionArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Association = Resource<Association>("AWS.Chatbot.Association")
+
+export const AssociationProvider = () =>
+  Provider.effect(
+    Association,
+    effect {
+      // listAssociations is a filter over a single configuration; an unknown
+      // configuration ARN yields an empty list (verified live), while a
+      // malformed ARN surfaces the typed InvalidRequestException — both are
+      // treated as "no association".
+      const observeAssociation = effect (chatConfiguration: string, resource: string) => {
+        return try chatbot.listAssociations.items({ ChatConfiguration: chatConfiguration }).pipe(
+          Stream.runCollect,
+          inChatbotRegion,
+          Effect.map((listings) => Array.from(listings).find((listing) => listing.Resource === resource)),
+          Effect.catchTag("InvalidRequestException", () => Effect.undefined),
+        )
+      }
+
+      const toAttributes = (chatConfiguration: string, resource: string) => ({
+        chatConfigurationArn: chatConfiguration,
+        resourceArn: resource,
+      })
+
+      return Association.Provider.of({
+        stables: ["chatConfigurationArn", "resourceArn"],
+        // The configuration/resource ARN pair IS the association's identity —
+        // changing either side replaces it. There is nothing to update.
+        diff: effect ({ olds, news }) => {
+          const props = try Effect.orDie(
+            Effect.try({ try: () => (isResolved(news) ? news : undefined), catch: (e) => e }),
+          )
+          if (props === undefined) return undefined
+          if (
+            olds !== undefined
+            && (olds.chatConfiguration !== props.chatConfiguration || olds.resource !== props.resource)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const chatConfiguration = output?.chatConfigurationArn ?? olds?.chatConfiguration
+          const resource = output?.resourceArn ?? olds?.resource
+          if (chatConfiguration === undefined || resource === undefined) {
+            return undefined
+          }
+          const found = try observeAssociation(chatConfiguration, resource)
+          if (found === undefined) return undefined
+          // Associations cannot carry tags; existence of the exact
+          // configuration/resource pair is the ownership signal.
+          return toAttributes(chatConfiguration, resource)
+        },
+        // Existence-only resource: observe → if missing, associate. There is
+        // no mutable aspect to sync.
+        reconcile: effect ({ news, session }) => {
+          // 1. OBSERVE — cloud state is authoritative.
+          const observed = try observeAssociation(news.chatConfiguration, news.resource)
+
+          // 2. ENSURE — associate when missing. The API is an idempotent
+          //    upsert, so a concurrent associate converges naturally.
+          if (observed === undefined) {
+            try chatbot
+              .associateToConfiguration({
+                Resource: news.resource,
+                ChatConfiguration: news.chatConfiguration,
+              })
+              .pipe(inChatbotRegion)
+
+            // 3. RETURN — bounded wait until the association is visible.
+            try observeAssociation(news.chatConfiguration, news.resource).pipe(
+              Effect.flatMap((listing) =>
+                listing !== undefined
+                  ? Effect.void
+                  : Effect.fail(
+                    new AssociationNotVisible({
+                      chatConfiguration: news.chatConfiguration,
+                      resource: news.resource,
+                    }),
+                  )
+              ),
+              Effect.retry({
+                while: (e): boolean => e._tag === "AssociationNotVisible",
+                schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(8)]),
+              }),
+            )
+          }
+
+          try session.note(news.resource)
+          return toAttributes(news.chatConfiguration, news.resource)
+        },
+        delete: effect ({ output }) => {
+          // Observe before delete — disassociating a pair that is already
+          // gone (or whose configuration was deleted) is not an error.
+          const observed = try observeAssociation(
+            output.chatConfigurationArn,
+            output.resourceArn,
+          )
+          if (observed === undefined) return
+          try chatbot
+            .disassociateFromConfiguration({
+              Resource: output.resourceArn,
+              ChatConfiguration: output.chatConfigurationArn,
+            })
+            .pipe(
+              inChatbotRegion,
+              // Idempotent delete — a concurrently removed association or
+              // configuration is not an error. A configuration deleted out
+              // from under the association surfaces the typed
+              // ResourceNotFoundException ("Channel Arn ... does not
+              // exist!", patched in distilled).
+              Effect.catchTag(
+                ["InvalidRequestException", "ResourceNotFoundException"],
+                () => Effect.void,
+              ),
+            )
+        },
+        list: () =>
+          effect {
+            const configurationArns: string[] = []
+            const slack = try chatbot.describeSlackChannelConfigurations
+              .items({})
+              .pipe(Stream.runCollect, inChatbotRegion)
+            for (const config of slack) {
+              configurationArns.push(config.ChatConfigurationArn)
+            }
+            const teams = try chatbot.listMicrosoftTeamsChannelConfigurations
+              .items({})
+              .pipe(Stream.runCollect, inChatbotRegion)
+            for (const config of teams) {
+              configurationArns.push(config.ChatConfigurationArn)
+            }
+            const results: {
+              chatConfigurationArn: string
+              resourceArn: string
+            }[] = []
+            for (const arn of configurationArns) {
+              const associations = try chatbot.listAssociations
+                .items({ ChatConfiguration: arn })
+                .pipe(Stream.runCollect, inChatbotRegion)
+              for (const association of associations) {
+                results.push(toAttributes(arn, association.Resource))
+              }
+            }
+            return results
+          },
+      })
+    },
+  )

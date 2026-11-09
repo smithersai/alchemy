@@ -1,6 +1,6 @@
 export * from "./ApiAssociation.vibe";
 export * from "./ApiKey.vibe";
-export * from "./DataSource.ts";
+export * from "./DataSource.vibe";
 export * from "./DomainName.vibe";
 export * from "./EvaluateCode.vibe";
 export * from "./EvaluateCodeHttp.vibe";

@@ -14,7 +14,7 @@ import {
   makeCommandError,
   type CommandRunProps,
 } from "./Command.ts";
-import { hashDirectory, type MemoOptions } from "./Memo.ts";
+import { hashDirectory, type MemoOptions } from "./Memo.vibe";
 
 export interface BuildProps extends CommandRunProps {
   /**

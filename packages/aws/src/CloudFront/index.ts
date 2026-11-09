@@ -8,7 +8,7 @@ export {
   type DescribeKeyValueStoreRequest,
 } from "./DescribeKeyValueStore.vibe";
 export { DescribeKeyValueStoreHttp } from "./DescribeKeyValueStoreHttp.vibe";
-export { Distribution, DistributionProvider } from "./Distribution.ts";
+export { Distribution, DistributionProvider } from "./Distribution.vibe";
 export { GetInvalidation, type GetInvalidationRequest } from "./GetInvalidation.vibe";
 export { GetInvalidationHttp } from "./GetInvalidationHttp.vibe";
 export { GetKey, type GetKeyRequest } from "./GetKey.vibe";

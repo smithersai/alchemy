@@ -46,7 +46,7 @@ export {
   domainNameArn,
   vpcLinkArn,
   syncTags,
-} from "./common.ts";
+} from "./common.vibe";
 export { VpcLink, VpcLinkProvider, type VpcLinkProps } from "./VpcLink.vibe";
 // Runtime bindings (capabilities). The shared scaffolding in
 // `BindingHttp.ts` is intentionally NOT exported.
