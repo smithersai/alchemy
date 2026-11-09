@@ -1,0 +1,92 @@
+import type { Url } from "@alchemy.run/redis"
+import { UrlMissing as RedisUrlMissing } from "@alchemy.run/redis"
+import * as Binding from "alchemy/Binding"
+import * as Output from "alchemy/Output"
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import * as Redacted from "effect/Redacted"
+import { isRailwayHost } from "./MountVolume.vibe"
+import type { Redis } from "./Redis.vibe"
+
+export const REDIS_URL_ENV = "REDIS_URL"
+
+/**
+ * Shared scaffolding for Railway Redis bindings.
+ *
+ * Each `{Op}Http.ts` is a thin `Layer.effect` over {@link makeRedisBinding}.
+ * Deploy-time writes `REDIS_URL` onto the host Service as a Railway
+ * reference (`${{RedisName.REDIS_URL}}`). Runtime commands use that URL
+ * internally — callers never read `Config.Redacted`.
+ *
+ * The RESP client lives in `@alchemy.run/redis`. This file only wires the
+ * Railway host binding.
+ *
+ * NOT exported from `index.ts`.
+ */
+
+const asPlain = (value: unknown): string | undefined => {
+  if (typeof value === "string" && value.length > 0) return value
+  if (Redacted.isRedacted(value)) return value.pipe(Redacted.value, asPlain)
+  return undefined
+}
+
+const _resolveName = (redis: Redis) =>
+  effect {
+    const value = redis.name as unknown
+    const direct = asPlain(value)
+    if (direct !== undefined) return direct
+    const output = try Effect.orDie(
+      Effect.try({ try: () => (Output.isOutput(value) ? value : undefined), catch: (e) => e }),
+    )
+    if (output !== undefined) {
+      const accessor = try (output as Output.Output<string>).asEffect()
+      return asPlain(try accessor) ?? ""
+    }
+    if (Effect.isEffect(value)) {
+      // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- resource attribute Effects resolve without requirements
+      return asPlain(try (value as Effect.Effect<unknown>)) ?? ""
+    }
+    return redis.LogicalId
+  }
+
+const redisUrlFromEnv = Config.Redacted(REDIS_URL_ENV).pipe(
+  Effect.map((value) => Redacted.value(value)),
+)
+
+export const makeRedisBinding = <Client>(options: { makeClient: (url: Url) => Client }) =>
+  Effect.succeed(
+    effect (redis: Redis) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const host = try Binding.Host
+        if (isRailwayHost(host)) {
+          // Resolve the physical service name at apply, not at Service
+          // init — LogicalId (`Cache`) is not a Railway variable
+          // reference. Same Output-in-env pattern as ConnectPostgres.
+          try host.bind`${redis}`({
+            env: {
+              [REDIS_URL_ENV]: try Effect.orDie(
+                Effect.try({
+                  try: () =>
+                    Output.map(
+                      Output.asOutput(redis.name as Output.Output<string>),
+                      (name) => `\${{${name}.${REDIS_URL_ENV}}}`,
+                    ),
+                  catch: (e) => e,
+                }),
+              ),
+            },
+          })
+        }
+      }
+
+      const url = redisUrlFromEnv.pipe(
+        Effect.mapError(
+          () =>
+            new RedisUrlMissing({
+              resourceName: asPlain(redis.name) ?? redis.LogicalId,
+            }),
+        ),
+      )
+      return try Effect.orDie(Effect.try({ try: () => options.makeClient(url), catch: (e) => e }))
+    },
+  )

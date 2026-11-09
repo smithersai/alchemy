@@ -31,7 +31,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import type * as rolldown from "rolldown";
-import type { MountSpec, ServiceBinding } from "./MountVolume.ts";
+import type { MountSpec, ServiceBinding } from "./MountVolume.vibe";
 
 export type RailwayHostRuntimeContext = HostRuntimeContext;
 
@@ -47,9 +47,11 @@ export const createRailwayHostRuntimeContext = createContainerRuntimeContext;
  * Function runtime: register the fetch handler on `globalThis` instead of
  * booting an HTTP server. The canvas wrapper `Bun.serve`s first so a
  * failed Effect import cannot 502 before the process is bound.
+ * @throws {never}
  */
 export const createRailwayFunctionRuntimeContext =
   (type: string) =>
+  /** @throws {never} */
   (id: string): HostRuntimeContext => {
     const base = createContainerRuntimeContext(type)(id);
     return {
