@@ -238,7 +238,9 @@ const targetOf = effect (props: Pick<TcpProxyProps, "service" | "postgres" | "re
   props.service ?? props.postgres ?? props.redis
 
 const listProxies = effect (environmentId: string, serviceId: string) =>
-  (effect { return ((try readTcpProxies(environmentId, serviceId)).filter((proxy) => !isGone(proxy))) }) catch effect (e) => match (e) {
+  (effect {
+    return ((try readTcpProxies(environmentId, serviceId)).filter((proxy) => !isGone(proxy)))
+  }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: [] as ReadonlyArray<CloudProxy>;
     default: throw e;
   }
@@ -302,13 +304,19 @@ export const TcpProxyProvider = (): infer _ =>
     },
 
     diff: effect ({ news, output }) => {
-      if (news === undefined || !isResolved(news)) return undefined
+      if (news === undefined) return undefined
+      const resolved = try Effect.orDie(Effect.try({
+        try: () => isResolved(news) ? { value: news } : undefined,
+        catch: (cause) => cause,
+      }))
+      if (!resolved) return undefined
+      const resolvedNews = resolved.value
       if (output === undefined) return undefined
-      const serviceId = serviceIdOf(try targetOf(news))
-      const environmentId = environmentIdOf(news.environment)
+      const serviceId = serviceIdOf(try targetOf(resolvedNews))
+      const environmentId = environmentIdOf(resolvedNews.environment)
       const serviceChanged = serviceId !== undefined && serviceId !== output.serviceId
       const environmentChanged = environmentId !== undefined && environmentId !== output.environmentId
-      const portChanged = news.applicationPort !== output.applicationPort
+      const portChanged = resolvedNews.applicationPort !== output.applicationPort
       if (serviceChanged || environmentChanged || portChanged) {
         return { action: "replace" as const }
       }
@@ -363,12 +371,14 @@ export const TcpProxyProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const id = output.id
       if (id.length === 0) return
-      ;(effect { return (try (tcpProxyDelete(id)
-        |> Effect.retry(%, {
-          while: (e) => e._tag === "RailwayOperationInProgress",
-          schedule: Schedule.spaced("3 seconds"),
-          times: 10,
-        }))) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: (undefined as void); default: throw e; }
+      ;(effect {
+        return (try (tcpProxyDelete(id)
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "RailwayOperationInProgress",
+            schedule: Schedule.spaced("3 seconds"),
+            times: 10,
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: (undefined as void); default: throw e; }
       if (output.environmentId.length > 0 && output.serviceId.length > 0) {
         try waitUntilGone(output.environmentId, output.serviceId, id)
       }

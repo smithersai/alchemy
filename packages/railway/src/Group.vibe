@@ -540,26 +540,30 @@ const resolveName = effect (id: string, name: string | undefined, existing?: str
 }
 
 const getProject = effect (projectId: string) =>
-  (effect { return (try effect {
-    const project = try effect {
-      const project = try readProjectDeletedAt(projectId)
-      const services = try fetchProjectServices(projectId, serviceSelection)
-      const buckets = try fetchProjectBuckets(projectId, bucketSelection)
-      const groups = try fetchProjectGroups(projectId, groupSelection)
-      return { deletedAt: project.deletedAt, services, buckets, groups } satisfies ProjectResponse
-    }
-    return (project.deletedAt != null ? undefined : project)
-  }) }) catch effect (e) => match (e) {
+  (effect {
+    return (try effect {
+      const project = try effect {
+        const project = try readProjectDeletedAt(projectId)
+        const services = try fetchProjectServices(projectId, serviceSelection)
+        const buckets = try fetchProjectBuckets(projectId, bucketSelection)
+        const groups = try fetchProjectGroups(projectId, groupSelection)
+        return { deletedAt: project.deletedAt, services, buckets, groups } satisfies ProjectResponse
+      }
+      return (project.deletedAt != null ? undefined : project)
+    })
+  }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: undefined as ProjectResponse | undefined;
     default: throw e;
   }
 
 const getEnvironment = effect (environmentId: string, projectId: string) =>
-  (effect { return (try effect {
-    const environment = try readEnvironment(environmentId, projectId)
-    const volumes = try environmentVolumes(environmentId, projectId, volumeSelection)
-    return { ...environment, volumeInstances: volumes } satisfies EnvironmentResponse
-  }) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const environment = try readEnvironment(environmentId, projectId)
+      const volumes = try environmentVolumes(environmentId, projectId, volumeSelection)
+      return { ...environment, volumeInstances: volumes } satisfies EnvironmentResponse
+    })
+  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const _getEnvironmentConfig = effect (environmentId: string, projectId: string) =>
   try effect {
@@ -568,22 +572,28 @@ const _getEnvironmentConfig = effect (environmentId: string, projectId: string) 
   }
 
 const _listEnvironmentIds = effect (project: { projectId: string; environmentId: string }) =>
-  (effect { return (try effect {
-    const ids = try (Query.items(
-      try Effect.orDie(Effect.try({ try: () => Railway.environments({ projectId: project.projectId, first: 50 }).pipe(
-        Query.map((env) => ({ id: env.id, deletedAt: env.deletedAt })),
-      ), catch: (e) => e })),
-    )
-      |> Stream.filter(%, (env) => env.deletedAt == null)
-      |> Stream.map(%, (env) => env.id)
-      |> Stream.runCollect(%))
+  (effect {
+    return (try effect {
+      const ids = try (Query.items(
+        try Effect.orDie(Effect.try({
+          try: () =>
+            Railway.environments({ projectId: project.projectId, first: 50 }).pipe(
+              Query.map((env) => ({ id: env.id, deletedAt: env.deletedAt })),
+            ),
+          catch: (e) => e,
+        })),
+      )
+        |> Stream.filter(%, (env) => env.deletedAt == null)
+        |> Stream.map(%, (env) => env.id)
+        |> Stream.runCollect(%))
 
-    const set = new Set(Array.from(ids))
-    if (project.environmentId.length > 0) {
-      set.add(project.environmentId)
-    }
-    return Array.from(set)
-  }) }) catch effect (e) => match (e) {
+      const set = new Set(Array.from(ids))
+      if (project.environmentId.length > 0) {
+        set.add(project.environmentId)
+      }
+      return Array.from(set)
+    })
+  }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: project.environmentId.length > 0 ? [project.environmentId] : [];
     default: throw e;
   }
@@ -725,36 +735,38 @@ const waitUntilPresent = effect (input: {
   name: string
   volumeIds?: readonly string[]
 }) =>
-  (effect { return (try (effect {
-    return try effect {
-      const group = try observe({
-        projectId: input.projectId,
-        environmentId: input.environmentId,
-        groupId: input.groupId,
-        name: input.name,
-        volumeIds: input.volumeIds,
-      })
+  (effect {
+    return (try (effect {
+      return try effect {
+        const group = try observe({
+          projectId: input.projectId,
+          environmentId: input.environmentId,
+          groupId: input.groupId,
+          name: input.name,
+          volumeIds: input.volumeIds,
+        })
 
-      if (group === undefined) {
-        throw new GroupPending({ groupId: input.groupId, state: "creating" })
+        if (group === undefined) {
+          throw new GroupPending({ groupId: input.groupId, state: "creating" })
+        }
+        return group
       }
-      return group
     }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "Railway.GroupPending",
+        times: 4,
+        schedule: Schedule.spaced("1 second"),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "Railway.GroupPending" }: try observe({
+      projectId: input.projectId,
+      environmentId: input.environmentId,
+      groupId: input.groupId,
+      name: input.name,
+      volumeIds: input.volumeIds,
+    });
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "Railway.GroupPending",
-      times: 4,
-      schedule: Schedule.spaced("1 second"),
-    }))) }) catch effect (e) => match (e) {
-      when { _tag: "Railway.GroupPending" }: try observe({
-        projectId: input.projectId,
-        environmentId: input.environmentId,
-        groupId: input.groupId,
-        name: input.name,
-        volumeIds: input.volumeIds,
-      });
-      default: throw e;
-    }
 
 const waitUntilGone = effect (input: {
   projectId: string
@@ -863,11 +875,17 @@ export const GroupProvider = (): infer _ =>
     nuke: { dependsOn: ["Railway.Project"] },
 
     diff: effect ({ news, output }) => {
-      if (news === undefined || !isResolved(news)) return undefined
+      if (news === undefined) return undefined
+      const resolved = try Effect.orDie(Effect.try({
+        try: () => isResolved(news) ? { value: news } : undefined,
+        catch: (cause) => cause,
+      }))
+      if (!resolved) return undefined
+      const resolvedNews = resolved.value
       if (output === undefined) return undefined
-      const nextProject = projectIdOf(news.project)
+      const nextProject = projectIdOf(resolvedNews.project)
       const projectChanged = nextProject !== undefined && nextProject !== output.projectId
-      const nextEnv = environmentIdOf(news.environment)
+      const nextEnv = environmentIdOf(resolvedNews.environment)
       const environmentChanged = nextEnv !== undefined && nextEnv !== output.environmentId
       if (projectChanged || environmentChanged) {
         return { action: "replace" as const }
@@ -896,33 +914,37 @@ export const GroupProvider = (): infer _ =>
       if (found === undefined) return undefined
       const attrs = toAttrs(found, { projectId, environmentId })
       if (output !== undefined) return attrs
-      return matchesAlchemyPhysicalName(found.name) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return matchesAlchemyPhysicalName(found.name)
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const projects = try ownedProjects()
       const rows = try Effect.forEach(projects, effect (project) =>
-        (effect { return ((try fetchProjectGroups(project.projectId, groupSelection)).flatMap((group) => {
-          const name = group.name ?? ""
-          if (!matchesAlchemyPhysicalName(name)) {
-            return []
-          }
-          return [
-            toAttrs(
-              {
-                groupId: group.id,
-                name,
-                color: group.color ?? undefined,
-                icon: group.icon ?? undefined,
-                collapsed: group.isCollapsed === true,
-                serviceIds: [] as string[],
-                volumeIds: [] as string[],
-                bucketIds: [] as string[],
-              },
-              { projectId: project.projectId, environmentId: project.environmentId },
-            ),
-          ]
-        })) }) catch effect (e) => match (e) {
+        (effect {
+          return ((try fetchProjectGroups(project.projectId, groupSelection)).flatMap((group) => {
+            const name = group.name ?? ""
+            if (!matchesAlchemyPhysicalName(name)) {
+              return []
+            }
+            return [
+              toAttrs(
+                {
+                  groupId: group.id,
+                  name,
+                  color: group.color ?? undefined,
+                  icon: group.icon ?? undefined,
+                  collapsed: group.isCollapsed === true,
+                  serviceIds: [] as string[],
+                  volumeIds: [] as string[],
+                  bucketIds: [] as string[],
+                },
+                { projectId: project.projectId, environmentId: project.environmentId },
+              ),
+            ]
+          }))
+        }) catch effect (e) => match (e) {
           when { _tag: "RailwayNotFound" }: [] as Group["Attributes"][];
           default: throw e;
         })
@@ -1021,9 +1043,7 @@ export const GroupProvider = (): infer _ =>
         ) {
           const services = [
             ...desired.serviceIds
-              .filter((serviceId) =>
-                !current!.serviceIds.includes(serviceId)
-              )
+              .filter((serviceId) => !current!.serviceIds.includes(serviceId))
               .map((serviceId) => ({ serviceId, groupId: current!.groupId })),
             ...current.serviceIds
               .filter((serviceId) => !desired.serviceIds.includes(serviceId))

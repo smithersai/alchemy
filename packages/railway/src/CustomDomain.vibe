@@ -358,13 +358,17 @@ const toAttrs = (
 }
 
 const getById = effect (customDomainId: string, projectId: string) =>
-  (effect { return (try effect {
-    const domain = try readCustomDomain(customDomainId, projectId)
-    return (isGone(domain) ? undefined : domain)
-  }) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const domain = try readCustomDomain(customDomainId, projectId)
+      return (isGone(domain) ? undefined : domain)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const listServiceDomains = effect (projectId: string, environmentId: string, serviceId: string) =>
-  (effect { return ((try readCustomDomains(projectId, environmentId, serviceId)).filter((domain) => !isGone(domain))) }) catch effect (
+  (effect {
+    return ((try readCustomDomains(projectId, environmentId, serviceId)).filter((domain) => !isGone(domain)))
+  }) catch effect (
     e,
   ) => match (e) { when { _tag: "RailwayNotFound" }: [] as ReadonlyArray<CloudDomain>; default: throw e; }
 
@@ -444,17 +448,25 @@ export const CustomDomainProvider = (): infer _ =>
     },
 
     diff: effect ({ news, output }) => {
-      if (news === undefined || !isResolved(news)) {
+      if (news === undefined) {
         return undefined
       }
+      const resolved = try Effect.orDie(Effect.try({
+        try: () =>
+          isResolved(news) ? { value: news } : undefined,
+        catch: (cause) =>
+          cause,
+      }))
+      if (!resolved) return undefined
+      const resolvedNews = resolved.value
       if (output === undefined) {
         return undefined
       }
-      const serviceId = serviceIdOf(news.service)
+      const serviceId = serviceIdOf(resolvedNews.service)
       const serviceChanged = serviceId !== undefined && serviceId !== output.serviceId
-      const environmentId = environmentIdOf(news.environment)
+      const environmentId = environmentIdOf(resolvedNews.environment)
       const environmentChanged = environmentId !== undefined && environmentId !== output.environmentId
-      const domainChanged = news.domain.toLowerCase() !== output.domain.toLowerCase()
+      const domainChanged = resolvedNews.domain.toLowerCase() !== output.domain.toLowerCase()
       if (serviceChanged || environmentChanged || domainChanged) {
         return { action: "replace" as const, deleteFirst: !domainChanged }
       }
@@ -540,8 +552,7 @@ export const CustomDomainProvider = (): infer _ =>
         }
         current = try (withEnvironmentConfigLock(environmentId, ensureDomain)
           |> Effect.retry(%, {
-            while: (error) =>
-              error._tag === "RailwayCustomDomainCreateFailed",
+            while: (error) => error._tag === "RailwayCustomDomainCreateFailed",
             times: 8,
             schedule: Schedule.spaced("2 seconds"),
           }))

@@ -170,19 +170,25 @@ const readInstance = Query.fn((environmentId: string, serviceId: string) =>
 )
 
 const getById = effect (serviceId: string) =>
-  (effect { return (try effect {
-    const service = try readService(serviceId)
-    return (isGoneService(service) ? undefined : service)
-  }) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const service = try readService(serviceId)
+      return (isGoneService(service) ? undefined : service)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const getInstance = effect (environmentId: string, serviceId: string) =>
-  (effect { return (try effect {
-    const instance = try readInstance(environmentId, serviceId)
-    return (isGoneInstance(instance) ? undefined : instance)
-  }) }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const instance = try readInstance(environmentId, serviceId)
+      return (isGoneInstance(instance) ? undefined : instance)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const listProjectServices = effect (projectId: string) =>
-  (effect { return ((try projectServices(projectId, serviceFields)).filter((node) => !isGoneService(node))) }) catch effect (e) => match (e) {
+  (effect {
+    return ((try projectServices(projectId, serviceFields)).filter((node) => !isGoneService(node)))
+  }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: [] as CloudService[];
     default: throw e;
   }
@@ -366,14 +372,18 @@ const instanceSettingsDelta = (input: {
 const listDeploymentTriggers = effect (projectId: string, environmentId: string, serviceId: string) =>
   Array.from(
     try (Query.items(
-      try Effect.orDie(Effect.try({ try: () => Railway.deploymentTriggers({ projectId, environmentId, serviceId, first: 50 }).pipe(
-        Query.map((trigger) => ({
-          id: trigger.id,
-          branch: trigger.branch,
-          repository: trigger.repository,
-          provider: trigger.provider,
-        })),
-      ), catch: (e) => e })),
+      try Effect.orDie(Effect.try({
+        try: () =>
+          Railway.deploymentTriggers({ projectId, environmentId, serviceId, first: 50 }).pipe(
+            Query.map((trigger) => ({
+              id: trigger.id,
+              branch: trigger.branch,
+              repository: trigger.repository,
+              provider: trigger.provider,
+            })),
+          ),
+        catch: (e) => e,
+      })),
     )
       |> Stream.runCollect(%)),
   )
@@ -475,26 +485,28 @@ const syncAutoUpdates = effect (input: {
 }
 
 const waitForInstance = effect (environmentId: string, serviceId: string) =>
-  (effect { return (try (effect {
-    return try effect {
-      const instance = try getInstance(environmentId, serviceId)
+  (effect {
+    return (try (effect {
+      return try effect {
+        const instance = try getInstance(environmentId, serviceId)
 
-      if (instance === undefined) {
-        throw new ServicePending({ serviceId, status: "creating" })
+        if (instance === undefined) {
+          throw new ServicePending({ serviceId, status: "creating" })
+        }
+        return instance
       }
-      return instance
     }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "Railway.ServicePending",
+        // serviceCreate fans the instance out to each environment
+        // asynchronously; wait a bounded interval for it to appear.
+        times: 10,
+        schedule: Schedule.spaced("2 seconds"),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "Railway.ServicePending" }: try getInstance(environmentId, serviceId);
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "Railway.ServicePending",
-      // serviceCreate fans the instance out to each environment
-      // asynchronously; wait a bounded interval for it to appear.
-      times: 10,
-      schedule: Schedule.spaced("2 seconds"),
-    }))) }) catch effect (e) => match (e) {
-      when { _tag: "Railway.ServicePending" }: try getInstance(environmentId, serviceId);
-      default: throw e;
-    }
 
 const deploymentLogs = Query.fn((deploymentId: string) =>
   Railway.deploymentLogs({ deploymentId, limit: 80 }).pipe(
@@ -504,9 +516,11 @@ const deploymentLogs = Query.fn((deploymentId: string) =>
 
 const fetchDeployLogs = effect (
   deploymentId: string | undefined,
-) => (deploymentId === undefined || deploymentId.length === 0 ? "" : (effect { return ((try deploymentLogs(deploymentId))
-  .map((row) => (row.severity != null ? `[${row.severity}] ${row.message}` : row.message))
-  .join("\n")) }) catch () => "")
+) => (deploymentId === undefined || deploymentId.length === 0 ? "" : (effect {
+  return ((try deploymentLogs(deploymentId))
+    .map((row) => (row.severity != null ? `[${row.severity}] ${row.message}` : row.message))
+    .join("\n"))
+}) catch () => "")
 
 // Railway builds routinely take 60–90s and exceed 90s when its build queue is
 // busy (observed 2026-10: a small bundled service stuck BUILDING past 90s), so
@@ -560,100 +574,108 @@ const listUploadedDeployment = effect (input: {
   serviceId: string
   environmentId: string
 }) =>
-  (effect { return (try (effect {
-    return Array.from(
-      try (Query.items(
-        try Effect.orDie(Effect.try({ try: () => Railway.deployments({
-          first: 10,
-          input: { serviceId: input.serviceId, environmentId: input.environmentId },
-        }).pipe(Query.map((deployment) => ({ id: deployment.id, status: deployment.status }))), catch: (e) => e })),
-      )
-        |> Stream.filter(%, (row) => row.id === input.deploymentId)
-        |> Stream.take(%, 1)
-        |> Stream.runCollect(%)),
-    )[0]
-  }
-    |> Effect.timeoutOrElse(%, { duration: "8 seconds", orElse: effect () => undefined }))) }) catch effect (
-      e,
-    ) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
+  (effect {
+    return (try (effect {
+      return Array.from(
+        try (Query.items(
+          try Effect.orDie(Effect.try({
+            try: () =>
+              Railway.deployments({
+                first: 10,
+                input: { serviceId: input.serviceId, environmentId: input.environmentId },
+              }).pipe(Query.map((deployment) => ({ id: deployment.id, status: deployment.status }))),
+            catch: (e) => e,
+          })),
+        )
+          |> Stream.filter(%, (row) => row.id === input.deploymentId)
+          |> Stream.take(%, 1)
+          |> Stream.runCollect(%)),
+      )[0]
+    }
+      |> Effect.timeoutOrElse(%, { duration: "8 seconds", orElse: effect () => undefined })))
+  }) catch effect (
+    e,
+  ) => match (e) { when { _tag: "RailwayNotFound" }: undefined; default: throw e; }
 
 const waitForDeploymentById = effect (input: {
   deploymentId: string
   serviceId: string
   environmentId: string
 }) =>
-  (effect { return (try (effect {
-    // Poll the instance, not `deployment(id)`. Distilled's deployment
-    // query is a huge nested selection that 404s/times out for /up ids;
-    // `serviceInstance.latestDeployment` is the same record the rest of
-    // reconcile already uses. The placeholder `hashicorp/http-echo`
-    // deploy often FAILED (wrong port / no `/health`) before `railway up`
-    // replaces it — do not inherit that FAILED onto this wait.
-    const instance = try getInstance(input.environmentId, input.serviceId)
-    const match = matchUploadedDeployment(instance, input.deploymentId)
-      ?? asDeployRef(try listUploadedDeployment(input))
-    if (match === undefined) {
-      throw new ServiceDeployPending({ serviceId: input.serviceId, status: "pending" })
-    }
-    const status = match.status
-    if (status !== undefined && deployFailed(status)) {
-      const logs = try fetchDeployLogs(match.id)
-      throw new ServiceDeployFailed({
-        serviceId: input.serviceId,
-        status,
-        deploymentId: match.id,
-        logs,
-      })
-    }
-    if (instance !== undefined && deployReady(status)) {
-      return instance
-    }
-    throw new ServiceDeployPending({
-      serviceId: input.serviceId,
-      status: status ?? "pending",
-    })
-  }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "Railway.ServiceDeployPending",
-      times: 15,
-      schedule: Schedule.spaced("10 seconds"),
-    })
-    |> Effect.timeoutOrElse(%, {
-      duration: "150 seconds",
-      orElse: effect () => {
+  (effect {
+    return (try (effect {
+      // Poll the instance, not `deployment(id)`. Distilled's deployment
+      // query is a huge nested selection that 404s/times out for /up ids;
+      // `serviceInstance.latestDeployment` is the same record the rest of
+      // reconcile already uses. The placeholder `hashicorp/http-echo`
+      // deploy often FAILED (wrong port / no `/health`) before `railway up`
+      // replaces it — do not inherit that FAILED onto this wait.
+      const instance = try getInstance(input.environmentId, input.serviceId)
+      const match = matchUploadedDeployment(instance, input.deploymentId)
+        ?? asDeployRef(try listUploadedDeployment(input))
+      if (match === undefined) {
         throw new ServiceDeployPending({ serviceId: input.serviceId, status: "pending" })
-      },
-    }))) }) catch effect (pending) => match (pending) {
-      when { _tag: "Railway.ServiceDeployPending" }: try (effect {
-        const instance = try getInstance(input.environmentId, input.serviceId)
-        const match = matchUploadedDeployment(instance, input.deploymentId)
-          ?? asDeployRef(try listUploadedDeployment(input))
-        const status = match?.status
-        if (match !== undefined && status !== undefined && deployFailed(status)) {
-          const logs = try fetchDeployLogs(match.id)
-          throw new ServiceDeployFailed({
-            serviceId: input.serviceId,
-            status,
-            deploymentId: match.id,
-            logs,
-          })
-        }
-        if (instance !== undefined && deployReady(status)) {
-          return instance
-        }
-        throw new ServiceDeployPending({
+      }
+      const status = match.status
+      if (status !== undefined && deployFailed(status)) {
+        const logs = try fetchDeployLogs(match.id)
+        throw new ServiceDeployFailed({
           serviceId: input.serviceId,
-          status: status ?? pending.status,
+          status,
+          deploymentId: match.id,
+          logs,
         })
       }
-        |> Effect.timeoutOrElse(%, {
-          duration: "10 seconds",
-          orElse: effect () => {
-            throw pending
-          },
-        }));
-      default: throw pending;
+      if (instance !== undefined && deployReady(status)) {
+        return instance
+      }
+      throw new ServiceDeployPending({
+        serviceId: input.serviceId,
+        status: status ?? "pending",
+      })
     }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "Railway.ServiceDeployPending",
+        times: 15,
+        schedule: Schedule.spaced("10 seconds"),
+      })
+      |> Effect.timeoutOrElse(%, {
+        duration: "150 seconds",
+        orElse: effect () => {
+          throw new ServiceDeployPending({ serviceId: input.serviceId, status: "pending" })
+        },
+      })))
+  }) catch effect (pending) => match (pending) {
+    when { _tag: "Railway.ServiceDeployPending" }: try (effect {
+      const instance = try getInstance(input.environmentId, input.serviceId)
+      const match = matchUploadedDeployment(instance, input.deploymentId)
+        ?? asDeployRef(try listUploadedDeployment(input))
+      const status = match?.status
+      if (match !== undefined && status !== undefined && deployFailed(status)) {
+        const logs = try fetchDeployLogs(match.id)
+        throw new ServiceDeployFailed({
+          serviceId: input.serviceId,
+          status,
+          deploymentId: match.id,
+          logs,
+        })
+      }
+      if (instance !== undefined && deployReady(status)) {
+        return instance
+      }
+      throw new ServiceDeployPending({
+        serviceId: input.serviceId,
+        status: status ?? pending.status,
+      })
+    }
+      |> Effect.timeoutOrElse(%, {
+        duration: "10 seconds",
+        orElse: effect () => {
+          throw pending
+        },
+      }));
+    default: throw pending;
+  }
 
 const variableUpsert = Query.fn((input: VariableUpsertInput) => Railway.variableUpsert({ input }))
 
@@ -698,7 +720,9 @@ const asVariableMap = (value: unknown): Record<string, string> => {
 }
 
 const listVariableMap = effect (projectId: string, environmentId: string, serviceId: string) =>
-  (effect { return (asVariableMap(try readVariables({ projectId, environmentId, serviceId, unrendered: true }))) }) catch effect (e) => match (e) {
+  (effect {
+    return (asVariableMap(try readVariables({ projectId, environmentId, serviceId, unrendered: true })))
+  }) catch effect (e) => match (e) {
     when { _tag: "RailwayNotFound" }: {} as Record<string, string>;
     default: throw e;
   }
@@ -836,12 +860,16 @@ export const ServiceProvider = (): infer _ =>
       const stack = try Effect.service(Stack)
       const { dotAlchemy } = try Effect.service(AlchemyContext)
       const virtualEntryPlugin = try Bundle.virtualEntryPlugin
-      const hosted = try Effect.orDie(Effect.try({ try: () => createRailwayHostedSupport({
-        stackName: stack.name,
-        stage: stack.stage,
-        virtualEntryPlugin,
-        dotAlchemy,
-      }), catch: (e) => e }))
+      const hosted = try Effect.orDie(Effect.try({
+        try: () =>
+          createRailwayHostedSupport({
+            stackName: stack.name,
+            stage: stack.stage,
+            virtualEntryPlugin,
+            dotAlchemy,
+          }),
+        catch: (e) => e,
+      }))
 
       return Service.Provider.of({
         stables: ["serviceId", "projectId", "environmentId"],
@@ -852,29 +880,35 @@ export const ServiceProvider = (): infer _ =>
           // planning. The bundle hash covers their code; they must not prevent
           // code-only changes from reaching the hash comparison below.
           const news = try Effect.orDie(Effect.try({ try: () => stripEffects(desired), catch: (e) => e }))
-          if (news === undefined || !isResolved(news)) return undefined
+          if (news === undefined) return undefined
+          const resolved = try Effect.orDie(Effect.try({
+            try: () => isResolved(news) ? { value: news } : undefined,
+            catch: (cause) => cause,
+          }))
+          if (!resolved) return undefined
+          const resolvedNews = resolved.value
           if (output === undefined) return undefined
-          const nextProject = projectIdOf(news.project)
+          const nextProject = projectIdOf(resolvedNews.project)
           const projectChanged = nextProject !== undefined && nextProject !== output.projectId
-          const nextEnv = environmentIdOf(news.environment)
+          const nextEnv = environmentIdOf(resolvedNews.environment)
           const environmentChanged = nextEnv !== undefined && nextEnv !== output.environmentId
           if (projectChanged || environmentChanged) {
             return { action: "replace" as const }
           }
-          const source = try resolveRailwayServiceSource(news)
+          const source = try resolveRailwayServiceSource(resolvedNews)
           if (source.mode === "main") {
             const hash = try hosted.hash({
               main: source.main,
-              handler: news.handler,
-              port: news.port,
-              image: news.image,
-              env: news.env,
-              isExternal: news.isExternal,
+              handler: resolvedNews.handler,
+              port: resolvedNews.port,
+              image: resolvedNews.image,
+              env: resolvedNews.env,
+              isExternal: resolvedNews.isExternal,
               // As written: `stripEffects` also drops the functions and class
               // instances build plugins are made of. `desired` is resolved
-              // apart from its Effects, as `news` is.
+              // apart from its Effects, as `resolvedNews` is.
               build: (desired as Service["Props"]).build,
-              extraFiles: news.extraFiles,
+              extraFiles: resolvedNews.extraFiles,
             })
             if (hash !== output.code.hash) {
               return { action: "update" as const }
@@ -947,7 +981,9 @@ export const ServiceProvider = (): infer _ =>
             }
             return attrs
           }
-          return matchesAlchemyPhysicalName(found.name) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return matchesAlchemyPhysicalName(found.name)
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         list: effect () => {
@@ -999,7 +1035,8 @@ export const ServiceProvider = (): infer _ =>
             url: undefined,
             domain: undefined,
             dnsName: `${name}.railway.internal`,
-            rpcToken: (try Effect.orDie(Effect.try({ try: () => plainEnvValue(news.rpcToken), catch: (e) => e }))) ?? "",
+            rpcToken: (try Effect.orDie(Effect.try({ try: () => plainEnvValue(news.rpcToken), catch: (e) => e })))
+              ?? "",
             domainId: undefined,
             deploymentId: undefined,
             deploymentStatus: undefined,
@@ -1027,10 +1064,15 @@ export const ServiceProvider = (): infer _ =>
           const source = try resolveRailwayServiceSource(props)
           const hostedMain = source.mode === "main" ? source.main : undefined
           const localContext: RailwayLocalContextSource | undefined = source.mode === "context" ? source : undefined
-          const bound = try Effect.orDie(Effect.try({ try: () => collectBindingState(bindings ?? []), catch: (e) => e }))
+          const bound = try Effect.orDie(
+            Effect.try({ try: () => collectBindingState(bindings ?? []), catch: (e) => e }),
+          )
           try assertHostDisk({ name, mounts: bound.mounts })
           const port = hostedMain !== undefined ? (props.port ?? DEFAULT_PORT) : props.port
-          const rpcToken = (try Effect.orDie(Effect.try({ try: () => plainEnvValue(props.rpcToken), catch: (e) => e }))) ?? output?.rpcToken ?? ""
+          const rpcToken = (try Effect.orDie(Effect.try({
+            try: () => plainEnvValue(props.rpcToken),
+            catch: (e) => e,
+          }))) ?? output?.rpcToken ?? ""
           const env = {
             ...bound.env,
             ...(hostedMain !== undefined ? hosted.alchemyEnv : {}),
