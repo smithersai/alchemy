@@ -1,4 +1,4 @@
-export * from "./Application.ts";
+export * from "./Application.vibe";
 export * from "./CancelJobRun.vibe";
 export * from "./CancelJobRunHttp.vibe";
 export * from "./GetDashboardForJobRun.vibe";

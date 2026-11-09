@@ -1,6 +1,6 @@
 import * as microvms from "@distilled.cloud/aws/lambda-microvms";
 import { CreateShellAuthToken } from "./CreateShellAuthToken.vibe";
-import { makeImageBinding } from "./MicrovmBinding.ts";
+import { makeImageBinding } from "./MicrovmBinding.vibe";
 
 export const CreateShellAuthTokenHttp = makeImageBinding({
   binding: CreateShellAuthToken,

@@ -22,7 +22,7 @@ import { Credentials, makeAssumeRoleResolver } from "./Credentials.vibe";
 import { AWSEnvironment } from "./Environment.ts";
 import { AccessKey } from "./IAM/AccessKey.vibe";
 import type { PolicyStatement } from "./IAM/Policy.vibe";
-import { Role } from "./IAM/Role.ts";
+import { Role } from "./IAM/Role.vibe";
 import { User } from "./IAM/User.vibe";
 import { CurrentRegion } from "./Region.vibe";
 

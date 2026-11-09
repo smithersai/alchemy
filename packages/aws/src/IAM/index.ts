@@ -45,14 +45,14 @@ export {
   type ServiceControlPolicyDocument,
   type ServiceControlPolicyStatement,
 } from "./Policy.vibe";
-export { Role, RoleProvider } from "./Role.ts";
+export { Role, RoleProvider } from "./Role.vibe";
 export { SAMLProvider, SAMLProviderProvider } from "./SAMLProvider.vibe";
 export { ServerCertificate, ServerCertificateProvider } from "./ServerCertificate.vibe";
 export {
   ServiceLinkedRole,
   ServiceLinkedRoleDeletionFailed,
   ServiceLinkedRoleProvider,
-} from "./ServiceLinkedRole.ts";
+} from "./ServiceLinkedRole.vibe";
 export {
   ServiceSpecificCredential,
   ServiceSpecificCredentialProvider,

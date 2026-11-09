@@ -58,7 +58,7 @@ import {
   serviceImageInput,
   UnsupportedListenerProtocol,
   type ServiceProps,
-} from "./Service.ts";
+} from "./Service.vibe";
 
 // This provider runs in the RPC sidecar; register its typed failures so
 // callers receive instances of the real classes.

@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
-import { buildAndPushEcrImage } from "../ECR/Image.ts";
+import { buildAndPushEcrImage } from "../ECR/Image.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import { normalizePolicyDocument } from "../IAM/Policy.vibe";
 import type { FunctionImageConfig } from "./Function.ts";

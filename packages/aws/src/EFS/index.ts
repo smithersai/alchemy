@@ -16,7 +16,7 @@ export * from "./DescribeMountTargetsHttp.vibe";
 export * from "./DescribeReplicationConfigurations.vibe";
 export * from "./DescribeReplicationConfigurationsHttp.vibe";
 export * from "./FileSystem.vibe";
-export * from "./Mount.ts";
+export * from "./Mount.vibe";
 export * from "./MountTarget.vibe";
 export * from "./PutBackupPolicy.vibe";
 export * from "./PutBackupPolicyHttp.vibe";

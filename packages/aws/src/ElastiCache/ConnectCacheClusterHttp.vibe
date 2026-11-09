@@ -1,0 +1,74 @@
+import * as Output from "alchemy/Output"
+import { unpackEnvValue } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { CacheCluster } from "./CacheCluster.vibe"
+import {
+  ConnectCacheCluster,
+  cacheClusterConnectEnvPrefix,
+  type ConnectCacheClusterOptions,
+} from "./ConnectCacheCluster.vibe"
+import { readEnv } from "./ConnectCacheClusterHttp.platform.ts"
+
+export const ConnectCacheClusterHttp = Layer.effect(
+  ConnectCacheCluster,
+  effect {
+    const bind = try AWSBindings.Bind
+    return effect (cluster: CacheCluster, options?: ConnectCacheClusterOptions) => {
+      const prefix = cacheClusterConnectEnvPrefix(cluster.LogicalId)
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.ElastiCache.ConnectCacheCluster(${cluster})`({
+          env: {
+            [`${prefix}_ENDPOINTS`]: (try Effect.orDie(Effect.try({
+              try: () => Output.map(cluster.endpoints, JSON.stringify),
+              catch: (e) => e,
+            }))),
+            [`${prefix}_TLS`]: (try Effect.orDie(Effect.try({
+              try: () => Output.map(cluster.transitEncryptionEnabled, (tls) => String(tls ?? false)),
+              catch: (e) => e,
+            }))),
+          },
+        })
+        if (options?.subnetIds || options?.securityGroupIds) {
+          try AWSBindings.bindVpc`AWS.ElastiCache.ConnectCacheCluster(${cluster})`({
+            subnetIds: options?.subnetIds ?? [],
+            securityGroupIds: options?.securityGroupIds ?? [],
+          })
+        }
+      }
+      return effect {
+        const endpoints = try Effect.orDie(
+          Effect.try({
+            try: () => unpackEnvValue<Array<{ address: string; port: number }>>(readEnv(`${prefix}_ENDPOINTS`)),
+            catch: (e) => e,
+          }),
+        )
+        if (endpoints !== undefined) {
+          if (!endpoints.length) {
+            return try Effect.die(
+              `Memcached endpoints for '${cluster.LogicalId}' are not available`,
+            )
+          }
+          return {
+            endpoints,
+            tls: (try Effect.orDie(Effect.try({
+              try: () => unpackEnvValue<boolean>(readEnv(`${prefix}_TLS`)),
+              catch: (e) => e,
+            }))) ?? false,
+          }
+        }
+        const clusterEndpoints = try try cluster.endpoints.asEffect()
+        if (!clusterEndpoints.length) {
+          return try Effect.die(
+            `Memcached endpoints for '${cluster.LogicalId}' are not available yet`,
+          )
+        }
+        return {
+          endpoints: clusterEndpoints,
+          tls: try try cluster.transitEncryptionEnabled.asEffect(),
+        }
+      }
+    }
+  },
+)

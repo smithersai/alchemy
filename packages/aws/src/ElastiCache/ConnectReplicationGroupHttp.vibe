@@ -1,0 +1,120 @@
+import * as Output from "alchemy/Output"
+import { unpackEnvValue } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import {
+  ConnectReplicationGroup,
+  replicationGroupConnectEnvPrefix,
+  type ConnectReplicationGroupOptions,
+} from "./ConnectReplicationGroup.vibe"
+import type { ReplicationGroup } from "./ReplicationGroup.vibe"
+import { readEnv } from "./ConnectReplicationGroupHttp.platform.ts"
+
+export const ConnectReplicationGroupHttp = Layer.effect(
+  ConnectReplicationGroup,
+  effect {
+    const bind = try AWSBindings.Bind
+    return effect (group: ReplicationGroup, options?: ConnectReplicationGroupOptions) => {
+      const prefix = replicationGroupConnectEnvPrefix(group.LogicalId)
+      // Outputs yield a deferred runtime effect. Keep the Output expressions
+      // for deploy-time bindings, where Apply resolves them before Lambda's
+      // API call, and use the deferred values only in the runtime closure.
+      const configurationHost = group.configurationEndpointAddress
+      const primaryHost = group.primaryEndpointAddress
+      const configurationPort = group.configurationEndpointPort
+      const primaryPort = group.primaryEndpointPort
+      const endpointHost = try Effect.orDie(
+        Effect.try({
+          try: () =>
+            Output.flatMap(configurationHost, (host) => host === undefined ? primaryHost : Output.asOutput(host)),
+          catch: (e) => e,
+        }),
+      )
+      const endpointPort = try Effect.orDie(
+        Effect.try({
+          try: () =>
+            Output.flatMap(configurationPort, (port) => port === undefined ? primaryPort : Output.asOutput(port)),
+          catch: (e) => e,
+        }),
+      )
+      const readerHost = try Effect.orDie(
+        Effect.try({ try: () => Output.map(group.readerEndpointAddress, (host) => host ?? ""), catch: (e) => e }),
+      )
+      const readerPort = try Effect.orDie(
+        Effect.try({
+          try: () => Output.map(group.readerEndpointPort, (port) => port === undefined ? "" : String(port)),
+          catch: (e) => e,
+        }),
+      )
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.ElastiCache.ConnectReplicationGroup(${group})`({
+          env: {
+            [`${prefix}_HOST`]: endpointHost,
+            [`${prefix}_PORT`]: (try Effect.orDie(Effect.try({
+              try: () => Output.interpolate`${endpointPort}`,
+              catch: (e) => e,
+            }))),
+            [`${prefix}_TLS`]: (try Effect.orDie(Effect.try({
+              try: () => Output.map(group.transitEncryptionEnabled, String),
+              catch: (e) => e,
+            }))),
+            [`${prefix}_READER_HOST`]: readerHost,
+            [`${prefix}_READER_PORT`]: readerPort,
+          },
+        })
+        if (options?.subnetIds || options?.securityGroupIds) {
+          try AWSBindings.bindVpc`AWS.ElastiCache.ConnectReplicationGroup(${group})`({
+            subnetIds: options?.subnetIds ?? [],
+            securityGroupIds: options?.securityGroupIds ?? [],
+          })
+        }
+      }
+      return effect {
+        const host = try Effect.orDie(
+          Effect.try({ try: () => unpackEnvValue<string>(readEnv(`${prefix}_HOST`)), catch: (e) => e }),
+        )
+        if (host !== undefined) {
+          const port = try Effect.orDie(
+            Effect.try({ try: () => unpackEnvValue<number>(readEnv(`${prefix}_PORT`)), catch: (e) => e }),
+          )
+          const tls = try Effect.orDie(
+            Effect.try({ try: () => unpackEnvValue<boolean>(readEnv(`${prefix}_TLS`)), catch: (e) => e }),
+          )
+          const readerHost = try Effect.orDie(
+            Effect.try({ try: () => unpackEnvValue<string>(readEnv(`${prefix}_READER_HOST`)), catch: (e) => e }),
+          )
+          const readerPort = try Effect.orDie(
+            Effect.try({ try: () => unpackEnvValue<number>(readEnv(`${prefix}_READER_PORT`)), catch: (e) => e }),
+          )
+          if (!host || port === undefined) {
+            return try Effect.die(
+              `ElastiCache endpoint for '${group.LogicalId}' is not available`,
+            )
+          }
+          return {
+            host,
+            port,
+            readerHost: readerHost || undefined,
+            readerPort: readerHost ? readerPort : undefined,
+            tls: tls ?? true,
+          }
+        }
+        const endpoint = try try endpointHost.asEffect()
+        const port = try try endpointPort.asEffect()
+        if (!endpoint || port === undefined) {
+          return try Effect.die(
+            `ElastiCache endpoint for '${group.LogicalId}' is not available yet`,
+          )
+        }
+        return {
+          host: endpoint,
+          port,
+          readerHost: try try group.readerEndpointAddress.asEffect(),
+          readerPort: try try group.readerEndpointPort.asEffect(),
+          tls: try try group.transitEncryptionEnabled.asEffect(),
+        }
+      }
+    }
+  },
+)

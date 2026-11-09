@@ -6,7 +6,7 @@ import {
 import * as ecr from "@distilled.cloud/aws/ecr";
 import * as Effect from "effect/Effect";
 import { roleHostBundle } from "../AWSBindings.ts";
-import { getEcrRegistryCredentials } from "./Image.ts";
+import { getEcrRegistryCredentials } from "./Image.vibe";
 
 /**
  * INTERNAL — the ECR target for the shared container image-source machinery

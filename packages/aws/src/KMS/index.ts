@@ -35,7 +35,7 @@ export {
   type KeySpec,
   type KeyState,
   type KeyUsageType,
-} from "./Key.ts";
+} from "./Key.vibe";
 export {
   consumeKeyEvents,
   type KeyEvent,

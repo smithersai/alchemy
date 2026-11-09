@@ -10,7 +10,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { Table } from "../DynamoDB/Table.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import { EventSourceMapping } from "../Lambda/EventSourceMapping.ts";
+import { EventSourceMapping } from "../Lambda/EventSourceMapping.vibe";
 import { Function as LambdaFunction } from "../Lambda/Function.ts";
 import { WebFunction } from "../Lambda/WebFunction.vibe";
 import { Bucket } from "../S3/Bucket.vibe";

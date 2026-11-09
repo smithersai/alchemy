@@ -32,7 +32,7 @@ import * as Stream from "effect/Stream";
 import { makeImageSource, type ImageSourceLike } from "../ECR/ImageSource.ts";
 import { flociProvidersUrl, makeDevWatchProvider } from "../Local/DevWatchProvider.ts";
 import { imageSourceTrigger, restartFamilyTasks } from "./EcsDevWatch.vibe";
-import { Task, TaskProvider, taskImageInput, type TaskProps } from "./Task.ts";
+import { Task, TaskProvider, taskImageInput, type TaskProps } from "./Task.vibe";
 
 export const FlociTaskProvider = () =>
   makeDevWatchProvider<Task, TaskProps, Task["Attributes"]>(Task, flociProvidersUrl(), {

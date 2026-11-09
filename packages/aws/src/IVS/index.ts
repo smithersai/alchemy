@@ -11,7 +11,7 @@ export * from "./ListStreams.vibe";
 export * from "./ListStreamsHttp.vibe";
 export * from "./ListStreamSessions.vibe";
 export * from "./ListStreamSessionsHttp.vibe";
-export * from "./PlaybackKeyPair.ts";
+export * from "./PlaybackKeyPair.vibe";
 export * from "./PlaybackRestrictionPolicy.vibe";
 export * from "./PutMetadata.vibe";
 export * from "./PutMetadataHttp.vibe";

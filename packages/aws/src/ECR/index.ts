@@ -30,7 +30,7 @@ export {
   ImageProvider,
   type EcrRegistryCredentials,
   type ImageProps,
-} from "./Image.ts";
+} from "./Image.vibe";
 export {
   consumeImageActions,
   consumeImageScans,

@@ -31,7 +31,7 @@ import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
 import { roleHostBundle } from "../AWSBindings.ts";
 import type { Credentials } from "../Credentials.vibe";
-import { buildAndPushEcrImage } from "../ECR/Image.ts";
+import { buildAndPushEcrImage } from "../ECR/Image.vibe";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Providers } from "../Providers.vibe";

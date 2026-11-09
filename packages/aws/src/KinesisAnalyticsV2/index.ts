@@ -1,6 +1,6 @@
-export * from "./Application.ts";
+export * from "./Application.vibe";
 export * from "./ApplicationCloudWatchLoggingOption.vibe";
-export * from "./ApplicationSnapshot.ts";
+export * from "./ApplicationSnapshot.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.
 export * from "./CreateApplicationPresignedUrl.vibe";
 export * from "./CreateApplicationPresignedUrlHttp.vibe";

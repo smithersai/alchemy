@@ -51,7 +51,7 @@ import {
   syncEventInvokeConfig,
   type EventInvokeConfig,
   type ObservedEventInvokeConfig,
-} from "./EventInvokeConfig.ts";
+} from "./EventInvokeConfig.vibe";
 import { makeFunctionBundler } from "./FunctionBundle.vibe";
 import {
   composeFunctionDomain,

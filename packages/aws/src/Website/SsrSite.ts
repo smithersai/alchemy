@@ -13,7 +13,7 @@ import {
 } from "../CloudFront/ManagedPolicies.ts";
 import { OriginAccessControl } from "../CloudFront/OriginAccessControl.vibe";
 import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
-import type { Service } from "../ECS/Service.ts";
+import type { Service } from "../ECS/Service.vibe";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { Function } from "../Lambda/Function.ts";
 import { Bucket } from "../S3/Bucket.vibe";

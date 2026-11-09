@@ -3,7 +3,7 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { regionFromArn } from "../Lambda/BindingHttp.ts";
+import { regionFromArn } from "../Lambda/BindingHttp.vibe";
 import type { Bucket } from "../S3/Bucket.vibe";
 import { GrantTables } from "./BindingHttp.ts";
 import {

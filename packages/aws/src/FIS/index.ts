@@ -1,5 +1,5 @@
 export * from "./ExperimentEventSource.vibe";
-export * from "./ExperimentTemplate.ts";
+export * from "./ExperimentTemplate.vibe";
 export * from "./GetAction.vibe";
 export * from "./GetActionHttp.vibe";
 export * from "./GetExperiment.vibe";

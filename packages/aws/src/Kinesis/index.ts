@@ -21,7 +21,7 @@ export * from "./ListStreamConsumersHttp.vibe";
 export * from "./ListStreams.vibe";
 export * from "./ListStreamsHttp.vibe";
 export * from "./ListTagsForResource.vibe";
-export * from "./ListTagsForResourceHttp.ts";
+export * from "./ListTagsForResourceHttp.vibe";
 export * from "./MergeShards.vibe";
 export * from "./MergeShardsHttp.vibe";
 export * from "./PutRecord.vibe";

@@ -55,7 +55,7 @@ import {
   DEFAULT_MICROVM_PORT,
   MICROVM_BASE_DOCKER_IMAGE,
 } from "./MicrovmBundle.ts";
-import { MicrovmImage, type MicrovmImageProps } from "./MicrovmImage.ts";
+import { MicrovmImage, type MicrovmImageProps } from "./MicrovmImage.vibe";
 import { MicrovmImageProvider } from "./MicrovmProvider.vibe";
 
 /**
