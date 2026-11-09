@@ -17,4 +17,4 @@ export type {
   FrameworkSiteOptions,
   WebsiteDomain,
   WebsiteFunctionOptions,
-} from "./FrameworkSite.ts";
+} from "./FrameworkSite.vibe";

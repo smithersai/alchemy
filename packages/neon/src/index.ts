@@ -24,7 +24,7 @@ export * from "./ReadBucket.vibe";
 export * from "./WriteBucket.vibe";
 export * from "./ReadWriteBucket.vibe";
 export * from "./ReadBucketHttp.ts";
-export * from "./WriteBucketHttp.ts";
+export * from "./WriteBucketHttp.vibe";
 export * from "./ReadWriteBucketHttp.vibe";
 export * from "./ReadObject.vibe";
 export * from "./WriteObject.vibe";
