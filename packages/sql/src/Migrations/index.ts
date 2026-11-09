@@ -5,7 +5,7 @@ export {
   type ConvertedRow,
   type ForeignHistory,
 } from "./Convert.ts";
-export { detectLayout, type MigrationLayout } from "./Detect.ts";
+export { detectLayout, type MigrationLayout } from "./Detect.vibe";
 export {
   makeStatementExecutor,
   migrationError,
@@ -40,7 +40,7 @@ export {
   readFlatRecords,
   readMigrationRecords,
   timestampPrefixMillis,
-} from "./Records.ts";
+} from "./Records.vibe";
 export {
   applyMigrations,
   migrationAttributesOf,

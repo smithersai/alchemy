@@ -1,4 +1,4 @@
-export * from "./AssetDeployment.ts";
+export * from "./AssetDeployment.vibe";
 export * from "./Astro.vibe";
 export * from "./Foldkit.ts";
 export * from "./FrameworkSite.ts";
@@ -7,7 +7,7 @@ export * from "./Nuxt.ts";
 export * from "./Octane.ts";
 export * from "./ReactRouter.ts";
 export * from "./SolidStart.ts";
-export * from "./StaticSite.ts";
+export * from "./StaticSite.vibe";
 export * from "./SvelteKit.ts";
 export * from "./TanStackStart.ts";
 export * from "./Vinext.vibe";

@@ -30,7 +30,7 @@ import {
 } from "./GraphQL.vibe";
 import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects, type Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const serviceFields = <E>(service: Query<Service, E>) => ({
   id: service.id,

@@ -11,7 +11,7 @@ export * from "./DataApi.vibe";
 export * from "./AIGateway.ts";
 export * from "./ConnectAuth.vibe";
 export * from "./QueryDataApi.vibe";
-export * from "./QueryAIGateway.ts";
+export * from "./QueryAIGateway.vibe";
 export * from "./LanguageModel.vibe";
 export * from "./Branch.ts";
 export * from "./Connect.vibe";
@@ -25,7 +25,7 @@ export * from "./WriteBucket.vibe";
 export * from "./ReadWriteBucket.vibe";
 export * from "./ReadBucketHttp.ts";
 export * from "./WriteBucketHttp.ts";
-export * from "./ReadWriteBucketHttp.ts";
+export * from "./ReadWriteBucketHttp.vibe";
 export * from "./ReadObject.vibe";
 export * from "./WriteObject.vibe";
 export * from "./ReadObjectHttp.vibe";
@@ -55,7 +55,7 @@ export {
   type ProjectMemberRoleProps,
   type ProjectMemberRoleAttributes,
   type ProjectGovernanceRole,
-} from "./ProjectMemberRole.ts";
+} from "./ProjectMemberRole.vibe";
 export {
   OrganizationSpendingLimit,
   OrganizationSpendingLimitProvider,

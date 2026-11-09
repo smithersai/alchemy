@@ -18,7 +18,7 @@ import * as Stream from "effect/Stream";
 import { waitUntilDeleted, environmentVolumes } from "./GraphQL.vibe";
 import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const backupFields = <E>(backup: Query<VolumeInstanceBackup, E>) => ({
   id: backup.id,

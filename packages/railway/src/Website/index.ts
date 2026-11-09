@@ -7,7 +7,7 @@ export * from "./Nuxt.ts";
 export * from "./Octane.ts";
 export * from "./ReactRouter.ts";
 export * from "./SolidStart.ts";
-export * from "./StaticSite.ts";
+export * from "./StaticSite.vibe";
 export * from "./SvelteKit.ts";
 export * from "./TanStackStart.ts";
 export * from "./Vinext.vibe";

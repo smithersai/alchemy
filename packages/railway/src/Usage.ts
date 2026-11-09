@@ -15,7 +15,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { RailwayEnvironment, resolveWorkspace } from "./Environment.ts";
 import { waitUntilDeleted } from "./GraphQL.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const usageFields = <E>(row: Query<AggregatedUsage, E>) => ({
   measurement: row.measurement,

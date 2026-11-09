@@ -1,4 +1,4 @@
-export * from "./AuthProvider.ts";
+export * from "./AuthProvider.vibe";
 export * from "./Bind.ts";
 export { enableRailwayRpc, serveRailwayRpc } from "./rpc-server.ts";
 export * from "./LoginSession.ts";
@@ -24,23 +24,23 @@ export * from "./Group.vibe";
 export * from "./Metadata.vibe";
 export * from "./MountVolume.ts";
 export * from "./Postgres.ts";
-export * from "./PrivateNetwork.ts";
+export * from "./PrivateNetwork.vibe";
 export {
   ConnectPostgres,
   PostgresUrlMissing,
   type ConnectPostgresClient,
 } from "./ConnectPostgres.vibe";
-export * from "./ConnectPostgresHttp.ts";
+export * from "./ConnectPostgresHttp.vibe";
 export * from "./MySQL.ts";
 export { ConnectMySQL, MySQLUrlMissing, type ConnectMySQLClient } from "./ConnectMySQL.vibe";
-export * from "./ConnectMySQLHttp.ts";
+export * from "./ConnectMySQLHttp.vibe";
 export * from "./Mongo.ts";
 export { ConnectMongo, MongoUrlMissing, type ConnectMongoClient } from "./ConnectMongo.vibe";
-export * from "./ConnectMongoHttp.ts";
+export * from "./ConnectMongoHttp.vibe";
 export * from "./ref.ts";
 export * from "./Project.ts";
 export * from "./ProjectEnvironment.vibe";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * from "./ReadRedis.vibe";
 export * from "./ReadRedisHttp.vibe";
 export * from "./ReadWriteRedis.vibe";

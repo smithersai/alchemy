@@ -1,4 +1,4 @@
-import { LocalFunctionProvider } from "./LocalFunctionProvider.ts";
+import { LocalFunctionProvider } from "./LocalFunctionProvider.vibe";
 
 /** RPC sidecar entry for the local Neon Function provider. */
 export default LocalFunctionProvider();

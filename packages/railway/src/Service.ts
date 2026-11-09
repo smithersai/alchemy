@@ -13,7 +13,7 @@ import {
 } from "./hosted.ts";
 import type { ServiceBinding } from "./MountVolume.ts";
 import type { Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 import { serveRailwayRpc } from "./rpc-server.ts";
 import { mintRpcToken } from "./rpc-token.ts";
 

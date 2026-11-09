@@ -1,0 +1,286 @@
+import { createHash } from "./AssetDeployment.platform.js";
+import { Credentials, fromCredentials } from "@distilled.cloud/aws/Credentials";
+import * as AwsEndpoint from "@distilled.cloud/aws/Endpoint";
+import type { RegionName } from "@distilled.cloud/aws/Region";
+import * as s3 from "@distilled.cloud/aws/s3";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import { initialCwd } from "alchemy/Util/Node";
+import { cacheControlOf, contentTypeOf } from "alchemy/Website/assets";
+import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
+import type { Bucket } from "../Bucket.vibe";
+import { TigrisCredentialsMissing } from "../Errors.vibe";
+import type { Providers } from "../Providers.vibe";
+
+const s3Concurrency = 16;
+
+/**
+ * Unwrap Tigris {@link Bucket} attrs for the S3 client. Credentials and
+ * the endpoint are `Redacted<string>`; names are plain strings. This is
+ * Fly Bucket plumbing, not website MIME — it stays here because this
+ * resource is the only Website helper that speaks Tigris.
+ */
+const asPlain = (value: unknown): string | undefined => {
+  if (typeof value === "string" && value.length > 0) return value;
+  if (Redacted.isRedacted(value)) {
+    const inner = Redacted.value(value);
+    return typeof inner === "string" && inner.length > 0 ? inner : undefined;
+  }
+  return undefined;
+};
+
+export interface AssetDeploymentProps {
+  /**
+   * Destination Tigris bucket (a {@link Bucket} resource).
+   */
+  bucket: Bucket;
+  /**
+   * Local directory to upload (framework `clientDirectory`).
+   */
+  sourcePath: string;
+  /**
+   * Optional key prefix within the bucket.
+   */
+  prefix?: string;
+  /**
+   * Delete observed keys under the prefix that are not in this deploy.
+   * @default true
+   */
+  purge?: boolean;
+}
+
+export interface AssetDeployment extends Resource<
+  "Fly.Website.AssetDeployment",
+  AssetDeploymentProps,
+  {
+    bucketName: string;
+    prefix: string;
+    version: string;
+    fileCount: number;
+    files: string[];
+  },
+  never,
+  Providers
+> {}
+
+/**
+ * Upload a local directory into a public Tigris bucket for Fly Website
+ * statics. HTML is never cached; everything else is immutable.
+ *
+ * @resource
+ */
+export const AssetDeployment = Resource<AssetDeployment>("Fly.Website.AssetDeployment");
+
+const normalizePrefix = (prefix: string | undefined) =>
+  prefix ? prefix.replace(/^\/+|\/+$/g, "") : "";
+
+const scopeOf = effect (bucket: Bucket) => {
+  const bucketName = asPlain(bucket.bucketName) ?? asPlain(bucket.name);
+  const accessKeyId = asPlain(bucket.accessKeyId);
+  const secretAccessKey = asPlain(bucket.secretAccessKey);
+  const endpoint = asPlain(bucket.endpoint);
+  const region = (asPlain(bucket.region) ?? "auto") as RegionName;
+  if (
+    bucketName === undefined ||
+    accessKeyId === undefined ||
+    secretAccessKey === undefined ||
+    endpoint === undefined
+  ) {
+    throw new TigrisCredentialsMissing({
+      resourceName: bucketName ?? bucket.LogicalId,
+    });
+  }
+  return { bucketName, accessKeyId, secretAccessKey, endpoint, region };
+};
+
+const withTigris = <A, E>(
+  scope: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    endpoint: string;
+    region: RegionName;
+  },
+  operation: A!E!(Credentials | HttpClient.HttpClient),
+) =>
+  operation
+    |> Effect.provide(
+      %, Layer.mergeAll(
+        fromCredentials(
+          {
+            accessKeyId: Redacted.make(scope.accessKeyId),
+            secretAccessKey: Redacted.make(scope.secretAccessKey),
+          },
+          scope.region,
+        ),
+        AwsEndpoint.of(scope.endpoint),
+        FetchHttpClient.layer,
+      ),
+    );
+
+const walkFiles = effect (root: string) => {
+  const fs = try FileSystem.FileSystem;
+  const path = try Path.Path;
+  if (!(try fs.exists(root))) return [] as string[];
+  const names = try fs.readDirectory(root, { recursive: true });
+  const files = try Effect.forEach(
+    names,
+    effect (name) => {
+      const full = path.join(root, name);
+      const stat = try fs.stat(full);
+      return stat.type === "File" ? name.replaceAll("\\", "/") : undefined;
+    },
+    { concurrency: "unbounded" },
+  );
+  return files
+    .filter((name): name is string => name !== undefined)
+    .sort((a, b) => a.localeCompare(b));
+};
+
+const listObserved = (
+  scope: {
+    bucketName: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    endpoint: string;
+    region: RegionName;
+  },
+  prefix: string,
+) =>
+  withTigris(
+    scope,
+    s3.listObjectsV2
+      .pages({
+        Bucket: scope.bucketName,
+        Prefix: prefix.length > 0 ? `${prefix}/` : undefined,
+      })
+      .pipe(
+        Stream.flatMap((page) => Stream.fromIterable(page.Contents ?? [])),
+        Stream.runFold(
+          () => new Map<string, string | undefined>(),
+          (observed, object) => {
+            if (object.Key !== undefined) {
+              observed.set(object.Key, object.ETag);
+            }
+            return observed;
+          },
+        ),
+      ),
+  );
+
+const deleteObject = (
+  scope: {
+    bucketName: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    endpoint: string;
+    region: RegionName;
+  },
+  key: string,
+) =>
+  do { const catchProgram = withTigris(
+    scope,
+    s3.deleteObject({
+      Bucket: scope.bucketName,
+      Key: key,
+    }),
+  ); effect { return catchProgram catch effect (e) => match (e) {
+    when { _tag: "NoSuchKey" }: (undefined as void);
+    default: throw e;
+  } } };
+
+export const AssetDeploymentProvider = () =>
+  Provider.effect(
+    AssetDeployment,
+    Effect.succeed({
+      list: () => Effect.succeed([]),
+      read: effect (args_0: { id: string; fqn: string; instanceId: string; olds: AssetDeploymentProps; output: { bucketName: string; prefix: string; version: string; fileCount: number; files: string[]; } | undefined; previous?: { bucketName: string; prefix: string; version: string; fileCount: number; files: string[]; } | undefined; }) => { let { output } = args_0;
+        return output;
+      },
+      reconcile: Effect.fn(function* ({ news, session }) {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const scope = yield* scopeOf(news.bucket);
+        const prefix = normalizePrefix(news.prefix);
+        const root = path.isAbsolute(news.sourcePath)
+          ? news.sourcePath
+          : path.resolve(initialCwd, news.sourcePath);
+        const files = yield* walkFiles(root);
+        const observed = yield* listObserved(scope, prefix);
+        const prepared = yield* Effect.forEach(
+          files,
+          effect (relative) => {
+            const body = try fs.readFile(path.join(root, relative));
+            const key = prefix.length > 0 ? `${prefix}/${relative}` : relative;
+            const contentType = try Effect.orDie(Effect.try({ try: () => contentTypeOf(relative), catch: (e) => e }));
+            const cacheControl = try Effect.orDie(Effect.try({ try: () => cacheControlOf(relative), catch: (e) => e }));
+            return { relative, key, body, contentType, cacheControl };
+          },
+          { concurrency: "unbounded" },
+        );
+        const version = yield* Effect.sync(() => {
+          const hash = createHash("sha256");
+          for (const file of prepared) {
+            hash.update(file.relative);
+            hash.update(file.body);
+            hash.update(file.contentType);
+            hash.update(file.cacheControl);
+          }
+          return hash.digest("hex");
+        });
+        const desired = new Set(prepared.map((file) => file.key));
+        yield* Effect.all(
+          prepared.flatMap((file) => {
+            const expected = createHash("md5").update(file.body).digest("hex");
+            const etag = observed.get(file.key)?.replace(/^"|"$/g, "");
+            if (etag === expected) return [];
+            return [
+              withTigris(
+                scope,
+                s3.putObject({
+                  Bucket: scope.bucketName,
+                  Key: file.key,
+                  Body: file.body,
+                  ContentType: file.contentType,
+                  CacheControl: file.cacheControl,
+                }),
+              ),
+            ];
+          }),
+          { concurrency: s3Concurrency },
+        );
+
+        if (news.purge ?? true) {
+          yield* Effect.forEach(
+            [...observed.keys()].filter((key) => !desired.has(key)),
+            (key) => deleteObject(scope, key),
+            { concurrency: s3Concurrency },
+          );
+        }
+
+        const output = {
+          bucketName: scope.bucketName,
+          prefix,
+          version,
+          fileCount: files.length,
+          files: prepared.map((file) => file.relative),
+        };
+        yield* session.note(
+          `Uploaded ${output.fileCount} file(s) to tigris://${output.bucketName}/${output.prefix}`,
+        );
+        return output;
+      }),
+      delete: Effect.fn(
+        function* ({ olds, output }) {
+          if (!(olds.purge ?? true)) return;
+          const scope = yield* scopeOf(olds.bucket);
+          const observed = yield* listObserved(scope, output.prefix);
+          yield* Effect.forEach([...observed.keys()], (key) => deleteObject(scope, key), {
+            concurrency: s3Concurrency,
+          });
+        },
+        Effect.catchTag("NoSuchBucket", () => Effect.void),
+      ),
+    }),
+  );

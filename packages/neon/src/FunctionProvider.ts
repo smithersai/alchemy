@@ -14,7 +14,7 @@ import { resolveBranchScope, type ResolvedBranchScope } from "./BranchScope.ts";
 import { branchScopeOf, Function, type FunctionAttributes } from "./Function.vibe";
 import { buildFunctionArtifact } from "./FunctionArtifact.ts";
 import { functionEnvironment, functionSlug } from "./FunctionConfig.vibe";
-import { LocalFunctionProvider } from "./LocalFunctionProvider.ts";
+import { LocalFunctionProvider } from "./LocalFunctionProvider.vibe";
 
 export class FunctionDeploymentFailed extends Data.TaggedError("FunctionDeploymentFailed")<{
   slug: string;

@@ -1,4 +1,4 @@
-export * from "./MySQLClusterSize.ts";
+export * from "./MySQLClusterSize.vibe";
 export * from "./MySQLBranch.ts";
 export * from "./MySQLDatabase.ts";
 export * from "./MySQLOrigin.vibe";

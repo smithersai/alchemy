@@ -23,7 +23,7 @@ import {
   ownedProjects,
   workspaceIdOf as projectWorkspaceId,
 } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const templateFields = <E>(template: Query<RailwayTemplate, E>) => ({
   id: template.id,

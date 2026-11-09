@@ -12,7 +12,7 @@ import * as Stream from "effect/Stream";
 import { waitUntilDeleted } from "./GraphQL.vibe";
 import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

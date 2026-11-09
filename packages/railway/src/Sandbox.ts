@@ -20,7 +20,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { waitUntilDeleted } from "./GraphQL.vibe";
 import { ownedProjects, projectEnvironmentIds } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const sandboxFields = <E>(sandbox: Query<RailwaySandbox, E>) => ({
   id: sandbox.id,

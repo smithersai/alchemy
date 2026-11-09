@@ -1,5 +1,5 @@
-export * as Auth from "./AuthProvider.ts";
-export { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "./Branch.ts";
+export * as Auth from "./AuthProvider.vibe";
+export { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "./Branch.vibe";
 export {
   Credentials,
   CredentialsFromEnv,

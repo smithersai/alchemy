@@ -18,10 +18,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import type { Providers } from "../Providers.vibe";
-import { RecordSet } from "../RecordSet.ts";
+import { RecordSet } from "../RecordSet.vibe";
 import { Server } from "../Server.ts";
 import { Service } from "../Service.vibe";
-import type { Zone } from "../Zone.ts";
+import type { Zone } from "../Zone.vibe";
 
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

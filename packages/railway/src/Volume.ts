@@ -18,7 +18,7 @@ import { environmentVolumes, waitUntilDeleted } from "./GraphQL.vibe";
 import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { MultipleVolumes } from "./MountVolume.ts";
 import { ownedProjects, type Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const volumeFields = <E>(instance: Query<VolumeInstance, E>) => ({
   id: instance.id,

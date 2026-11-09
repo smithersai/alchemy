@@ -19,12 +19,12 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import { App } from "../App.vibe";
-import { Bucket } from "../Bucket.ts";
+import { Bucket } from "../Bucket.vibe";
 import { Certificate, type CertificateDnsRequirements } from "../Certificate.vibe";
 import { IpAssignment } from "../IpAssignment.vibe";
 import type { Providers } from "../Providers.vibe";
 import { Service, type ServiceProps } from "../Service.vibe";
-import { AssetDeployment } from "./AssetDeployment.ts";
+import { AssetDeployment } from "./AssetDeployment.vibe";
 
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

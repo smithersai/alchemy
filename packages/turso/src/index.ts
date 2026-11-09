@@ -1,6 +1,6 @@
 export * from "./ApiToken.vibe";
 export * from "./AuthProvider.vibe";
-export * from "./Connect.ts";
+export * from "./Connect.vibe";
 export {
   Credentials,
   CredentialsFromEnv,

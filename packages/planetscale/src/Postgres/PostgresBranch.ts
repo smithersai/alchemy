@@ -1,5 +1,5 @@
 import { Resource } from "alchemy/Resource";
-import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "../Branch.ts";
+import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "../Branch.vibe";
 import type { Providers } from "../Providers.vibe";
 import type { PostgresClusterSize } from "./PostgresClusterSize.ts";
 import type { PostgresDatabase } from "./PostgresDatabase.ts";

@@ -27,7 +27,7 @@ import {
   ensureMySQLProductionBranchClusterSize,
   observeDefaultKeyspaceReplicas,
   type MySQLClusterSize,
-} from "./MySQLClusterSize.ts";
+} from "./MySQLClusterSize.vibe";
 import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.vibe";
 
 /**

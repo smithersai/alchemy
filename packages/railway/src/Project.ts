@@ -14,7 +14,7 @@ import {
   matchesAlchemyPhysicalName,
   sanitizeRailwayName,
 } from "./Metadata.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 import { waitOutCreateRateLimit } from "./transient.vibe";
 
 const projectFields = <E>(project: Query<RailwayProject, E>) => ({

@@ -42,7 +42,7 @@ import {
 import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { assertHostDisk, type MountSpec, type ServiceBinding } from "./MountVolume.ts";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 import { mintRpcToken, RPC_TOKEN_ENV } from "./rpc-token.ts";
 import { ensureServiceDomain, type ServiceDomainRecord } from "./ServiceDomain.ts";
 import { readServiceRegion, syncServiceRegion } from "./ServiceRegion.vibe";

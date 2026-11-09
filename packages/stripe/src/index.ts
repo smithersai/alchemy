@@ -148,4 +148,4 @@ export * from "./UpdateTaxSettingsHttp.vibe";
 export * from "./UpdateTerminalReader.vibe";
 export * from "./UpdateTerminalReaderHttp.vibe";
 export * from "./WebhookEndpoint.vibe";
-export * from "./ConsumeEventsLive.ts";
+export * from "./ConsumeEventsLive.vibe";

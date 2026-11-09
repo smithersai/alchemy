@@ -1,4 +1,4 @@
-import { Database } from "./Database.ts";
+import { Database } from "./Database.vibe";
 
 /**
  * Product-shaped convenience alias for {@link Database}.
@@ -23,4 +23,4 @@ import { Database } from "./Database.ts";
  * @product Postgres
  */
 export const Postgres = Database;
-export type { DatabaseProps as PostgresProps } from "./Database.ts";
+export type { DatabaseProps as PostgresProps } from "./Database.vibe";

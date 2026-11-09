@@ -1,0 +1,156 @@
+import { environment } from "./ConnectMongoHttp.platform.js";
+import * as Binding from "alchemy/Binding";
+import * as Output from "alchemy/Output";
+import { unpackEnvValue, type RuntimeContext } from "alchemy/RuntimeContext";
+import * as Layer from "effect/Layer";
+import {
+  ConnectMongo,
+  MongoUrlMissing,
+  connectEnvKeys,
+  type ConnectMongoClient,
+} from "./ConnectMongo.vibe";
+import { MONGO_URL_SECRET, MONGO_PUBLIC_URL_SECRET, type Mongo } from "./Mongo.ts";
+import { isRailwayHost } from "./MountVolume.ts";
+
+const runtimeOutput = <A>(
+  key: string,
+  output: Output.Output<A>,
+): A!!RuntimeContext =>
+  output.bind(key) |> Effect.flatMap(%, (effect) => effect);
+
+const asRedactedUrl = (
+  value: string,
+  name: string,
+): Redacted.Redacted<string>!MongoUrlMissing =>
+  value.length > 0
+    ? Effect.succeed(Redacted.make(value))
+    : Effect.fail(new MongoUrlMissing({ resourceName: name }));
+
+const fromProcessEnv = (key: string): string => {
+  const unpacked = unpackEnvValue<unknown>(environment()[key]);
+  if (typeof unpacked === "string") return unpacked;
+  if (Redacted.isRedacted(unpacked)) {
+    const inner = Redacted.value(unpacked);
+    return typeof inner === "string" ? inner : "";
+  }
+  return "";
+};
+
+const firstUrl = (
+  values: ReadonlyArray<string>,
+  name: string,
+): Redacted.Redacted<string>!MongoUrlMissing => {
+  const found = values.find((value) => value.length > 0);
+  return found !== undefined
+    ? asRedactedUrl(found, name)
+    : Effect.fail(new MongoUrlMissing({ resourceName: name }));
+};
+
+/**
+ * Implementation of {@link ConnectMongo}. Provide it on the
+ * {@link Service} Effect.
+ *
+ * At deploy time this packs the private connection URI onto the host
+ * (`RAILWAY_MONGO_*`, `MONGO_URL`). At runtime the client reads
+ * `process.env`.
+ *
+ *
+ * ### Provide the layer
+ * **Example:** On a Service
+ * ```typescript
+ * Effect.gen(function* () {
+ *   const conn = yield* Railway.ConnectMongo(Db);
+ *   const url = yield* conn.connectionString;
+ * }).pipe(Effect.provide(Railway.ConnectMongoHttp))
+ * ```
+ *
+ * @layer
+ * @product MongoDB
+ * @provides Railway.ConnectMongo
+ */
+export const ConnectMongoHttp = Layer.effect(
+  ConnectMongo,
+  Effect.succeed(
+    effect (mongo: Mongo) => {
+      const keys = connectEnvKeys(mongo);
+      const name = mongo.LogicalId;
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const host = try Binding.Host;
+        const railwayHost = try Effect.orDie(Effect.try({
+          try: () => isRailwayHost(host) ? host : undefined,
+          catch: (cause) => cause,
+        }));
+        if (railwayHost !== undefined) {
+          try (try Effect.orDie(Effect.try({ try: () => railwayHost.bind`${mongo}`, catch: (e) => e })))({
+            env: {
+              [keys.pooled]: mongo.connectionUri,
+              [keys.direct]: mongo.connectionUri,
+              [MONGO_URL_SECRET]: mongo.connectionUri,
+            },
+          });
+        }
+      }
+
+      const fromEnv = (preferDirect: boolean) =>
+        firstUrl(
+          preferDirect
+            ? [
+                fromProcessEnv(keys.direct),
+                fromProcessEnv(MONGO_URL_SECRET),
+                fromProcessEnv(keys.pooled),
+                fromProcessEnv(MONGO_PUBLIC_URL_SECRET),
+              ]
+            : [
+                fromProcessEnv(keys.pooled),
+                fromProcessEnv(MONGO_URL_SECRET),
+                fromProcessEnv(keys.direct),
+                fromProcessEnv(MONGO_PUBLIC_URL_SECRET),
+              ],
+          name,
+        );
+
+      if (globalThis.__ALCHEMY_RUNTIME__) {
+        return {
+          connectionString: fromEnv(false),
+          directConnectionString: fromEnv(true),
+        } satisfies ConnectMongoClient;
+      }
+
+      const pooled = runtimeOutput(keys.pooled, mongo.connectionUri);
+      const direct = runtimeOutput(keys.direct, mongo.connectionUri);
+
+      return {
+        connectionString: effect {
+          const packed = try pooled;
+          const unpacked = try direct;
+          return try firstUrl(
+            [
+              typeof packed === "string" ? packed : "",
+              fromProcessEnv(keys.pooled),
+              fromProcessEnv(MONGO_URL_SECRET),
+              typeof unpacked === "string" ? unpacked : "",
+              fromProcessEnv(keys.direct),
+              fromProcessEnv(MONGO_PUBLIC_URL_SECRET),
+            ],
+            name,
+          );
+        },
+        directConnectionString: effect {
+          const unpacked = try direct;
+          const packed = try pooled;
+          return try firstUrl(
+            [
+              typeof unpacked === "string" ? unpacked : "",
+              fromProcessEnv(keys.direct),
+              fromProcessEnv(MONGO_URL_SECRET),
+              typeof packed === "string" ? packed : "",
+              fromProcessEnv(keys.pooled),
+              fromProcessEnv(MONGO_PUBLIC_URL_SECRET),
+            ],
+            name,
+          );
+        },
+      } satisfies ConnectMongoClient;
+    },
+  ),
+);

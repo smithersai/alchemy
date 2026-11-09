@@ -10,7 +10,7 @@ import {
   type MigrationApplyError,
   type SqlExecutor,
 } from "./Format.ts";
-import { readMigrationRecords } from "./Records.ts";
+import { readMigrationRecords } from "./Records.vibe";
 
 /**
  * The migrations input surface shared by every SQL database resource.

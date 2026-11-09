@@ -8,7 +8,7 @@ export {
   DopplerAuthConfigSchema,
   type DopplerAuthConfig,
   type DopplerResolvedCredentials,
-} from "./AuthProvider.ts";
+} from "./AuthProvider.vibe";
 export {
   Secrets,
   DopplerSecretsError,

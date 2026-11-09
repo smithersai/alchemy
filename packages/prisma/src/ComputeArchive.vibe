@@ -1,0 +1,411 @@
+import { boundedLimit, compileIgnorePattern } from "./ComputeArchive.helpers.js";
+import { currentWorkingDirectory, encodeText } from "./ComputeArchive.platform.js";
+import { dotAlchemyDirectory } from "alchemy/AlchemyContext";
+import { isPathWithin } from "alchemy/Util/isPathWithin";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
+import type { PlatformError } from "effect/PlatformError";
+import {
+  isArchivedRegularFile,
+  readDirectoryEntriesSecure,
+  writeCompressedArchiveSecure,
+  type ArchiveTarEntry,
+} from "./internal/ArchivePlatform.ts";
+import {
+  inspectArtifactFile,
+  inspectVerifiedFile,
+  readArtifactFile,
+  type ArtifactFile,
+} from "./internal/ArtifactFile.ts";
+
+export error ComputeArchiveInvalidProps {
+  message: string;
+  cause?: unknown;
+}
+
+export error ComputeArchiveOperationFailed {
+  message: string;
+  cause?: unknown;
+}
+
+export const COMPUTE_MANIFEST_VERSION = "1";
+
+const MAX_UNCOMPRESSED_BYTES = 768 * 1024 * 1024;
+const MAX_FILE_BYTES = 128 * 1024 * 1024;
+const MAX_ENTRIES = 50_000;
+const MAX_COMPRESSED_BYTES = 768 * 1024 * 1024;
+
+export interface ComputeArchiveOptions {
+  /**
+   * Directory whose files should be uploaded as the compute bundle.
+   */
+  directory: string;
+  /**
+   * Entrypoint relative to `directory`.
+   */
+  entrypoint: string;
+  /**
+   * Additional artifact-relative paths to exclude. Patterns support `*` and
+   * `**`; directory matches exclude their complete subtree. Absolute paths,
+   * parent (`..`) segments, and negated patterns are rejected. Sensitive
+   * Alchemy, Git, and dotenv files are always excluded.
+   */
+  ignore?: readonly string[];
+  /**
+   * Artifact-relative prefix applied to custom ignore patterns after they are
+   * validated.
+   */
+  ignorePrefix?: string;
+  /**
+   * Artifact-relative files that must remain present after exclusions.
+   */
+  requiredFiles?: readonly string[];
+  /**
+   * Maximum uncompressed bytes accepted across all archived files. Values
+   * above the provider's 768 MiB hard ceiling are rejected.
+   *
+   * @default 805306368 (768 MiB)
+   */
+  maxUncompressedBytes?: number;
+  /**
+   * Maximum bytes accepted for one archived file. Values above the provider's
+   * 128 MiB hard ceiling are rejected.
+   *
+   * @default 134217728 (128 MiB)
+   */
+  maxFileBytes?: number;
+  /**
+   * Maximum number of filesystem entries accepted in an artifact. Values
+   * above the provider's 50,000-entry hard ceiling are rejected.
+   *
+   * @default 50000
+   */
+  maxEntries?: number;
+  /**
+   * Return a verified, file-backed archive instead of materializing the final
+   * compressed bytes. The caller must run the returned `cleanup` Effect.
+   *
+   * @default "bytes"
+   */
+  output?: "bytes" | "file";
+}
+
+const ALWAYS_IGNORED_PATTERNS = [
+  ".git",
+  "**/.git",
+  ".alchemy",
+  "**/.alchemy",
+  ".env",
+  "**/.env",
+  ".env.*",
+  "**/.env.*",
+  ".envrc",
+  "**/.envrc",
+  ".npmrc",
+  "**/.npmrc",
+  ".yarnrc*",
+  "**/.yarnrc*",
+  ".netrc",
+  "**/.netrc",
+  ".pypirc",
+  "**/.pypirc",
+  ".aws",
+  "**/.aws",
+  ".ssh",
+  "**/.ssh",
+] as const;
+
+interface ArchiveBudget {
+  readonly ignore: readonly RegExp[];
+  readonly maxUncompressedBytes: number;
+  readonly maxFileBytes: number;
+  readonly maxEntries: number;
+  bytes: number;
+  entries: number;
+}
+
+export error ComputeArchiveOptionsError {
+  message: string;
+  cause?: unknown;
+}
+
+type ArchiveError = PlatformError | Error;
+type ArchiveRequirements = FileSystem.FileSystem | Path.Path;
+
+export function createComputeArchive(
+  options: ComputeArchiveOptions & { readonly output: "file" },
+): ArtifactFile!ArchiveError!ArchiveRequirements;
+export function createComputeArchive(
+  options: ComputeArchiveOptions & { readonly output?: "bytes" },
+): Uint8Array!ArchiveError!ArchiveRequirements;
+export function createComputeArchive(
+  options: ComputeArchiveOptions,
+): (Uint8Array | ArtifactFile)!ArchiveError!ArchiveRequirements;
+/**
+ * Create the `tar.gz` artifact consumed by Prisma Compute.
+ *
+ * Files are added under the `bundle/` prefix, with a synthetic
+ * `compute.manifest.json` at the archive root. Tar construction and gzip
+ * compression stream through a private temporary file, so the uncompressed
+ * artifact is never retained in memory.
+ */
+export function createComputeArchive(
+  options: ComputeArchiveOptions,
+): (Uint8Array | ArtifactFile)!ArchiveError!ArchiveRequirements {
+  const effect = createComputeArchiveFile(options);
+  if (options.output === "file") return effect;
+  return Effect.flatMap(effect, (artifact) =>
+    readArtifactFile(artifact) |> Effect.ensuring(%, artifact.cleanup),
+  );
+}
+
+const createComputeArchiveFile = effect (
+  options: ComputeArchiveOptions,
+): ArtifactFile!ArchiveError!ArchiveRequirements => {
+  const {
+    directory,
+    entrypoint,
+    ignore = [],
+    ignorePrefix,
+    requiredFiles = [],
+    maxUncompressedBytes = MAX_UNCOMPRESSED_BYTES,
+    maxFileBytes = MAX_FILE_BYTES,
+    maxEntries = MAX_ENTRIES,
+  } = options;
+  const fs = try FileSystem.FileSystem;
+  const path = try Path.Path;
+  const runtimeBase = try Effect.orDie(Effect.try({ try: () => currentWorkingDirectory(), catch: (e) => e }));
+  const root = path.resolve(runtimeBase, directory);
+  const realRoot = try fs.realPath(root);
+  const dotAlchemy = try dotAlchemyDirectory;
+  const runtimeRelative = path
+    .relative(root, path.resolve(runtimeBase, dotAlchemy))
+    .replaceAll("\\", "/");
+  const normalizedEntrypoint = try normalizeEntrypoint(entrypoint);
+  const validated = try Effect.try({
+    try: () => ({
+      ignore: [
+        ...(isPathWithin(root, dotAlchemy, runtimeBase)
+          ? [
+              // Keep runtime state out of the archive. Escape regex characters
+              // in the literal directory name (e.g. "cache[private]"); the
+              // suffix matches that directory and its descendants, not siblings
+              // whose names merely share its prefix (e.g. "cache-backup").
+              new RegExp(`^${runtimeRelative.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:/.*)?$`),
+            ]
+          : []),
+        ...ALWAYS_IGNORED_PATTERNS.map((pattern) => compileIgnorePattern(pattern)),
+        ...ignore.map((pattern) => compileIgnorePattern(pattern, ignorePrefix)),
+      ],
+      maxUncompressedBytes: boundedLimit(
+        "maxUncompressedBytes",
+        maxUncompressedBytes,
+        MAX_UNCOMPRESSED_BYTES,
+      ),
+      maxFileBytes: boundedLimit("maxFileBytes", maxFileBytes, MAX_FILE_BYTES),
+      maxEntries: boundedLimit("maxEntries", maxEntries, MAX_ENTRIES),
+    }),
+    catch: (error) =>
+      new ComputeArchiveOptionsError({
+        message: error instanceof Error ? error.message : String(error),
+        cause: error,
+      }),
+  });
+  const budget: ArchiveBudget = {
+    ...validated,
+    bytes: 0,
+    entries: 0,
+  };
+  if (budget.maxFileBytes > budget.maxUncompressedBytes) {
+    throw new ComputeArchiveInvalidProps({
+      message: "maxFileBytes must not exceed maxUncompressedBytes",
+    });
+  }
+  if (isIgnored(normalizedEntrypoint, budget.ignore)) {
+    throw new ComputeArchiveInvalidProps({
+      message: `Entrypoint is excluded from the compute artifact: ${normalizedEntrypoint}`,
+    });
+  }
+  const resolvedEntrypoint = try resolvePathWithinRoot(
+    realRoot,
+    path.join(realRoot, normalizedEntrypoint),
+  );
+  const entrypointStat = try fs.stat(resolvedEntrypoint);
+  if (entrypointStat.type !== "File") {
+    throw new ComputeArchiveInvalidProps({
+      message: `Entrypoint must be a file in compute artifact: ${normalizedEntrypoint}`,
+    });
+  }
+
+  const entries: ArchiveTarEntry[] = [];
+  try addDirectoryEntries(entries, realRoot, realRoot, "bundle", "", budget);
+  const entrypointArchiveName = `bundle/${normalizedEntrypoint}`;
+  if (!(try Effect.orDie(Effect.try({ try: () => isArchivedRegularFile(entries, entrypointArchiveName), catch: (e) => e })))) {
+    throw new ComputeArchiveOperationFailed({
+      message: `Entrypoint not found in compute artifact: ${normalizedEntrypoint}`,
+    });
+  }
+
+  for (const file of requiredFiles) {
+    const normalized = try normalizeEntrypoint(file);
+    if (!(try Effect.orDie(Effect.try({ try: () => isArchivedRegularFile(entries, `bundle/${normalized}`), catch: (e) => e })))) {
+      throw new ComputeArchiveOperationFailed({
+        message: `Required file not found in compute artifact: ${normalized}`,
+      });
+    }
+  }
+
+  const manifestText = JSON.stringify(
+    {
+      manifestVersion: COMPUTE_MANIFEST_VERSION,
+      entrypoint: entrypointArchiveName,
+    },
+    null,
+    2,
+  );
+  const manifest = try Effect.orDie(Effect.try({ try: () => encodeText(manifestText), catch: (e) => e }));
+  const archivePath = try fs.makeTempFile({
+    prefix: "alchemy-prisma-compute-",
+    suffix: ".tar.gz",
+  });
+  const cleanup = fs.remove(archivePath, { force: true }) |> Effect.ignore(%);
+
+  try (writeCompressedArchiveSecure(archivePath, entries, manifest, MAX_COMPRESSED_BYTES)
+    |> Effect.tapError(%, () => cleanup));
+  return try (inspectArtifactFile(archivePath, MAX_COMPRESSED_BYTES, {
+    cleanup,
+    description: "Prisma compute archive",
+  }) |> Effect.tapError(%, () => cleanup));
+};
+
+const addDirectoryEntries: (
+  entries: ArchiveTarEntry[],
+  realRoot: string,
+  directory: string,
+  tarPrefix: string,
+  relativePrefix: string,
+  budget: ArchiveBudget,
+) => void!ArchiveError!ArchiveRequirements = effect (entries, realRoot, directory, tarPrefix, relativePrefix, budget) => {
+  const fs = try FileSystem.FileSystem;
+  const path = try Path.Path;
+  const directoryResult = try readDirectoryEntriesSecure({
+    directory,
+    relativePrefix,
+    ignore: budget.ignore,
+    entriesAlreadyObserved: budget.entries,
+    maxEntries: budget.maxEntries,
+  });
+  budget.entries += directoryResult.observedEntries;
+
+  for (const entry of directoryResult.entries) {
+    const name = entry.name;
+    const relativeName = relativePrefix ? `${relativePrefix}/${name}` : name;
+
+    const filePath = path.join(directory, name);
+    const tarName = `${tarPrefix}/${name}`;
+    if (entry.type === "SymbolicLink") {
+      const symlinkTarget = try fs.readLink(filePath);
+      const linkname = try resolveArchiveSymlinkTarget(realRoot, filePath, symlinkTarget);
+      entries.push({
+        name: tarName,
+        mode: 0o777,
+        type: "symlink",
+        linkname,
+      });
+      continue;
+    }
+
+    if (entry.type === "Directory") {
+      const realDirectory = try resolvePathWithinRoot(realRoot, filePath);
+      try addDirectoryEntries(entries, realRoot, realDirectory, tarName, relativeName, budget);
+      continue;
+    }
+
+    if (entry.type !== "File") {
+      throw new ComputeArchiveOperationFailed({
+        message: `Unsupported filesystem entry in compute artifact: ${relativeName}`,
+      });
+    }
+
+    const verified = try inspectVerifiedFile(filePath, budget.maxFileBytes, {
+      allowEmpty: true,
+      description: `Compute artifact file '${relativeName}'`,
+    });
+    try ensureResolvedPathWithinRoot(realRoot, verified.path);
+    if (budget.bytes + verified.size > budget.maxUncompressedBytes) {
+      throw new ComputeArchiveOperationFailed({
+        message: `Compute artifact exceeds the ${budget.maxUncompressedBytes} byte uncompressed safety limit. Narrow the artifact directory or add ignore patterns.`,
+      });
+    }
+    budget.bytes += verified.size;
+    entries.push({
+      name: tarName,
+      mode: verified.mode & 0o777,
+      type: "file",
+      file: verified,
+    });
+  }
+};
+
+export const normalizeEntrypoint = effect (entrypoint: string) => {
+  const normalized = entrypoint.replaceAll("\\", "/");
+  if (normalized.trim().length === 0) {
+    throw new ComputeArchiveInvalidProps({ message: "entrypoint must be non-empty" });
+  }
+  if (normalized.startsWith("/") || /^[a-zA-Z]:\//.test(normalized)) {
+    throw new ComputeArchiveInvalidProps({ message: "entrypoint must be relative" });
+  }
+  const parts = normalized.split("/").filter((part) => part !== ".");
+  if (parts.some((part) => part === ".." || part.length === 0)) {
+    throw new ComputeArchiveInvalidProps({
+      message: "entrypoint must not contain empty or parent segments",
+    });
+  }
+  return parts.join("/");
+};
+
+const resolvePathWithinRoot = effect (realRoot: string, candidate: string) => {
+  const fs = try FileSystem.FileSystem;
+  const realCandidate = try fs.realPath(candidate);
+  try ensureResolvedPathWithinRoot(realRoot, realCandidate);
+  return realCandidate;
+};
+
+const ensureResolvedPathWithinRoot = effect (
+  realRoot: string,
+  resolvedCandidate: string,
+) => {
+  const path = try Path.Path;
+  const relative = path.relative(realRoot, resolvedCandidate);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new ComputeArchiveOperationFailed({
+      message: `Archive path escapes compute artifact root: ${resolvedCandidate}`,
+    });
+  }
+};
+
+const resolveArchiveSymlinkTarget = effect (
+  realRoot: string,
+  symlinkPath: string,
+  target: string,
+) => {
+  const path = try Path.Path;
+  if (path.sep === "/" && target.includes("\\")) {
+    throw new ComputeArchiveOperationFailed({
+      message: `Archive symlink target contains an unsupported backslash: ${target}`,
+    });
+  }
+  const symlinkDir = path.dirname(symlinkPath);
+  const targetPath = path.isAbsolute(target) ? target : path.resolve(symlinkDir, target);
+  const realTarget = try resolvePathWithinRoot(realRoot, targetPath);
+
+  if (!path.isAbsolute(target)) return target.replaceAll("\\", "/");
+  const realSymlinkDir = try resolvePathWithinRoot(realRoot, symlinkDir);
+  const relative = path.relative(realSymlinkDir, realTarget);
+  return (relative.length === 0 ? "." : relative).replaceAll("\\", "/");
+};
+
+const isIgnored = (relativeName: string, patterns: readonly RegExp[]) =>
+  patterns.some((pattern) => pattern.test(relativeName));
+

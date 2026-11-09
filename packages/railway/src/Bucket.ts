@@ -20,7 +20,7 @@ import {
   sanitizeRailwayName,
 } from "./Metadata.vibe";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 import { withEnvironmentConfigLock } from "./transient.vibe";
 
 const bucketFields = <E>(bucket: Query<RailwayBucket, E>) => ({

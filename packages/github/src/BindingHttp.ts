@@ -7,8 +7,8 @@ import * as Layer from "effect/Layer";
 import type * as Redacted from "effect/Redacted";
 import { normalizeGitHubBaseUrl } from "./BaseUrl.ts";
 import { config } from "./Credentials.vibe";
-import { PersonalAccessToken } from "./PersonalAccessToken.ts";
-import type { Repository } from "./Repository.ts";
+import { PersonalAccessToken } from "./PersonalAccessToken.vibe";
+import type { Repository } from "./Repository.vibe";
 
 /**
  * Shared scaffolding for the GitHub `*Http` and `*Local` binding layers.
