@@ -249,69 +249,77 @@ const getByName = effect (bucketName: string) =>
     }
 
 const emptyBucket = effect (bucketName: string) =>
-  (effect { return (try Effect.forEach(
-    try (storage.listObjects.items({ bucket: bucketName, versions: true, maxResults: 1000 })
-      |> Stream.runCollect(%)),
-    effect (object) => (object.name
-      ? storage
-        .deleteObjects({
-          bucket: bucketName,
-          object: object.name,
-          generation: object.generation,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
-      : try Effect.void),
-    { concurrency: 8 },
-  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+  (effect {
+    return (try Effect.forEach(
+      try (storage.listObjects.items({ bucket: bucketName, versions: true, maxResults: 1000 })
+        |> Stream.runCollect(%)),
+      effect (object) => (object.name
+        ? storage
+          .deleteObjects({
+            bucket: bucketName,
+            object: object.name,
+            generation: object.generation,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        : try Effect.void),
+      { concurrency: 8 },
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 const emptyFolders = effect (bucketName: string) =>
-  (effect { return (try effect {
-    const chunk = try (storage.listFolders.items({ bucket: bucketName, pageSize: 1000 })
-      |> Stream.runCollect(%))
+  (effect {
+    return (try effect {
+      const chunk = try (storage.listFolders.items({ bucket: bucketName, pageSize: 1000 })
+        |> Stream.runCollect(%))
 
-    const folders = Array.from(chunk)
-      .map((folder) => folder.name)
-      .filter((name): name is string => !!name)
-      .sort((left, right) => right.length - left.length)
-    return try Effect.forEach(
-      folders,
-      effect (folder) =>
-        storage
-          .deleteFolders({ bucket: bucketName, folder }) catch effect (e) => match (e) {
-            when { _tag: "NotFound" }: try Effect.void;
-            default: throw e;
-          },
-      { concurrency: 1 },
-    )
-  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      const folders = Array.from(chunk)
+        .map((folder) => folder.name)
+        .filter((name): name is string => !!name)
+        .sort((left, right) => right.length - left.length)
+      return try Effect.forEach(
+        folders,
+        effect (folder) =>
+          storage
+            .deleteFolders({ bucket: bucketName, folder }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" }: try Effect.void;
+              default: throw e;
+            },
+        { concurrency: 1 },
+      )
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 const emptyManagedFolders = effect (bucketName: string) =>
-  (effect { return (try effect {
-    const chunk = try (storage.listManagedFolders.items({ bucket: bucketName, pageSize: 1000 })
-      |> Stream.runCollect(%))
+  (effect {
+    return (try effect {
+      const chunk = try (storage.listManagedFolders.items({ bucket: bucketName, pageSize: 1000 })
+        |> Stream.runCollect(%))
 
-    const folders = Array.from(chunk)
-      .map((folder) => folder.name)
-      .filter((name): name is string => !!name)
-      .sort((left, right) => right.length - left.length)
-    return try Effect.forEach(
-      folders,
-      effect (managedFolder) =>
-        storage
-          .deleteManagedFolders({
-            bucket: bucketName,
-            managedFolder,
-            allowNonEmpty: true,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; },
-      { concurrency: 1 },
-    )
-  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      const folders = Array.from(chunk)
+        .map((folder) => folder.name)
+        .filter((name): name is string => !!name)
+        .sort((left, right) => right.length - left.length)
+      return try Effect.forEach(
+        folders,
+        effect (managedFolder) =>
+          storage
+            .deleteManagedFolders({
+              bucket: bucketName,
+              managedFolder,
+              allowNonEmpty: true,
+            }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; },
+        { concurrency: 1 },
+      )
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
 
 export const BucketProvider = (): infer _ =>
   Provider.succeed(Bucket, {
     stables: ["bucketName", "location", "locationType", "projectNumber", "timeCreated", "selfLink"],
 
     diff: effect ({ news, olds, output }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return undefined
       // Bucket names are immutable: a new name is a new bucket, and the
       // old one must be deleted rather than left behind.
@@ -355,7 +363,12 @@ export const BucketProvider = (): infer _ =>
       const existing = try getByName(bucketName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing)
-      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -415,7 +428,9 @@ export const BucketProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const storageClassChanged = (current.storageClass ?? "STANDARD") !== storageClass
       const versioningChanged = (current.versioning?.enabled === true) !== versioning

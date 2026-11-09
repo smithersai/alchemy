@@ -156,29 +156,35 @@ const waitUntilExists = effect (name: string) =>
     }))
 
 const listAt = effect (parent: string, project: string) =>
-  (effect { return (Array.from(
-    try (aiplatform.listProjectsLocationsTensorboards.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
-      |> Stream.filter(%, (board) => Object.keys(board.labels ?? {}).some((key) => key.startsWith("alchemy-")))
-      |> Stream.map(%, (board) => toAttrs(board, project))
-      |> Stream.runCollect(%)),
-  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsTensorboards.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
+        |> Stream.filter(%, (board) => Object.keys(board.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+        |> Stream.map(%, (board) => toAttrs(board, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string, project: string) =>
-  (effect { return (try effect {
-    const option = try (aiplatform.listProjectsLocationsTensorboards.pages({ parent, pageSize: 100 })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
-      |> Stream.filter(%, (board) => board.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? toAttrs(option.value, project) : undefined)
-  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (aiplatform.listProjectsLocationsTensorboards.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
+        |> Stream.filter(%, (board) => board.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? toAttrs(option.value, project) : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const TensorboardProvider = (): infer _ =>
   Provider.succeed(Tensorboard, {
     stables: ["name", "tensorboardId", "location", "project", "createTime"],
 
     diff: effect ({ news, olds, output }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return undefined
       const previousLocation = olds?.location ?? output?.location
       const nextLocation = resolved.location ?? previousLocation
@@ -205,16 +211,28 @@ export const TensorboardProvider = (): infer _ =>
         const fetched = try getByName(match.name)
         if (fetched === undefined) return undefined
         const attrs = toAttrs(fetched, env.project)
-        return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(fetched.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        return (try hasAlchemyLabels(
+            id,
+            try Effect.orDie(Effect.try({ try: () => tagRecord(fetched.labels), catch: (e) => e })),
+          ))
+          ? attrs
+          : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
       }
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
       const env = try GcpEnvironment.current
-      return (try Effect.forEach(listLocations(env.region), effect (location) =>
-        try listAt(locationParent(env.project, location), env.project))).flat()
+      return (try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listAt(locationParent(env.project, location), env.project),
+      )).flat()
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -249,7 +267,10 @@ export const TensorboardProvider = (): infer _ =>
           const done = try waitForOperation(created, {
             alreadyExistsOk: true,
           })
-          const createdName = (try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }))) ?? output?.name ?? ""
+          const createdName = (try Effect.orDie(Effect.try({
+            try: () => resourceNameFromOperation(done),
+            catch: (e) => e,
+          }))) ?? output?.name ?? ""
           if (createdName.length > 0) {
             current = try waitUntilExists(createdName)
           }
@@ -270,7 +291,9 @@ export const TensorboardProvider = (): infer _ =>
 
       const name = current.name ?? ""
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       const labelsChanged = upsert.length > 0 || removed.length > 0
       const displayChanged = (current.displayName ?? "") !== displayName
       const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
@@ -282,9 +305,7 @@ export const TensorboardProvider = (): infer _ =>
           displayChanged ? "displayName" : undefined,
           descriptionChanged ? "description" : undefined,
           defaultChanged ? "isDefault" : undefined,
-        ].filter((field): field is string =>
-          field !== undefined
-        )
+        ].filter((field): field is string => field !== undefined)
         const patched = try aiplatform.patchProjectsLocationsTensorboards({
           name,
           updateMask: updateMask.join(","),

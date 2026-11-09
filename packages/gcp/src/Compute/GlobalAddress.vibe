@@ -251,23 +251,25 @@ const waitUntilReady = effect (project: string, addressName: string) =>
     }))
 
 const waitUntilGone = effect (project: string, addressName: string) =>
-  (effect { return (try (effect {
-    return try effect {
-      const address = try getByName(project, addressName)
-      return (address === undefined ? try Effect.void : throw new GlobalAddressPending({
-        addressName,
-        status: address.status ?? "EXISTS",
-      }))
+  (effect {
+    return (try (effect {
+      return try effect {
+        const address = try getByName(project, addressName)
+        return (address === undefined ? try Effect.void : throw new GlobalAddressPending({
+          addressName,
+          status: address.status ?? "EXISTS",
+        }))
+      }
     }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "GCP.Compute.GlobalAddressPending",
+        times: 10,
+        schedule: Schedule.spaced("1 second"),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "GCP.Compute.GlobalAddressPending" }: try Effect.void;
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "GCP.Compute.GlobalAddressPending",
-      times: 10,
-      schedule: Schedule.spaced("1 second"),
-    }))) }) catch effect (e) => match (e) {
-      when { _tag: "GCP.Compute.GlobalAddressPending" }: try Effect.void;
-      default: throw e;
-    }
 
 export const GlobalAddressProvider = (): infer _ =>
   Provider.succeed(GlobalAddress, {
@@ -287,7 +289,9 @@ export const GlobalAddressProvider = (): infer _ =>
     ],
 
     diff: effect ({ news, olds, output }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return undefined
       const previousName = olds.addressName ?? output?.addressName
       const nextName = resolved.addressName ?? previousName
@@ -302,7 +306,8 @@ export const GlobalAddressProvider = (): infer _ =>
       const previousPrefix = olds.prefixLength ?? output?.prefixLength
       const previousIpv6 = olds.ipv6EndpointType ?? output?.ipv6EndpointType ?? ""
 
-      const immutableChanged = (resolved.description !== undefined && (resolved.description ?? "") !== previousDescription)
+      const immutableChanged =
+        (resolved.description !== undefined && (resolved.description ?? "") !== previousDescription)
         || (resolved.address !== undefined
           && output?.address !== undefined
           && resolved.address !== output.address)
@@ -329,7 +334,12 @@ export const GlobalAddressProvider = (): infer _ =>
       const existing = try getByName(env.project, addressName)
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project)
-      return (try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -357,33 +367,35 @@ export const GlobalAddressProvider = (): infer _ =>
       let current = try getByName(env.project, addressName)
 
       if (current === undefined) {
-        const created = (effect { return (try effect {
-          return try effect {
-            try waitGlobalOperation(
-              env.project,
-              try compute
-                .insertGlobalAddresses({
-                  project: env.project,
-                  body: {
-                    name: addressName,
-                    description: news.description,
-                    address: news.address,
-                    addressType: news.addressType,
-                    ipVersion: news.ipVersion,
-                    prefixLength: news.prefixLength,
-                    purpose: news.purpose,
-                    network: news.network,
-                    networkTier: news.networkTier,
-                    ipv6EndpointType: news.ipv6EndpointType,
-                  },
-                }),
-              {
-                ignore: ["RESOURCE_ALREADY_EXISTS"],
-              },
-            )
-            return try getByName(env.project, addressName)
-          }
-        }) }) catch effect (e) => match (e) {
+        const created = (effect {
+          return (try effect {
+            return try effect {
+              try waitGlobalOperation(
+                env.project,
+                try compute
+                  .insertGlobalAddresses({
+                    project: env.project,
+                    body: {
+                      name: addressName,
+                      description: news.description,
+                      address: news.address,
+                      addressType: news.addressType,
+                      ipVersion: news.ipVersion,
+                      prefixLength: news.prefixLength,
+                      purpose: news.purpose,
+                      network: news.network,
+                      networkTier: news.networkTier,
+                      ipv6EndpointType: news.ipv6EndpointType,
+                    },
+                  }),
+                {
+                  ignore: ["RESOURCE_ALREADY_EXISTS"],
+                },
+              )
+              return try getByName(env.project, addressName)
+            }
+          })
+        }) catch effect (e) => match (e) {
           when { _tag: "Conflict" }: try getByName(env.project, addressName);
           default: throw e;
         }
@@ -399,7 +411,9 @@ export const GlobalAddressProvider = (): infer _ =>
       }
 
       const observedLabels = tagRecord(current.labels)
-      const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
       if (upsert.length > 0 || removed.length > 0) {
         try waitGlobalOperation(
           env.project,
@@ -422,17 +436,19 @@ export const GlobalAddressProvider = (): infer _ =>
     delete: effect ({ output }) => {
       const env = try GcpEnvironment.current
       try (effect {
-        return (effect { return (try waitGlobalOperation(
-          env.project,
-          try compute
-            .deleteGlobalAddresses({
-              project: env.project,
-              address: output.addressName,
-            }),
-          {
-            ignore: ["RESOURCE_NOT_FOUND"],
-          },
-        )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+        return (effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .deleteGlobalAddresses({
+                project: env.project,
+                address: output.addressName,
+              }),
+            {
+              ignore: ["RESOURCE_NOT_FOUND"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
       }
         |> Effect.retry(%, {
           while: (e) => e._tag === "Conflict",

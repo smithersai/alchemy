@@ -262,31 +262,37 @@ const isOwnedIntent = (intent: dialogflow.GoogleCloudDialogflowCxV3Intent): infe
   || Object.keys(intent.labels ?? {}).some((key) => key.startsWith("alchemy-"))
 
 const listAt = effect (parent: string, project: string) =>
-  (effect { return (Array.from(
-    try (dialogflow.listProjectsLocationsAgentsIntents
-      .pages({ parent, pageSize: 100, intentView: "INTENT_VIEW_FULL" })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.intents ?? []))
-      |> Stream.filter(%, isOwnedIntent)
-      |> Stream.map(%, (intent) => toAttrs(intent, project, parent))
-      |> Stream.runCollect(%)),
-  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsIntents
+        .pages({ parent, pageSize: 100, intentView: "INTENT_VIEW_FULL" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.intents ?? []))
+        |> Stream.filter(%, isOwnedIntent)
+        |> Stream.map(%, (intent) => toAttrs(intent, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
 
 const findByDisplayName = effect (parent: string, displayName: string) =>
-  (effect { return (try effect {
-    const option = try (dialogflow.listProjectsLocationsAgentsIntents
-      .pages({ parent, pageSize: 100, intentView: "INTENT_VIEW_PARTIAL" })
-      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.intents ?? []))
-      |> Stream.filter(%, (intent) => intent.displayName === displayName)
-      |> Stream.runHead(%))
-    return (option._tag === "Some" ? option.value : undefined)
-  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsIntents
+        .pages({ parent, pageSize: 100, intentView: "INTENT_VIEW_PARTIAL" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.intents ?? []))
+        |> Stream.filter(%, (intent) => intent.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
 
 export const AgentsIntentProvider = (): infer _ =>
   Provider.succeed(AgentsIntent, {
     stables: ["name", "intentId", "agent", "location", "project"],
 
     diff: effect ({ news, olds, output }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return undefined
       const previousAgent = olds?.agent ?? output?.agent
       if (previousAgent !== undefined && resolved.agent !== previousAgent) {
@@ -301,8 +307,12 @@ export const AgentsIntentProvider = (): infer _ =>
 
     read: effect ({ id, olds, output }) => {
       const env = try GcpEnvironment.current
-      const location = try Effect.orDie(Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }))
-      const agent = olds?.agent ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e })) : output?.agent
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
       const intentId = try toResourceId(id, olds?.intentId, output?.intentId)
       const name = output?.name ?? (agent !== undefined ? resourceName(agent, intentId) : "")
       let existing = try getByName(name)
@@ -310,15 +320,22 @@ export const AgentsIntentProvider = (): infer _ =>
         const ownership = try createInternalLabels(id)
         existing = try findByDisplayName(
           agent,
-          try Effect.orDie(Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e })),
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
         )
       }
       if (existing === undefined) return undefined
       const attrs = toAttrs(existing, env.project, agent)
-      const labeled = try hasAlchemyLabels(id, try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })))
+      const labeled = try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+      )
       const named = try ownedByAlchemy(id, existing.displayName)
       const described = try ownedByAlchemy(id, existing.description)
-      return labeled || named || described ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return labeled || named || described
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: effect () => {
@@ -333,13 +350,24 @@ export const AgentsIntentProvider = (): infer _ =>
     reconcile: effect ({ id, news, output }) =>
       try (effect {
         const env = try GcpEnvironment.current
-        const location = try Effect.orDie(Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION), catch: (e) => e }))
-        const agent = try Effect.orDie(Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }))
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
         const intentId = try toResourceId(id, news.intentId, output?.intentId)
         const name = output?.name ?? resourceName(agent, intentId)
         const ownership = try createInternalLabels(id)
-        const displayName = try Effect.orDie(Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }))
-        const description = try Effect.orDie(Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }))
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
         const desiredLabels = {
           ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
           ...ownership,
@@ -381,12 +409,20 @@ export const AgentsIntentProvider = (): infer _ =>
         const currentName = current.name ?? name
         const displayChanged = (current.displayName ?? "") !== displayName
         const observedLabels = tagRecord(current.labels)
-        const { upsert, removed } = try Effect.orDie(Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }))
+        const { upsert, removed } = try Effect.orDie(
+          Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+        )
         const labelsChanged = upsert.length > 0 || removed.length > 0
         const value = phrasesOf(current.trainingPhrases)
-        const phrasesChanged = (try Effect.orDie(Effect.try({ try: () => fingerprint(value), catch: (e) => e }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.trainingPhrases), catch: (e) => e })))
+        const phrasesChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.trainingPhrases), catch: (e) => e })))
         const value2 = parametersOf(current.parameters)
-        const parametersChanged = (try Effect.orDie(Effect.try({ try: () => fingerprint(value2), catch: (e) => e }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.parameters), catch: (e) => e })))
+        const parametersChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value2),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.parameters), catch: (e) => e })))
         const priorityChanged = (current.priority ?? 0) !== (news.priority ?? 0)
         const fallbackChanged = (current.isFallback === true) !== isFallback
         const descriptionChanged = (current.description ?? "") !== description
@@ -405,16 +441,20 @@ export const AgentsIntentProvider = (): infer _ =>
           current = try dialogflow.patchProjectsLocationsAgentsIntents({
             name: currentName,
             languageCode: news.languageCode,
-            updateMask: try Effect.orDie(Effect.try({ try: () => updateMaskOf(
-              displayChanged ? "display_name" : undefined,
-              labelsChanged ? "labels" : undefined,
-              phrasesChanged ? "training_phrases" : undefined,
-              parametersChanged ? "parameters" : undefined,
-              priorityChanged ? "priority" : undefined,
-              fallbackChanged ? "is_fallback" : undefined,
-              descriptionChanged ? "description" : undefined,
-              dtmfChanged ? "dtmf_pattern" : undefined,
-            ), catch: (e) => e })),
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  labelsChanged ? "labels" : undefined,
+                  phrasesChanged ? "training_phrases" : undefined,
+                  parametersChanged ? "parameters" : undefined,
+                  priorityChanged ? "priority" : undefined,
+                  fallbackChanged ? "is_fallback" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  dtmfChanged ? "dtmf_pattern" : undefined,
+                ),
+              catch: (e) => e,
+            })),
             body: { ...body, name: currentName },
           })
         }
