@@ -10,7 +10,7 @@ export * from "./InvokeServiceHttp.ts";
 export * from "./Job.ts";
 export * from "./RunJob.vibe";
 export * from "./RunJobHttp.vibe";
-export * from "./Service.ts";
+export * from "./Service.vibe";
 export * from "./WorkerPool.ts";
 export { TopicEventSource } from "./TopicEventSource.vibe";
 export * from "./TopicPullEventSource.vibe";

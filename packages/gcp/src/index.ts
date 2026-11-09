@@ -45,7 +45,7 @@ export * as ChromeManagement from "./ChromeManagement/index.ts";
 export * as CloudAsset from "./CloudAsset/index.ts";
 export * as CloudBuild from "./CloudBuild/index.ts";
 export * as CloudFunctions from "./CloudFunctions/index.ts";
-export { Service as Function } from "./Run/Service.ts";
+export { Service as Function } from "./Run/Service.vibe";
 export * as CloudScheduler from "./CloudScheduler/index.ts";
 export * as CloudSearch from "./CloudSearch/index.ts";
 export * as CloudSupport from "./CloudSupport/index.ts";

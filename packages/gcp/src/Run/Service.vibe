@@ -1,28 +1,24 @@
-import { Credentials } from "@distilled.cloud/gcp/Credentials";
-import * as cloudrun from "@distilled.cloud/gcp/run_v2";
-import { Unowned } from "alchemy/AdoptPolicy";
-import type * as Bundle from "alchemy/Bundle/Bundle";
-import type { PackageInstall } from "alchemy/Bundle/InstalledPackages";
-import { isResolved } from "alchemy/Diff";
-import { createPhysicalName } from "alchemy/PhysicalName";
-import { Platform, type Main, type PlatformProps } from "alchemy/Platform";
-import * as Provider from "alchemy/Provider";
-import { Resource, type ResourceBinding } from "alchemy/Resource";
-import { type ServerHost } from "alchemy/Runtime/Process";
-import { tagRecord } from "alchemy/Tags";
-import type { ExtraFile } from "alchemy/Util/extraFiles";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Schedule from "effect/Schedule";
-import * as Stream from "effect/Stream";
-import { destroyHostImageRepository, makeImageSource } from "../ArtifactRegistry/ImageSource.ts";
-import { GcpEnvironment } from "../Environment.ts";
-import { retryActAs, type AppliedIamGrant, type GcpHostBinding } from "../Host.ts";
-import {
-  createGcpHostRuntimeContext,
-  RPC_METHODS_ENV,
-  type GcpHostRuntimeContext,
-} from "../HostContext.ts";
+import { Credentials } from "@distilled.cloud/gcp/Credentials"
+import * as cloudrun from "@distilled.cloud/gcp/run_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import type * as Bundle from "alchemy/Bundle/Bundle"
+import type { PackageInstall } from "alchemy/Bundle/InstalledPackages"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import { Platform, type Main, type PlatformProps } from "alchemy/Platform"
+import * as Provider from "alchemy/Provider"
+import { Resource, type ResourceBinding } from "alchemy/Resource"
+import { type ServerHost } from "alchemy/Runtime/Process"
+import { tagRecord } from "alchemy/Tags"
+import type { ExtraFile } from "alchemy/Util/extraFiles"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import { destroyHostImageRepository, makeImageSource } from "../ArtifactRegistry/ImageSource.ts"
+import { GcpEnvironment } from "../Environment.ts"
+import { retryActAs, type AppliedIamGrant, type GcpHostBinding } from "../Host.ts"
+import { createGcpHostRuntimeContext, RPC_METHODS_ENV, type GcpHostRuntimeContext } from "../HostContext.ts"
 import {
   alchemyRuntimeEnv,
   isManagedServiceAccount,
@@ -31,19 +27,10 @@ import {
   mountCloudSqlInstances,
   releaseHostIdentity,
   resolveHostIdentity,
-} from "../HostRuntime.ts";
-import {
-  createInternalLabels,
-  diffLabels,
-  hasAlchemyLabels,
-  stripInternalLabels,
-  toLabels,
-} from "../Labels.ts";
-import {
-  type LongRunningOperation,
-  waitForOperation as waitForLongRunningOperation,
-} from "../Operation.ts";
-import type { Providers } from "../Providers.vibe";
+} from "../HostRuntime.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import { type LongRunningOperation, waitForOperation as waitForLongRunningOperation } from "../Operation.ts"
+import type { Providers } from "../Providers.vibe"
 import {
   boundContainersOf,
   directContainerNames,
@@ -51,47 +38,47 @@ import {
   isContainerAttributes,
   type BoundContainer,
   type Container,
-} from "./Container.vibe";
+} from "./Container.vibe"
 
-const DEFAULT_IMAGE = "us-docker.pkg.dev/cloudrun/container/hello";
-const MAX_NAME_LENGTH = 49;
+const DEFAULT_IMAGE = "us-docker.pkg.dev/cloudrun/container/hello"
+const MAX_NAME_LENGTH = 49
 
 export type EnvVar = {
   /** Environment variable name. */
-  name?: string;
+  name?: string
   /** Literal value. Mutually exclusive with `valueSource`. */
-  value?: string;
+  value?: string
   /** Secret Manager source for the value. */
   valueSource?: {
     secretKeyRef?: {
-      secret?: string;
-      version?: string;
-    };
-  };
-};
+      secret?: string
+      version?: string
+    }
+  }
+}
 
 export type ContainerPort = {
   /** Protocol name (`http1` or `h2c`). */
-  name?: string;
+  name?: string
   /** TCP port the container listens on. */
-  containerPort?: number;
-};
+  containerPort?: number
+}
 
 export type ResourceRequirements = {
   /** Resource limits. Keys: `cpu`, `memory`, `nvidia.com/gpu`. */
-  limits?: Record<string, string>;
+  limits?: Record<string, string>
   /** Allocate CPU only during requests. */
-  cpuIdle?: boolean;
+  cpuIdle?: boolean
   /** Boost CPU on startup to reduce cold starts. */
-  startupCpuBoost?: boolean;
-};
+  startupCpuBoost?: boolean
+}
 
 export type HttpHeader = {
   /** Header name. */
-  name: string;
+  name: string
   /** Header value. */
-  value?: string;
-};
+  value?: string
+}
 
 export type Probe = {
   /**
@@ -100,74 +87,74 @@ export type Probe = {
    */
   httpGet?: {
     /** Request path. @default "/" */
-    path?: string;
+    path?: string
     /** Port to probe. @default the container's `ports[0].containerPort` */
-    port?: number;
+    port?: number
     /** Extra request headers. */
-    httpHeaders?: HttpHeader[];
-  };
+    httpHeaders?: HttpHeader[]
+  }
   /** Open a TCP connection; passes once the port accepts it. */
   tcpSocket?: {
     /** Port to probe. @default the container's `ports[0].containerPort` */
-    port?: number;
-  };
+    port?: number
+  }
   /** Call the gRPC health checking protocol. */
   grpc?: {
     /** Port to probe. @default the container's `ports[0].containerPort` */
-    port?: number;
+    port?: number
     /** Service name sent in the `HealthCheckRequest`. */
-    service?: string;
-  };
+    service?: string
+  }
   /**
    * Seconds after the container starts before the first probe (max 240
    * for startup probes, 3600 for liveness probes).
    * @default 0
    */
-  initialDelaySeconds?: number;
+  initialDelaySeconds?: number
   /** Seconds before a probe attempt times out. Must be less than `periodSeconds`. @default 1 */
-  timeoutSeconds?: number;
+  timeoutSeconds?: number
   /** Seconds between probe attempts (max 240 for startup probes). @default 10 */
-  periodSeconds?: number;
+  periodSeconds?: number
   /** Consecutive failures before the probe fails. @default 3 */
-  failureThreshold?: number;
-};
+  failureThreshold?: number
+}
 
 export type ContainerSpec = {
   /** DNS_LABEL container name. Required to reference it from `dependsOn`. */
-  name?: string;
+  name?: string
   /**
    * Container image (Artifact Registry, GCR, or Docker Hub). Required
    * unless `template` is omitted, in which case the public Cloud Run hello
    * image is used.
    */
-  image?: string;
+  image?: string
   /** Entrypoint. */
-  command?: string[];
+  command?: string[]
   /** Arguments to the entrypoint. */
-  args?: string[];
+  args?: string[]
   /** Environment variables. */
-  env?: EnvVar[];
+  env?: EnvVar[]
   /** Exposed ports. Only one port may be set. */
-  ports?: ContainerPort[];
+  ports?: ContainerPort[]
   /** CPU / memory / GPU requirements. */
-  resources?: ResourceRequirements;
+  resources?: ResourceRequirements
   /** Working directory. */
-  workingDir?: string;
+  workingDir?: string
   /** Volume mounts. Names must match the template's `volumes`. */
-  volumeMounts?: cloudrun.GoogleCloudRunV2VolumeMountList;
+  volumeMounts?: cloudrun.GoogleCloudRunV2VolumeMountList
   /**
    * Probe that must pass before the container counts as started. Until it
    * does, the revision takes no traffic and containers that `dependsOn`
    * this one wait. Omitting it restores Cloud Run's default TCP probe on
    * the serving port.
    */
-  startupProbe?: Probe;
+  startupProbe?: Probe
   /**
    * Probe run for the container's lifetime; Cloud Run restarts the
    * container after `failureThreshold` consecutive failures. Omitting it
    * removes any liveness probe.
    */
-  livenessProbe?: Probe;
+  livenessProbe?: Probe
   /**
    * Names of containers in the same revision that must start, and pass
    * their startup probe, before this one starts. Without it, every
@@ -177,19 +164,19 @@ export type ContainerSpec = {
    * A container bound with `GCP.Run.bindContainer` or `GCP.Run.bindPort`
    * is added for you.
    */
-  dependsOn?: string[];
-};
+  dependsOn?: string[]
+}
 
 export type RevisionScaling = {
   /** Minimum serving instances. */
-  minInstanceCount?: number;
+  minInstanceCount?: number
   /** Maximum serving instances. Server default is 100. */
-  maxInstanceCount?: number;
+  maxInstanceCount?: number
   /** CPU utilization target in `[0.1, 0.95]`, or `0` to disable. */
-  cpuUtilization?: number;
+  cpuUtilization?: number
   /** Concurrency utilization target in `[0.1, 0.95]`, or `0` to disable. */
-  concurrencyUtilization?: number;
-};
+  concurrencyUtilization?: number
+}
 
 export type RevisionTemplate = {
   /**
@@ -197,54 +184,54 @@ export type RevisionTemplate = {
    * listed directly: its spec joins the revision, its bindings' roles go to
    * the revision's service account, and the sidecars it binds join too.
    */
-  containers?: (ContainerSpec | Container)[];
+  containers?: (ContainerSpec | Container)[]
   /** Request timeout (e.g. `"300s"`). */
-  timeout?: string;
+  timeout?: string
   /** Max concurrent requests per instance. `0` uses the server default. */
-  maxInstanceRequestConcurrency?: number;
+  maxInstanceRequestConcurrency?: number
   /** Runtime service account email. Defaults to the project Compute SA. */
-  serviceAccount?: string;
+  serviceAccount?: string
   /** Sandbox (`EXECUTION_ENVIRONMENT_GEN1` or `EXECUTION_ENVIRONMENT_GEN2`). */
-  executionEnvironment?: string;
+  executionEnvironment?: string
   /** Enable session affinity. */
-  sessionAffinity?: boolean;
+  sessionAffinity?: boolean
   /** Revision-level scaling. */
-  scaling?: RevisionScaling;
+  scaling?: RevisionScaling
   /** Revision labels. */
-  labels?: Record<string, string>;
+  labels?: Record<string, string>
   /** Revision annotations. */
-  annotations?: Record<string, string>;
+  annotations?: Record<string, string>
   /** Direct VPC egress / connector. */
-  vpcAccess?: cloudrun.GoogleCloudRunV2VpcAccess;
+  vpcAccess?: cloudrun.GoogleCloudRunV2VpcAccess
   /** Volumes available to containers. */
-  volumes?: cloudrun.GoogleCloudRunV2VolumeList;
+  volumes?: cloudrun.GoogleCloudRunV2VolumeList
   /** CMEK used to encrypt the container image. */
-  encryptionKey?: string;
+  encryptionKey?: string
   /** Unique revision name. Generated from the service name if omitted. */
-  revision?: string;
-};
+  revision?: string
+}
 
 export type TrafficTarget = {
   /** Allocation type (`TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST` or `_REVISION`). */
-  type?: string;
+  type?: string
   /** Revision to send traffic to when allocating by revision. */
-  revision?: string;
+  revision?: string
   /** Percent of traffic (0–100). */
-  percent?: number;
+  percent?: number
   /** URI tag for this target. */
-  tag?: string;
-};
+  tag?: string
+}
 
 export type ServiceScaling = {
   /** Minimum instances across all revisions. */
-  minInstanceCount?: number;
+  minInstanceCount?: number
   /** Maximum instances across all revisions. */
-  maxInstanceCount?: number;
+  maxInstanceCount?: number
   /** `AUTOMATIC` or `MANUAL`. */
-  scalingMode?: string;
+  scalingMode?: string
   /** Instance count in manual scaling mode. */
-  manualInstanceCount?: number;
-};
+  manualInstanceCount?: number
+}
 
 export type ServiceProps = PlatformProps & {
   /**
@@ -254,104 +241,104 @@ export type ServiceProps = PlatformProps & {
    * id. Must begin with a letter, not end with a hyphen, and be fewer than
    * 50 characters. Immutable — changing it replaces the service.
    */
-  serviceId?: string;
+  serviceId?: string
   /**
    * Region (`us-central1`, `europe-west1`, …). Immutable — changing it
    * replaces the service. `US-CENTRAL1` is accepted and normalized to
    * `us-central1`.
    * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
    */
-  location?: string;
+  location?: string
   /**
    * User labels. Alchemy ownership labels are merged in automatically.
    */
-  labels?: Record<string, string>;
+  labels?: Record<string, string>
   /**
    * Unstructured annotations. Cloud Run rejects `run.googleapis.com` /
    * `cloud.googleapis.com` / Knative namespaces.
    */
-  annotations?: Record<string, string>;
+  annotations?: Record<string, string>
   /**
    * Human-readable description (max 512 characters).
    */
-  description?: string;
+  description?: string
   /**
    * Ingress (`INGRESS_TRAFFIC_ALL`, `INGRESS_TRAFFIC_INTERNAL_ONLY`,
    * `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER`, `INGRESS_TRAFFIC_NONE`).
    */
-  ingress?: cloudrun.GoogleCloudRunV2ServiceIngressEnum | (string & {});
+  ingress?: cloudrun.GoogleCloudRunV2ServiceIngressEnum | (string & {})
   /**
    * Disable the IAM invoker check (`run.routes.invoke`).
    * @default false
    */
-  invokerIamDisabled?: boolean;
+  invokerIamDisabled?: boolean
   /**
    * Disable public resolution of the default `*.run.app` URI.
    * @default false
    */
-  defaultUriDisabled?: boolean;
+  defaultUriDisabled?: boolean
   /**
    * Enable Identity-Aware Proxy on the service.
    */
-  iapEnabled?: boolean;
+  iapEnabled?: boolean
   /**
    * Custom audiences encoded into ID tokens.
    */
-  customAudiences?: string[];
+  customAudiences?: string[]
   /**
    * Service-level scaling.
    */
-  scaling?: ServiceScaling;
+  scaling?: ServiceScaling
   /**
    * Traffic split. Empty / omitted sends 100% to the latest Ready
    * revision.
    */
-  traffic?: TrafficTarget[];
+  traffic?: TrafficTarget[]
   /**
    * Revision template. If omitted, a single container runs the public
    * Cloud Run hello image. The Effect-native `main` form fills `image`
    * for you.
    */
-  template?: RevisionTemplate;
+  template?: RevisionTemplate
   /**
    * Module entrypoint for an Effect-native service (typically
    * `import.meta.url`). Alchemy bundles the program, builds a container
    * image, pushes it to Artifact Registry, and deploys Cloud Run.
    * Bindings attach env + IAM onto the runtime service account.
    */
-  main?: string;
+  main?: string
   /**
    * Named export to load from `main`.
    * @default "default"
    */
-  handler?: string;
+  handler?: string
   /**
    * HTTP port the Effect-native program listens on (Cloud Run injects
    * `PORT`). Only used with `main`.
    * @default 8080
    */
-  port?: number;
+  port?: number
   /**
    * Startup probe for the main container (`template.containers[0]`).
    * Shorthand for setting it on the container.
    */
-  startupProbe?: Probe;
+  startupProbe?: Probe
   /**
    * Liveness probe for the main container (`template.containers[0]`).
    * Shorthand for setting it on the container.
    */
-  livenessProbe?: Probe;
+  livenessProbe?: Probe
   /**
    * Additional environment variables for the Effect-native container.
    * Merged after binding-injected `env`.
    */
-  env?: Record<string, any>;
+  env?: Record<string, any>
   /**
    * Bundler configuration for `main`. `install` lists packages
    * `npm install`ed into an unbundled Node program image (see
    * {@link extraFiles}); Next.js needs `next`.
    */
-  build?: Bundle.BundleConfig & { install?: PackageInstall };
+  build?: Bundle.BundleConfig & { install?: PackageInstall }
   /**
    * Host files or directories baked into the image next to `main`
    * (`dest` is relative to `/app`; `"."` merges into `/app`). When set on
@@ -360,73 +347,73 @@ export type ServiceProps = PlatformProps & {
    * so a changed file rolls out a new revision. `GCP.Website.*` uses this
    * to ship framework build output.
    */
-  extraFiles?: ReadonlyArray<ExtraFile>;
-};
+  extraFiles?: ReadonlyArray<ExtraFile>
+}
 
 export type Service = Resource<
   "GCP.Run.Service",
   ServiceProps,
   {
     /** Full resource name `projects/{project}/locations/{location}/services/{service}`. */
-    name: string;
+    name: string
     /** Service id (last path segment). */
-    serviceId: string;
+    serviceId: string
     /** Project id. */
-    project: string;
+    project: string
     /** Region (`us-central1`, …). */
-    location: string;
+    location: string
     /** User labels (Alchemy ownership labels stripped). */
-    labels: Record<string, string>;
+    labels: Record<string, string>
     /** User annotations. */
-    annotations: Record<string, string>;
+    annotations: Record<string, string>
     /** Description. */
-    description: string | undefined;
+    description: string | undefined
     /** Main serving URI. */
-    uri: string | undefined;
+    uri: string | undefined
     /** All serving URLs. */
-    urls: ReadonlyArray<string>;
+    urls: ReadonlyArray<string>
     /** Server-assigned UUID. */
-    uid: string | undefined;
+    uid: string | undefined
     /** Ingress setting. */
-    ingress: string | undefined;
+    ingress: string | undefined
     /** Whether the IAM invoker check is disabled. */
-    invokerIamDisabled: boolean;
+    invokerIamDisabled: boolean
     /** Latest created revision name. */
-    latestCreatedRevision: string | undefined;
+    latestCreatedRevision: string | undefined
     /** Latest Ready revision name. */
-    latestReadyRevision: string | undefined;
+    latestReadyRevision: string | undefined
     /** Terminal condition state (`CONDITION_SUCCEEDED`, …). */
-    terminalConditionState: string | undefined;
+    terminalConditionState: string | undefined
     /** True while Cloud Run is still reconciling the desired state. */
-    reconciling: boolean;
+    reconciling: boolean
     /** Observed generation. */
-    generation: string | undefined;
+    generation: string | undefined
     /** RFC3339 creation timestamp. */
-    createTime: string | undefined;
+    createTime: string | undefined
     /** RFC3339 last-update timestamp. */
-    updateTime: string | undefined;
+    updateTime: string | undefined
     /** Runtime service account email. */
-    serviceAccount: string | undefined;
+    serviceAccount: string | undefined
     /**
      * Numeric unique ID of the runtime service account: the `sub` of the
      * Google ID tokens the host fetches. An AWS binding's IAM role trusts
      * it, so the host reaches AWS without an access key.
      */
-    serviceAccountUniqueId: string | undefined;
+    serviceAccountUniqueId: string | undefined
     /** True when Alchemy minted the per-host runtime service account. */
-    managedServiceAccount: boolean;
+    managedServiceAccount: boolean
     /** IAM roles bindings granted to the runtime service account. */
-    iamGrants: AppliedIamGrant[];
+    iamGrants: AppliedIamGrant[]
     /** Hash of the bundled `main` program and its bootstrap (Effect-native only). */
-    codeHash: string | undefined;
+    codeHash: string | undefined
   },
   GcpHostBinding,
   Providers
->;
+>
 
-export type ServiceRuntimeContext = GcpHostRuntimeContext;
-export type ServiceServices = Credentials | GcpEnvironment | ServerHost;
-export type ServiceShape = Main<ServiceServices>;
+export type ServiceRuntimeContext = GcpHostRuntimeContext
+export type ServiceServices = Credentials | GcpEnvironment | ServerHost
+export type ServiceShape = Main<ServiceServices>
 
 /**
  * A Cloud Run service (Knative serving revision + traffic).
@@ -629,26 +616,28 @@ export type ServiceShape = Main<ServiceServices>;
  * @resource
  * @category Run
  */
-export const Service: Platform<Service, ServiceServices, ServiceShape, ServiceRuntimeContext> =
-  Platform("GCP.Run.Service", {
+export const Service: Platform<Service, ServiceServices, ServiceShape, ServiceRuntimeContext> = Platform(
+  "GCP.Run.Service",
+  {
     createRuntimeContext: createGcpHostRuntimeContext("GCP.Run.Service", {
       rpc: "private",
     }) as (id: string) => ServiceRuntimeContext,
-  });
+  },
+)
 
 export class ServiceNotResolved extends Data.TaggedError("GCP.Run.ServiceNotResolved")<{
-  resourceName: string;
+  resourceName: string
 }> {}
 
 export class ServiceNotReady extends Data.TaggedError("GCP.Run.ServiceNotReady")<{
-  resourceName: string;
-  state: string;
-  message: string;
+  resourceName: string
+  state: string
+  message: string
 }> {}
 
 export class ServiceReconciling extends Data.TaggedError("GCP.Run.ServiceReconciling")<{
-  resourceName: string;
-  state: string;
+  resourceName: string
+  state: string
 }> {}
 
 /**
@@ -656,83 +645,80 @@ export class ServiceReconciling extends Data.TaggedError("GCP.Run.ServiceReconci
  * anyone could call them.
  */
 export class ServiceRpcPublic extends Data.TaggedError("GCP.Run.ServiceRpcPublic")<{
-  id: string;
+  id: string
 }> {
   override get message() {
-    return `GCP.Run.Service ${this.id} returns RPC methods but sets invokerIamDisabled, so they would be public. Keep the IAM invoker check on and call it with GCP.Run.InvokeService.`;
+    return `GCP.Run.Service ${this.id} returns RPC methods but sets invokerIamDisabled, so they would be public. Keep the IAM invoker check on and call it with GCP.Run.InvokeService.`
   }
 }
 
 export class ServiceStillExists extends Data.TaggedError("GCP.Run.ServiceStillExists")<{
-  resourceName: string;
+  resourceName: string
 }> {}
 
 const lastSegment = (value: string) => {
-  const trimmed = value.replace(/\/+$/, "");
-  const parts = trimmed.split("/");
-  return parts[parts.length - 1] || trimmed;
-};
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
 
 const normalizeLocation = (location: string | undefined, defaultLocation: string) =>
-  lastSegment(location ?? defaultLocation).toLowerCase();
+  lastSegment(location ?? defaultLocation).toLowerCase()
 
 const resourceName = (project: string, location: string, serviceId: string) =>
-  `projects/${project}/locations/${location}/services/${serviceId}`;
+  `projects/${project}/locations/${location}/services/${serviceId}`
 
 const parseName = (name: string, defaultLocation: string) => {
-  const parts = name.split("/").filter((part) => part.length > 0);
-  const servicesAt = parts.lastIndexOf("services");
-  const locationsAt = parts.lastIndexOf("locations");
-  const projectsAt = parts.lastIndexOf("projects");
+  const parts = name.split("/").filter((part) => part.length > 0)
+  const servicesAt = parts.lastIndexOf("services")
+  const locationsAt = parts.lastIndexOf("locations")
+  const projectsAt = parts.lastIndexOf("projects")
   return {
     project: projectsAt >= 0 && parts[projectsAt + 1] ? parts[projectsAt + 1]! : "",
-    location:
-      locationsAt >= 0 && parts[locationsAt + 1] ? parts[locationsAt + 1]! : defaultLocation,
-    serviceId:
-      servicesAt >= 0 && parts[servicesAt + 1] ? parts[servicesAt + 1]! : lastSegment(name),
-  };
-};
+    location: locationsAt >= 0 && parts[locationsAt + 1] ? parts[locationsAt + 1]! : defaultLocation,
+    serviceId: servicesAt >= 0 && parts[servicesAt + 1] ? parts[servicesAt + 1]! : lastSegment(name),
+  }
+}
 
 const userLabels = (
   labels: Record<string, string | undefined> | null | undefined,
-): Record<string, string> => stripInternalLabels(tagRecord(labels));
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
 
 const userAnnotations = (
   annotations: Record<string, string | undefined> | null | undefined,
-): Record<string, string> => tagRecord(annotations);
+): Record<string, string> => tagRecord(annotations)
 
 const recordsEqual = (left: Record<string, string>, right: Record<string, string>) => {
-  const leftKeys = Object.keys(left).sort();
-  const rightKeys = Object.keys(right).sort();
+  const leftKeys = Object.keys(left).sort()
+  const rightKeys = Object.keys(right).sort()
   return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key])
-  );
-};
+    leftKeys.length === rightKeys.length
+    && leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key])
+  )
+}
 
 const rfc1035 = (name: string): string => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (!/^[a-z]/.test(next)) next = `s${next}`;
-  next = next.slice(0, MAX_NAME_LENGTH).replace(/-+$/g, "");
-  return next.length > 0 ? next : "service";
-};
+    .replace(/^-+|-+$/g, "")
+  if (!/^[a-z]/.test(next)) next = `s${next}`
+  next = next.slice(0, MAX_NAME_LENGTH).replace(/-+$/g, "")
+  return next.length > 0 ? next : "service"
+}
 
-const toId = (id: string, serviceId: string | undefined, existing?: string) =>
-  Effect.gen(function* () {
-    if (serviceId !== undefined) return serviceId;
-    if (existing !== undefined) return existing;
-    return rfc1035(
-      yield* createPhysicalName({
-        id,
-        maxLength: MAX_NAME_LENGTH,
-        lowercase: true,
-      }),
-    );
-  });
+const toId = effect (id: string, serviceId: string | undefined, existing?: string) => {
+  if (serviceId !== undefined) return serviceId
+  if (existing !== undefined) return existing
+  return rfc1035(
+    try createPhysicalName({
+      id,
+      maxLength: MAX_NAME_LENGTH,
+      lowercase: true,
+    }),
+  )
+}
 
 /** `GCP.Run.Container`s listed in the template, as their resolved attributes. */
 const declaredContainersOf = (news: ServiceProps): BoundContainer[] =>
@@ -740,16 +726,16 @@ const declaredContainersOf = (news: ServiceProps): BoundContainer[] =>
     spec: container.spec,
     iam: container.iam,
     sidecars: container.sidecars,
-  }));
+  }))
 
 const desiredTemplate = (news: ServiceProps): cloudrun.GoogleCloudRunV2RevisionTemplate => {
-  const template = news.template ?? {};
+  const template = news.template ?? {}
   // A listed `GCP.Run.Container` arrives resolved to its attributes, never
   // as the resource the prop type names.
   const containers = (template.containers ?? []).map((container): ContainerSpec =>
-    isContainerAttributes(container) ? container.spec : (container as ContainerSpec),
-  );
-  const [main = { image: DEFAULT_IMAGE }, ...rest] = containers;
+    isContainerAttributes(container) ? container.spec : (container as ContainerSpec)
+  )
+  const [main = { image: DEFAULT_IMAGE }, ...rest] = containers
   return {
     ...template,
     containers: [
@@ -760,15 +746,15 @@ const desiredTemplate = (news: ServiceProps): cloudrun.GoogleCloudRunV2RevisionT
       },
       ...rest,
     ],
-  };
-};
+  }
+}
 
 const normalizeDuration = (value: string | undefined) => {
-  if (value === undefined) return undefined;
-  const match = /^([0-9]+(?:\.[0-9]+)?)s$/.exec(value.trim());
-  if (!match) return value;
-  return `${Number(match[1])}s`;
-};
+  if (value === undefined) return undefined
+  const match = /^([0-9]+(?:\.[0-9]+)?)s$/.exec(value.trim())
+  if (!match) return value
+  return `${Number(match[1])}s`
+}
 
 const envFingerprint = (env: cloudrun.GoogleCloudRunV2EnvVarList | undefined) =>
   JSON.stringify(
@@ -780,7 +766,7 @@ const envFingerprint = (env: cloudrun.GoogleCloudRunV2EnvVarList | undefined) =>
         version: item.valueSource?.secretKeyRef?.version ?? "",
       }))
       .sort((left, right) => left.name.localeCompare(right.name)),
-  );
+  )
 
 // Cloud Run reports an unnamed port as `http1`.
 const portsFingerprint = (ports: cloudrun.GoogleCloudRunV2ContainerPortList | undefined) =>
@@ -789,7 +775,7 @@ const portsFingerprint = (ports: cloudrun.GoogleCloudRunV2ContainerPortList | un
       name: port.name || "http1",
       containerPort: port.containerPort ?? 0,
     })),
-  );
+  )
 
 // Cloud Run gives a serving container without a startup probe this one.
 const DEFAULT_STARTUP_PROBE: cloudrun.GoogleCloudRunV2Probe = {
@@ -797,37 +783,35 @@ const DEFAULT_STARTUP_PROBE: cloudrun.GoogleCloudRunV2Probe = {
   timeoutSeconds: 240,
   periodSeconds: 240,
   failureThreshold: 1,
-};
+}
 
 const probeFingerprint = (
   probe: cloudrun.GoogleCloudRunV2Probe | undefined,
   container: cloudrun.GoogleCloudRunV2Container,
 ) => {
-  if (probe === undefined) return "";
-  const defaultPort = container.ports?.[0]?.containerPort ?? 8080;
+  if (probe === undefined) return ""
+  const defaultPort = container.ports?.[0]?.containerPort ?? 8080
   return JSON.stringify({
-    httpGet:
-      probe.httpGet === undefined
-        ? null
-        : {
-            path: probe.httpGet.path || "/",
-            port: probe.httpGet.port || defaultPort,
-            headers: (probe.httpGet.httpHeaders ?? []).map((header) => [
-              header.name ?? "",
-              header.value ?? "",
-            ]),
-          },
+    httpGet: probe.httpGet === undefined
+      ? null
+      : {
+        path: probe.httpGet.path || "/",
+        port: probe.httpGet.port || defaultPort,
+        headers: (probe.httpGet.httpHeaders ?? []).map((header) => [
+          header.name ?? "",
+          header.value ?? "",
+        ]),
+      },
     tcpSocket: probe.tcpSocket === undefined ? null : { port: probe.tcpSocket.port || defaultPort },
-    grpc:
-      probe.grpc === undefined
-        ? null
-        : { port: probe.grpc.port || defaultPort, service: probe.grpc.service ?? "" },
+    grpc: probe.grpc === undefined
+      ? null
+      : { port: probe.grpc.port || defaultPort, service: probe.grpc.service ?? "" },
     initialDelaySeconds: probe.initialDelaySeconds ?? 0,
     timeoutSeconds: probe.timeoutSeconds ?? 1,
     periodSeconds: probe.periodSeconds ?? 10,
     failureThreshold: probe.failureThreshold ?? 3,
-  });
-};
+  })
+}
 
 // An omitted probe means the Cloud Run default, so a dropped probe still
 // rolls a revision that resets it.
@@ -835,103 +819,103 @@ const startupProbeNeedsSync = (
   desired: cloudrun.GoogleCloudRunV2Container,
   observed: cloudrun.GoogleCloudRunV2Container,
 ) => {
-  const have = probeFingerprint(observed.startupProbe, observed);
+  const have = probeFingerprint(observed.startupProbe, observed)
   if (desired.startupProbe !== undefined) {
-    return probeFingerprint(desired.startupProbe, desired) !== have;
+    return probeFingerprint(desired.startupProbe, desired) !== have
   }
-  return have !== "" && have !== probeFingerprint(DEFAULT_STARTUP_PROBE, observed);
-};
+  return have !== "" && have !== probeFingerprint(DEFAULT_STARTUP_PROBE, observed)
+}
 
 const containerNeedsSync = (
   desired: cloudrun.GoogleCloudRunV2ContainerList | undefined,
   observed: cloudrun.GoogleCloudRunV2ContainerList | undefined,
 ) => {
-  const want = desired ?? [];
-  const have = observed ?? [];
-  if (want.length !== have.length) return true;
+  const want = desired ?? []
+  const have = observed ?? []
+  if (want.length !== have.length) return true
   return want.some((container, index) => {
-    const current = have[index];
-    if (current === undefined) return true;
-    if ((container.image ?? "") !== (current.image ?? "")) return true;
+    const current = have[index]
+    if (current === undefined) return true
+    if ((container.image ?? "") !== (current.image ?? "")) return true
     if (
-      container.command !== undefined &&
-      JSON.stringify(container.command) !== JSON.stringify(current.command ?? [])
+      container.command !== undefined
+      && JSON.stringify(container.command) !== JSON.stringify(current.command ?? [])
     ) {
-      return true;
+      return true
     }
     if (
-      container.args !== undefined &&
-      JSON.stringify(container.args) !== JSON.stringify(current.args ?? [])
+      container.args !== undefined
+      && JSON.stringify(container.args) !== JSON.stringify(current.args ?? [])
     ) {
-      return true;
+      return true
     }
     if (container.workingDir !== undefined && container.workingDir !== (current.workingDir ?? "")) {
-      return true;
+      return true
     }
     if (
-      container.env !== undefined &&
-      envFingerprint(container.env) !== envFingerprint(current.env)
+      container.env !== undefined
+      && envFingerprint(container.env) !== envFingerprint(current.env)
     ) {
-      return true;
+      return true
     }
     if (
-      container.ports !== undefined &&
-      portsFingerprint(container.ports) !== portsFingerprint(current.ports)
+      container.ports !== undefined
+      && portsFingerprint(container.ports) !== portsFingerprint(current.ports)
     ) {
-      return true;
+      return true
     }
     if (container.resources?.limits !== undefined) {
-      const wantLimits = tagRecord(container.resources.limits);
-      const haveLimits = tagRecord(current.resources?.limits);
+      const wantLimits = tagRecord(container.resources.limits)
+      const haveLimits = tagRecord(current.resources?.limits)
       for (const [key, value] of Object.entries(wantLimits)) {
-        if (haveLimits[key] !== value) return true;
+        if (haveLimits[key] !== value) return true
       }
     }
     if (
-      container.resources?.cpuIdle !== undefined &&
-      container.resources.cpuIdle !== current.resources?.cpuIdle
+      container.resources?.cpuIdle !== undefined
+      && container.resources.cpuIdle !== current.resources?.cpuIdle
     ) {
-      return true;
+      return true
     }
     if (
-      container.resources?.startupCpuBoost !== undefined &&
-      container.resources.startupCpuBoost !== current.resources?.startupCpuBoost
+      container.resources?.startupCpuBoost !== undefined
+      && container.resources.startupCpuBoost !== current.resources?.startupCpuBoost
     ) {
-      return true;
+      return true
     }
     if (container.name !== undefined && container.name !== (current.name ?? "")) {
-      return true;
+      return true
     }
-    if (startupProbeNeedsSync(container, current)) return true;
+    if (startupProbeNeedsSync(container, current)) return true
     if (
-      probeFingerprint(container.livenessProbe, container) !==
-      probeFingerprint(current.livenessProbe, current)
+      probeFingerprint(container.livenessProbe, container)
+        !== probeFingerprint(current.livenessProbe, current)
     ) {
-      return true;
+      return true
     }
     if (JSON.stringify(container.dependsOn ?? []) !== JSON.stringify(current.dependsOn ?? [])) {
-      return true;
+      return true
     }
     if (
-      container.volumeMounts !== undefined &&
-      JSON.stringify(
-        container.volumeMounts.map((mount) => ({
-          name: mount.name ?? "",
-          mountPath: mount.mountPath ?? "",
-        })),
-      ) !==
-        JSON.stringify(
+      container.volumeMounts !== undefined
+      && JSON.stringify(
+          container.volumeMounts.map((mount) => ({
+            name: mount.name ?? "",
+            mountPath: mount.mountPath ?? "",
+          })),
+        )
+        !== JSON.stringify(
           (current.volumeMounts ?? []).map((mount) => ({
             name: mount.name ?? "",
             mountPath: mount.mountPath ?? "",
           })),
         )
     ) {
-      return true;
+      return true
     }
-    return false;
-  });
-};
+    return false
+  })
+}
 
 const scalingFingerprint = (scaling: ServiceScaling | undefined) =>
   JSON.stringify({
@@ -939,7 +923,7 @@ const scalingFingerprint = (scaling: ServiceScaling | undefined) =>
     max: scaling?.maxInstanceCount ?? null,
     mode: scaling?.scalingMode ?? "",
     manual: scaling?.manualInstanceCount ?? null,
-  });
+  })
 
 const trafficFingerprint = (traffic: TrafficTarget[] | undefined) =>
   JSON.stringify(
@@ -949,105 +933,104 @@ const trafficFingerprint = (traffic: TrafficTarget[] | undefined) =>
       percent: target.percent ?? 0,
       tag: target.tag ?? "",
     })),
-  );
+  )
 
-const audiencesFingerprint = (audiences: string[] | undefined) =>
-  JSON.stringify([...(audiences ?? [])].sort());
+const audiencesFingerprint = (audiences: string[] | undefined) => JSON.stringify([...(audiences ?? [])].sort())
 
 const templateNeedsSync = (
   desired: cloudrun.GoogleCloudRunV2RevisionTemplate,
   observed: cloudrun.GoogleCloudRunV2RevisionTemplate | undefined,
 ) => {
-  const current = observed ?? {};
+  const current = observed ?? {}
   if (containerNeedsSync(desired.containers, current.containers)) {
-    return true;
+    return true
   }
   if (
-    desired.timeout !== undefined &&
-    normalizeDuration(desired.timeout) !== normalizeDuration(current.timeout)
+    desired.timeout !== undefined
+    && normalizeDuration(desired.timeout) !== normalizeDuration(current.timeout)
   ) {
-    return true;
+    return true
   }
   if (
-    desired.maxInstanceRequestConcurrency !== undefined &&
-    desired.maxInstanceRequestConcurrency !== (current.maxInstanceRequestConcurrency ?? 0)
+    desired.maxInstanceRequestConcurrency !== undefined
+    && desired.maxInstanceRequestConcurrency !== (current.maxInstanceRequestConcurrency ?? 0)
   ) {
-    return true;
+    return true
   }
   if (
-    desired.serviceAccount !== undefined &&
-    desired.serviceAccount !== (current.serviceAccount ?? "")
+    desired.serviceAccount !== undefined
+    && desired.serviceAccount !== (current.serviceAccount ?? "")
   ) {
-    return true;
+    return true
   }
   if (
-    desired.executionEnvironment !== undefined &&
-    desired.executionEnvironment !== (current.executionEnvironment ?? "")
+    desired.executionEnvironment !== undefined
+    && desired.executionEnvironment !== (current.executionEnvironment ?? "")
   ) {
-    return true;
+    return true
   }
   if (
-    desired.sessionAffinity !== undefined &&
-    desired.sessionAffinity !== (current.sessionAffinity === true)
+    desired.sessionAffinity !== undefined
+    && desired.sessionAffinity !== (current.sessionAffinity === true)
   ) {
-    return true;
+    return true
   }
   if (
-    desired.encryptionKey !== undefined &&
-    desired.encryptionKey !== (current.encryptionKey ?? "")
+    desired.encryptionKey !== undefined
+    && desired.encryptionKey !== (current.encryptionKey ?? "")
   ) {
-    return true;
+    return true
   }
   if (desired.revision !== undefined && desired.revision !== (current.revision ?? "")) {
-    return true;
+    return true
   }
   if (
-    desired.scaling !== undefined &&
-    scalingFingerprint(desired.scaling) !== scalingFingerprint(current.scaling)
+    desired.scaling !== undefined
+    && scalingFingerprint(desired.scaling) !== scalingFingerprint(current.scaling)
   ) {
-    return true;
+    return true
   }
   if (
-    desired.vpcAccess !== undefined &&
-    JSON.stringify(desired.vpcAccess) !== JSON.stringify(current.vpcAccess ?? {})
+    desired.vpcAccess !== undefined
+    && JSON.stringify(desired.vpcAccess) !== JSON.stringify(current.vpcAccess ?? {})
   ) {
-    return true;
+    return true
   }
   if (
-    desired.volumes !== undefined &&
-    JSON.stringify(desired.volumes) !== JSON.stringify(current.volumes ?? [])
+    desired.volumes !== undefined
+    && JSON.stringify(desired.volumes) !== JSON.stringify(current.volumes ?? [])
   ) {
-    return true;
+    return true
   }
   if (
-    desired.labels !== undefined &&
-    !recordsEqual(userAnnotations(desired.labels), userAnnotations(current.labels))
+    desired.labels !== undefined
+    && !recordsEqual(userAnnotations(desired.labels), userAnnotations(current.labels))
   ) {
-    return true;
+    return true
   }
   if (
-    desired.annotations !== undefined &&
-    !recordsEqual(userAnnotations(desired.annotations), userAnnotations(current.annotations))
+    desired.annotations !== undefined
+    && !recordsEqual(userAnnotations(desired.annotations), userAnnotations(current.annotations))
   ) {
-    return true;
+    return true
   }
-  return false;
-};
+  return false
+}
 
-const HOST_TYPE = "GCP.Run.Service";
+const HOST_TYPE = "GCP.Run.Service"
 
 const toAttrs = (
   service: cloudrun.GoogleCloudRunV2Service,
   project: string,
   region: string,
   extras: {
-    iamGrants?: AppliedIamGrant[];
-    codeHash?: string;
-    serviceAccountUniqueId?: string;
+    iamGrants?: AppliedIamGrant[]
+    codeHash?: string
+    serviceAccountUniqueId?: string
   } = {},
 ): Service["Attributes"] => {
-  const name = service.name ?? "";
-  const parsed = parseName(name, region);
+  const name = service.name ?? ""
+  const parsed = parseName(name, region)
   return {
     name,
     serviceId: parsed.serviceId,
@@ -1078,11 +1061,10 @@ const toAttrs = (
     serviceAccountUniqueId: extras.serviceAccountUniqueId,
     iamGrants: extras.iamGrants ?? [],
     codeHash: extras.codeHash,
-  };
-};
+  }
+}
 
-const bootstrapFor = (news: ServiceProps) =>
-  makeGcpBootstrap("CloudRun", news.handler ?? "default");
+const bootstrapFor = (news: ServiceProps) => makeGcpBootstrap("CloudRun", news.handler ?? "default")
 
 const sourceOf = (news: ServiceProps, main: string) => ({
   main,
@@ -1090,12 +1072,12 @@ const sourceOf = (news: ServiceProps, main: string) => ({
   build: news.build,
   extraFiles: news.extraFiles,
   install: news.build?.install,
-});
+})
 
 const getByName = (name: string) =>
   cloudrun
     .getProjectsLocationsServices({ name })
-    .pipe(Effect.catchTag("NotFound", () => Effect.undefined));
+    .pipe(Effect.catchTag("NotFound", () => Effect.undefined))
 
 /** Waits on a Cloud Run long-running operation (revisions roll out in minutes). */
 const waitForOperation = (
@@ -1105,21 +1087,19 @@ const waitForOperation = (
   waitForLongRunningOperation(
     operation,
     (name) => {
-      const get = cloudrun.getProjectsLocationsOperations({ name });
+      const get = cloudrun.getProjectsLocationsOperations({ name })
       return options?.notFoundOk === true
         ? get.pipe(
-            Effect.catchTag("NotFound", () =>
-              Effect.succeed<LongRunningOperation>({ name, done: true }),
-            ),
-          )
+          Effect.catchTag("NotFound", () => Effect.succeed<LongRunningOperation>({ name, done: true })),
+        )
         : get.pipe(
-            // A just-returned operation can briefly 404 on read.
-            Effect.retry({
-              while: (error) => error._tag === "NotFound",
-              times: 5,
-              schedule: Schedule.exponential("250 millis"),
-            }),
-          );
+          // A just-returned operation can briefly 404 on read.
+          Effect.retry({
+            while: (error) => error._tag === "NotFound",
+            times: 5,
+            schedule: Schedule.exponential("250 millis"),
+          }),
+        )
     },
     { budget: "10 minutes" },
   ).pipe(
@@ -1127,20 +1107,19 @@ const waitForOperation = (
     Effect.catchTag("GCP.OperationFailed", (error) =>
       options?.notFoundOk === true && error.code === 5
         ? Effect.succeed<LongRunningOperation>(operation)
-        : Effect.fail(error),
-    ),
-  );
+        : Effect.fail(error)),
+  )
 
 const isPendingService = (service: cloudrun.GoogleCloudRunV2Service) => {
-  const state = service.terminalCondition?.state ?? "";
+  const state = service.terminalCondition?.state ?? ""
   return (
-    service.reconciling === true ||
-    state === "CONDITION_PENDING" ||
-    state === "CONDITION_RECONCILING" ||
-    state === "" ||
-    state === "STATE_UNSPECIFIED"
-  );
-};
+    service.reconciling === true
+    || state === "CONDITION_PENDING"
+    || state === "CONDITION_RECONCILING"
+    || state === ""
+    || state === "STATE_UNSPECIFIED"
+  )
+}
 
 const waitUntilReady = (name: string) =>
   getByName(name).pipe(
@@ -1167,26 +1146,25 @@ const waitUntilReady = (name: string) =>
         }),
     ),
     Effect.retry({
-      while: (error) =>
-        error._tag === "GCP.Run.ServiceReconciling" || error._tag === "GCP.Run.ServiceNotResolved",
+      while: (error) => error._tag === "GCP.Run.ServiceReconciling" || error._tag === "GCP.Run.ServiceNotResolved",
       times: 10,
       schedule: Schedule.spaced("4 seconds"),
     }),
-  );
+  )
 
 const waitUntilGone = (name: string) =>
   getByName(name).pipe(
     Effect.flatMap((service) =>
       service === undefined
         ? Effect.void
-        : Effect.fail(new ServiceStillExists({ resourceName: name })),
+        : Effect.fail(new ServiceStillExists({ resourceName: name }))
     ),
     Effect.retry({
       while: (error) => error._tag === "GCP.Run.ServiceStillExists",
       times: 10,
       schedule: Schedule.spaced("2 seconds"),
     }),
-  );
+  )
 
 const toCreateBody = (
   news: ServiceProps,
@@ -1204,62 +1182,72 @@ const toCreateBody = (
   scaling: news.scaling,
   traffic: news.traffic,
   template,
-});
+})
 
 export const ServiceProvider = () =>
   Provider.succeed(Service, {
     stables: ["name", "serviceId", "project", "location", "uid", "createTime"],
 
-    diff: Effect.fn(function* ({ news, olds, output }) {
-      if (!isResolved(news)) return undefined;
-      const env = yield* GcpEnvironment.current;
-      const previousId = olds?.serviceId ?? output?.serviceId;
-      const nextId = news.serviceId ?? previousId;
-      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region);
-      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region);
-      const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId;
-      const locationChanged = previousLocation !== nextLocation;
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.try({
+        try: () => {
+          if (!isResolved(news)) return undefined
+          return { props: news }
+        },
+        catch: (error) => error,
+      }).pipe(Effect.orDie)
+      if (resolved === undefined) return undefined
+      const props = resolved.props
+      const env = try GcpEnvironment.current
+      const previousId = olds?.serviceId ?? output?.serviceId
+      const nextId = props.serviceId ?? previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(props.location ?? output?.location, env.region)
+      const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
+      const locationChanged = previousLocation !== nextLocation
       if (idChanged || locationChanged) {
-        return { action: "replace" as const, deleteFirst: false };
+        return { action: "replace" as const, deleteFirst: false }
       }
       // A code-only change leaves the props untouched; hash the bundled
       // program (and bootstrap) so it still surfaces as an update.
-      if (output !== undefined && news.main !== undefined) {
-        const images = yield* makeImageSource;
-        const hash = yield* images.hash({
-          source: sourceOf(news, news.main),
-          port: news.port ?? 8080,
-          isExternal: news.isExternal,
-          bootstrap: bootstrapFor(news),
-        });
+      if (output !== undefined && props.main !== undefined) {
+        const images = try makeImageSource
+        const hash = try images.hash({
+          source: sourceOf(props, props.main),
+          port: props.port ?? 8080,
+          isExternal: props.isExternal,
+          bootstrap: bootstrapFor(props),
+        })
         if (hash !== undefined && hash !== output.codeHash) {
-          return { action: "update" as const };
+          return { action: "update" as const }
         }
       }
-      return undefined;
-    }),
+      return undefined
+    },
 
-    read: Effect.fn(function* ({ id, olds, output }) {
-      const env = yield* GcpEnvironment.current;
-      const serviceId = yield* toId(id, olds?.serviceId, output?.serviceId);
-      const location = normalizeLocation(olds?.location ?? output?.location, env.region);
-      const name = output?.name ?? resourceName(env.project, location, serviceId);
-      const existing = yield* getByName(name);
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceId = try toId(id, olds?.serviceId, output?.serviceId)
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, serviceId)
+      const existing = try getByName(name)
       if (existing === undefined || existing.deleteTime !== undefined) {
-        return undefined;
+        return undefined
       }
       const attrs = toAttrs(existing, env.project, env.region, {
         iamGrants: output?.iamGrants,
         codeHash: output?.codeHash,
         serviceAccountUniqueId: output?.serviceAccountUniqueId,
-      });
-      return (yield* hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs);
-    }),
+      })
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels)))
+        ? attrs
+        : (try Effect.try({ try: () => Unowned(attrs), catch: (error) => error }).pipe(Effect.orDie))
+    },
 
     list: () =>
-      Effect.gen(function* () {
-        const env = yield* GcpEnvironment.current;
-        return yield* cloudrun.listProjectsLocationsServices
+      effect {
+        const env = try GcpEnvironment.current
+        return try cloudrun.listProjectsLocationsServices
           .pages({
             parent: `projects/${env.project}/locations/-`,
             pageSize: 1000,
@@ -1268,42 +1256,42 @@ export const ServiceProvider = () =>
             Stream.flatMap((page) => Stream.fromIterable(page.services ?? [])),
             Stream.filter(
               (service) =>
-                service.deleteTime === undefined &&
-                Object.keys(service.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+                service.deleteTime === undefined
+                && Object.keys(service.labels ?? {}).some((key) => key.startsWith("alchemy-")),
             ),
             Stream.map((service) => toAttrs(service, env.project, env.region)),
             Stream.runCollect,
             Effect.map((chunk) => Array.from(chunk)),
-          );
-      }),
+          )
+      },
 
-    reconcile: Effect.fn(function* ({ id, news, output, bindings, session }) {
+    reconcile: effect ({ id, news, output, bindings, session }) => {
       if (news.invokerIamDisabled === true && news.env?.[RPC_METHODS_ENV] !== undefined) {
-        return yield* new ServiceRpcPublic({ id });
+        return try new ServiceRpcPublic({ id })
       }
-      const env = yield* GcpEnvironment.current;
-      const serviceId = yield* toId(id, news.serviceId, output?.serviceId);
-      const location = normalizeLocation(news.location ?? output?.location, env.region);
-      const name = resourceName(env.project, location, serviceId);
-      const parent = `projects/${env.project}/locations/${location}`;
+      const env = try GcpEnvironment.current
+      const serviceId = try toId(id, news.serviceId, output?.serviceId)
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, serviceId)
+      const parent = `projects/${env.project}/locations/${location}`
       const desiredLabels = {
         ...toLabels(news.labels),
-        ...(yield* createInternalLabels(id)),
-      };
-      const desiredAnnotations = news.annotations;
-      const template = desiredTemplate(news);
-      const hostBindings = bindings as ResourceBinding<GcpHostBinding>[];
+        ...(try createInternalLabels(id)),
+      }
+      const desiredAnnotations = news.annotations
+      const template = desiredTemplate(news)
+      const hostBindings = bindings as ResourceBinding<GcpHostBinding>[]
       // Bound sidecars run as this service's account, so their bindings'
       // roles are granted to it.
       // Bound sidecars, plus the sidecars of Containers listed in the
       // template. Listed Containers are already in `template`.
-      const declaredContainers = declaredContainersOf(news);
-      const declaredNames = new Set(declaredContainers.map((container) => container.spec.name));
+      const declaredContainers = declaredContainersOf(news)
+      const declaredNames = new Set(declaredContainers.map((container) => container.spec.name))
       const boundContainers = flattenContainers([
         ...boundContainersOf(hostBindings),
         ...declaredContainers.flatMap((container) => container.sidecars),
-      ]).filter((container) => !declaredNames.has(container.spec.name));
-      const identity = yield* resolveHostIdentity({
+      ]).filter((container) => !declaredNames.has(container.spec.name))
+      const identity = try resolveHostIdentity({
         project: env.project,
         hostType: HOST_TYPE,
         resourceName: name,
@@ -1317,13 +1305,13 @@ export const ServiceProvider = () =>
           })),
         ],
         output,
-      });
-      template.serviceAccount = identity.serviceAccount;
-      let codeHash: string | undefined;
+      })
+      template.serviceAccount = identity.serviceAccount
+      let codeHash: string | undefined
       if (news.main !== undefined) {
-        const images = yield* makeImageSource;
-        const port = news.port ?? 8080;
-        const image = yield* images
+        const images = try makeImageSource
+        const port = news.port ?? 8080
+        const image = try images
           .resolve({
             id,
             source: sourceOf(news, news.main),
@@ -1334,59 +1322,71 @@ export const ServiceProvider = () =>
             bootstrap: bootstrapFor(news),
             session,
           })
-          .pipe(Effect.onError(() => identity.cleanup));
-        codeHash = image.codeHash;
-        const [container = {}, ...sidecars] = template.containers ?? [];
+          .pipe(Effect.onError(() => identity.cleanup))
+        codeHash = image.codeHash
+        const [container = {}, ...sidecars] = template.containers ?? []
         template.containers = [
           {
             ...container,
             image: image.imageUri,
             ports: container.ports ?? [{ containerPort: port }],
-            env: mergeContainerEnv(container.env, identity.env, yield* alchemyRuntimeEnv, news.env),
+            env: try effect {
+              const originalEnv = container.env
+              const identityEnv = identity.env
+              const injectedEnv = try alchemyRuntimeEnv
+              const configuredEnv = news.env
+              return try Effect.try({
+                try: () => mergeContainerEnv(originalEnv, identityEnv, injectedEnv, configuredEnv),
+                catch: (error) => error,
+              }).pipe(Effect.orDie)
+            },
           },
           ...sidecars,
-        ];
+        ]
       } else {
-        const runtimeEnv = { ...identity.env, ...news.env };
+        const runtimeEnv = { ...identity.env, ...news.env }
         if (Object.keys(runtimeEnv).length > 0 && template.containers) {
           template.containers = template.containers.map((container, index) =>
             index === 0
               ? {
-                  ...container,
-                  env: mergeContainerEnv(container.env, runtimeEnv),
-                }
-              : container,
-          );
+                ...container,
+                env: mergeContainerEnv(container.env, runtimeEnv),
+              }
+              : container
+          )
         }
       }
 
       if (boundContainers.length > 0) {
-        const [main = {}, ...rest] = template.containers ?? [];
-        const declared = new Set(rest.map((container) => container.name));
+        const [main = {}, ...rest] = template.containers ?? []
+        const declared = new Set(rest.map((container) => container.name))
         const dependsOn = [
           ...new Set([...(main.dependsOn ?? []), ...directContainerNames(hostBindings)]),
-        ];
+        ]
         template.containers = [
           { ...main, dependsOn },
           ...rest,
           ...boundContainers
             .filter((container) => !declared.has(container.spec.name))
             .map((container) => container.spec),
-        ];
+        ]
       }
 
-      const mounted = mountCloudSqlInstances(template, hostBindings);
-      template.volumes = mounted.volumes;
-      template.containers = mounted.containers;
+      const mounted = try Effect.try({
+        try: () => mountCloudSqlInstances(template, hostBindings),
+        catch: (error) => error,
+      }).pipe(Effect.orDie)
+      template.volumes = mounted.volumes
+      template.containers = mounted.containers
 
-      let current = yield* getByName(name);
+      let current = try getByName(name)
       if (current?.deleteTime !== undefined) {
-        yield* waitUntilGone(name);
-        current = undefined;
+        try waitUntilGone(name)
+        current = undefined
       }
 
       if (current === undefined) {
-        const created = yield* cloudrun
+        const created = try cloudrun
           .createProjectsLocationsServices({
             parent,
             serviceId,
@@ -1396,57 +1396,50 @@ export const ServiceProvider = () =>
             retryActAs,
             Effect.catchTag("Conflict", () => Effect.undefined),
             Effect.onError(() => identity.cleanup),
-          );
+          )
         if (created !== undefined) {
-          yield* waitForOperation(created);
+          try waitForOperation(created)
         }
-        current = yield* waitUntilReady(name);
+        current = try waitUntilReady(name)
       }
 
       if (current === undefined) {
-        return yield* new ServiceNotResolved({ resourceName: name });
+        return try new ServiceNotResolved({ resourceName: name })
       }
 
-      const observedLabels = tagRecord(current.labels);
-      const { upsert, removed } = diffLabels(observedLabels, desiredLabels);
-      const labelsChanged = upsert.length > 0 || removed.length > 0;
-      const descriptionChanged = (current.description ?? "") !== (news.description ?? "");
-      const annotationsChanged =
-        desiredAnnotations !== undefined &&
-        !recordsEqual(userAnnotations(current.annotations), userAnnotations(desiredAnnotations));
-      const ingressChanged = news.ingress !== undefined && (current.ingress ?? "") !== news.ingress;
-      const invokerChanged =
-        news.invokerIamDisabled !== undefined &&
-        (current.invokerIamDisabled === true) !== news.invokerIamDisabled;
-      const defaultUriChanged =
-        news.defaultUriDisabled !== undefined &&
-        (current.defaultUriDisabled === true) !== news.defaultUriDisabled;
-      const iapChanged =
-        news.iapEnabled !== undefined && (current.iapEnabled === true) !== news.iapEnabled;
-      const audiencesChanged =
-        news.customAudiences !== undefined &&
-        audiencesFingerprint(current.customAudiences) !==
-          audiencesFingerprint(news.customAudiences);
-      const scalingChanged =
-        news.scaling !== undefined &&
-        scalingFingerprint(current.scaling) !== scalingFingerprint(news.scaling);
-      const trafficChanged =
-        news.traffic !== undefined &&
-        trafficFingerprint(current.traffic) !== trafficFingerprint(news.traffic);
-      const templateChanged = templateNeedsSync(template, current.template);
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const annotationsChanged = desiredAnnotations !== undefined
+        && !recordsEqual(userAnnotations(current.annotations), userAnnotations(desiredAnnotations))
+      const ingressChanged = news.ingress !== undefined && (current.ingress ?? "") !== news.ingress
+      const invokerChanged = news.invokerIamDisabled !== undefined
+        && (current.invokerIamDisabled === true) !== news.invokerIamDisabled
+      const defaultUriChanged = news.defaultUriDisabled !== undefined
+        && (current.defaultUriDisabled === true) !== news.defaultUriDisabled
+      const iapChanged = news.iapEnabled !== undefined && (current.iapEnabled === true) !== news.iapEnabled
+      const audiencesChanged = news.customAudiences !== undefined
+        && audiencesFingerprint(current.customAudiences)
+          !== audiencesFingerprint(news.customAudiences)
+      const scalingChanged = news.scaling !== undefined
+        && scalingFingerprint(current.scaling) !== scalingFingerprint(news.scaling)
+      const trafficChanged = news.traffic !== undefined
+        && trafficFingerprint(current.traffic) !== trafficFingerprint(news.traffic)
+      const templateChanged = templateNeedsSync(template, current.template)
 
       if (
-        labelsChanged ||
-        descriptionChanged ||
-        annotationsChanged ||
-        ingressChanged ||
-        invokerChanged ||
-        defaultUriChanged ||
-        iapChanged ||
-        audiencesChanged ||
-        scalingChanged ||
-        trafficChanged ||
-        templateChanged
+        labelsChanged
+        || descriptionChanged
+        || annotationsChanged
+        || ingressChanged
+        || invokerChanged
+        || defaultUriChanged
+        || iapChanged
+        || audiencesChanged
+        || scalingChanged
+        || trafficChanged
+        || templateChanged
       ) {
         const updateMask = [
           labelsChanged ? "labels" : undefined,
@@ -1460,9 +1453,9 @@ export const ServiceProvider = () =>
           scalingChanged ? "scaling" : undefined,
           trafficChanged ? "traffic" : undefined,
           templateChanged ? "template" : undefined,
-        ].filter((field): field is string => field !== undefined);
+        ].filter((field): field is string => field !== undefined)
 
-        const patched = yield* cloudrun.patchProjectsLocationsServices({
+        const patched = try cloudrun.patchProjectsLocationsServices({
           name,
           updateMask: updateMask.join(","),
           body: {
@@ -1479,37 +1472,37 @@ export const ServiceProvider = () =>
             traffic: news.traffic,
             template,
           },
-        });
-        yield* waitForOperation(patched);
-        current = yield* waitUntilReady(name);
+        })
+        try waitForOperation(patched)
+        current = try waitUntilReady(name)
       }
 
       if (current === undefined) {
-        return yield* new ServiceNotResolved({ resourceName: name });
+        return try new ServiceNotResolved({ resourceName: name })
       }
 
       return toAttrs(current, env.project, env.region, {
         iamGrants: identity.grants,
         codeHash,
         serviceAccountUniqueId: identity.uniqueId,
-      });
-    }),
+      })
+    },
 
-    delete: Effect.fn(function* ({ id, output }) {
-      const operation = yield* cloudrun.deleteProjectsLocationsServices({ name: output.name }).pipe(
+    delete: effect ({ id, output }) => {
+      const operation = try cloudrun.deleteProjectsLocationsServices({ name: output.name }).pipe(
         Effect.retry({
           while: (error) => error._tag === "Conflict",
           times: 8,
           schedule: Schedule.spaced("2 seconds"),
         }),
         Effect.catchTag("NotFound", () => Effect.undefined),
-      );
+      )
       if (operation !== undefined) {
-        yield* waitForOperation(operation, { notFoundOk: true });
+        try waitForOperation(operation, { notFoundOk: true })
       }
-      yield* waitUntilGone(output.name);
+      try waitUntilGone(output.name)
       // Effect-native hosts build into a per-host repository on reconcile.
-      yield* destroyHostImageRepository(id, output, rfc1035(`${output.serviceId}-src`));
-      yield* releaseHostIdentity(output);
-    }),
-  });
+      try destroyHostImageRepository(id, output, rfc1035(`${output.serviceId}-src`))
+      try releaseHostIdentity(output)
+    },
+  })

@@ -22,7 +22,7 @@ import {
   type ResourceRequirements,
   type RevisionScaling,
   type ServiceProps,
-} from "../Run/Service.ts";
+} from "../Run/Service.vibe";
 
 export type { ServerDevProps, WebsiteAssetsProps, WebsiteNotFoundHandling };
 export { staticConfigFromAssets };

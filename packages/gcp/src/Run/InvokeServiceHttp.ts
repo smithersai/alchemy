@@ -19,7 +19,7 @@ import {
   type InvokeServiceRequestInit,
   type InvokeServiceResponse,
 } from "./InvokeService.vibe";
-import type { Service } from "./Service.ts";
+import type { Service } from "./Service.vibe";
 
 const IDENTITY_ENDPOINT =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity";

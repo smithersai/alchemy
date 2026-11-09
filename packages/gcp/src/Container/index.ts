@@ -1,4 +1,4 @@
-export * from "./Cluster.ts";
+export * from "./Cluster.vibe";
 export * from "./ClustersNodePool.ts";
 export * from "./GetCluster.vibe";
 export * from "./GetClusterHttp.vibe";
