@@ -1,5 +1,5 @@
-import { TaggedError as $MutableErrorBase } from "vibelang-runtime";
-import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime";
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
 import * as Hetzner from "@distilled.cloud/hetzner"
 import type { GetVolumeResponseVolume } from "@distilled.cloud/hetzner/volumes"
 import { isResolved } from "alchemy/Diff"
@@ -127,27 +127,23 @@ class VolumeNotFound extends Data.TaggedError("Hetzner.VolumeNotFound")<{
 }> {}
 
 class AttachmentPending extends $MutableErrorBase("AttachmentPending")<{
+  volumeId: number
 
-   volumeId: number;
-
-   serverId: number | null;
-}> {static {
-    $MutableErrorMatcher(this, "AttachmentPending", true);
-}
-
-
+  serverId: number | null
+}> {
+  static {
+    $MutableErrorMatcher(this, "AttachmentPending", true)
+  }
 }
 
 class AttachmentTimeout extends $MutableErrorBase("AttachmentTimeout")<{
+  volumeId: number
 
-   volumeId: number;
-
-   serverId: number | null;
-}> {static {
-    $MutableErrorMatcher(this, "AttachmentTimeout", true);
-}
-
-
+  serverId: number | null
+}> {
+  static {
+    $MutableErrorMatcher(this, "AttachmentTimeout", true)
+  }
 }
 
 const retryable = (e: { readonly _tag: string }): boolean =>
@@ -181,10 +177,12 @@ const serverIdOf = (value: unknown): number | undefined => {
 }
 
 const getById = effect (id: number) =>
-  (effect { return (try effect {
-    const { volume } = try Hetzner.volumes.getVolume({ id })
-    return volume
-  }) }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+  (effect {
+    return (try effect {
+      const { volume } = try Hetzner.volumes.getVolume({ id })
+      return volume
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
 
 const toAttrs = (
   volume: GetVolumeResponseVolume,
@@ -200,60 +198,66 @@ const toAttrs = (
 }
 
 const waitUntilServer = effect (volumeId: number, serverId: number | null) =>
-  (effect { return (try (effect {
-    return try effect {
-      const volume = try getById(volumeId)
+  (effect {
+    return (try (effect {
+      return try effect {
+        const volume = try getById(volumeId)
 
-      if (volume === undefined) {
-        return (serverId === null ? undefined : throw new AttachmentPending({
+        if (volume === undefined) {
+          return (serverId === null ? undefined : throw new AttachmentPending({
+            volumeId,
+            serverId: null,
+          }))
+        }
+        const attached = volume.server
+        if (attached === serverId) return volume
+        throw new AttachmentPending({
           volumeId,
-          serverId: null,
-        }))
+          serverId: attached,
+        })
       }
-      const attached = volume.server
-      if (attached === serverId) return volume
-      throw new AttachmentPending({
-        volumeId,
-        serverId: attached,
-      })
     }
+      |> Effect.retry(%, {
+        while: retryable,
+        times: 10,
+        schedule: backoff,
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "AttachmentPending" }: throw new AttachmentTimeout({
+      volumeId: e.volumeId,
+      serverId: e.serverId,
+    });
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: retryable,
-      times: 10,
-      schedule: backoff,
-    }))) }) catch effect (e) => match (e) {
-      when { _tag: "AttachmentPending" }: throw new AttachmentTimeout({
-        volumeId: e.volumeId,
-        serverId: e.serverId,
-      });
-      default: throw e;
-    }
 
 const detach = effect (volumeId: number) =>
-  (effect { return (try (Hetzner.volumeActions.detachVolume({ id: volumeId })
-    |> Effect.tap(%, effect ({ action }) =>
-      waitForAction(action) catch effect (e) => match (e) {
-        when { _tag: "ActionTimeout" }: (undefined as void);
-        default: throw e;
-      }))) }) catch effect (e) => match (e) {
-        when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: (undefined as void);
-        default: throw e;
-      }
-
-const attach = effect (volumeId: number, serverId: number, automount: boolean) =>
-  try (effect {
-    return (effect { return (try (Hetzner.volumeActions
-      .attachVolume({
-        id: volumeId,
-        server: serverId,
-        automount,
-      })
+  (effect {
+    return (try (Hetzner.volumeActions.detachVolume({ id: volumeId })
       |> Effect.tap(%, effect ({ action }) =>
         waitForAction(action) catch effect (e) => match (e) {
           when { _tag: "ActionTimeout" }: (undefined as void);
           default: throw e;
-        }))) }) catch effect (e) => match (e) { when { _tag: "UnprocessableEntity" }: (undefined as void); default: throw e; }
+        })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: (undefined as void);
+    default: throw e;
+  }
+
+const attach = effect (volumeId: number, serverId: number, automount: boolean) =>
+  try (effect {
+    return (effect {
+      return (try (Hetzner.volumeActions
+        .attachVolume({
+          id: volumeId,
+          server: serverId,
+          automount,
+        })
+        |> Effect.tap(%, effect ({ action }) =>
+          waitForAction(action) catch effect (e) => match (e) {
+            when { _tag: "ActionTimeout" }: (undefined as void);
+            default: throw e;
+          })))
+    }) catch effect (e) => match (e) { when { _tag: "UnprocessableEntity" }: (undefined as void); default: throw e; }
   }
     |> Effect.retry(%, {
       while: retryable,
@@ -284,7 +288,9 @@ export const VolumeAttachmentProvider = (): infer _ =>
       })
     },
     diff: effect ({ news, output }) => {
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved === undefined) return undefined
       const nextVolume = volumeIdOf(resolved.volume)
       const nextServer = serverIdOf(resolved.server)
