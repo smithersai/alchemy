@@ -45,3 +45,6 @@ Provider guards that call a foreign predicate run it in an Effect boundary.
 The guarded callback returns the narrowed value, so the continuation can use its
 resolved type. A missing prior output still short-circuits before inspecting
 props, and getter or Proxy failures keep their original defect identity.
+
+Trace JSON parsing uses an Effect boundary after file reading, so filesystem
+and parsing failures retain their original order.
