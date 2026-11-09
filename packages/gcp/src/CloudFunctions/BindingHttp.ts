@@ -1,5 +1,5 @@
 import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
-import type { Function as CloudFunction } from "./Function.ts";
+import type { Function as CloudFunction } from "./Function.vibe";
 
 /**
  * Shared HTTP scaffolding for Cloud Functions bindings.

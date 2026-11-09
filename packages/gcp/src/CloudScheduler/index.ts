@@ -1,4 +1,4 @@
-export * from "./Job.ts";
+export * from "./Job.vibe";
 export * from "./PauseJob.vibe";
 export * from "./PauseJobHttp.vibe";
 export * from "./ResumeJob.vibe";
