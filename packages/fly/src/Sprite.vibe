@@ -530,23 +530,34 @@ export const SpriteProvider = (): infer _ =>
     effect {
       const stack = try Effect.service(Stack)
       const virtualEntryPlugin = try Bundle.virtualEntryPlugin
-      const hosted = try Effect.orDie(Effect.try({ try: () => createSpriteHostedSupport({
-        stackName: stack.name,
-        stage: stack.stage,
-        virtualEntryPlugin,
-      }), catch: (e) => e }))
+      const hosted = try Effect.orDie(Effect.try({
+        try: () =>
+          createSpriteHostedSupport({
+            stackName: stack.name,
+            stage: stack.stage,
+            virtualEntryPlugin,
+          }),
+        catch: (e) => e,
+      }))
 
       return Sprite.Provider.of({
         stables: ["spriteId", "name"],
 
         diff: effect ({ news, output }) => {
           if (news === undefined || output === undefined) return undefined
-          if (isResolved(news)) {
-            const desiredName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined ? sanitizeFlyAppName(news.name) : output.name, catch: (e) => e }))
+          const checkedNews = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? { value: news } : undefined, catch: (cause) => cause }),
+          )
+          if (checkedNews) {
+            const resolvedNews = checkedNews.value
+            const desiredName = try Effect.orDie(Effect.try({
+              try: () => resolvedNews.name !== undefined ? sanitizeFlyAppName(resolvedNews.name) : output.name,
+              catch: (e) => e,
+            }))
             if (desiredName !== output.name) {
               return { action: "replace" as const }
             }
-            const desiredAuth = news.urlAuth ?? DEFAULT_URL_AUTH
+            const desiredAuth = resolvedNews.urlAuth ?? DEFAULT_URL_AUTH
             if (desiredAuth !== output.urlAuth) {
               return { action: "update" as const }
             }
@@ -558,7 +569,14 @@ export const SpriteProvider = (): infer _ =>
           // time the effect-config form has been evaluated, so the object
           // view is safe to read.
           const statics = news as Partial<Pick<SpriteProps, "main" | "port">>
-          if (isResolved({ main: statics.main, port: statics.port })) {
+          if (
+            try Effect.orDie(
+              Effect.try({
+                try: () => isResolved({ main: statics.main, port: statics.port }),
+                catch: (cause) => cause,
+              }),
+            )
+          ) {
             const hash = try hosted.hash(news as HostedProgramProps)
             if (hash !== output.code.hash) {
               return { action: "update" as const }
@@ -569,26 +587,32 @@ export const SpriteProvider = (): infer _ =>
 
         read: effect ({ id, olds, output }) => {
           const name = try resolveSpriteName(id, olds?.name, output?.name)
-          const found = (effect { return (try effect {
-            const existing = try (
-              output?.name !== undefined ? getByName(output.name) : Effect.undefined
-            )
-            return (existing !== undefined ? existing : try getByName(name))
-          }) }) catch effect (e) => match (e) {
+          const found = (effect {
+            return (try effect {
+              const existing = try (
+                output?.name !== undefined ? getByName(output.name) : Effect.undefined
+              )
+              return (existing !== undefined ? existing : try getByName(name))
+            })
+          }) catch effect (e) => match (e) {
             when { _tag: "SpritesNotEnabled" }: undefined;
             default: throw e;
           }
           if (found === undefined) return undefined
           const attrs = toAttrs(found, name, output?.code.hash ?? "")
           if (output !== undefined) return attrs
-          return isOwnedSprite(found) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          return isOwnedSprite(found)
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
         },
 
         list: effect () => {
-          const items = (effect { return (Array.from(
-            try (sprites.listSprites.items({ max_results: 50 })
-              |> Stream.runCollect(%)),
-          )) }) catch effect (e) => match (e) { when { _tag: "SpritesNotEnabled" }: []; default: throw e; }
+          const items = (effect {
+            return (Array.from(
+              try (sprites.listSprites.items({ max_results: 50 })
+                |> Stream.runCollect(%)),
+            ))
+          }) catch effect (e) => match (e) { when { _tag: "SpritesNotEnabled" }: []; default: throw e; }
           return items
             .filter(isOwnedSprite)
             .map((sprite) => toAttrs(sprite, sprite.name ?? "", ""))

@@ -1574,13 +1574,17 @@ export const ServiceProvider = (): infer _ =>
       const docker = try Docker
       const { dotAlchemy } = try AlchemyContext
       const virtualEntryPlugin = try Bundle.virtualEntryPlugin
-      const hosted = try Effect.orDie(Effect.try({ try: () => createFlyHostedSupport({
-        stackName: stack.name,
-        stage: stack.stage,
-        virtualEntryPlugin,
-        docker,
-        dotAlchemy,
-      }), catch: (e) => e }))
+      const hosted = try Effect.orDie(Effect.try({
+        try: () =>
+          createFlyHostedSupport({
+            stackName: stack.name,
+            stage: stack.stage,
+            virtualEntryPlugin,
+            docker,
+            dotAlchemy,
+          }),
+        catch: (e) => e,
+      }))
 
       return Service.Provider.of({
         stables: ["appName"],
@@ -1606,24 +1610,34 @@ export const ServiceProvider = (): infer _ =>
               isExternal: news.isExternal,
               public: news.public,
             }
-            if (
-              isResolved<
-                Pick<
-                  ServiceProps,
-                  "deploy" | "shutdown" | "checks" | "services" | "port" | "isExternal" | "public"
-                >
-              >(settings)
-            ) {
+            const checkedSettings = try Effect.orDie(Effect.try({
+              try: () =>
+                isResolved<
+                    Pick<
+                      ServiceProps,
+                      "deploy" | "shutdown" | "checks" | "services" | "port" | "isExternal" | "public"
+                    >
+                  >(settings)
+                  ? { value: settings }
+                  : undefined,
+              catch: (cause) => cause,
+            }))
+            if (checkedSettings) {
+              const resolvedSettings = checkedSettings.value
               try validateDeployment(
-                try deploymentPolicy(settings.deploy, settings.shutdown, !settings.isExternal),
+                try deploymentPolicy(resolvedSettings.deploy, resolvedSettings.shutdown, !resolvedSettings.isExternal),
                 {
-                  services: settings.services?.map(toFlyService)
-                    ?? (try Effect.orDie(Effect.try({ try: () => defaultHttpServices(
-                      settings.port ?? DEFAULT_PORT,
-                      1,
-                      !ownsApp || settings.public !== false,
-                    ), catch: (e) => e }))),
-                  checks: settings.checks,
+                  services: resolvedSettings.services?.map(toFlyService)
+                    ?? (try Effect.orDie(Effect.try({
+                      try: () =>
+                        defaultHttpServices(
+                          resolvedSettings.port ?? DEFAULT_PORT,
+                          1,
+                          !ownsApp || resolvedSettings.public !== false,
+                        ),
+                      catch: (e) => e,
+                    }))),
+                  checks: resolvedSettings.checks,
                 },
                 false,
               )
@@ -1634,25 +1648,45 @@ export const ServiceProvider = (): infer _ =>
           if (ownsApp !== (output.ownsApp === true)) {
             return { action: "replace" as const, deleteFirst: false }
           }
-          if (ownsApp && isResolved(news)) {
-            const desiredAppName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined ? sanitizeFlyAppName(news.name) : output.appName, catch: (e) => e }))
+          const checkedOwnedNews = ownsApp
+            ? (try Effect.orDie(
+              Effect.try({ try: () => isResolved(news) ? { value: news } : undefined, catch: (cause) => cause }),
+            ))
+            : undefined
+          if (checkedOwnedNews) {
+            const resolvedNews = checkedOwnedNews.value
+            const desiredAppName = try Effect.orDie(Effect.try({
+              try: () => resolvedNews.name !== undefined ? sanitizeFlyAppName(resolvedNews.name) : output.appName,
+              catch: (e) => e,
+            }))
             const nameChanged = desiredAppName !== output.appName
             // Fly cannot move an App to another network.
-            const networkChanged = normalizeNetwork(news.network) !== normalizeNetwork(output.network)
+            const networkChanged = normalizeNetwork(resolvedNews.network) !== normalizeNetwork(output.network)
             if (nameChanged || networkChanged) {
               return {
                 action: "replace" as const,
                 // A pinned App name cannot exist twice.
-                deleteFirst: !nameChanged && news.name !== undefined,
+                deleteFirst: !nameChanged && resolvedNews.name !== undefined,
               }
             }
           }
-          if (!ownsApp && isResolved(news)) {
-            const desiredAppName = appNameOf(news.app)
+          const checkedSharedNews = !ownsApp
+            ? (try Effect.orDie(Effect.try({
+              try: () => isResolved(news) ? { value: news } : undefined,
+              catch: (cause) => cause,
+            })))
+            : undefined
+          if (checkedSharedNews) {
+            const resolvedNews = checkedSharedNews.value
+            const desiredAppName = appNameOf(resolvedNews.app)
             const appChanged = desiredAppName !== undefined && desiredAppName !== output.appName
-            const desiredName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined
-              ? sanitizeFlyAppName(news.name)
-              : (output.baseName ?? output.name), catch: (e) => e }))
+            const desiredName = try Effect.orDie(Effect.try({
+              try: () =>
+                resolvedNews.name !== undefined
+                  ? sanitizeFlyAppName(resolvedNews.name)
+                  : (output.baseName ?? output.name),
+              catch: (e) => e,
+            }))
             const nameChanged = desiredName !== (output.baseName ?? output.name)
             if (appChanged || nameChanged) {
               return {
@@ -1672,15 +1706,18 @@ export const ServiceProvider = (): infer _ =>
             Pick<ServiceProps, "main" | "build" | "image" | "port" | "extraFiles" | "isExternal">
           >
           if (
-            isResolved({
-              main: statics.main,
-              build: statics.build,
-              image: statics.image,
-              port: statics.port,
-              extraFiles: statics.extraFiles,
-              isExternal: statics.isExternal,
-            })
-            && statics.main !== undefined
+            try Effect.orDie(Effect.try({
+              try: () => (isResolved({
+                main: statics.main,
+                build: statics.build,
+                image: statics.image,
+                port: statics.port,
+                extraFiles: statics.extraFiles,
+                isExternal: statics.isExternal,
+              })
+                && statics.main !== undefined),
+              catch: (cause) => cause,
+            }))
           ) {
             const hash = try hosted.hash(statics as HostedProgramProps)
             if (hash !== output.code.hash) {
@@ -1740,7 +1777,9 @@ export const ServiceProvider = (): infer _ =>
           const props = news
           const policy = try deploymentPolicy(props.deploy, props.shutdown, !props.isExternal)
           try validateOwnership(props)
-          const bound = try Effect.orDie(Effect.try({ try: () => collectBindingState(bindings ?? []), catch: (e) => e }))
+          const bound = try Effect.orDie(
+            Effect.try({ try: () => collectBindingState(bindings ?? []), catch: (e) => e }),
+          )
           // Before creating anything: every bound Service must be reachable.
           try validateTargets(id, networkOf(props), bound.targets)
           const { appName, ownsApp, isPublic, network } = try ensureServiceApp(
@@ -1753,7 +1792,9 @@ export const ServiceProvider = (): infer _ =>
             ownsApp ? undefined : props.name,
             output?.baseName ?? output?.name,
           )
-          const regions = try Effect.orDie(Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e }))
+          const regions = try Effect.orDie(
+            Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e }),
+          )
           const count = try Effect.orDie(Effect.try({ try: () => resolveCount(props.count), catch: (e) => e }))
           const port = props.port ?? DEFAULT_PORT
           const bindingPort = props.bindingPort ?? DEFAULT_BINDING_PORT
@@ -1778,7 +1819,9 @@ export const ServiceProvider = (): infer _ =>
           const published = withBindingService(
             props.services !== undefined
               ? props.services.map(toFlyService)
-              : try Effect.orDie(Effect.try({ try: () => defaultHttpServices(port, count, isPublic), catch: (e) => e })),
+              : try Effect.orDie(
+                Effect.try({ try: () => defaultHttpServices(port, count, isPublic), catch: (e) => e }),
+              ),
             port,
             bindingPort,
           )
@@ -1786,15 +1829,19 @@ export const ServiceProvider = (): infer _ =>
           if (!ownsApp) try validateObservedPorts(appName, fqn, id, services)
           if (props.rpcToken !== undefined) env[RPC_TOKEN_ENV] = Redacted.value(props.rpcToken)
           for (const target of bound.targets) {
-            const keys = try Effect.orDie(Effect.try({ try: () => boundTargetEnvKeys(target.service), catch: (e) => e }))
-            env[keys.appName] = (try Effect.orDie(Effect.try({ try: () => packEnvValue(target.appName), catch: (e) => e })))
+            const keys = try Effect.orDie(
+              Effect.try({ try: () => boundTargetEnvKeys(target.service), catch: (e) => e }),
+            )
+            env[keys.appName] = try Effect.orDie(
+              Effect.try({ try: () => packEnvValue(target.appName), catch: (e) => e }),
+            )
             if (target.privateUrl !== undefined) {
               const value2 = target.privateUrl
-              env[keys.url] = (try Effect.orDie(Effect.try({ try: () => packEnvValue(value2), catch: (e) => e })))
+              env[keys.url] = try Effect.orDie(Effect.try({ try: () => packEnvValue(value2), catch: (e) => e }))
             }
             if (target.rpcToken !== undefined) {
               const value3 = target.rpcToken
-              env[keys.token] = (try Effect.orDie(Effect.try({ try: () => packEnvValue(value3), catch: (e) => e })))
+              env[keys.token] = try Effect.orDie(Effect.try({ try: () => packEnvValue(value3), catch: (e) => e }))
             }
           }
           env[RPC_ORG_ENV] = try resolveOrgSlug()
@@ -1857,18 +1904,23 @@ export const ServiceProvider = (): infer _ =>
         // Machine, so two Services that bind each other can both resolve
         // the other's private address and token.
         precreate: effect ({ id, news }) => {
-          const props = news
           // Precreate runs before dependencies resolve. A Service placed in
           // an App cannot see the App yet, so it has no stub to offer;
           // cycles are supported between Services that own their App.
-          const inert = props.app !== undefined
-            || !isResolved(props.name)
-            || !isResolved(props.network)
-            || !isResolved(props.services)
-            || !isResolved(props.bindingPort)
+          const checkedProps = try Effect.orDie(
+            Effect.try({
+              try: () =>
+                news.app === undefined && isResolved(news.name) && isResolved(news.network) && isResolved(news.services)
+                  && isResolved(news.bindingPort)
+                  ? { value: news }
+                  : undefined,
+              catch: (cause) => cause,
+            }),
+          )
           // No stub: a failed create then recovers through `read`, which
           // finds the App from the persisted props.
-          if (inert) return undefined as unknown as Service["Attributes"]
+          if (!checkedProps) return undefined as unknown as Service["Attributes"]
+          const props = checkedProps.value
           const { appName, ownsApp, isPublic, network } = try ensureServiceApp(
             id,
             props,
@@ -1880,7 +1932,9 @@ export const ServiceProvider = (): infer _ =>
           const { services } = withBindingService(
             props.services !== undefined
               ? props.services.map(toFlyService)
-              : try Effect.orDie(Effect.try({ try: () => defaultHttpServices(port, count, isPublic), catch: (e) => e })),
+              : try Effect.orDie(
+                Effect.try({ try: () => defaultHttpServices(port, count, isPublic), catch: (e) => e }),
+              ),
             port,
             bindingPort,
           )
@@ -1891,8 +1945,13 @@ export const ServiceProvider = (): infer _ =>
             machineIds: [],
             name,
             baseName: name,
-            region: (try Effect.orDie(Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e })))[0]!,
-            regions: try Effect.orDie(Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e })),
+            region: (try Effect.orDie(Effect.try({
+              try: () => regionList(props.region, DEFAULT_REGION),
+              catch: (e) => e,
+            })))[0]!,
+            regions: try Effect.orDie(
+              Effect.try({ try: () => regionList(props.region, DEFAULT_REGION), catch: (e) => e }),
+            ),
             state: "created",
             instanceId: undefined,
             privateIp: undefined,
@@ -1908,7 +1967,12 @@ export const ServiceProvider = (): infer _ =>
             isPublic,
             network,
             bindingPort,
-            rpcToken: isResolved(props.rpcToken) ? props.rpcToken : undefined,
+            rpcToken: try Effect.orDie(
+              Effect.try({
+                try: () => isResolved(props.rpcToken) ? props.rpcToken : undefined,
+                catch: (cause) => cause,
+              }),
+            ),
           })
         },
 

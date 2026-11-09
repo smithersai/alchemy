@@ -199,25 +199,27 @@ const pickNewest = (snapshots: FlyVolumeSnapshot[]): FlyVolumeSnapshot | undefin
   snapshots.filter((snapshot) => (snapshot.id ?? "").length > 0).sort(newestFirst)[0]
 
 const waitForNewSnapshot = effect (appName: string, volumeId: string, knownIds: ReadonlySet<string>) =>
-  (effect { return (try (effect {
-    return try effect {
-      const snapshots = try listSnapshots(appName, volumeId)
+  (effect {
+    return (try (effect {
+      return try effect {
+        const snapshots = try listSnapshots(appName, volumeId)
 
-      const next = pickNewest(
-        snapshots.filter((snapshot) => snapshot.id !== undefined && !knownIds.has(snapshot.id)),
-      )
-      if (next !== undefined) return next
-      throw new VolumeSnapshotPending({ volumeId })
+        const next = pickNewest(
+          snapshots.filter((snapshot) => snapshot.id !== undefined && !knownIds.has(snapshot.id)),
+        )
+        if (next !== undefined) return next
+        throw new VolumeSnapshotPending({ volumeId })
+      }
     }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "Fly.VolumeSnapshotPending",
+        times: 8,
+        schedule: backoff,
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "Fly.VolumeSnapshotPending" }: undefined;
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "Fly.VolumeSnapshotPending",
-      times: 8,
-      schedule: backoff,
-    }))) }) catch effect (e) => match (e) {
-      when { _tag: "Fly.VolumeSnapshotPending" }: undefined;
-      default: throw e;
-    }
 
 export const VolumeSnapshotProvider = (): infer _ =>
   Provider.succeed(VolumeSnapshot, {
@@ -225,11 +227,16 @@ export const VolumeSnapshotProvider = (): infer _ =>
     nuke: { skip: true },
 
     diff: effect ({ news, output }) => {
-      if (news === undefined || !isResolved(news)) return undefined
+      if (news === undefined) return undefined
+      const checkedNews = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? { value: news } : undefined, catch: (cause) => cause }),
+      )
+      if (!checkedNews) return undefined
+      const resolvedNews = checkedNews.value
       if (output === undefined) return undefined
-      const desiredApp = appNameOf(news.app)
+      const desiredApp = appNameOf(resolvedNews.app)
       const appChanged = desiredApp !== undefined && desiredApp !== output.appName
-      const desiredVolume = volumeIdOf(news.volumeId)
+      const desiredVolume = volumeIdOf(resolvedNews.volumeId)
       const volumeChanged = desiredVolume !== undefined && desiredVolume !== output.volumeId
       if (appChanged || volumeChanged) {
         return { action: "replace" as const }
@@ -284,15 +291,17 @@ export const VolumeSnapshotProvider = (): infer _ =>
           observed.flatMap((snapshot) => snapshot.id !== undefined && snapshot.id.length > 0 ? [snapshot.id] : []),
         )
         try (effect {
-          return (effect { return (try (machines
-            .createVolumeSnapshot({
-              app_name: appName,
-              volume_id: volumeId,
-            })
-            |> Effect.asVoid(%))) }) catch effect (e) => match (e) {
-              when { _tag: "Conflict" }: (undefined as void);
-              default: throw e;
-            }
+          return (effect {
+            return (try (machines
+              .createVolumeSnapshot({
+                app_name: appName,
+                volume_id: volumeId,
+              })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: (undefined as void);
+            default: throw e;
+          }
         }
           |> Effect.retry(%, {
             while: (e) =>

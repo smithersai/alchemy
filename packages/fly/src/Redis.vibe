@@ -468,36 +468,38 @@ const ensureTos = effect (orgSlug: string, organizationId: string) => {
 }
 
 const waitUntilReady = effect (id: string, name: string) =>
-  (effect { return (try (effect {
-    return try effect {
-      const row = try findRedisAddOn({ id, name })
+  (effect {
+    return (try (effect {
+      return try effect {
+        const row = try findRedisAddOn({ id, name })
 
-      if (row === undefined) {
-        throw new RedisPending({ redisId: id, status: "missing" })
+        if (row === undefined) {
+          throw new RedisPending({ redisId: id, status: "missing" })
+        }
+        if (failedStatus(row.status)) {
+          throw new RedisNotCreated({
+            resourceName: row.name ?? name,
+            errorMessage: row.errorMessage ?? row.status ?? undefined,
+          })
+        }
+        if (pendingStatus(row.status)) {
+          throw new RedisPending({
+            redisId: id,
+            status: row.status ?? "provisioning",
+          })
+        }
+        return row
       }
-      if (failedStatus(row.status)) {
-        throw new RedisNotCreated({
-          resourceName: row.name ?? name,
-          errorMessage: row.errorMessage ?? row.status ?? undefined,
-        })
-      }
-      if (pendingStatus(row.status)) {
-        throw new RedisPending({
-          redisId: id,
-          status: row.status ?? "provisioning",
-        })
-      }
-      return row
     }
+      |> Effect.retry(%, {
+        while: (error) => error._tag === "Fly.RedisPending",
+        times: 10,
+        schedule: backoff,
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "Fly.RedisPending" }: try findRedisAddOn({ id, name });
+    default: throw e;
   }
-    |> Effect.retry(%, {
-      while: (error) => error._tag === "Fly.RedisPending",
-      times: 10,
-      schedule: backoff,
-    }))) }) catch effect (e) => match (e) {
-      when { _tag: "Fly.RedisPending" }: try findRedisAddOn({ id, name });
-      default: throw e;
-    }
 
 const waitUntilGone = effect (id: string, name: string) =>
   try (effect {
@@ -558,25 +560,27 @@ export const attachRedisSecrets = effect (
     const name = item.name
     const id = item.id
     if (name.length === 0 && (id === undefined || id.length === 0)) continue
-    const row = (effect { return (try (effect {
-      return try effect {
-        const found = try findRedisAddOn({ id, name })
-        return (found === undefined
-          ? throw new RedisPending({
-            redisId: id ?? "",
-            status: "missing",
-          })
-          : found)
+    const row = (effect {
+      return (try (effect {
+        return try effect {
+          const found = try findRedisAddOn({ id, name })
+          return (found === undefined
+            ? throw new RedisPending({
+              redisId: id ?? "",
+              status: "missing",
+            })
+            : found)
+        }
       }
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Fly.RedisPending",
+          times: 8,
+          schedule: backoff,
+        })))
+    }) catch effect (e) => match (e) {
+      when { _tag: "Fly.RedisPending" }: try findRedisAddOn({ id, name });
+      default: throw e;
     }
-      |> Effect.retry(%, {
-        while: (error) => error._tag === "Fly.RedisPending",
-        times: 8,
-        schedule: backoff,
-      }))) }) catch effect (e) => match (e) {
-        when { _tag: "Fly.RedisPending" }: try findRedisAddOn({ id, name });
-        default: throw e;
-      }
     if (row === undefined) {
       throw new RedisPending({
         redisId: id ?? name,
@@ -609,16 +613,20 @@ export const attachRedisSecrets = effect (
           }),
       )
     }
-    const version = (effect { return (try update) }) catch effect (e) => match (e) {
-      when { _tag: "NotFound" }: (effect { return (try redisSecretVersion(
-        appName,
-        try machines
-          .createSecret({
-            app_name: appName,
-            secret_name: REDIS_URL_ENV,
-            value,
-          }),
-      )) }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try update; default: throw e; };
+    const version = (effect {
+      return (try update)
+    }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: (effect {
+        return (try redisSecretVersion(
+          appName,
+          try machines
+            .createSecret({
+              app_name: appName,
+              secret_name: REDIS_URL_ENV,
+              value,
+            }),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try update; default: throw e; };
       default: throw e;
     }
     versions.push(version)
@@ -631,13 +639,21 @@ export const RedisProvider = (): infer _ =>
     stables: ["redisId", "name", "primaryRegion", "orgSlug"],
 
     diff: effect ({ news, output }) => {
-      if (news === undefined || !isResolved(news)) return undefined
+      if (news === undefined) return undefined
+      const checkedNews = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? { value: news } : undefined, catch: (cause) => cause }),
+      )
+      if (!checkedNews) return undefined
+      const resolvedNews = checkedNews.value
       if (output === undefined) return undefined
-      const desiredName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined ? sanitizeFlyAppName(news.name) : output.name, catch: (e) => e }))
+      const desiredName = try Effect.orDie(Effect.try({
+        try: () => resolvedNews.name !== undefined ? sanitizeFlyAppName(resolvedNews.name) : output.name,
+        catch: (e) => e,
+      }))
       const nameChanged = desiredName !== output.name
-      const desiredRegion = news.primaryRegion ?? DEFAULT_REDIS_REGION
+      const desiredRegion = resolvedNews.primaryRegion ?? DEFAULT_REDIS_REGION
       const regionChanged = desiredRegion !== output.primaryRegion
-      const orgChanged = news.orgSlug !== undefined && news.orgSlug !== output.orgSlug
+      const orgChanged = resolvedNews.orgSlug !== undefined && resolvedNews.orgSlug !== output.orgSlug
       if (nameChanged || regionChanged || orgChanged) {
         return {
           action: "replace" as const,
@@ -652,7 +668,9 @@ export const RedisProvider = (): infer _ =>
       const found = (output?.redisId !== undefined
         ? try findRedisAddOn({ id: output.redisId, name: output.name })
         : undefined) ?? (try findRedisAddOn({ name }))
-      if (found === undefined) return undefined
+      if (found === undefined) {
+        return undefined
+      }
       const attrs = toAttrs(found, {
         name,
         primaryRegion: olds?.primaryRegion ?? DEFAULT_REDIS_REGION,
@@ -747,8 +765,14 @@ export const RedisProvider = (): infer _ =>
       const observedReadRegions = sorted(current.readRegions)
       const observedPlanId = "addOnPlan" in current ? current.addOnPlan?.id : output?.planId
       const planChanged = observedPlanId !== undefined && observedPlanId !== plan.id
-      const regionsChanged = !(try Effect.orDie(Effect.try({ try: () => deepEqual(observedReadRegions, nextReadRegions), catch: (e) => e })))
-      const optionsChanged = !(try Effect.orDie(Effect.try({ try: () => deepEqual(observedOptions, nextOptions), catch: (e) => e })))
+      const regionsChanged = !(try Effect.orDie(Effect.try({
+        try: () => deepEqual(observedReadRegions, nextReadRegions),
+        catch: (e) => e,
+      })))
+      const optionsChanged = !(try Effect.orDie(Effect.try({
+        try: () => deepEqual(observedOptions, nextOptions),
+        catch: (e) => e,
+      })))
       const prodPackChanged = props.prodPack !== undefined && planChanged
 
       if (planChanged || regionsChanged || optionsChanged || prodPackChanged) {

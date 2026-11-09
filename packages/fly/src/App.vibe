@@ -230,24 +230,36 @@ const getByName = effect (appName: string) =>
   }
 
 const hasAlchemyMachines = effect (appName: string) =>
-  (effect { return ((try machines.listMachines({ app_name: appName })).some((machine) =>
-    isAlchemyOwnedMetadata(machine.config?.metadata)
-  )) }) catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
+  (effect {
+    return ((try machines.listMachines({ app_name: appName })).some((machine) =>
+      isAlchemyOwnedMetadata(machine.config?.metadata)
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
 
 const hasAlchemyNamed = (names: Array<string | undefined>): infer _ =>
   names.some((name) => matchesAlchemyPhysicalName(name))
 
 const hasAlchemyVolumes = effect (appName: string) =>
-  (effect { return (hasAlchemyNamed((try machines.listVolumes({ app_name: appName })).map((volume) => volume.name))) }) catch effect (
+  (effect {
+    return (hasAlchemyNamed((try machines.listVolumes({ app_name: appName })).map((volume) => volume.name)))
+  }) catch effect (
     e,
   ) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
 
 const hasAlchemySecrets = effect (appName: string) =>
-  (effect { return (hasAlchemyNamed(((try machines.listSecrets({ app_name: appName })).secrets ?? []).map((secret) => secret.name))) })
+  (effect {
+    return (hasAlchemyNamed(
+      ((try machines.listSecrets({ app_name: appName })).secrets ?? []).map((secret) => secret.name),
+    ))
+  })
     catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
 
 const hasAlchemySecretKeys = effect (appName: string) =>
-  (effect { return (hasAlchemyNamed(((try machines.listSecretKeys({ app_name: appName })).secret_keys ?? []).map((key) => key.name))) })
+  (effect {
+    return (hasAlchemyNamed(
+      ((try machines.listSecretKeys({ app_name: appName })).secret_keys ?? []).map((key) => key.name),
+    ))
+  })
     catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
 
 const isOwnedApp = effect (app: FlyApp) => {
@@ -324,17 +336,19 @@ export const ensureApp = effect (input: {
     // a network that does not exist yet race to create it, and the losers
     // are rejected with "uniqueness constraint violated", so retry them.
     const create = effect {
-      return (effect { return (try (machines
-        .createApp({
-          name: input.name,
-          org_slug: orgSlug,
-          network: input.network,
-          enable_subdomains: input.enableSubdomains,
-        })
-        |> Effect.as(%, undefined))) }) catch effect (error) => match (error) {
-          when { _tag: "Conflict" } or { _tag: "UnprocessableEntity" }: error;
-          default: throw error;
-        }
+      return (effect {
+        return (try (machines
+          .createApp({
+            name: input.name,
+            org_slug: orgSlug,
+            network: input.network,
+            enable_subdomains: input.enableSubdomains,
+          })
+          |> Effect.as(%, undefined)))
+      }) catch effect (error) => match (error) {
+        when { _tag: "Conflict" } or { _tag: "UnprocessableEntity" }: error;
+        default: throw error;
+      }
     }
     // A new App can take a moment to become readable.
     const observe = effect {
@@ -386,48 +400,56 @@ export const deleteApp = effect (
       ) {
         return
       }
-      return (effect { return (try (machines.deleteVolume({ app_name: appName, volume_id: volumeId })
-        |> Effect.asVoid(%))) }) catch effect (e) => match (e) {
-          when { _tag: "NotFound" } or { _tag: "Conflict" }: (undefined as void);
-          default: throw e;
-        }
+      return (effect {
+        return (try (machines.deleteVolume({ app_name: appName, volume_id: volumeId })
+          |> Effect.asVoid(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "Conflict" }: (undefined as void);
+        default: throw e;
+      }
     },
     { concurrency: 4 },
   )
   const http = try Effect.service(HttpClient.HttpClient)
   const fetchOptions = try Effect.serviceOption(FetchHttpClient.RequestInit)
-  ;(effect { return (try (effect {
-    return try effect {
-      provide FetchHttpClient.RequestInit = {
-          ...Option.getOrUndefined(fetchOptions),
-          keepalive: false,
-          redirect: "error",
-        } {
-        return try effect {
-          provide HttpClient.HttpClient = HttpClient.mapRequest(http, HttpClientRequest.setHeader("connection", "close")) {
-            return try (machines.deleteApp({ app_name: appName })
-              |> Retry.none(%))
+  ;(effect {
+    return (try (effect {
+      return try effect {
+        provide FetchHttpClient.RequestInit = {
+            ...Option.getOrUndefined(fetchOptions),
+            keepalive: false,
+            redirect: "error",
+          } {
+          return try effect {
+            provide HttpClient.HttpClient = HttpClient.mapRequest(http, HttpClientRequest.setHeader("connection", "close")) {
+              return try (machines.deleteApp({ app_name: appName })
+                |> Retry.none(%))
+            }
           }
         }
       }
     }
-  }
-    |> Effect.timeout(%, "30 seconds"))) }) catch effect (e) =>
-      (effect { return match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; } }) catch effect (error) => match (error) {
-        when { _tag: "HttpClientError" } or { _tag: "TimeoutError" } or { _tag: "InternalServerError" } or { _tag: "BadGateway" } or { _tag: "ServiceUnavailable" } or { _tag: "GatewayTimeout" }:
-          throw new AppDeletionAmbiguous({ appName, evidence: error._tag });
-        default: throw error;
-      }
-  const gone = (effect { return (try (effect {
-    return (try getByName(appName)) === undefined
-  }
-    |> Effect.repeat(%, { schedule: Schedule.spaced("1 second"), until: (gone) => gone, times: 8 })
-    |> Effect.timeout(%, "30 seconds"))) }) catch effect (error) => {
-      throw new AppDeletionAmbiguous({
-        appName,
-        evidence: `delete accepted but absence verification failed: ${error._tag}`,
-      })
+      |> Effect.timeout(%, "30 seconds")))
+  }) catch effect (e) =>
+    (effect {
+      return match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
+    }) catch effect (error) => match (error) {
+      when { _tag: "HttpClientError" } or { _tag: "TimeoutError" } or { _tag: "InternalServerError" } or { _tag: "BadGateway" } or { _tag: "ServiceUnavailable" } or { _tag: "GatewayTimeout" }:
+        throw new AppDeletionAmbiguous({ appName, evidence: error._tag });
+      default: throw error;
     }
+  const gone = (effect {
+    return (try (effect {
+      return (try getByName(appName)) === undefined
+    }
+      |> Effect.repeat(%, { schedule: Schedule.spaced("1 second"), until: (gone) => gone, times: 8 })
+      |> Effect.timeout(%, "30 seconds")))
+  }) catch effect (error) => {
+    throw new AppDeletionAmbiguous({
+      appName,
+      evidence: `delete accepted but absence verification failed: ${error._tag}`,
+    })
+  }
   if (!gone) {
     throw new AppDeletionAmbiguous({
       appName,
@@ -463,19 +485,34 @@ export const AppProvider = (): infer _ =>
 
     diff: effect ({ id, news, output, newBindings }) => {
       // At plan time, including for an App created in the same deploy.
-      const resolved = try Effect.orDie(Effect.try({ try: () => isResolved(newBindings) ? newBindings : undefined, catch: (e) => e }))
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(newBindings) ? newBindings : undefined, catch: (e) => e }),
+      )
       if (resolved !== undefined) {
         try validateServicePorts(
-          output?.appName ?? (isResolved(news) ? news?.name : undefined) ?? id,
+          try Effect.orDie(Effect.try({
+            try: () => output?.appName ?? (isResolved(news) ? news?.name : undefined) ?? id,
+            catch: (cause) => cause,
+          })),
           resolved,
         )
       }
-      if (news === undefined || !isResolved(news)) return undefined
+      if (news === undefined) {
+        return undefined
+      }
+      const checkedNews = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? { value: news } : undefined, catch: (cause) => cause }),
+      )
+      if (!checkedNews) return undefined
+      const resolvedNews = checkedNews.value
       if (output === undefined) return undefined
-      const desiredName = try Effect.orDie(Effect.try({ try: () => news.name !== undefined ? sanitizeFlyAppName(news.name) : output.appName, catch: (e) => e }))
+      const desiredName = try Effect.orDie(Effect.try({
+        try: () => resolvedNews.name !== undefined ? sanitizeFlyAppName(resolvedNews.name) : output.appName,
+        catch: (e) => e,
+      }))
       const nameChanged = desiredName !== output.appName
-      const orgChanged = news.orgSlug !== undefined && news.orgSlug !== output.orgSlug
-      const networkChanged = news.network !== undefined && news.network !== output.network
+      const orgChanged = resolvedNews.orgSlug !== undefined && resolvedNews.orgSlug !== output.orgSlug
+      const networkChanged = resolvedNews.network !== undefined && resolvedNews.network !== output.network
       if (nameChanged || orgChanged || networkChanged) {
         return {
           action: "replace" as const,
@@ -490,10 +527,14 @@ export const AppProvider = (): infer _ =>
       const name = try resolveAppName(id, olds?.name, output?.appName)
       const found = (output?.appName !== undefined ? try getByName(output.appName) : undefined)
         ?? (try getByName(name))
-      if (found === undefined) return undefined
+      if (found === undefined) {
+        return undefined
+      }
       const attrs = toAttrs(found, name)
       if (output !== undefined) return attrs
-      return (try isOwnedApp(found)) ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+      return (try isOwnedApp(found))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
     },
 
     list: listOwnedApps,

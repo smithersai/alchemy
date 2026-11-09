@@ -1066,8 +1066,17 @@ export const MachineProvider = (): infer _ =>
       if (news === undefined) return
       if ("app" in news) {
         const imageMode = { image: news.image, containers: news.containers, init: news.init }
-        const imageModeResolved = isResolved<Pick<MachineProps, "image" | "containers" | "init">>(imageMode)
-        if (imageModeResolved) try validateMachineContainers(imageMode)
+        const checkedImageMode = try Effect.orDie(Effect.try({
+          try: () =>
+            isResolved<Pick<MachineProps, "image" | "containers" | "init">>(imageMode)
+              ? { value: imageMode }
+              : undefined,
+          catch: (cause) => cause,
+        }))
+        const imageModeResolved = checkedImageMode !== undefined
+        if (checkedImageMode) {
+          try validateMachineContainers(checkedImageMode.value)
+        }
         const settings: Input<
           Pick<
             MachineProps,
@@ -1092,40 +1101,53 @@ export const MachineProvider = (): infer _ =>
           restart: news.restart,
           containers: news.containers,
         }
-        if (
-          imageModeResolved
-          && isResolved<
-            Pick<
-              MachineProps,
-              | "deploy"
-              | "shutdown"
-              | "checks"
-              | "services"
-              | "mounts"
-              | "skipLaunch"
-              | "autoDestroy"
-              | "restart"
-              | "containers"
-            >
-          >(settings)
-        ) {
+        const checkedSettings = imageModeResolved
+          ? (try Effect.orDie(Effect.try({
+            try: () =>
+              isResolved<
+                  Pick<
+                    MachineProps,
+                    | "deploy"
+                    | "shutdown"
+                    | "checks"
+                    | "services"
+                    | "mounts"
+                    | "skipLaunch"
+                    | "autoDestroy"
+                    | "restart"
+                    | "containers"
+                  >
+                >(settings)
+                ? { value: settings }
+                : undefined,
+            catch: (cause) => cause,
+          })))
+          : undefined
+        if (checkedSettings) {
+          const resolvedSettings = checkedSettings.value
           try validateDeployment(
-            try deploymentPolicy(settings.deploy, settings.shutdown),
+            try deploymentPolicy(resolvedSettings.deploy, resolvedSettings.shutdown),
             {
-              services: settings.services?.map(toFlyService),
-              checks: settings.checks,
-              auto_destroy: settings.autoDestroy,
-              restart: settings.restart,
-              containers: try Effect.orDie(Effect.try({ try: () => settings.containers === undefined
-                ? undefined
-                : toFlyContainers(settings.containers), catch: (e) => e })),
+              services: resolvedSettings.services?.map(toFlyService),
+              checks: resolvedSettings.checks,
+              auto_destroy: resolvedSettings.autoDestroy,
+              restart: resolvedSettings.restart,
+              containers: try Effect.orDie(Effect.try({
+                try: () =>
+                  resolvedSettings.containers === undefined
+                    ? undefined
+                    : toFlyContainers(resolvedSettings.containers),
+                catch: (e) => e,
+              })),
             },
-            (settings.mounts?.length ?? 0) > 0,
-            settings.skipLaunch,
+            (resolvedSettings.mounts?.length ?? 0) > 0,
+            resolvedSettings.skipLaunch,
           )
         }
       }
-      const resolved__ = try Effect.orDie(Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }))
+      const resolved__ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
       if (resolved__ === undefined) {
         return output?.rolloutPending ? { action: "update" as const } : undefined
       }
@@ -1133,7 +1155,11 @@ export const MachineProvider = (): infer _ =>
       if (output === undefined) return undefined
       const desiredAppName = appNameOf(resolved__.app)
       const appChanged = desiredAppName !== undefined && desiredAppName !== output.appName
-      const desiredName = try Effect.orDie(Effect.try({ try: () => resolved__.name !== undefined ? sanitizeFlyAppName(resolved__.name) : (output.baseName ?? output.name), catch: (e) => e }))
+      const desiredName = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved__.name !== undefined ? sanitizeFlyAppName(resolved__.name) : (output.baseName ?? output.name),
+        catch: (e) => e,
+      }))
       const nameChanged = desiredName !== (output.baseName ?? output.name)
       const desiredRegion = resolved__.region ?? DEFAULT_REGION
       const regionChanged = desiredRegion !== output.region
@@ -1159,7 +1185,9 @@ export const MachineProvider = (): infer _ =>
         machineIds: machineIdsOf(output),
         baseName: name,
       })
-      if (found === undefined) return undefined
+      if (found === undefined) {
+        return undefined
+      }
       return toAttrs(found)
     },
 
@@ -1189,7 +1217,9 @@ export const MachineProvider = (): infer _ =>
       const services = props.services?.map(toFlyService)
       const restart = props.restart ? toFlyRestart(props.restart) : undefined
       const init = props.init ? toFlyInit(props.init) : undefined
-      const containers = props.containers === undefined ? undefined : try Effect.orDie(Effect.try({ try: () => toFlyContainers(props.containers), catch: (e) => e }))
+      const containers = props.containers === undefined
+        ? undefined
+        : try Effect.orDie(Effect.try({ try: () => toFlyContainers(props.containers), catch: (e) => e }))
 
       const set = reconcileReplicas({
         id,
