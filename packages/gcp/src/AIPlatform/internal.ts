@@ -107,7 +107,7 @@ export const resourceNameFromOperation = (
   return undefined;
 };
 
-export { waitForOperation } from "./operations.ts";
+export { waitForOperation } from "./operations.vibe";
 
 export const JOB_TERMINAL_STATES = new Set([
   "JOB_STATE_SUCCEEDED",

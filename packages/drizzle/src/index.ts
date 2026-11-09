@@ -11,7 +11,7 @@ export {
   MigratorInitError,
 } from "drizzle-orm/effect-core";
 export * from "./Providers.vibe";
-export * from "./Schema.ts";
+export * from "./Schema.vibe";
 // MySQL and Postgres are deliberately NOT re-exported here: their drivers
 // (`@effect/sql-mysql2`/`mysql2`, `@effect/sql-pg`/`pg`) are optional peer
 // dependencies, and keeping them out of the barrel keeps them out of every

@@ -13,7 +13,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { GcpAuth } from "../AuthProvider.ts";
+import { GcpAuth } from "../AuthProvider.vibe";
 import * as GcpCredentials from "../Credentials.vibe";
 import { fromCredentials, GcpEnvironment } from "../Environment.vibe";
 import { makeObjectMedia } from "../Storage/ObjectMedia.ts";

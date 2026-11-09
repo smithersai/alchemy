@@ -1,6 +1,6 @@
-export * from "./Backup.ts";
-export * from "./Cluster.ts";
-export * from "./ClustersUser.ts";
+export * from "./Backup.vibe";
+export * from "./Cluster.vibe";
+export * from "./ClustersUser.vibe";
 export * from "./GetBackup.vibe";
 export * from "./GetBackupHttp.vibe";
 export * from "./GetCluster.vibe";
@@ -11,4 +11,4 @@ export * from "./GetInstance.vibe";
 export * from "./GetInstanceHttp.vibe";
 export * from "./GetUser.vibe";
 export * from "./GetUserHttp.vibe";
-export * from "./Instance.ts";
+export * from "./Instance.vibe";

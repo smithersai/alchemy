@@ -1,4 +1,4 @@
-export * from "./AuthProvider.ts";
+export * from "./AuthProvider.vibe";
 export * from "./Credentials.vibe";
 export * from "./Environment.vibe";
 export * as GCPBindings from "./GCPBindings.vibe";

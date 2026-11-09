@@ -16,8 +16,8 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { listOwnedApps } from "./App.vibe";
-import { reconcileBlueGreen, setRouting } from "./bluegreen.ts";
-import { validateDeployment, type DeploymentPolicy, type MachineCheck } from "./Deployment.ts";
+import { reconcileBlueGreen, setRouting } from "./bluegreen.vibe";
+import { validateDeployment, type DeploymentPolicy, type MachineCheck } from "./Deployment.vibe";
 import { classifyDeploymentState, validProtocol2Generation } from "./DeploymentState.ts";
 import { usingMachineLeases, type MachineLeases } from "./leases.ts";
 import type {
@@ -35,7 +35,7 @@ import {
 } from "./Metadata.ts";
 import type { DiskSpec, MountedDisk } from "./MountVolume.vibe";
 import { regionOfReplica } from "./Region.ts";
-import { deleteVolume, ensureVolumeGroup, getVolumeById, volumeGroupName } from "./Volume.ts";
+import { deleteVolume, ensureVolumeGroup, getVolumeById, volumeGroupName } from "./Volume.vibe";
 
 const WAIT_TIMEOUT_SECONDS = 8;
 const waitBackoff = Schedule.exponential("500 millis");
