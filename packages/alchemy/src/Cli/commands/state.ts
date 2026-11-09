@@ -13,7 +13,7 @@ import {
   type StateExplorerSource,
 } from "../components/view/StateExplorer.tsx";
 import { formatLocalTimestamp } from "../Format.ts";
-import { confirmOrDecline } from "./confirm.ts";
+import { confirmOrDecline } from "./confirm.vibe";
 import { failWithHelp, UserInputError } from "./errors.ts";
 import { envFile, parseSince, profile, yes } from "./flags.ts";
 import { instrumentCommand } from "./instrument.vibe";

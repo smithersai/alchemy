@@ -8,7 +8,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
-import { dotAlchemyDirectory } from "../AlchemyContext.ts";
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import { encodeFqn } from "../FQN.ts";
 import { ResourceContext } from "../ResourceContext.vibe";
 import { StackContext } from "../StackContext.vibe";

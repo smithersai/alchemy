@@ -10,7 +10,7 @@ import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import type * as Stream from "effect/Stream";
-import type { AlchemyContext } from "./AlchemyContext.ts";
+import type { AlchemyContext } from "./AlchemyContext.vibe";
 import type { ArtifactStore } from "./Artifacts.ts";
 import type { AuthProviders } from "./Auth/AuthProvider.ts";
 import type { CredentialsStore } from "./Auth/Credentials.ts";

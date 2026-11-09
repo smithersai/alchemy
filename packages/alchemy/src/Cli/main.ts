@@ -28,7 +28,7 @@ import {
   compatibilityCommand,
   compatibilityCommands,
   type CompatibilityCommand,
-} from "./commands/compat.ts";
+} from "./commands/compat.vibe";
 import { handleCliErrors } from "./commands/errors.ts";
 import { VersionCheck } from "./commands/instrument.vibe";
 import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.ts";
@@ -79,7 +79,7 @@ const loadCommand = async (name: CommandName) => {
     case "plan":
       return (await import("./commands/deploy.ts")).planCommand;
     case "logs":
-      return (await import("./commands/logs.ts")).logsCommand;
+      return (await import("./commands/logs.vibe")).logsCommand;
     case "profile":
       return (await import("./commands/profile/index.ts")).profileCommand;
     case "state":

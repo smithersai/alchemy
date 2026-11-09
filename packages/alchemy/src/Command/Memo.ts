@@ -4,7 +4,7 @@ import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import picomatch from "picomatch";
 import { convertPathToPattern, glob } from "tinyglobby";
-import { dotAlchemyDirectory } from "../AlchemyContext.ts";
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import {
   combineIgnoreRules,
   type IgnoreRules,

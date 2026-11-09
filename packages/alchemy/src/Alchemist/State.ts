@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { AuthProvidersLive } from "../Auth/Registry.ts";
+import { AuthProvidersLive } from "../Auth/Registry.vibe";
 import { withProfileOverride } from "../Auth/Resolve.ts";
 import * as Contributions from "../Contributions.ts";
 import * as State from "../State/index.ts";

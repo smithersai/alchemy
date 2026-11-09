@@ -7,7 +7,7 @@ import * as Path from "effect/Path";
 import { hashDirectory, type MemoOptions } from "../Command/Memo.ts";
 import { havePropsChanged, isResolved } from "../Diff.ts";
 import * as LocalProvider from "../Local/LocalProvider.ts";
-import * as ProviderLayer from "../Local/ProviderLayer.ts";
+import * as ProviderLayer from "../Local/ProviderLayer.vibe";
 import * as Provider from "../Provider.ts";
 import { Resource } from "../Resource.ts";
 import { initialCwd, moduleExtension } from "../Util/Node.ts";

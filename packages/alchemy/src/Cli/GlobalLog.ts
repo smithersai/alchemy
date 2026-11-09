@@ -15,7 +15,7 @@ import { Path } from "effect/Path";
 import * as Queue from "effect/Queue";
 import { CurrentLogAnnotations, MinimumLogLevel } from "effect/References";
 import packageJson from "../../package.json" with { type: "json" };
-import { dotAlchemyDirectory } from "../AlchemyContext.ts";
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import { rootDir } from "../Auth/Paths.ts";
 import { makePlainConsoleSink } from "../Util/ConsoleSink.ts";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";

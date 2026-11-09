@@ -13,7 +13,7 @@
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import { dotAlchemyDirectory } from "../AlchemyContext.ts";
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import { hashDirectory } from "../Command/Memo.ts";
 import { isPathWithin } from "./isPathWithin.ts";
 import { initialCwd } from "./Node.ts";

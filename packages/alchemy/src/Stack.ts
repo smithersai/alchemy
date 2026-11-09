@@ -11,11 +11,11 @@ import { Path } from "effect/Path";
 import type { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import type * as Scope from "effect/Scope";
 import type { ActionLike } from "./Action.ts";
-import type { AlchemyContext } from "./AlchemyContext.ts";
+import type { AlchemyContext } from "./AlchemyContext.vibe";
 import type { ArtifactStore } from "./Artifacts.ts";
 import type { CredentialsStore } from "./Auth/Credentials.ts";
 import type { ProfileStore } from "./Auth/Profile.ts";
-import { AuthProvidersLive, type AuthProviders } from "./Auth/Registry.ts";
+import { AuthProvidersLive, type AuthProviders } from "./Auth/Registry.vibe";
 import type { Input, InputProps } from "./Input.vibe";
 // Type-only: with verbatimModuleSyntax a value import would survive emit and
 // drag the terminal helpers (node:tty, Sigil's ansi helpers) into every unbundled

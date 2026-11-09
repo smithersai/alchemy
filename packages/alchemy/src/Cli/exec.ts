@@ -14,7 +14,7 @@ import * as Schema from "effect/Schema";
 import { resolveStackEntrypoint } from "../Alchemist/Entrypoint.ts";
 import { StackModuleLoader } from "../Alchemist/Entrypoint.ts";
 import * as Alchemist from "../Alchemist/index.ts";
-import { AlchemyContextLive } from "../AlchemyContext.ts";
+import { AlchemyContextLive } from "../AlchemyContext.vibe";
 import { ArtifactStore, createArtifactStore } from "../Artifacts.ts";
 import { CredentialsStoreLive } from "../Auth/Credentials.ts";
 import { ProfileStoreLive } from "../Auth/Profile.ts";

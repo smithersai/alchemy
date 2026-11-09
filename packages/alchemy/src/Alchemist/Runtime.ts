@@ -6,14 +6,14 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as LogLevel from "effect/LogLevel";
 import type { PlatformError } from "effect/PlatformError";
-import { type AlchemyContext, AlchemyContextLive } from "../AlchemyContext.ts";
+import { type AlchemyContext, AlchemyContextLive } from "../AlchemyContext.vibe";
 import { ArtifactStore, createArtifactStore } from "../Artifacts.ts";
 import { type CredentialsStore, CredentialsStoreLive } from "../Auth/Credentials.ts";
 import { type ProfileStore, ProfileStoreLive } from "../Auth/Profile.ts";
 import * as Interaction from "../Interaction.ts";
 import { makePlainConsoleSink } from "../Util/ConsoleSink.ts";
 import { PlatformServices } from "../Util/PlatformServices.ts";
-import { authRegistryLayer } from "./AuthRegistry.ts";
+import { authRegistryLayer } from "./AuthRegistry.vibe";
 
 /** The services {@link layer} provides; every Alchemist operation runs under them. */
 export type Services =

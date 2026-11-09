@@ -1,9 +1,9 @@
 import type { ConfigError } from "effect/Config";
 import * as Effect from "effect/Effect";
 import type * as Scope from "effect/Scope";
-import { AlchemyContext } from "./AlchemyContext.ts";
+import { AlchemyContext } from "./AlchemyContext.vibe";
 import * as Apply from "./Apply.ts";
-import { evalStack } from "./EvalStack.ts";
+import { evalStack } from "./EvalStack.vibe";
 import type { Input } from "./Input.vibe";
 import * as Plan from "./Plan.ts";
 import { renderApply } from "./Report.ts";

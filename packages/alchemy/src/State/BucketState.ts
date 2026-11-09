@@ -5,7 +5,7 @@ import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import { decodeFqn, encodeFqn } from "../FQN.ts";
-import { STATE_STORE_VERSION } from "./HttpStateApi.ts";
+import { STATE_STORE_VERSION } from "./HttpStateApi.vibe";
 import { StateStoreError, type PersistedState, type StateService } from "./State.ts";
 import { encodeState, reviveState } from "./StateEncoding.ts";
 

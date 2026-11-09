@@ -1,11 +1,7 @@
-import { ConfigProvider } from "effect/ConfigProvider";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import * as FetchHttpClient from "effect/http/FetchHttpClient";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
-import { AlchemyContext, AlchemyContextLive } from "./AlchemyContext.ts";
+import { AlchemyContext, AlchemyContextLive } from "./AlchemyContext.vibe";
 import { provideFreshArtifactStore } from "./Artifacts.ts";
 import { CredentialsStoreLive } from "./Auth/Credentials.ts";
 import { ProfileStoreLive } from "./Auth/Profile.ts";
@@ -35,23 +31,23 @@ const platform = Layer.mergeAll(
   Layer.provide(CredentialsStoreLive, PlatformServices),
 );
 // override alchemy state store, CLI/reporting, state, and Config
-const alchemy = (overrides?: { dev?: boolean }) =>
+const alchemy = (overrides?: { dev?: boolean; }) =>
   Layer.mergeAll(
     // optional
     overrides?.dev
       ? Layer.provide(
-          Layer.effect(
-            AlchemyContext,
-            AlchemyContext.useSync((ctx) => ({ ...ctx, dev: overrides.dev! })),
-          ),
-          AlchemyContextLive,
-        )
+        Layer.effect(
+          AlchemyContext,
+          AlchemyContext.useSync((ctx) => ({ ...ctx, dev: overrides.dev! })),
+        ),
+        AlchemyContextLive,
+      )
       : AlchemyContextLive,
   );
 
-export const evalStack = <S extends { services: Context.Context<any> }, B, StackErr, Err, Req>(
+export const evalStack = <S extends { services: Context.Context<any>; }, B, StackErr, Err, Req>(
   effect: StackEffect<S, StackErr, Stage | AlchemyContext>,
-  fn: (stack: S) => Effect.Effect<B, Err, Req>,
+  fn: (stack: S) => B!Err!Req,
   options: {
     stage: string;
     dev?: boolean;
@@ -67,31 +63,33 @@ export const evalStack = <S extends { services: Context.Context<any> }, B, Stack
     scope?: Scope.Scope;
   },
 ) => {
-  const body = Effect.gen(function* () {
-    const stack = yield* effect;
-    const configProvider = yield* loadConfigProvider(Option.none());
-    return yield* fn(stack).pipe(
-      provideFreshArtifactStore,
-      Effect.provide(
+  const body = effect {
+    const stack = try effect;
+    const configProvider = try loadConfigProvider(Option.none());
+    return try ((() => {
+      const pipe$program = fn(stack);
+      const pipe$stage0 = provideFreshArtifactStore;
+      const pipe$stage1 = Effect.provide(
         Layer.succeedContext(stack.services).pipe(
-          Layer.provideMerge(Layer.succeed(ConfigProvider, configProvider)),
+          Layer.provideMerge(Layer.succeed(ConfigProvider.ConfigProvider, configProvider)),
         ),
-      ),
-    );
-  }).pipe(
-    Effect.provide(
+      );
+      return pipe$program |> pipe$stage0(%) |> pipe$stage1(%);
+    })());
+  }
+    |> Effect.provide(
+      %,
       Layer.succeed(Stage, options.stage).pipe(
         Layer.provideMerge(Layer.provideMerge(alchemy({ dev: options.dev }), platform)),
       ),
-    ),
-  );
+    );
 
   const scope = options.scope;
   return scope === undefined
     ? Effect.scoped(body)
-    : // The state store closes with this call and releases its lease, so
-      // the next call on the same long-lived scope can take it.
-      Effect.scopedWith((stateScope) =>
-        Scope.provide(body.pipe(Effect.provideService(StateScope, stateScope)), scope),
-      );
+    // The state store closes with this call and releases its lease, so
+    // the next call on the same long-lived scope can take it.
+    : Effect.scopedWith((stateScope) =>
+      Scope.provide(body |> Effect.provideService(%, StateScope, stateScope), scope)
+    );
 };

@@ -14,7 +14,7 @@ import type { ScopedPlanStatusSession } from "../Report.ts";
 import type { ResourceBinding, ResourceClassLike, ResourceLike } from "../Resource.ts";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";
 import { sha256 } from "../Util/sha256.ts";
-import * as RpcProvider from "./RpcProvider.ts";
+import * as RpcProvider from "./RpcProvider.vibe";
 
 /**
  * # LocalProvider — the standard shape of a long-running local provider

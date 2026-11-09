@@ -18,7 +18,7 @@ import {
   Unresolved,
   UnverifiableReplacement,
 } from "./AdoptPolicy.ts";
-import { AlchemyContext } from "./AlchemyContext.ts";
+import { AlchemyContext } from "./AlchemyContext.vibe";
 import {
   Artifacts,
   ArtifactStore,

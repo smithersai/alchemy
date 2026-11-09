@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { AlchemyContext } from "./AlchemyContext.ts";
+import { AlchemyContext } from "./AlchemyContext.vibe";
 
 /**
  * The mode a resource's provider operates in.

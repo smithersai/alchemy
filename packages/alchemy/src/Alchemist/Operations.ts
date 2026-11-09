@@ -13,7 +13,7 @@ import * as Option from "effect/Option";
 import { CurrentLogAnnotations, CurrentLogSpans, MinimumLogLevel } from "effect/References";
 import * as Tracer from "effect/Tracer";
 import { AdoptPolicy } from "../AdoptPolicy.ts";
-import { AlchemyContext } from "../AlchemyContext.ts";
+import { AlchemyContext } from "../AlchemyContext.vibe";
 import * as Apply from "../Apply.ts";
 import { ArtifactStore, createArtifactStore } from "../Artifacts.ts";
 import { withProfileOverride } from "../Auth/Resolve.ts";

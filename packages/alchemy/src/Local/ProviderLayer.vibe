@@ -1,9 +1,7 @@
 /** @effect-diagnostics anyUnknownInErrorContext:off */
 
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { AlchemyContext } from "../AlchemyContext.ts";
+import { AlchemyContext } from "../AlchemyContext.vibe";
 import type { Platform } from "../Platform.ts";
 import { Provider, type ProviderService } from "../Provider.ts";
 import { defaultProviderMode, type ProviderMode } from "../ProviderMode.ts";
@@ -60,7 +58,7 @@ export const dual = <
   // Only the resource type string is needed — a ResourceClass, a Platform,
   // or a bare `{ Type }` (useful when importing the class would create a
   // module cycle) all satisfy this.
-  cls: ResourceClassLike<R> | Platform<R, any, any, any, any> | { Type: R["Type"] },
+  cls: ResourceClassLike<R> | Platform<R, any, any, any, any> | { Type: R["Type"]; },
   input: {
     live: () => LayerLive;
     local: () => LayerLocal;
@@ -90,59 +88,61 @@ export const dual = <
   Layer.Error<LayerLive | LayerLocal>,
   Layer.Services<LayerLive | LayerLocal> | AlchemyContext
 > =>
-  Layer.fromBuildMemo((memoMap, scope) =>
-    Effect.gen(function* () {
-      // The layer-build context contains everything provided to the
-      // provider stack (API clients, environments, ...). Captured here so
-      // lazily-built variants see the same services as an eager build.
-      const context = yield* Effect.context<never>();
-      const defaultMode = yield* defaultProviderMode;
+  Layer.fromBuildMemo(effect (memoMap, scope) => {
+    // The layer-build context contains everything provided to the
+    // provider stack (API clients, environments, ...). Captured here so
+    // lazily-built variants see the same services as an eager build.
+    const context = try Effect.context<never>();
+    const defaultMode = try defaultProviderMode;
 
-      const buildVariant = (mode: ProviderMode) =>
-        Layer.buildWithMemoMap(
-          (mode === "live" ? input.live() : input.local()).pipe(
-            Layer.provide(Layer.succeedContext(context)),
-          ) as Layer.Layer<any, any, never>,
-          memoMap,
-          scope,
-        ).pipe(
-          Effect.map((built): ProviderService<R> => ({
-            ...(built.mapUnsafe.get(cls.Type) as ProviderService<R>),
-            mode,
-          })),
-        );
+    const buildVariant = (mode: ProviderMode) =>
+      Layer.buildWithMemoMap(
+        (mode === "live" ? input.live() : input.local()).pipe(
+          Layer.provide(Layer.succeedContext(context)),
+        ) as Layer.Layer<any, any, never>,
+        memoMap,
+        scope,
+      ).pipe(
+        Effect.map((built): ProviderService<R> => ({
+          ...(built.mapUnsafe.get(cls.Type) as ProviderService<R>),
+          mode,
+        })),
+      );
 
-      // Memoized so each variant is constructed at most once per stack
-      // build, no matter how many resources/deletes resolve it.
-      const cached = {
-        live: yield* Effect.cached(buildVariant("live")),
-        local: yield* Effect.cached(buildVariant("local")),
-      };
+    // Memoized so each variant is constructed at most once per stack
+    // build, no matter how many resources/deletes resolve it.
+    const cached = {
+      live: try Effect.cached(buildVariant("live")),
+      local: try Effect.cached(buildVariant("local")),
+    };
 
-      // Lazy accessors die on construction failure: a provider layer that
-      // cannot be built is fatal (Providers.ts pipes `Layer.orDie` around
-      // the eager path for the same reason).
-      const modes: {
-        readonly [M in ProviderMode]: Effect.Effect<ProviderService<R>>;
-      } = {
-        live: Effect.orDie(cached.live),
-        local: Effect.orDie(cached.local),
-      };
+    // Lazy accessors die on construction failure: a provider layer that
+    // cannot be built is fatal (Providers.ts pipes `Layer.orDie` around
+    // the eager path for the same reason).
+    const modes: {
+      readonly [M in ProviderMode]: ProviderService<R>!!;
+    } = {
+      live: Effect.orDie(cached.live),
+      local: Effect.orDie(cached.local),
+    };
 
-      // Every engine path resolves a concrete variant through
-      // `providerForMode` and reads optional-method presence (`read`,
-      // `precreate`, `tail`, `logs`), `version`, `stables` and `nuke`
-      // there. The registered service therefore only needs the required
-      // lifecycle methods for structural provider checks and direct
-      // registration access — each forwarding to the default
-      // variant, built on first call.
-      const variant = modes[defaultMode];
+    // Every engine path resolves a concrete variant through
+    // `providerForMode` and reads optional-method presence (`read`,
+    // `precreate`, `tail`, `logs`), `version`, `stables` and `nuke`
+    // there. The registered service therefore only needs the required
+    // lifecycle methods for structural provider checks and direct
+    // registration access — each forwarding to the default
+    // variant, built on first call.
+    const variant = modes[defaultMode];
 
-      return Context.make(Provider(cls.Type) as any, {
+    return Context.make(
+      Provider(cls.Type) as any,
+      {
         aliases: "Aliases" in cls ? cls.Aliases : undefined,
         diff: (input) =>
-          Effect.flatMap(variant, (service) =>
-            service.diff === undefined ? Effect.void : service.diff(input),
+          Effect.flatMap(
+            variant,
+            (service) => service.diff === undefined ? Effect.void : service.diff(input),
           ),
         reconcile: (input) => Effect.flatMap(variant, (service) => service.reconcile(input)),
         delete: (input) => Effect.flatMap(variant, (service) => service.delete(input)),
@@ -151,6 +151,6 @@ export const dual = <
         modes,
         localDataPlane: input.dataPlane,
         liveDataPlane: input.liveDataPlane,
-      } satisfies ProviderService<R>);
-    }),
-  ) as any;
+      } satisfies ProviderService<R>,
+    );
+  }) as any;

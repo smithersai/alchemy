@@ -13,7 +13,7 @@ import { UserFacingError } from "../UserFacingError.ts";
 import { cachedFunction } from "../Util/cached-function.ts";
 import { globalLogs } from "../Util/LogRecord.ts";
 import { withProfileCredentialsLock } from "./Lock.ts";
-import { AuthProviders } from "./Registry.ts";
+import { AuthProviders } from "./Registry.vibe";
 
 /**
  * Canonical web host for OAuth provider-agnostic landing pages
@@ -78,7 +78,7 @@ export const refreshHint = (provider: string, profileName: string): string =>
 export const reconfigureHint = (provider: string, profileName: string): string =>
   `Run \`alchemy profile edit --profile ${profileName} --reconfigure ${provider}\` to reconfigure.`;
 
-export { AuthProviders, AuthProvidersLive } from "./Registry.ts";
+export { AuthProviders, AuthProvidersLive } from "./Registry.vibe";
 
 /**
  * Declares one environment variable a provider's {@link AuthProviderImpl.readEnvironment}

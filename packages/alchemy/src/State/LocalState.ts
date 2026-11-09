@@ -4,12 +4,12 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
-import { dotAlchemyDirectory } from "../AlchemyContext.ts";
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import { decodeFqn, encodeFqn } from "../FQN.ts";
 import { recordStateStoreInit } from "../Telemetry/Metrics.ts";
 import { writeFileAtomic } from "../Util/AtomicFile.ts";
 import { initialCwd } from "../Util/Node.ts";
-import { STATE_STORE_VERSION } from "./HttpStateApi.ts";
+import { STATE_STORE_VERSION } from "./HttpStateApi.vibe";
 import { State, StateStoreError, type StateService } from "./State.ts";
 import { encodeState, reviveState } from "./StateEncoding.ts";
 

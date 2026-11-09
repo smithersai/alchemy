@@ -1,6 +1,6 @@
 export { Action, isAction, type Action as ActionInstance, type ActionLike } from "./Action.ts";
 export * as AdoptPolicy from "./AdoptPolicy.ts";
-export * from "./AlchemyContext.ts";
+export * from "./AlchemyContext.vibe";
 export * from "./Apply.ts";
 export * from "./Callback.vibe";
 export {
@@ -8,7 +8,7 @@ export {
   type ServiceLike as BindingServiceLike,
   type ServiceShape as BindingServiceShape,
 } from "./Binding.ts";
-export * from "./Destroy.ts";
+export * from "./Destroy.vibe";
 export * from "./Diff.ts";
 export * from "./Input.vibe";
 export * from "./InstanceId.ts";

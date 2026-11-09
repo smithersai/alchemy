@@ -1,4 +1,3 @@
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -23,8 +22,8 @@ export interface ViteBuildOutput {
    */
   readonly base: string | undefined;
   // This is emitted as an Effect instead of a value so we can process it in parallel with reading the client assets.
-  readonly serverBundle: Effect.Effect<BundleOutput | undefined, BundleError>;
-  readonly externalWorkspaces: Effect.Effect<Set<string>, PlatformError>;
+  readonly serverBundle: (BundleOutput | undefined)!BundleError;
+  readonly externalWorkspaces: Set<string>!PlatformError;
 }
 
 // `@vitejs/plugin-rsc` writes these modules separately after build completes instead of emitting them as chunks.
@@ -45,30 +44,29 @@ interface EnvironmentLike {
   readonly config: {
     readonly base: string;
     readonly root: string;
-    readonly build: { readonly outDir: string };
+    readonly build: { readonly outDir: string; };
   };
 }
 
 /** Whether `directory` exists and is not empty. */
-const isNonEmptyDirectory = Effect.fn(function* (
+const isNonEmptyDirectory = effect (
   fs: FileSystem.FileSystem,
   directory: string | undefined,
-) {
-  if (!directory || !(yield* fs.exists(directory))) return false;
-  return (yield* fs.readDirectory(directory)).length > 0;
-});
+) => {
+  if (!directory || !(try fs.exists(directory))) return false;
+  return (try fs.readDirectory(directory)).length > 0;
+};
 
 /**
  * A Vite plugin that collects the output of the build and makes it available as an Effect.
  * @param entryEnvironment - The environment to use as the entry point for the server bundle. Defaults to "ssr".
  */
-export const viteBuildOutputPlugin = Effect.fn(function* ({
-  entryEnvironment = "ssr",
-}: {
-  entryEnvironment?: string;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
+export const viteBuildOutputPlugin = effect (args_0: { entryEnvironment?: string; }) => {
+  let {
+    entryEnvironment = "ssr",
+  } = args_0;
+  const fs = try FileSystem.FileSystem;
+  const path = try Path.Path;
   let clientDirectory: string | undefined;
   let base: string | undefined;
   // Where the client build writes, and the `public/` it would copy. Read from
@@ -82,33 +80,32 @@ export const viteBuildOutputPlugin = Effect.fn(function* ({
   let serverEntry: string | undefined;
   // `undefined` for an output a plugin removed after writing it (Vike deletes
   // its `.vite/manifest.json`): it isn't deployed, as with Wrangler.
-  const serverChunks = new Map<string, Effect.Effect<BundleFile | undefined, BundleError>>();
+  const serverChunks = new Map<string, (BundleFile | undefined)!BundleError>();
   const maybeExternalWorkspaces = new Set<string>();
 
-  const findUp = yield* cachedFunction(
-    (dir: string, filenames: Array<string>): Effect.Effect<string | undefined, PlatformError> =>
+  const findUp = try cachedFunction(
+    (dir: string, filenames: Array<string>): (string | undefined)!PlatformError! =>
       Effect.filter(
         filenames.map((filename) => path.join(dir, filename)),
         fs.exists,
         { concurrency: "unbounded" },
-      ).pipe(
-        Effect.flatMap(([match]) => {
-          if (match) {
-            return Effect.succeed(match);
-          }
-          const parent = path.dirname(dir);
-          if (parent === dir) {
-            return Effect.undefined;
-          }
-          return findUp(parent, filenames);
-        }),
-      ),
+      )
+      |> Effect.flatMap(%, ([match]) => {
+        if (match) {
+          return Effect.succeed(match);
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) {
+          return Effect.undefined;
+        }
+        return findUp(parent, filenames);
+      }),
   );
-  const collectExternalWorkspaces = (): Effect.Effect<Set<string>, PlatformError> =>
-    Effect.forEach(maybeExternalWorkspaces, (directory) =>
-      findUp(directory, ["package.json"]),
-    ).pipe(
-      Effect.map((paths) => new Set(paths.filter((file) => file !== undefined).map(path.dirname))),
+  const collectExternalWorkspaces = (): Set<string>!PlatformError =>
+    Effect.forEach(maybeExternalWorkspaces, (directory) => findUp(directory, ["package.json"]))
+    |> Effect.map(
+      %,
+      (paths) => new Set(paths.filter((file) => file !== undefined).map(path.dirname)),
     );
   const plugin: vite.Plugin = {
     name: "alchemy:build-output",
@@ -147,10 +144,9 @@ export const viteBuildOutputPlugin = Effect.fn(function* ({
         const entryChunks = files.filter(
           (file): file is vite.Rolldown.OutputChunk => file.type === "chunk" && file.isEntry,
         );
-        const entryChunk =
-          entryChunks.find((chunk) => chunk.name === "index") ??
-          entryChunks.find((chunk) => chunk.exports.length > 0) ??
-          entryChunks[0];
+        const entryChunk = entryChunks.find((chunk) => chunk.name === "index")
+          ?? entryChunks.find((chunk) => chunk.exports.length > 0)
+          ?? entryChunks[0];
         if (!entryChunk) {
           throw new Error(`Entry chunk not found for environment "${this.environment.name}"`);
         }
@@ -160,7 +156,8 @@ export const viteBuildOutputPlugin = Effect.fn(function* ({
       const urlAssets = new Set<string>();
       for (const file of files) {
         if (file.type !== "chunk" || this.environment.name !== entryEnvironment) continue;
-        const metadata = (file as { viteMetadata?: { importedAssets?: Set<string> } }).viteMetadata;
+        const metadata =
+          (file as { viteMetadata?: { importedAssets?: Set<string>; }; }).viteMetadata;
         for (const asset of metadata?.importedAssets ?? []) {
           urlAssets.add(asset);
           importedAssets.set(asset, path.join(outDir, asset));
@@ -228,48 +225,43 @@ export const viteBuildOutputPlugin = Effect.fn(function* ({
   // This is only safe to run *after* the build has completed.
   const readOutputFile = (name: string, environment: EnvironmentLike) => {
     const file = path.resolve(environment.config.root, environment.config.build.outDir, name);
-    return fs.exists(file).pipe(
-      Effect.flatMap((exists) => (exists ? readFile(file, name, environment) : Effect.undefined)),
-      Effect.mapError(bundleErrorFromUnknown),
-    );
+    return fs.exists(file)
+      |> Effect.flatMap(
+        %,
+        (exists) => (exists ? readFile(file, name, environment) : Effect.undefined),
+      )
+      |> Effect.mapError(%, bundleErrorFromUnknown);
   };
 
   const readFile = (file: string, name: string, environment: EnvironmentLike) =>
-    fs.readFile(file).pipe(
-      Effect.flatMap((content) =>
-        sha256(content).pipe(
-          Effect.map((hash): BundleFile => ({
-            path: fileName(name, environment),
-            content,
-            hash,
-          })),
-        ),
-      ),
-      Effect.mapError(bundleErrorFromUnknown),
-    );
+    fs.readFile(file)
+    |> Effect.flatMap(%, (content) =>
+      sha256(content)
+      |> Effect.map(%, (hash): BundleFile => ({
+        path: fileName(name, environment),
+        content,
+        hash,
+      })))
+    |> Effect.mapError(%, bundleErrorFromUnknown);
 
   const makeServerBundle = () => {
     if (!serverEntry && !serverChunks.size) return Effect.undefined;
     if (!serverEntry) return Effect.die(new Cause.NoSuchElementError("Missing server entry"));
     const filePaths = Array.from(serverChunks.keys()).sort((a, b) => a.localeCompare(b));
-    const entry = getChunk(serverEntry).pipe(
-      Effect.flatMap((file) =>
+    const entry = getChunk(serverEntry)
+      |> Effect.flatMap(%, (file) =>
         file
           ? Effect.succeed(file)
-          : Effect.die(new Cause.NoSuchElementError(`Chunk ${serverEntry} not found`)),
-      ),
-    );
+          : Effect.die(new Cause.NoSuchElementError(`Chunk ${serverEntry} not found`)));
     const rest = filePaths
       .filter((filePath) => filePath !== serverEntry)
       .map((filePath) => getChunk(filePath));
-    return Effect.all([entry, ...rest], { concurrency: "unbounded" }).pipe(
-      Effect.flatMap(([entryFile, ...files]) =>
+    return Effect.all([entry, ...rest], { concurrency: "unbounded" })
+      |> Effect.flatMap(%, ([entryFile, ...files]) =>
         bundleOutputFromFiles([
           entryFile,
           ...files.filter((file): file is BundleFile => file !== undefined),
-        ]),
-      ),
-    );
+        ]));
   };
 
   // Mirrors `@cloudflare/vite-plugin`: assets the Worker imports move to the
@@ -277,26 +269,26 @@ export const viteBuildOutputPlugin = Effect.fn(function* ({
   // `public/` (the Worker builds with `copyPublicDir: false`), so the client
   // output is created from `public/` plus those assets, as the plugin's
   // fallback client build does.
-  const collectAssets = Effect.fn(function* () {
+  const collectAssets = effect () => {
     let directory = clientDirectory;
     if (directory === undefined) {
-      const hasPublic = yield* isNonEmptyDirectory(fs, publicDir);
+      const hasPublic = try isNonEmptyDirectory(fs, publicDir);
       if (clientOutDir === undefined || (!hasPublic && importedAssets.size === 0)) {
         return undefined;
       }
       directory = clientOutDir;
-      yield* fs.remove(directory, { recursive: true, force: true });
-      yield* fs.makeDirectory(directory, { recursive: true });
-      if (hasPublic) yield* fs.copy(publicDir!, directory);
+      try fs.remove(directory, { recursive: true, force: true });
+      try fs.makeDirectory(directory, { recursive: true });
+      if (hasPublic) try fs.copy(publicDir!, directory);
     }
     for (const [asset, source] of importedAssets) {
       const destination = path.join(directory, asset);
-      if (yield* fs.exists(destination)) continue;
-      yield* fs.makeDirectory(path.dirname(destination), { recursive: true });
-      yield* fs.copyFile(source, destination);
+      if (try fs.exists(destination)) continue;
+      try fs.makeDirectory(path.dirname(destination), { recursive: true });
+      try fs.copyFile(source, destination);
     }
     return directory;
-  });
+  };
 
   const getChunk = (path: string) => {
     const chunk = serverChunks.get(path);
@@ -310,14 +302,14 @@ export const viteBuildOutputPlugin = Effect.fn(function* ({
     plugin,
     // Read lazily so callers observe the state collected during the build.
     // Only safe to await *after* `builder.buildApp()` has resolved.
-    output: Effect.gen(function* () {
-      const assetsDirectory = yield* collectAssets();
+    output: effect {
+      const assetsDirectory = try collectAssets();
       return {
         clientDirectory: assetsDirectory,
         base,
         serverBundle: makeServerBundle(),
         externalWorkspaces: collectExternalWorkspaces(),
       };
-    }),
+    },
   };
-});
+};

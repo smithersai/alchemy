@@ -8,7 +8,7 @@ import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import { profileCommandHint } from "../Util/interactive.ts";
-import { StateApi, StateStoreFailure } from "./HttpStateApi.ts";
+import { StateApi, StateStoreFailure } from "./HttpStateApi.vibe";
 import type { ReplacedResourceState, ResourceState } from "./ResourceState.ts";
 import { StateStoreError, type PersistedState, type StateService } from "./State.ts";
 import { encodeState, reviveStateRecursive } from "./StateEncoding.ts";

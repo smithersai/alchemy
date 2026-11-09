@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as HttpBody from "effect/http/HttpBody";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { AlchemyContext } from "../AlchemyContext.ts";
+import { AlchemyContext } from "../AlchemyContext.vibe";
 import type { ProviderService } from "../Provider.ts";
 import type { ResourceLike } from "../Resource.ts";
 import { Stack } from "../Stack.ts";
