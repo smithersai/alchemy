@@ -1,35 +1,35 @@
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import type { PlatformError } from "effect/PlatformError";
-import * as Scope from "effect/Scope";
-import { AuthError, AuthProviders } from "../Auth/AuthProvider.ts";
-import { SuppressMissingProviderConfig } from "../Auth/Profile.ts";
-import * as Contributions from "../Contributions.ts";
-import type { ContributionError } from "../Contributions.ts";
-import { makeCachedFunction } from "../Util/cached-function.ts";
-import { DEFAULT_ENTRYPOINT, importStack } from "./Entrypoint.ts";
-import * as Operations from "./Operations.ts";
-import type { Services } from "./Runtime.ts";
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import type { PlatformError } from "effect/PlatformError"
+import * as Scope from "effect/Scope"
+import { AuthError, AuthProviders } from "../Auth/AuthProvider.ts"
+import { SuppressMissingProviderConfig } from "../Auth/Profile.ts"
+import * as Contributions from "../Contributions.ts"
+import type { ContributionError } from "../Contributions.ts"
+import { makeCachedFunction } from "../Util/cached-function.ts"
+import { DEFAULT_ENTRYPOINT, importStack } from "./Entrypoint.ts"
+import * as Operations from "./Operations.ts"
+import type { Services } from "./Runtime.ts"
 
 // Every auth provider a project can reach: what `alchemy profile` and
 // `alchemy provider check-env` list and configure. Collected by building the
 // installed providers' auth and the project's providers into one registry.
 
 /** What collecting an auth registry can fail with. */
-export type CollectAuthProvidersError = AuthError | ContributionError | PlatformError;
+export type CollectAuthProvidersError = AuthError | ContributionError | PlatformError
 
 /** What collecting an auth registry runs under. */
-export type CollectAuthProvidersServices = Services | Scope.Scope;
+export type CollectAuthProvidersServices = Services | Scope.Scope
 
 type CollectAuthProviders = (
   options: CollectAuthProvidersOptions,
-) => AuthProviders["Service"]!CollectAuthProvidersError!CollectAuthProvidersServices;
+) => AuthProviders["Service"]!CollectAuthProvidersError!CollectAuthProvidersServices
 
 export interface CollectAuthProvidersOptions {
-  readonly main: string;
-  readonly envFile: Option.Option<string>;
-  readonly profile: string;
+  readonly main: string
+  readonly envFile: Option.Option<string>
+  readonly profile: string
 }
 
 /**
@@ -43,36 +43,35 @@ const contributedAuth = effect {
     (provider) =>
       provider.auth
         ? (do {
-          const catchProgram = Contributions.resolve(provider, "auth", provider.auth);
+          const catchProgram = Contributions.resolve(provider, "auth", provider.auth)
           effect {
-            return catchProgram catch effect (error) =>
-              try Effect.as(Effect.logWarning(error.message), Layer.empty);
-          };
+            return catchProgram catch effect (error) => try Effect.as(Effect.logWarning(error.message), Layer.empty)
+          }
         })
         : Effect.succeed(Layer.empty),
     { concurrency: "unbounded" },
-  );
-  return Layer.mergeAll(Layer.empty, ...layers);
-};
+  )
+  return Layer.mergeAll(Layer.empty, ...layers)
+}
 
 /** Register every installed provider's auth into the ambient registry. */
 const registerContributedAuth = effect (
-  options: { readonly envFile: Option.Option<string>; readonly profile: string; },
+  options: { readonly envFile: Option.Option<string>; readonly profile: string },
 ) =>
   try withSpan(
     effect {
       const shared = try Operations.configServices({
         ...options,
         envFile: Option.getOrUndefined(options.envFile),
-      });
-      try Layer.build(Layer.provide(try contributedAuth, shared));
+      })
+      try Layer.build(Layer.provide(try contributedAuth, shared))
     },
     "registerContributedAuth",
-  );
+  )
 
 const isMissingProviderConfig = Schema.is(
   Schema.Struct({ _tag: Schema.Literals(["MissingProviderConfig"]) }),
-);
+)
 
 /**
  * Every auth provider reachable from the current project: the built-ins, plus
@@ -83,17 +82,17 @@ const collectAuthProvidersUncached = effect (options: CollectAuthProvidersOption
     effect {
       // Everything built below registers into this one registry: the
       // registry layers reuse an ambient registry instead of starting fresh.
-      const authProviders: AuthProviders["Service"] = {};
-      const collect = Effect.provideService(AuthProviders, authProviders);
-      try (registerContributedAuth(options).pipe(collect));
+      const authProviders: AuthProviders["Service"] = {}
+      const collect = Effect.provideService(AuthProviders, authProviders)
+      try (registerContributedAuth(options).pipe(collect))
 
-      const fs = try FileSystem.FileSystem;
-      const entrypointExists = try fs.exists(options.main);
-      const missingDefault = options.main === DEFAULT_ENTRYPOINT && !entrypointExists;
+      const fs = try FileSystem.FileSystem
+      const entrypointExists = try fs.exists(options.main)
+      const missingDefault = options.main === DEFAULT_ENTRYPOINT && !entrypointExists
       if (!entrypointExists && !missingDefault) {
         throw AuthError.make({
           message: `Stack entrypoint '${options.main}' does not exist.`,
-        });
+        })
       }
       if (!missingDefault) {
         try (importStack(options.main).pipe(
@@ -111,9 +110,9 @@ const collectAuthProvidersUncached = effect (options: CollectAuthProvidersOption
                 ? reason.error
                 : Cause.isDieReason(reason)
                 ? reason.defect
-                : undefined;
-              return isMissingProviderConfig(error);
-            });
+                : undefined
+              return isMissingProviderConfig(error)
+            })
             return suppressed
               ? Effect.void
               : Effect.fail(
@@ -121,14 +120,14 @@ const collectAuthProvidersUncached = effect (options: CollectAuthProvidersOption
                   message: `Could not load auth providers from '${options.main}'.`,
                   cause,
                 }),
-              );
+              )
           }),
-        ));
+        ))
       }
-      return authProviders;
+      return authProviders
     } |> Effect.provideService(%, SuppressMissingProviderConfig, true),
     "collectAuthProvidersUncached",
-  );
+  )
 
 /**
  * Collects auth registries. Uncached by default; {@link authRegistryLayer}
@@ -136,7 +135,7 @@ const collectAuthProvidersUncached = effect (options: CollectAuthProvidersOption
  */
 const AuthRegistry = Context.Reference<CollectAuthProviders>("Alchemy/Alchemist/AuthRegistry", {
   defaultValue: () => collectAuthProvidersUncached,
-});
+})
 
 /**
  * Memoize auth registries for one command or API runtime: profile flows
@@ -149,14 +148,12 @@ export const authRegistryLayer = Layer.effect(
   AuthRegistry,
   Effect.map(Effect.scope, (scope) =>
     makeCachedFunction(
-      (options: CollectAuthProvidersOptions) =>
-        collectAuthProvidersUncached(options) |> Scope.provide(%, scope),
+      (options: CollectAuthProvidersOptions) => collectAuthProvidersUncached(options) |> Scope.provide(%, scope),
       {
-        key: ([options]) =>
-          JSON.stringify([options.main, Option.getOrNull(options.envFile), options.profile]),
+        key: ([options]) => JSON.stringify([options.main, Option.getOrNull(options.envFile), options.profile]),
       },
     )),
-);
+)
 
 export const collectAuthProviders = (options: CollectAuthProvidersOptions) =>
-  Effect.flatMap(AuthRegistry, (collect) => collect(options));
+  Effect.flatMap(AuthRegistry, (collect) => collect(options))

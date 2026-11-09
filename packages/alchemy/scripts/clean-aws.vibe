@@ -165,14 +165,20 @@ const repeatUntil = effect <A, E, R>(
 const terminateInstances = effect {
   const response = try ec2.describeInstances({} as any)
   const ids = uniq(
-    try Effect.orDie(Effect.try({ try: () => (response.Reservations ?? []).flatMap(effect (reservation: any) =>
-      (reservation.Instances ?? [])
-        .filter(effect (instance: any) => {
-          const state = instance.State?.Name
-          return state !== "shutting-down" && state !== "terminated"
-        })
-        .map(effect (instance: any) => instance.InstanceId)
-    ), catch: (e) => e })),
+    try Effect.orDie(
+      Effect.try({
+        try: () =>
+          (response.Reservations ?? []).flatMap(effect (reservation: any) =>
+            (reservation.Instances ?? [])
+              .filter(effect (instance: any) => {
+                const state = instance.State?.Name
+                return state !== "shutting-down" && state !== "terminated"
+              })
+              .map(effect (instance: any) => instance.InstanceId)
+          ),
+        catch: (e) => e,
+      }),
+    ),
   )
 
   if (ids.length === 0) {
@@ -234,8 +240,14 @@ const deleteVpcEndpoints = Effect.gen(function*() {
   yield* try repeatUntil(
     "VPC endpoints to delete",
     ec2.describeVpcEndpoints({ VpcEndpointIds: ids } as any)
-      |> Effect.map(%, (result) => uniq((result.VpcEndpoints ?? []).map(effect (endpoint: any) => endpoint.VpcEndpointId)))
-      |> Effect.catch(%, effect (error) => isNotFoundError(error) ? try Effect.succeed([] as string[]) : try Effect.fail(error)),
+      |> Effect.map(
+        %,
+        (result) => uniq((result.VpcEndpoints ?? []).map(effect (endpoint: any) => endpoint.VpcEndpointId)),
+      )
+      |> Effect.catch(
+        %,
+        effect (error) => isNotFoundError(error) ? try Effect.succeed([] as string[]) : try Effect.fail(error),
+      ),
     (remainingIds) => remainingIds.length === 0,
     30,
     5_000,
@@ -281,33 +293,48 @@ const deleteNatGateways = Effect.gen(function*() {
 const deleteNetworkInterfaces = effect {
   const interfaces = (try ec2.describeNetworkInterfaces({} as any)).NetworkInterfaces ?? []
 
-  const blocked = try Effect.orDie(Effect.try({ try: () => interfaces.filter(
-    effect (networkInterface: any) =>
-      networkInterface.Attachment
-      || networkInterface.RequesterManaged
-      || networkInterface.Status !== "available",
-  ), catch: (e) => e }))
+  const blocked = try Effect.orDie(Effect.try({
+    try: () =>
+      interfaces.filter(
+        effect (networkInterface: any) =>
+          networkInterface.Attachment
+          || networkInterface.RequesterManaged
+          || networkInterface.Status !== "available",
+      ),
+    catch: (e) => e,
+  }))
 
   if (blocked.length > 0) {
     throw new CleanAwsNotReady({
-      message: `Network interfaces still in use: ${
-        try Effect.orDie(Effect.try({ try: () => blocked
-          .map(
-            effect (networkInterface: any) =>
-              `${networkInterface.NetworkInterfaceId}(status=${
-                networkInterface.Status ?? "unknown"
-              }, requesterManaged=${networkInterface.RequesterManaged ?? false}, attachment=${
-                networkInterface.Attachment?.AttachmentId ?? "none"
-              })`,
-          )
-          .join(", "), catch: (e) => e }))
-      }`,
+      message: `Network interfaces still in use: ${try Effect.orDie(Effect.try({
+        try: () =>
+          blocked
+            .map(
+              effect (networkInterface: any) =>
+                `${networkInterface.NetworkInterfaceId}(status=${
+                  networkInterface.Status ?? "unknown"
+                }, requesterManaged=${networkInterface.RequesterManaged ?? false}, attachment=${
+                  networkInterface.Attachment?.AttachmentId ?? "none"
+                })`,
+            )
+            .join(", "),
+        catch: (e) => e,
+      }))}`,
     })
   }
 
-  const ids = uniq(try Effect.orDie(Effect.try({ try: () => interfaces.map(effect (networkInterface: any) => networkInterface.NetworkInterfaceId), catch: (e) => e })))
+  const ids = uniq(
+    try Effect.orDie(Effect.try({
+      try: () => interfaces.map(effect (networkInterface: any) => networkInterface.NetworkInterfaceId),
+      catch: (e) => e,
+    })),
+  )
 
-  try try deleteEach("network interface(s)", ids, effect (id) => ec2.deleteNetworkInterface({ NetworkInterfaceId: id } as any))
+  try try deleteEach(
+    "network interface(s)",
+    ids,
+    effect (id) => ec2.deleteNetworkInterface({ NetworkInterfaceId: id } as any),
+  )
 }
 const releaseElasticIps = Effect.gen(function*() {
   const addresses = (yield* ec2.describeAddresses({} as any)).Addresses ?? []
@@ -366,7 +393,11 @@ const deleteVpnConnections = Effect.gen(function*() {
     ).map(effect (connection: any) => connection.VpnConnectionId),
   )
 
-  yield* try deleteEach("VPN connection(s)", ids, effect (id) => ec2.deleteVpnConnection({ VpnConnectionId: id } as any))
+  yield* try deleteEach(
+    "VPN connection(s)",
+    ids,
+    effect (id) => ec2.deleteVpnConnection({ VpnConnectionId: id } as any),
+  )
 })
 const deleteVpnGateways = Effect.gen(function*() {
   const gateways = (yield* ec2.describeVpnGateways({} as any)).VpnGateways ?? []
@@ -416,7 +447,11 @@ const deleteCustomerGateways = Effect.gen(function*() {
     ),
   )
 
-  yield* try deleteEach("customer gateway(s)", ids, effect (id) => ec2.deleteCustomerGateway({ CustomerGatewayId: id } as any))
+  yield* try deleteEach(
+    "customer gateway(s)",
+    ids,
+    effect (id) => ec2.deleteCustomerGateway({ CustomerGatewayId: id } as any),
+  )
 })
 const deleteInternetGateways = Effect.gen(function*() {
   const gateways = (yield* ec2.describeInternetGateways({} as any)).InternetGateways ?? []
@@ -459,7 +494,12 @@ const deleteInternetGateways = Effect.gen(function*() {
 })
 const deleteEgressOnlyInternetGateways = effect {
   const gateways = (try ec2.describeEgressOnlyInternetGateways({} as any)).EgressOnlyInternetGateways ?? []
-  const ids = uniq(try Effect.orDie(Effect.try({ try: () => gateways.map(effect (gateway: any) => gateway.EgressOnlyInternetGatewayId), catch: (e) => e })))
+  const ids = uniq(
+    try Effect.orDie(Effect.try({
+      try: () => gateways.map(effect (gateway: any) => gateway.EgressOnlyInternetGatewayId),
+      catch: (e) => e,
+    })),
+  )
 
   try try deleteEach("egress-only internet gateway(s)", ids, effect (id) =>
     ec2.deleteEgressOnlyInternetGateway({
@@ -568,7 +608,11 @@ const deleteLaunchTemplates = Effect.gen(function*() {
     ),
   )
 
-  yield* try deleteEach("launch template(s)", ids, effect (id) => ec2.deleteLaunchTemplate({ LaunchTemplateId: id } as any))
+  yield* try deleteEach(
+    "launch template(s)",
+    ids,
+    effect (id) => ec2.deleteLaunchTemplate({ LaunchTemplateId: id } as any),
+  )
 })
 const deletePlacementGroups = Effect.gen(function*() {
   const ids = uniq(
@@ -588,9 +632,10 @@ const deleteKeyPairs = Effect.gen(function*() {
 })
 const deleteVpcs = Effect.gen(function*() {
   const ids = uniq(
-    (yield* ec2.describeVpcs({} as any)).Vpcs?.filter(effect (vpc: any) => includeDefaultVpcs ? true : !vpc.IsDefault).map(effect (
-      vpc: any,
-    ) => vpc.VpcId),
+    (yield* ec2.describeVpcs({} as any)).Vpcs?.filter(effect (vpc: any) => includeDefaultVpcs ? true : !vpc.IsDefault)
+      .map(effect (
+        vpc: any,
+      ) => vpc.VpcId),
   )
 
   yield* try deleteEach("VPC(s)", ids, effect (id) => ec2.deleteVpc({ VpcId: id } as any))
