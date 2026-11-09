@@ -14,11 +14,11 @@ import {
   updateIamMembership,
   type GcpIamResourceKind,
   type IamCondition,
-} from "./IamPolicy.ts";
+} from "./IamPolicy.vibe";
 import type { BoundContainer } from "./Run/Container.vibe";
 import { parseServiceAccountKey } from "./Token.ts";
 
-export type { GcpIamResourceKind } from "./IamPolicy.ts";
+export type { GcpIamResourceKind } from "./IamPolicy.vibe";
 
 /**
  * IAM grant a binding attaches to a GCP runtime host (Cloud Run

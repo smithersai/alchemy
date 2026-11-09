@@ -4,7 +4,7 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as GCPBindings from "./GCPBindings.ts";
 import { type GcpIamGrant } from "./Host.ts";
-import type { GcpIamResourceKind } from "./IamPolicy.ts";
+import type { GcpIamResourceKind } from "./IamPolicy.vibe";
 
 /**
  * Distilled ops are `OperationMethod`s: resolve them once at Layer

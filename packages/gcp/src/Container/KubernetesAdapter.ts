@@ -63,7 +63,7 @@ import {
   type AppliedIamGrant,
   type GcpIamGrant,
 } from "../Host.ts";
-import { revokeIamMembership, updateIamMembership } from "../IamPolicy.ts";
+import { revokeIamMembership, updateIamMembership } from "../IamPolicy.vibe";
 
 export class KubernetesAdapterNotReady extends Data.TaggedError("KubernetesAdapterNotReady")<{
   readonly message: string;
