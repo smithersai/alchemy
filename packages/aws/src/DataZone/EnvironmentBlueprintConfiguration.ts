@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 
 /**
  * Lake Formation provisioning configuration for a blueprint.

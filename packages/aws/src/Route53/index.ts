@@ -12,7 +12,7 @@ export { GetHealthCheckStatus } from "./GetHealthCheckStatus.vibe";
 export { GetHealthCheckStatusHttp } from "./GetHealthCheckStatusHttp.vibe";
 export { GetHostedZone } from "./GetHostedZone.vibe";
 export { GetHostedZoneHttp } from "./GetHostedZoneHttp.vibe";
-export { HealthCheck, HealthCheckProvider } from "./HealthCheck.ts";
+export { HealthCheck, HealthCheckProvider } from "./HealthCheck.vibe";
 export { HostedZone, HostedZoneProvider } from "./HostedZone.vibe";
 export { ListHostedZones } from "./ListHostedZones.vibe";
 export { ListHostedZonesByName } from "./ListHostedZonesByName.vibe";

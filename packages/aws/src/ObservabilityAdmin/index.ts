@@ -9,4 +9,4 @@ export * from "./ListResourceTelemetryHttp.vibe";
 export * from "./ListTelemetryRules.vibe";
 export * from "./ListTelemetryRulesHttp.vibe";
 export * from "./TelemetryConfig.vibe";
-export * from "./TelemetryRule.ts";
+export * from "./TelemetryRule.vibe";

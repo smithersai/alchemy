@@ -16,9 +16,9 @@ import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
 import type { Service } from "../ECS/Service.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { Function } from "../Lambda/Function.ts";
-import { Bucket } from "../S3/Bucket.ts";
-import type { AssetFileOption } from "./AssetDeployment.ts";
-import { AssetDeployment } from "./AssetDeployment.ts";
+import { Bucket } from "../S3/Bucket.vibe";
+import type { AssetFileOption } from "./AssetDeployment.vibe";
+import { AssetDeployment } from "./AssetDeployment.vibe";
 import {
   normalizeWebsiteDomain,
   type SsrSiteRouteTargets,

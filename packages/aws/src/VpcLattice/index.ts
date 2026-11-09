@@ -10,7 +10,7 @@ export * from "./RegisterTargetsHttp.vibe";
 export * from "./ResourcePolicy.vibe";
 export * from "./Rule.vibe";
 export * from "./Service.vibe";
-export * from "./ServiceNetwork.ts";
+export * from "./ServiceNetwork.vibe";
 export * from "./ServiceNetworkServiceAssociation.vibe";
 export * from "./ServiceNetworkVpcAssociation.vibe";
 export * from "./TargetGroup.vibe";

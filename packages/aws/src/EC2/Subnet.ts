@@ -19,7 +19,7 @@ import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import { tagListRecord } from "../internal/Observe.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import { retryWhileLingeringEnis } from "./LingeringEnis.vibe";
 import type { VpcId } from "./Vpc.vibe";
 

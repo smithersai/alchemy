@@ -46,7 +46,7 @@ import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import { flociServices } from "./FlociServices.ts";
-import { withProviderContext } from "./ProviderContext.ts";
+import { withProviderContext } from "./ProviderContext.vibe";
 
 /**
  * The AWS provider group module ([Local.ts](./Local.ts)) — every

@@ -22,7 +22,7 @@ import type { AccountID } from "../Environment.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import {
   type Ec2HostedProps,
   type InstanceMetadataOptions,

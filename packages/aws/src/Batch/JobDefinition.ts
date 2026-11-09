@@ -35,7 +35,7 @@ import { buildAndPushEcrImage } from "../ECR/Image.ts";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 
 export class JobDefinitionOperationFailed extends Data.TaggedError("JobDefinitionOperationFailed")<{
   readonly message: string;

@@ -1,2 +1,2 @@
-export * from "./S3BucketEventSource.ts";
+export * from "./S3BucketEventSource.vibe";
 export * from "./SQSQueueEventSource.vibe";

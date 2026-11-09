@@ -25,7 +25,7 @@ export * from "./StartExecution.vibe";
 export * from "./StartExecutionHttp.vibe";
 export * from "./StartSyncExecution.vibe";
 export * from "./StartSyncExecutionHttp.vibe";
-export * from "./StateMachine.ts";
+export * from "./StateMachine.vibe";
 export * from "./StopExecution.vibe";
 export * from "./StopExecutionHttp.vibe";
 export * from "./TestState.vibe";

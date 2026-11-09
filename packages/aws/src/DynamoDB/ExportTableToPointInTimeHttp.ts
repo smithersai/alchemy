@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import { regionFromArn } from "../Lambda/BindingHttp.ts";
-import type { Bucket } from "../S3/Bucket.ts";
+import type { Bucket } from "../S3/Bucket.vibe";
 import { GrantTables } from "./BindingHttp.ts";
 import {
   ExportTableToPointInTime,

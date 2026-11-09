@@ -49,9 +49,9 @@ import { LoadBalancer } from "../ELBv2/LoadBalancer.vibe";
 import { TargetGroup, type TargetGroupArn } from "../ELBv2/TargetGroup.vibe";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import { plainJson } from "../internal/Observe.ts";
-import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
+import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.vibe";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe";
 import type { ClusterArn } from "./Cluster.vibe";
 import {

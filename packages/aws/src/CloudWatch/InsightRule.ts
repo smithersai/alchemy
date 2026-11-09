@@ -11,7 +11,7 @@ import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import { createName, readResourceTags, retryConcurrent, updateResourceTags } from "./common.ts";
 
 export class InsightRuleUnexpectedResponse extends Data.TaggedError(

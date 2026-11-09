@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import type { LogGroup } from "../Logs/LogGroup.ts";
+import type { LogGroup } from "../Logs/LogGroup.vibe";
 import {
   LogGroupEventSource as LogsLogGroupEventSource,
   type CloudWatchLogsEvent,

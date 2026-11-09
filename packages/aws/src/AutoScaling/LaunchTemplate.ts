@@ -27,7 +27,7 @@ import type { AccountID } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { AWSEnvironment } from "../index.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 
 export class LaunchTemplateUnexpectedResponse extends Data.TaggedError(
   "LaunchTemplateUnexpectedResponse",

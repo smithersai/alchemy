@@ -1,5 +1,5 @@
-export * from "./Bot.ts";
-export * from "./BotAlias.ts";
+export * from "./Bot.vibe";
+export * from "./BotAlias.vibe";
 export * from "./BotLocale.vibe";
 export * from "./BotVersion.vibe";
 export * from "./CodeHookEventSource.vibe";

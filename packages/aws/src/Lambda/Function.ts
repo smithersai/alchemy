@@ -44,7 +44,7 @@ import { Assets } from "../Assets.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import * as IAM from "../IAM/index.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
+import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.vibe";
 import type { Providers } from "../Providers.vibe";
 import {
   observeEventInvokeConfig,

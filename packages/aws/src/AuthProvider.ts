@@ -52,7 +52,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as Endpoint from "./Endpoint.vibe";
 import * as Floci from "./Local/Floci.ts";
-import * as Region from "./Region.ts";
+import * as Region from "./Region.vibe";
 
 export const AWS_AUTH_PROVIDER_NAME = "AWS";
 export const DEFAULT_LOCAL_ENDPOINT = `http://localhost:${Floci.DEFAULT_FLOCI_PORT}`;

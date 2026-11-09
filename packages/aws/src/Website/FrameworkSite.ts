@@ -19,7 +19,7 @@ import {
   type WebsiteEdgeProps,
   type WebsiteInvalidationProps,
 } from "./shared.ts";
-import { makeKvSite, type StaticSiteProps } from "./StaticSite.ts";
+import { makeKvSite, type StaticSiteProps } from "./StaticSite.vibe";
 
 /** Props shared by every framework website, whatever runs its server. */
 export interface FrameworkSiteBaseProps {

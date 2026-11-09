@@ -37,6 +37,6 @@ export * from "./PutTelemetryRecordsHttp.vibe";
 export * from "./PutTraceSegments.vibe";
 export * from "./PutTraceSegmentsHttp.vibe";
 export * from "./ResourcePolicy.vibe";
-export * from "./SamplingRule.ts";
+export * from "./SamplingRule.vibe";
 export * from "./StartTraceRetrieval.vibe";
 export * from "./StartTraceRetrievalHttp.vibe";

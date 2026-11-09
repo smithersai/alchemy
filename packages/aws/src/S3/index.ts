@@ -1,6 +1,6 @@
 export * from "./AbortMultipartUpload.vibe";
 export * from "./AbortMultipartUploadHttp.vibe";
-export * from "./Bucket.ts";
+export * from "./Bucket.vibe";
 export * from "./BucketEventSource.vibe";
 export * from "./BucketNotifications.vibe";
 export * from "./CompleteMultipartUpload.vibe";

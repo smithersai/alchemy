@@ -13,9 +13,9 @@ import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { EventSourceMapping } from "../Lambda/EventSourceMapping.ts";
 import { Function as LambdaFunction } from "../Lambda/Function.ts";
 import { WebFunction } from "../Lambda/WebFunction.vibe";
-import { Bucket } from "../S3/Bucket.ts";
+import { Bucket } from "../S3/Bucket.vibe";
 import { Queue } from "../SQS/Queue.vibe";
-import { AssetDeployment } from "./AssetDeployment.ts";
+import { AssetDeployment } from "./AssetDeployment.vibe";
 import { asRouterDomain, registerDevRouterRoute } from "./DevRouterRoute.ts";
 import {
   checkWebsiteRegions,
@@ -30,7 +30,7 @@ import {
   type WebsiteEdgeProps,
   type WebsiteInvalidationProps,
 } from "./shared.ts";
-import { makeKvSite, type StaticSiteProps } from "./StaticSite.ts";
+import { makeKvSite, type StaticSiteProps } from "./StaticSite.vibe";
 
 /**
  * The framework-integration module that drives the `@opennextjs/aws` build

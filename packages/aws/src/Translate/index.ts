@@ -12,7 +12,7 @@ export * from "./ListTerminologies.vibe";
 export * from "./ListTerminologiesHttp.vibe";
 export * from "./ListTextTranslationJobs.vibe";
 export * from "./ListTextTranslationJobsHttp.vibe";
-export * from "./ParallelData.ts";
+export * from "./ParallelData.vibe";
 export * from "./StartTextTranslationJob.vibe";
 export * from "./StartTextTranslationJobHttp.vibe";
 export * from "./StopTextTranslationJob.vibe";

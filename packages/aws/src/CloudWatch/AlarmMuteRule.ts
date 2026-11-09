@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import { createManagedTags, createName, retryConcurrent } from "./common.ts";
 
 export class AlarmMuteRuleUnexpectedResponse extends Data.TaggedError(

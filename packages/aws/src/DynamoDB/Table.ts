@@ -18,7 +18,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 
 export class TableUnexpectedResponse extends Data.TaggedError("TableUnexpectedResponse")<{
   readonly message: string;

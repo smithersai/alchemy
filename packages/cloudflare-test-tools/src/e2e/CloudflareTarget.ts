@@ -8,7 +8,7 @@ import { cast } from "effect/Function";
 import * as Path from "effect/Path";
 import { moduleTypeFromExtension, type MiniflareModule } from "../miniflare/miniflare-module.ts";
 import * as Miniflare from "../miniflare/miniflare.ts";
-import type * as Options from "./Options.ts";
+import type * as Options from "./Options.vibe";
 
 /**
  * The e2e harness's Cloudflare deploy target: a framework-core `DeployTarget`

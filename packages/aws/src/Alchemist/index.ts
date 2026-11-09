@@ -13,7 +13,7 @@ import {
 import { getAccountId, silentConsole } from "../AuthProvider.ts";
 import * as AWSCredentials from "../Credentials.vibe";
 import { AWSEnvironment } from "../Environment.ts";
-import * as AWSRegion from "../Region.ts";
+import * as AWSRegion from "../Region.vibe";
 
 export interface AwsTarget extends Alchemist.Target {
   readonly profile: string;

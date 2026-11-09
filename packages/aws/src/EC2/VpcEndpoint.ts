@@ -12,7 +12,7 @@ import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import type { RouteTableId } from "./RouteTable.vibe";
 import type { SecurityGroupId } from "./SecurityGroup.vibe";
 import type { SubnetId } from "./Subnet.ts";

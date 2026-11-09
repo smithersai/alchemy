@@ -24,7 +24,7 @@ import { AccessKey } from "./IAM/AccessKey.vibe";
 import type { PolicyStatement } from "./IAM/Policy.vibe";
 import { Role } from "./IAM/Role.ts";
 import { User } from "./IAM/User.vibe";
-import { CurrentRegion } from "./Region.ts";
+import { CurrentRegion } from "./Region.vibe";
 
 /**
  * How an AWS binding reaches AWS from its host:

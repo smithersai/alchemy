@@ -11,10 +11,10 @@ import * as Redacted from "effect/Redacted";
 import { DEFAULT_LOCAL_ENDPOINT, LOCAL_ACCOUNT_ID } from "../AuthProvider.ts";
 import * as Endpoint from "../Endpoint.vibe";
 import { AWSEnvironment } from "../Environment.ts";
-import * as Region from "../Region.ts";
+import * as Region from "../Region.vibe";
 import * as Floci from "./Floci.ts";
 import type { FlociError } from "./Floci.ts";
-import { provideProviderContext } from "./ProviderContext.ts";
+import { provideProviderContext } from "./ProviderContext.vibe";
 
 /**
  * Fixed dummy account used for every floci-emulated resource. Attributes

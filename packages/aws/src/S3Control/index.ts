@@ -1,4 +1,4 @@
-export * from "./AccessPoint.ts";
+export * from "./AccessPoint.vibe";
 export * from "./AccessPointPolicy.vibe";
 export * from "./CreateJob.vibe";
 export * from "./CreateJobHttp.vibe";
@@ -16,7 +16,7 @@ export * from "./ListAccessPoints.vibe";
 export * from "./ListAccessPointsHttp.vibe";
 export * from "./ListJobs.vibe";
 export * from "./ListJobsHttp.vibe";
-export * from "./MultiRegionAccessPoint.ts";
+export * from "./MultiRegionAccessPoint.vibe";
 export * from "./ObjectLambdaAccessPoint.vibe";
 export * from "./StorageLensConfiguration.vibe";
 export * from "./SubmitMultiRegionAccessPointRoutes.vibe";

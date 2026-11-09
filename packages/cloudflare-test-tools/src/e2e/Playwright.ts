@@ -2,8 +2,8 @@ import { test } from "@playwright/test";
 import * as Exit from "effect/Exit";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Scope from "effect/Scope";
-import * as Runtime from "./Runtime.ts";
-import * as Server from "./Server.ts";
+import * as Runtime from "./Runtime.vibe";
+import * as Server from "./Server.vibe";
 import { installTailwindNodeCompat } from "./TailwindNodeCompat.ts";
 
 // Guard every playwright worker process before vite can load tailwind.

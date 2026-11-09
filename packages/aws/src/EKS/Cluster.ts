@@ -19,7 +19,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import type { Providers } from "../Providers.vibe";
-import type { RegionID } from "../Region.ts";
+import type { RegionID } from "../Region.vibe";
 import { eksConnectionOf, makeEksTransport } from "./KubernetesAdapter.ts";
 
 export class EKSClusterUnexpectedResponse extends Data.TaggedError("EKSClusterUnexpectedResponse")<{
