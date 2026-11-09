@@ -1,6 +1,6 @@
-import * as ps from "@distilled.cloud/planetscale";
-import * as Effect from "effect/Effect";
-import { PlanetscaleConflict, pollUntil } from "../Util.ts";
+import * as ps from "@distilled.cloud/planetscale"
+import * as Effect from "effect/Effect"
+import { PlanetscaleConflict, pollUntil } from "../Util.ts"
 
 /**
  * Available PlanetScale MySQL (Vitess) cluster sizes.
@@ -31,7 +31,7 @@ export type MySQLClusterSize =
   | "PS_2560"
   | "PS_2700"
   | "PS_2800"
-  | (string & {});
+  | (string & {})
 
 /**
  * Polls keyspaces in a branch until the named keyspace reports
@@ -47,12 +47,12 @@ export const waitForKeyspaceReady = effect (
     `keyspace "${keyspace}" not resizing`,
     ps.listKeyspaces({ organization, database, branch }),
     (page) => {
-      const ks = page.data.find((x) => x.name === keyspace);
+      const ks = page.data.find((x) => x.name === keyspace)
       // If keyspace is missing, treat as ready (caller will re-check)
-      return ks ? !ks.resizing : true;
+      return ks ? !ks.resizing : true
     },
-  );
-};
+  )
+}
 
 /**
  * Observes the default keyspace of a branch. The default keyspace usually
@@ -71,9 +71,9 @@ const observeDefaultKeyspace = effect (
     branch,
     page: 1,
     per_page: 100,
-  });
-  return keyspaces.data.find((x) => x.default) ?? keyspaces.data.find((x) => x.name === database);
-};
+  })
+  return keyspaces.data.find((x) => x.default) ?? keyspaces.data.find((x) => x.name === database)
+}
 
 /**
  * Observes the total replica count of a branch's default keyspace, or
@@ -86,10 +86,10 @@ export const observeDefaultKeyspaceReplicas = effect (
 ) => {
   return (observeDefaultKeyspace(organization, database, branch)
     |> Effect.map(%, (keyspace) => keyspace?.replicas)) catch effect (e) => match (e) {
-    when { _tag: "NotFound" }: undefined;
-    default: throw e;
-  };
-};
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+}
 
 /**
  * Ensures the default keyspace of a MySQL production branch has the
@@ -105,12 +105,12 @@ export const ensureMySQLProductionBranchClusterSize = effect (
   expectedClusterSize: MySQLClusterSize,
   expectedReplicas?: number | undefined,
 ) => {
-  let keyspace = try observeDefaultKeyspace(organization, database, branch);
+  let keyspace = try observeDefaultKeyspace(organization, database, branch)
   if (!keyspace) {
-    return try Effect.die(`No default keyspace found for branch ${branch}`);
+    return try Effect.die(`No default keyspace found for branch ${branch}`)
   }
 
-  try waitForKeyspaceReady(organization, database, branch, keyspace.name);
+  try waitForKeyspaceReady(organization, database, branch, keyspace.name)
 
   if (keyspace.cluster_name !== expectedClusterSize) {
     try ps.updateBranchClusterConfig({
@@ -118,11 +118,11 @@ export const ensureMySQLProductionBranchClusterSize = effect (
       database,
       branch,
       cluster_size: expectedClusterSize,
-    });
-    try waitForKeyspaceReady(organization, database, branch, keyspace.name);
+    })
+    try waitForKeyspaceReady(organization, database, branch, keyspace.name)
     // Re-observe so the replica sync below diffs against the post-resize
     // keyspace state.
-    keyspace = (try observeDefaultKeyspace(organization, database, branch)) ?? keyspace;
+    keyspace = (try observeDefaultKeyspace(organization, database, branch)) ?? keyspace
   }
 
   // Sync replicas — MySQL databases cannot configure replicas at
@@ -133,15 +133,14 @@ export const ensureMySQLProductionBranchClusterSize = effect (
     // Each cluster size includes a fixed number of replicas (2 for
     // production PS_* sizes); the resize API only accepts the count of
     // additional replicas beyond that.
-    const includedReplicas = keyspace.replicas - keyspace.extra_replicas;
-    const extraReplicas = expectedReplicas - includedReplicas;
+    const includedReplicas = keyspace.replicas - keyspace.extra_replicas
+    const extraReplicas = expectedReplicas - includedReplicas
     if (extraReplicas < 0) {
       throw new PlanetscaleConflict({
-        message:
-          `Cannot set replicas to ${expectedReplicas} on keyspace "${keyspace.name}": ` +
-          `cluster size ${keyspace.cluster_name} always includes ${includedReplicas} replicas. ` +
-          `Set replicas to ${includedReplicas} or more (or omit it).`,
-      });
+        message: `Cannot set replicas to ${expectedReplicas} on keyspace "${keyspace.name}": `
+          + `cluster size ${keyspace.cluster_name} always includes ${includedReplicas} replicas. `
+          + `Set replicas to ${includedReplicas} or more (or omit it).`,
+      })
     }
 
     const resize = try (ps
@@ -157,11 +156,10 @@ export const ensureMySQLProductionBranchClusterSize = effect (
         // be finalizing after the keyspace reports `resizing: false`;
         // PlanetScale rejects new resize requests during that window.
         Effect.retry({
-          while: (e): boolean =>
-            e._tag === "UnprocessableEntity" && e.message.includes("resize in progress"),
+          while: (e): boolean => e._tag === "UnprocessableEntity" && e.message.includes("resize in progress"),
           schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(120)]),
         }),
-      ));
+      ))
 
     try pollUntil(
       `keyspace "${keyspace.name}" resize completed`,
@@ -172,14 +170,14 @@ export const ensureMySQLProductionBranchClusterSize = effect (
         keyspace: keyspace.name,
       }),
       (page) => {
-        const request = page.data.find((r) => r.id === resize.id);
+        const request = page.data.find((r) => r.id === resize.id)
         // If the request is missing, treat as settled (caller re-observes).
-        return request ? request.state === "completed" : true;
+        return request ? request.state === "completed" : true
       },
-    );
+    )
 
-    keyspace = (try observeDefaultKeyspace(organization, database, branch)) ?? keyspace;
+    keyspace = (try observeDefaultKeyspace(organization, database, branch)) ?? keyspace
   }
 
-  return keyspace;
-};
+  return keyspace
+}

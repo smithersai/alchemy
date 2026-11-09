@@ -49,10 +49,16 @@ export const runMySQLImports = effect (
     previous,
     apply: effect (file) =>
       try withMySQLExecutor(target, effect (executor) =>
-        try Effect.forEach(try Effect.orDie(Effect.try({ try: () => splitSqlStatements(file.sql), catch: (e) => e })), effect (statement) =>
-          try executor.query(statement), {
-          discard: true,
-        })),
+        try Effect.forEach(
+          try Effect.orDie(Effect.try({
+            try: () => splitSqlStatements(file.sql),
+            catch: (e) => e,
+          })),
+          effect (statement) => try executor.query(statement),
+          {
+            discard: true,
+          },
+        )),
   })
 
 /** A verified-TLS `mysql2` session as a short-lived admin password. */
@@ -101,23 +107,25 @@ const withTemporaryMySQLPassword = effect <A, E, R>(
     },
     use,
     effect (password) =>
-      (effect { return (try (effect {
-        return ps
-          .deletePassword({
-            organization: target.organization,
-            database: target.database,
-            branch: target.branch,
-            id: password.id,
-          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
-      }
-        |> Effect.retry(%, {
-          schedule: Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(5)]),
-        }))) }) catch effect (cause) =>
-          try Effect.logWarning(
-            `Failed to delete temporary Planetscale migration password after retries. `
-              + `It will expire via TTL (~${MIGRATION_PASSWORD_TTL_SECONDS}s). `
-              + `organization=${target.organization} database=${target.database} `
-              + `branch=${target.branch} id=${password.id}`,
-            cause,
-          ),
+      (effect {
+        return (try (effect {
+          return ps
+            .deletePassword({
+              organization: target.organization,
+              database: target.database,
+              branch: target.branch,
+              id: password.id,
+            }) catch effect (e) => match (e) { when { _tag: "NotFound" }: (undefined as void); default: throw e; }
+        }
+          |> Effect.retry(%, {
+            schedule: Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(5)]),
+          })))
+      }) catch effect (cause) =>
+        try Effect.logWarning(
+          `Failed to delete temporary Planetscale migration password after retries. `
+            + `It will expire via TTL (~${MIGRATION_PASSWORD_TTL_SECONDS}s). `
+            + `organization=${target.organization} database=${target.database} `
+            + `branch=${target.branch} id=${password.id}`,
+          cause,
+        ),
   )
