@@ -51,3 +51,6 @@ and parsing failures retain their original order.
 
 Guard operand order is preserved: a provider that inspects props before checking
 its prior output keeps that order, including getter and Proxy failures.
+
+ACME provider guards retain the initial undefined-input check before inspecting
+props, followed by the prior-output check. Predicate failures remain defects.
