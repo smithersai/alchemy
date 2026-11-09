@@ -2,6 +2,8 @@
 
 ### Bug fixes
 
+- Native test imports under Bun could bind undefined runtime helpers. This checkout now installs the runtime entry fix with unchanged declarations.
+
 - This migration checkout installs its bundled VibeLang packages without waiting for an npm release.
 - Test collection progress could name a file that had already finished when a later import stalled. It now shows the active import and clears it when collection is idle.
 - Loading `alchemy/Phase` with the released compiler could reject its global runtime flags. The module now keeps its original declarations and resolves through the package export.
