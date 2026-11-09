@@ -11,7 +11,7 @@ export {
 export * from "./Destroy.vibe";
 export * from "./Diff.ts";
 export * from "./Input.vibe";
-export * from "./InstanceId.ts";
+export * from "./InstanceId.vibe";
 export * from "./KeyPair.ts";
 export * from "./Namespace.ts";
 export { stackRef } from "./Output.ts";

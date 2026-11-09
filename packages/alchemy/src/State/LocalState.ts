@@ -7,7 +7,7 @@ import type { PlatformError } from "effect/PlatformError";
 import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import { decodeFqn, encodeFqn } from "../FQN.ts";
 import { recordStateStoreInit } from "../Telemetry/Metrics.ts";
-import { writeFileAtomic } from "../Util/AtomicFile.ts";
+import { writeFileAtomic } from "../Util/AtomicFile.vibe";
 import { initialCwd } from "../Util/Node.ts";
 import { STATE_STORE_VERSION } from "./HttpStateApi.vibe";
 import { State, StateStoreError, type StateService } from "./State.ts";

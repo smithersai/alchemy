@@ -37,7 +37,7 @@ import {
 } from "./Diff.ts";
 import { emit, type PlannedAction, type PlannedBinding, type PlannedResource } from "./Events.ts";
 import { parseFqn } from "./FQN.ts";
-import { generateInstanceId } from "./InstanceId.ts";
+import { generateInstanceId } from "./InstanceId.vibe";
 import * as Output from "./Output.ts";
 import {
   tryFindProviderRegistrationByType,

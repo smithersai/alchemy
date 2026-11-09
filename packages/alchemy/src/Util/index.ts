@@ -4,7 +4,7 @@ export * from "./data.ts";
 export * from "./dedent.ts";
 export * from "./equal.ts";
 export * from "./extraFiles.ts";
-export * from "./md5.ts";
+export * from "./md5.vibe";
 export * from "./service.ts";
 export * from "./sha256.ts";
 export * from "./stable.ts";

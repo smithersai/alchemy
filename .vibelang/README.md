@@ -54,3 +54,10 @@ its prior output keeps that order, including getter and Proxy failures.
 
 ACME provider guards retain the initial undefined-input check before inspecting
 props, followed by the prior-output check. Predicate failures remain defects.
+
+Core random bytes, MD5 hashing and temporary-file names use private
+`*.platform.ts` siblings. Native callers keep their cold Effect contracts,
+including replay and host defects. Package export maps deny these helpers,
+and packed packages retain the runtime implementation without publishing
+helper declaration files. Native conversion tests check platform access;
+seeded runtime tests exercise digest inputs and atomic-write failure stages.

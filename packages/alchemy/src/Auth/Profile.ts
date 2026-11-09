@@ -10,7 +10,7 @@ import type { PlatformError } from "effect/PlatformError";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import { UserFacingError } from "../UserFacingError.ts";
-import { writeFileAtomic } from "../Util/AtomicFile.ts";
+import { writeFileAtomic } from "../Util/AtomicFile.vibe";
 import { profileCommandHint } from "../Util/interactive.ts";
 import { AuthError, type AuthProvider } from "./AuthProvider.ts";
 import { withLock } from "./Lock.ts";

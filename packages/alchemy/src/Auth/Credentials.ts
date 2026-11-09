@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import path from "pathe";
-import { writeFileAtomic } from "../Util/AtomicFile.ts";
+import { writeFileAtomic } from "../Util/AtomicFile.vibe";
 import { profileCommandHint } from "../Util/interactive.ts";
 import { AuthError } from "./AuthProvider.ts";
 import { profileCredentialsDirPath } from "./Paths.ts";
