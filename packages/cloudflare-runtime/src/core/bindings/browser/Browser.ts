@@ -22,7 +22,7 @@ const BrowserWorker = {
 import * as Loopback from "../../globals/Loopback.ts";
 import type * as LoopbackServer from "../../globals/LoopbackServer.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
-import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
+import { formatInternalWorkerModules } from "../../internal/internal-modules.vibe";
 import * as Plugin from "../../Plugin.ts";
 import type { BindingHook, PluginContext } from "../../PluginContext.ts";
 import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";

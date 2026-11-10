@@ -18,7 +18,7 @@ import * as Loopback from "../../globals/Loopback.ts";
 import type * as LoopbackServer from "../../globals/LoopbackServer.ts";
 import * as Storage from "../../globals/Storage.ts";
 import { DEFAULT_COMPATIBILITY_DATE, SOCKET_USER_ENTRY } from "../../internal/constants.ts";
-import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
+import { formatInternalWorkerModules } from "../../internal/internal-modules.vibe";
 import * as Plugin from "../../Plugin.ts";
 import { PluginContext, type BindingHook } from "../../PluginContext.ts";
 import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";

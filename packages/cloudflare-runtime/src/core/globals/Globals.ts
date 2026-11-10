@@ -26,7 +26,7 @@ import {
   SERVICE_USER_WORKER,
   SOCKET_USER_ENTRY,
 } from "../internal/constants.ts";
-import { formatInternalWorkerModules } from "../internal/internal-modules.ts";
+import { formatInternalWorkerModules } from "../internal/internal-modules.vibe";
 import * as Plugin from "../Plugin.ts";
 import { PluginContext } from "../PluginContext.ts";
 import { ConfigError } from "../RuntimeError.shared.ts";

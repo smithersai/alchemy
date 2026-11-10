@@ -18,7 +18,7 @@ import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
 import {
   formatExtensionModule,
   formatInternalWorkerModules,
-} from "../../internal/internal-modules.ts";
+} from "../../internal/internal-modules.vibe";
 import * as Plugin from "../../Plugin.ts";
 import type { BindingHook } from "../../PluginContext.ts";
 import type { RemoteBindings } from "../../remote-bindings/RemoteBindings.ts";

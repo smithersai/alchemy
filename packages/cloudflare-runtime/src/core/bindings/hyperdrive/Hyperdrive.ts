@@ -7,7 +7,7 @@ const HyperdriveBindingWorker = {
       "#cloudflare-runtime-core-worker/bindings/hyperdrive/hyperdrive-binding.worker",
     ),
 };
-import { formatExtensionModule } from "../../internal/internal-modules.ts";
+import { formatExtensionModule } from "../../internal/internal-modules.vibe";
 import * as Plugin from "../../Plugin.ts";
 import type { BindingHook } from "../../PluginContext.ts";
 import * as PluginContext from "../../PluginContext.ts";

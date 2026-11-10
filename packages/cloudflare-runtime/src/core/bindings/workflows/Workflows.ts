@@ -16,7 +16,7 @@ import { SERVICE_USER_WORKER } from "../../internal/constants.ts";
 import {
   formatExtensionModule,
   formatInternalWorkerModules,
-} from "../../internal/internal-modules.ts";
+} from "../../internal/internal-modules.vibe";
 import * as Plugin from "../../Plugin.ts";
 import type { BindingHook } from "../../PluginContext.ts";
 import { PluginContext } from "../../PluginContext.ts";

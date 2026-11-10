@@ -12,7 +12,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as Paths from "../internal/Paths.ts";
-import * as System from "../internal/System.ts";
+import * as System from "../internal/System.vibe";
 import { SystemError } from "../RuntimeError.shared.ts";
 import {
   resolvedTargetKey,

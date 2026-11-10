@@ -12,7 +12,7 @@ const QueueShimForwardWorker = {
     loadInternalWorker("#cloudflare-runtime-core-worker/bindings/queue/QueueShimForward.worker"),
 };
 import { DEFAULT_COMPATIBILITY_DATE, SERVICE_USER_WORKER } from "../../internal/constants.ts";
-import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
+import { formatInternalWorkerModules } from "../../internal/internal-modules.vibe";
 import * as Plugin from "../../Plugin.ts";
 import * as PluginContext from "../../PluginContext.ts";
 import { RegistryProxy } from "../../registry/RegistryProxy.ts";

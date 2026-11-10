@@ -5,7 +5,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import { SystemError } from "../RuntimeError.shared.ts";
-import * as System from "./System.ts";
+import * as System from "./System.vibe";
 
 export class Paths extends Context.Service<
   Paths,

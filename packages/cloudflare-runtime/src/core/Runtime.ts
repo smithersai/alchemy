@@ -15,7 +15,7 @@ import {
   SOCKET_USER_ENTRY,
   withDefaultFlags,
 } from "./internal/constants.ts";
-import { moduleToWorkerd } from "./internal/internal-modules.ts";
+import { moduleToWorkerd } from "./internal/internal-modules.vibe";
 import type { BindingHook } from "./PluginContext.ts";
 import * as PluginContext from "./PluginContext.ts";
 import * as RegistryProxy from "./registry/RegistryProxy.ts";
