@@ -1,19 +1,20 @@
-import type * as cf from "@cloudflare/workers-types";
-import type { Input } from "alchemy/Input";
-import * as Namespace from "alchemy/Namespace";
-import * as RemovalPolicy from "alchemy/RemovalPolicy";
-import type { FunctionContext } from "alchemy/Runtime/Function";
-import { RuntimeContext } from "alchemy/RuntimeContext";
-import * as Cause from "effect/Cause";
-import * as Context from "effect/Context";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import { CatchAll } from "../Email/CatchAll.vibe";
-import { Routing } from "../Email/Routing.vibe";
-import { Rule, type Matcher } from "../Email/Rule.vibe";
-import type { Reference } from "../Zone/lookup.vibe";
-import { isWorkerEvent, Worker } from "./Worker.ts";
+import type * as cf from "@cloudflare/workers-types"
+import type { Input } from "alchemy/Input"
+import * as Namespace from "alchemy/Namespace"
+import * as RemovalPolicy from "alchemy/RemovalPolicy"
+import type { FunctionContext } from "alchemy/Runtime/Function"
+import { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Cause from "effect/Cause"
+import * as Context from "effect/Context"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { CatchAll } from "../Email/CatchAll.vibe"
+import { Routing } from "../Email/Routing.vibe"
+import { Rule, type Matcher } from "../Email/Rule.vibe"
+import type { Reference } from "../Zone/lookup.vibe"
+import { consoleError } from "./EmailEventSource.platform.ts"
+import { isWorkerEvent, Worker } from "./Worker.ts"
 
 /**
  * Effect-native wrapper around Cloudflare's
@@ -30,39 +31,39 @@ import { isWorkerEvent, Worker } from "./Worker.ts";
  */
 export interface ForwardableEmailMessage {
   /** Underlying Cloudflare message — escape hatch for unwrapped APIs. */
-  readonly raw: cf.ForwardableEmailMessage;
+  readonly raw: cf.ForwardableEmailMessage
   /** Envelope From address. */
-  readonly from: string;
+  readonly from: string
   /** Envelope To address. */
-  readonly to: string;
+  readonly to: string
   /** RFC 5322 headers. */
-  readonly headers: cf.Headers;
+  readonly headers: cf.Headers
   /** Raw message body stream (RFC 5322 wire bytes). */
-  readonly body: cf.ReadableStream<Uint8Array>;
+  readonly body: cf.ReadableStream<Uint8Array>
   /** Size of the raw message body in bytes. */
-  readonly bodySize: number;
+  readonly bodySize: number
   /**
    * Reject this message back to the connecting client with a permanent
    * SMTP error and the given reason.
    */
-  setReject(reason: string): Effect.Effect<void>;
+  setReject(reason: string): Effect.Effect<void>
   /**
    * Forward this message to a verified destination address on the
    * account. Fails with `EmailError` if Cloudflare rejects the forward
    * (e.g. unverified destination).
    */
-  forward(rcptTo: string, headers?: cf.Headers): Effect.Effect<void, EmailError>;
+  forward(rcptTo: string, headers?: cf.Headers): Effect.Effect<void, EmailError>
   /**
    * Reply to the sender with a new outbound message. Fails with
    * `EmailError` if Cloudflare rejects the reply.
    */
-  reply(message: cf.EmailMessage): Effect.Effect<void, EmailError>;
+  reply(message: cf.EmailMessage): Effect.Effect<void, EmailError>
 }
 
 export class EmailError extends Data.TaggedError("EmailError")<{
-  action: "forward" | "reply";
-  message: string;
-  cause: unknown;
+  action: "forward" | "reply"
+  message: string
+  cause: unknown
 }> {}
 
 const wrap = (raw: cf.ForwardableEmailMessage): ForwardableEmailMessage => ({
@@ -93,7 +94,7 @@ const wrap = (raw: cf.ForwardableEmailMessage): ForwardableEmailMessage => ({
           cause,
         }),
     }),
-});
+})
 
 /**
  * Whether a subscription's matchers describe the zone's catch-all — either
@@ -102,10 +103,9 @@ const wrap = (raw: cf.ForwardableEmailMessage): ForwardableEmailMessage => ({
  * so it maps to `Email.CatchAll` rather than `Email.Rule`.
  */
 const isCatchAll = (matchers: Matcher[] | undefined): boolean =>
-  matchers === undefined || (matchers.length === 1 && matchers[0]?.type === "all");
+  matchers === undefined || (matchers.length === 1 && matchers[0]?.type === "all")
 
-const formatCause = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
+const formatCause = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause)
 
 /**
  * Settings for {@link email} — both halves of the consumer in one place.
@@ -126,7 +126,7 @@ export interface EmailSubscribeProps {
    * Required to auto-create routing resources; omit if you're managing
    * `Email.Routing` and `Email.Rule`/`Email.CatchAll` yourself.
    */
-  zone?: Input<Reference>;
+  zone?: Input<Reference>
   /**
    * Which envelopes Cloudflare delivers to this Worker. Ignored when
    * `zone` is omitted.
@@ -138,13 +138,13 @@ export interface EmailSubscribeProps {
    *
    * @default [{ type: "all" }]
    */
-  matchers?: Matcher[];
+  matchers?: Matcher[]
   /**
    * Display name for the auto-created `Email.Rule` / `Email.CatchAll`.
    *
    * @default the host worker's logical id
    */
-  ruleName?: string;
+  ruleName?: string
   /**
    * Priority of the auto-created `Email.Rule`. Lower numbers run first.
    * Ignored for a catch-all subscription — the catch-all is always
@@ -152,13 +152,13 @@ export interface EmailSubscribeProps {
    *
    * @default 0
    */
-  priority?: number;
+  priority?: number
   /**
    * Whether the auto-created `Email.Rule` / `Email.CatchAll` is enabled.
    *
    * @default true
    */
-  enabled?: boolean;
+  enabled?: boolean
 }
 
 /**
@@ -237,12 +237,12 @@ export const email = (props: EmailSubscribeProps = {}) => ({
   subscribe: <E = never, Req = never>(
     process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
   ) => EmailEventSource.use((source) => source(props, process)),
-});
+})
 
 export type EmailEventSourceService = <E = never, Req = never>(
   props: EmailSubscribeProps,
   process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
-) => Effect.Effect<void, never, never>;
+) => Effect.Effect<void, never, never>
 
 export class EmailEventSource extends Context.Service<EmailEventSource, EmailEventSourceService>()(
   "Cloudflare.Workers.EmailEventSource",
@@ -250,9 +250,9 @@ export class EmailEventSource extends Context.Service<EmailEventSource, EmailEve
 
 export const EmailEventSourceLive = Layer.effect(
   EmailEventSource,
-  Effect.gen(function* () {
-    const host = yield* Worker;
-    return Effect.fn(function* <E, Req>(
+  Effect.gen(function*() {
+    const host = yield* Worker
+    return Effect.fn(function*<E, Req>(
       props: EmailSubscribeProps,
       process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
     ) {
@@ -262,22 +262,22 @@ export const EmailEventSourceLive = Layer.effect(
       // `zone` is omitted (bring-your-own routing). Namespaced under the
       // host so logical identity is stable per Worker.
       if (!globalThis.__ALCHEMY_RUNTIME__ && props.zone !== undefined) {
-        const zone = props.zone;
-        const matchers = props.matchers;
+        const zone = props.zone
+        const matchers = props.matchers
         yield* Namespace.push(
           host.LogicalId,
-          Effect.gen(function* () {
+          Effect.gen(function*() {
             // Routing is a per-zone singleton shared with other rules on
             // the zone, so destroying this Worker must not disable it.
             yield* Routing("EmailRouting", {
               zone,
               enabled: true,
-            }).pipe(RemovalPolicy.retain());
+            }).pipe(RemovalPolicy.retain())
 
             const action = {
               type: "worker" as const,
               value: [host.workerName],
-            };
+            }
 
             // Catch-all is a per-zone SINGLETON living behind
             // `/rules/catch_all`, not an ordinary rule. Cloudflare surfaces
@@ -292,8 +292,8 @@ export const EmailEventSourceLive = Layer.effect(
                 name: props.ruleName ?? host.LogicalId,
                 enabled: props.enabled ?? true,
                 actions: [action],
-              });
-              return;
+              })
+              return
             }
 
             yield* Rule("EmailRule", {
@@ -303,18 +303,18 @@ export const EmailEventSourceLive = Layer.effect(
               priority: props.priority ?? 0,
               matchers: matchers!,
               actions: [action],
-            });
+            })
           }),
-        );
+        )
       }
 
       // Resolve the runtime context per-call rather than at layer
       // construction (mirrors `Queues.EventSourceLive`).
-      const ctx = (yield* RuntimeContext) as unknown as FunctionContext;
+      const ctx = (yield* RuntimeContext) as unknown as FunctionContext
       yield* ctx.listen<void, Req>((event) => {
-        if (!isWorkerEvent(event) || event.type !== "email") return;
+        if (!isWorkerEvent(event) || event.type !== "email") return
 
-        const message = wrap(event.input as cf.ForwardableEmailMessage);
+        const message = wrap(event.input as cf.ForwardableEmailMessage)
         // Log, then let the failure propagate. Cloudflare turns an
         // exception out of the `email` handler into a temporary SMTP
         // failure, so the sending server keeps the message and retries.
@@ -324,18 +324,18 @@ export const EmailEventSourceLive = Layer.effect(
         return process(message).pipe(
           Effect.tapCause((cause) =>
             Effect.sync(() => {
-              console.error(
-                `[EmailEventSource] handler failed for message to ` +
-                  `"${message.to}": ${Cause.pretty(cause)}`,
-              );
-            }),
+              consoleError(
+                `[EmailEventSource] handler failed for message to `
+                  + `"${message.to}": ${Cause.pretty(cause)}`,
+              )
+            })
           ),
           // The listener contract is `E = never`, so surface the failure as
           // a defect rather than discarding it: the invocation fails, which
           // is what Cloudflare turns into the temporary SMTP failure.
           Effect.orDie,
-        );
-      });
-    }) as EmailEventSourceService;
+        )
+      })
+    }) as EmailEventSourceService
   }),
-);
+)

@@ -13,7 +13,7 @@ import { CloudflareAuth } from "../Auth/AuthProvider.vibe";
 import * as CloudflareEnvironment from "../CloudflareEnvironment.vibe";
 import * as Credentials from "../Credentials.vibe";
 import { materializeRuntimeBindings } from "./RuntimeBindings.vibe";
-import { loadSource, SourceProviderError } from "./Source.ts";
+import { loadSource, SourceProviderError } from "./Source.vibe";
 import * as Vite from "./Sources/Vite.vibe";
 import {
   type ViteChildConfig,

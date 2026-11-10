@@ -63,7 +63,7 @@ import { isDurableObjectExport } from "./DurableObject.ts";
 import { LocalEdge } from "./LocalEdge.vibe";
 import { routePatternHost } from "./RoutePattern.ts";
 import { materializeRuntimeBindings, WorkerValidationError } from "./RuntimeBindings.vibe";
-import { loadSource, SourceProviderError, type DevContext } from "./Source.ts";
+import { loadSource, SourceProviderError, type DevContext } from "./Source.vibe";
 import { watchPrebuiltWorkerBundle } from "./Sources/Prebuilt.vibe";
 import { isPythonMain, watchPythonWorkerBundle } from "./Sources/Python.vibe";
 import { WorkerBundle, type WorkerBundleOptions } from "./Sources/Rolldown.ts";

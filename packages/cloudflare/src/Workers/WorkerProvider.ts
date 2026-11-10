@@ -46,11 +46,11 @@ import { isDurableObjectExport } from "./DurableObject.ts";
 import { LocalWorkerProvider } from "./LocalWorkerProvider.ts";
 import { placeholderResetReason } from "./Placeholder.ts";
 import { routePatternUrl } from "./RoutePattern.ts";
-import { makeSourceContext, resolveSource } from "./Source.ts";
+import { makeSourceContext, resolveSource } from "./Source.vibe";
 import { readPrebuiltWorkerBundle } from "./Sources/Prebuilt.vibe";
 import { isPythonMain, readPythonWorkerBundle } from "./Sources/Python.vibe";
 import { WorkerBundle } from "./Sources/Rolldown.ts";
-import { assertCloudflareTelemetryCompatibility } from "./Telemetry.ts";
+import { assertCloudflareTelemetryCompatibility } from "./Telemetry.vibe";
 import {
   Worker,
   type WorkerProps,

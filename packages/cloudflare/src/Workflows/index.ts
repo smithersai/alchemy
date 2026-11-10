@@ -3,5 +3,5 @@ export { makeWorkflowBridge } from "./WorkflowBridge.ts";
 export {
   layerDurableObjectEngine,
   type DurableObjectEngineOptions,
-} from "./DurableObjectEngine.ts";
+} from "./DurableObjectEngine.vibe";
 export { NativeEngine } from "./NativeEngine.vibe";

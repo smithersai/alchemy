@@ -9,7 +9,7 @@ import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
 import { isWorkflowExport } from "../../Workflows/Workflow.vibe";
 import { isDurableObjectExport } from "../DurableObject.ts";
-import type { SourceContext, SourceProvider } from "../Source.ts";
+import type { SourceContext, SourceProvider } from "../Source.vibe";
 import type { SqlMigrationSnapshot } from "../SqlMigrationsRuntime.vibe";
 import type { WorkerExport } from "../WorkerRuntimeContext.ts";
 import { bundleSource } from "./shared.vibe";
