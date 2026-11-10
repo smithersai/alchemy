@@ -28,7 +28,7 @@ export * as RemovalPolicy from "./RemovalPolicy.vibe";
 export { renamedFrom } from "./Rename.vibe";
 export * from "./Resource.ts";
 export * from "./ResourceContext.vibe";
-export * as Schema from "./Schema.ts";
+export * as Schema from "./Schema.vibe";
 export * as Secrets from "./Secrets/index.ts";
 export { Stack, type SecretProviders, type StackSecrets } from "./Stack.ts";
 export * from "./Stage.ts";
