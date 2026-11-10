@@ -30,7 +30,7 @@ Invalid bodies and ids get `400`.
   runtime.
 - `Drizzle.Schema` `Schema` — regenerates `./migrations` with drizzle-kit
   when [`src/schema.ts`](./src/schema.ts) changes.
-- `Alchemy.Action` `StorePassword` ([`src/password.ts`](./src/password.ts)) —
+- `Alchemy.Action` `StorePassword` ([`src/password.vibe`](./src/password.vibe)) —
   at deploy time, writes the password as the secret's latest version.
 - `GCP.Function` `Api` ([`src/Api.vibe`](./src/Api.vibe)) — public Cloud Run
   service (`invokerIamDisabled: true`) running Drizzle over
