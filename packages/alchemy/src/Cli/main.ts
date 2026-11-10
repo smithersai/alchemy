@@ -23,7 +23,7 @@ import * as Scope from "effect/Scope";
 import packageJson from "../../package.json" with { type: "json" };
 import * as Interaction from "../Interaction.ts";
 import { logShutdown } from "../Util/Shutdown.ts";
-import { checkLatestVersion } from "./checkVersion.ts";
+import { checkLatestVersion } from "./checkVersion.vibe";
 import {
   compatibilityCommand,
   compatibilityCommands,
@@ -73,7 +73,7 @@ const loadCommand = async (name: CommandName) => {
     case "deploy":
       return (await import("./commands/deploy.vibe")).deployCommand;
     case "dev":
-      return (await import("./commands/dev.ts")).devCommand;
+      return (await import("./commands/dev.vibe")).devCommand;
     case "destroy":
       return (await import("./commands/deploy.vibe")).destroyCommand;
     case "plan":
