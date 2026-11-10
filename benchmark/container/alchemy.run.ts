@@ -4,7 +4,7 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import BunMicrovmLive from "./src/bun-image.vibe";
-import ContainerWorker from "./src/container-worker.ts";
+import ContainerWorker from "./src/container-worker.vibe";
 import EffectfulBunLive from "./src/effectful-bun.ts";
 import EffectfulContainerLive from "./src/effectful-container.vibe";
 import EffectfulNodeLive from "./src/effectful-node.ts";
