@@ -3,7 +3,7 @@ export * from "./ClusterAdapter.vibe";
 export * from "./Connection.ts";
 export * from "./Deployment.vibe";
 export * from "./HelmChart.vibe";
-export * from "./Job.vibe";
+export * from "./Job.ts";
 export * from "./LocalCluster.vibe";
 export * from "./Manifest.vibe";
 export * from "./Providers.vibe";

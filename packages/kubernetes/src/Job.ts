@@ -1,20 +1,26 @@
-import type { DockerfileBuildOptions } from "@alchemy.run/docker/ImageSource"
-import type * as Bundle from "alchemy/Bundle/Bundle"
-import { isResolved } from "alchemy/Diff"
-import * as Output from "alchemy/Output"
-import { createPhysicalName } from "alchemy/PhysicalName"
-import { Platform, type PlatformProps, type PlatformServices } from "alchemy/Platform"
-import * as Provider from "alchemy/Provider"
-import { Resource } from "alchemy/Resource"
-import type { HostRuntimeContext } from "alchemy/Runtime/Process"
-import { packEnvValue, unpackEnvValue, RuntimeContext } from "alchemy/RuntimeContext"
-import { Stack } from "alchemy/Stack"
-import { createInternalTags } from "alchemy/Tags"
-import { unwrapRedacted } from "alchemy/Util/data"
-import { sha256Object } from "alchemy/Util/sha256"
-import * as Effect from "effect/Effect"
-import type { Scope } from "effect/Scope"
-import { connectCluster, deleteObjects, ifClusterExists, readObject, reconcileObjects } from "./Client.ts"
+import type { DockerfileBuildOptions } from "@alchemy.run/docker/ImageSource";
+import type * as Bundle from "alchemy/Bundle/Bundle";
+import { isResolved } from "alchemy/Diff";
+import * as Output from "alchemy/Output";
+import { createPhysicalName } from "alchemy/PhysicalName";
+import { Platform, type PlatformProps, type PlatformServices } from "alchemy/Platform";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import type { HostRuntimeContext } from "alchemy/Runtime/Process";
+import { packEnvValue, unpackEnvValue, RuntimeContext } from "alchemy/RuntimeContext";
+import { Stack } from "alchemy/Stack";
+import { createInternalTags } from "alchemy/Tags";
+import { unwrapRedacted } from "alchemy/Util/data";
+import { sha256Object } from "alchemy/Util/sha256";
+import * as Effect from "effect/Effect";
+import type { Scope } from "effect/Scope";
+import {
+  connectCluster,
+  deleteObjects,
+  ifClusterExists,
+  readObject,
+  reconcileObjects,
+} from "./Client.ts";
 import {
   findClusterAdapter,
   type IdentityState,
@@ -23,9 +29,9 @@ import {
   type WorkloadIdentityOptions,
   type WorkloadImageSource,
   type WorkloadServices,
-} from "./ClusterAdapter.vibe"
-import { toConnection, type ClusterLike, type Connection } from "./Connection.ts"
-import { makeConnectionRegistry } from "./internal/registry.vibe"
+} from "./ClusterAdapter.vibe";
+import { toConnection, type ClusterLike, type Connection } from "./Connection.ts";
+import { makeConnectionRegistry } from "./internal/registry.vibe";
 import {
   collectBindingEnv,
   containerEnvValue,
@@ -37,13 +43,12 @@ import {
   resolveWorkloadImage,
   tryConnectionOf,
   workloadImageHash,
-} from "./internal/workload.vibe"
-import type { KubernetesObjectDefinition, KubernetesObjectRef } from "./Objects.ts"
-import { readEnv } from "./Job.platform.js"
-import type { Providers } from "./Providers.vibe"
+} from "./internal/workload.vibe";
+import type { KubernetesObjectDefinition, KubernetesObjectRef } from "./Objects.ts";
+import type { Providers } from "./Providers.vibe";
 
 export const isJob = (value: any): value is Job =>
-  typeof value === "object" && value !== null && "Type" in value && value.Type === "Kubernetes.Job"
+  typeof value === "object" && value !== null && "Type" in value && value.Type === "Kubernetes.Job";
 
 export interface JobPropsBase extends PlatformProps {
   /**
@@ -53,69 +58,69 @@ export interface JobPropsBase extends PlatformProps {
    * connection supplies authentication and the registry `main` / `context`
    * images are pushed to.
    */
-  cluster: ClusterLike
+  cluster: ClusterLike;
   /**
    * Base name for the generated Job / ServiceAccount. If omitted, a
    * deterministic name is derived from the stack, stage, and logical id.
    */
-  name?: string
+  name?: string;
   /**
    * Kubernetes namespace to run in. The namespace must already exist.
    * @default "default"
    */
-  namespace?: string
+  namespace?: string;
   /**
    * Number of retries before the Job is marked failed (Kubernetes
    * `backoffLimit`).
    */
-  backoffLimit?: number
+  backoffLimit?: number;
   /**
    * Cron schedule (standard 5-field cron, e.g. `"0 3 * * *"`). When set, a
    * Kubernetes `CronJob` is synthesized instead of a plain `Job`.
    */
-  schedule?: string
+  schedule?: string;
   /**
    * Restart policy for the job's pods.
    * @default "Never"
    */
-  restartPolicy?: "Never" | "OnFailure"
+  restartPolicy?: "Never" | "OnFailure";
   /**
    * Seconds after completion before the finished Job is garbage-collected
    * (Kubernetes `ttlSecondsAfterFinished`).
    */
-  ttlSecondsAfterFinished?: number
+  ttlSecondsAfterFinished?: number;
   /**
    * Container entrypoint override (Kubernetes `command`). Mostly useful with
    * `image` / `context` sources.
    */
-  command?: string[]
+  command?: string[];
   /**
    * Container arguments (Kubernetes `args`).
    */
-  args?: string[]
+  args?: string[];
   /**
    * Container CPU/memory requests + limits (Kubernetes resource quantities).
    */
   resources?: {
-    requests?: { cpu?: string; memory?: string }
-    limits?: { cpu?: string; memory?: string }
-  }
+    requests?: { cpu?: string; memory?: string };
+    limits?: { cpu?: string; memory?: string };
+  };
   /**
    * Additional environment variables for the container.
    */
-  env?: Record<string, any>
+  env?: Record<string, any>;
   /**
    * Container image build architecture.
    * @default the connection's `architecture`, else "amd64"
    */
-  architecture?: "amd64" | "arm64"
+  architecture?: "amd64" | "arm64";
   /**
    * Deep-partial Kubernetes Pod template merged into the synthesized
    * template (objects merge recursively; arrays and primitives replace) —
    * a literal object in the shape of `PodTemplateSpec`, e.g.
    * `{ spec: { tolerations: [...], nodeSelector: {...} } }`.
    */
-  podTemplate?: Record<string, unknown>
+  podTemplate?: Record<string, unknown>;
   /**
    * Cloud-specific workload-identity options, consumed by the cluster
    * platform's identity adapter (on EKS: `{ managedPolicyArns: [...] }`
@@ -123,17 +128,17 @@ export interface JobPropsBase extends PlatformProps {
    * GKE: `{ gcpServiceAccount }` runs the pods as an existing Google
    * service account instead of the ServiceAccount's own principal).
    */
-  identity?: WorkloadIdentityOptions
+  identity?: WorkloadIdentityOptions;
   /**
    * Job / pod labels, merged over the generated `app.kubernetes.io/name`
    * label.
    */
-  labels?: Record<string, string>
+  labels?: Record<string, string>;
   /**
    * User-defined tags applied to workload-owned cloud resources (identity
    * roles, image repositories).
    */
-  tags?: Record<string, string>
+  tags?: Record<string, string>;
 }
 
 /** Bundle an inline Effect program (`main`) into a generated image. */
@@ -142,32 +147,32 @@ export interface BundledJobProps extends JobPropsBase {
    * Module entrypoint for the bundled program. This should typically be
    * `import.meta.url` from an inline Effect program.
    */
-  main: string
+  main: string;
   /**
    * Environment image used as the generated Dockerfile's `FROM`; must be
    * able to run the bun runtime.
    * @default "oven/bun:1"
    */
-  image?: string
+  image?: string;
   /** Named export to load from `main`. @default "default" */
-  handler?: string
+  handler?: string;
   /** Bundler configuration for the entrypoint. */
-  build?: Bundle.BundleConfig
+  build?: Bundle.BundleConfig;
   /** Environment Dockerfile (path or inline content). */
-  dockerfile?: WorkloadImageSource["dockerfile"]
+  dockerfile?: WorkloadImageSource["dockerfile"];
   /** Build context for a path {@link dockerfile} environment. */
-  context?: string
+  context?: string;
 }
 
 /** Build the user's own Dockerfile (`context` + optional `dockerfile` path). */
 export interface DockerfileJobProps extends JobPropsBase, DockerfileBuildOptions {
   /** Docker build context directory. */
-  context?: string
+  context?: string;
   /**
    * Path to the Dockerfile (relative to the cwd), or inline content.
    * @default `${context}/Dockerfile`
    */
-  dockerfile?: WorkloadImageSource["dockerfile"]
+  dockerfile?: WorkloadImageSource["dockerfile"];
 }
 
 /** Run a pre-built registry image. */
@@ -176,68 +181,66 @@ export interface ImageJobProps extends JobPropsBase {
    * A pre-built image reference, e.g. `ghcr.io/acme/migrator:v3`, pulled
    * by the nodes as written. EKS clusters mirror it into ECR first.
    */
-  image: string
+  image: string;
 }
 
-export type JobProps = BundledJobProps | DockerfileJobProps | ImageJobProps
+export type JobProps = BundledJobProps | DockerfileJobProps | ImageJobProps;
 
-export interface Job extends
-  Resource<
-    "Kubernetes.Job",
-    JobProps,
-    {
-      /** The connection of the cluster the job runs on. */
-      connection: Connection
-      /** The Kubernetes namespace the job's objects live in. */
-      namespace: string
-      /** The Kubernetes kind synthesized for the workload (`Job`, or `CronJob` when `schedule` is set). */
-      kind: "Job" | "CronJob"
-      /** The name of the Kubernetes Job/CronJob object. */
-      jobName: string
-      /** The cron schedule, when the workload is a CronJob. */
-      schedule: string | undefined
-      /** The name of the service account the pods run as. */
-      serviceAccountName: string
-      /** The URI of the container image the job runs. */
-      imageUri: string
-      /**
-       * Workload-identity state provisioned by the cluster platform's
-       * adapter (on EKS: the pod-identity role + association; on GKE: the
-       * Workload Identity principal and the IAM grants applied to it).
-       */
-      // oxlint-disable-next-line typescript/no-redundant-type-constituents -- registry type is `never` until cloud packages augment it
-      identity: IdentityState | undefined
-      /**
-       * Image-registry state provisioned by the cluster platform's adapter
-       * (on EKS: the ECR repository).
-       */
-      registry: RegistryState | undefined
-      /** References to the Kubernetes objects created for the job. */
-      kubernetesObjects: KubernetesObjectRef[]
-      /** The content hash of the container image source. */
-      code: {
-        hash: string
-      }
-    },
-    WorkloadBindingContract,
-    Providers
-  >
-{}
+export interface Job extends Resource<
+  "Kubernetes.Job",
+  JobProps,
+  {
+    /** The connection of the cluster the job runs on. */
+    connection: Connection;
+    /** The Kubernetes namespace the job's objects live in. */
+    namespace: string;
+    /** The Kubernetes kind synthesized for the workload (`Job`, or `CronJob` when `schedule` is set). */
+    kind: "Job" | "CronJob";
+    /** The name of the Kubernetes Job/CronJob object. */
+    jobName: string;
+    /** The cron schedule, when the workload is a CronJob. */
+    schedule: string | undefined;
+    /** The name of the service account the pods run as. */
+    serviceAccountName: string;
+    /** The URI of the container image the job runs. */
+    imageUri: string;
+    /**
+     * Workload-identity state provisioned by the cluster platform's
+     * adapter (on EKS: the pod-identity role + association; on GKE: the
+     * Workload Identity principal and the IAM grants applied to it).
+     */
+    // oxlint-disable-next-line typescript/no-redundant-type-constituents -- registry type is `never` until cloud packages augment it
+    identity: IdentityState | undefined;
+    /**
+     * Image-registry state provisioned by the cluster platform's adapter
+     * (on EKS: the ECR repository).
+     */
+    registry: RegistryState | undefined;
+    /** References to the Kubernetes objects created for the job. */
+    kubernetesObjects: KubernetesObjectRef[];
+    /** The content hash of the container image source. */
+    code: {
+      hash: string;
+    };
+  },
+  WorkloadBindingContract,
+  Providers
+> {}
 
-export type JobServices = WorkloadServices
+export type JobServices = WorkloadServices;
 
 /**
  * The impl shape: `{ run, ...rpc }`. `run` executes to completion inside
  * the pod; the process exits when it returns.
  */
 export type JobMain<InitServices = never> = void | {
-  run?: Effect.Effect<void, never, InitServices | PlatformServices | RuntimeContext | Scope>
-}
+  run?: Effect.Effect<void, never, InitServices | PlatformServices | RuntimeContext | Scope>;
+};
 
-export type JobShape = JobMain<JobServices>
+export type JobShape = JobMain<JobServices>;
 
 export interface JobRuntimeContext extends HostRuntimeContext {
-  readonly Type: "Kubernetes.Job"
+  readonly Type: "Kubernetes.Job";
 }
 
 /**
@@ -381,52 +384,52 @@ export const Job: Platform<Job, JobServices, JobShape, JobRuntimeContext> = Plat
       // with the impl shape) registers the shape's `run` effect as the
       // program instead of an HTTP server, so the generated entry executes
       // it to completion and exits.
-      const runners: Effect.Effect<void, never, any>[] = []
-      const env: Record<string, any> = {}
+      const runners: Effect.Effect<void, never, any>[] = [];
+      const env: Record<string, any> = {};
       const context: JobRuntimeContext = {
         Type: "Kubernetes.Job",
         id,
         env,
         set: (bindingId: string, output: Output.Output) =>
           Effect.sync(() => {
-            const key = bindingId.replaceAll(/[^a-zA-Z0-9]/g, "_")
-            env[key] = output.pipe(Output.map(packEnvValue))
-            return key
+            const key = bindingId.replaceAll(/[^a-zA-Z0-9]/g, "_");
+            env[key] = output.pipe(Output.map(packEnvValue));
+            return key;
           }),
-        get: <T>(key: string) => Effect.sync(() => unpackEnvValue<T>(readEnv(key)) as T),
+        get: <T>(key: string) => Effect.sync(() => unpackEnvValue<T>(process.env[key]) as T),
         run: (effect: Effect.Effect<void, never, any>) =>
           Effect.sync(() => {
-            runners.push(effect)
+            runners.push(effect);
           }),
         serve: ((_handler, options) =>
           Effect.sync(() => {
-            const run = options?.shape?.run
+            const run = options?.shape?.run;
             if (Effect.isEffect(run)) {
               // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- `run` is a user program; the host runner surfaces its failures
-              runners.push(run as Effect.Effect<void, never, any>)
+              runners.push(run as Effect.Effect<void, never, any>);
             }
           })) as HostRuntimeContext["serve"],
         exports: Effect.sync(() => ({
           program: Effect.all(runners, { concurrency: "unbounded" }).pipe(Effect.asVoid),
         })),
-      }
-      return context
+      };
+      return context;
     },
   },
-)
+);
 
 export const JobProvider = () =>
   Provider.effect(
     Job,
-    effect {
-      const stack = try Stack
-      const connectionRegistry = try makeConnectionRegistry
+    Effect.gen(function* () {
+      const stack = yield* Stack;
+      const connectionRegistry = yield* makeConnectionRegistry;
 
       const alchemyEnv = {
         ALCHEMY_STACK_NAME: stack.name,
         ALCHEMY_STAGE: stack.stage,
         ALCHEMY_PHASE: "runtime",
-      }
+      };
 
       // The base name doubles as the `app.kubernetes.io/name` label value
       // (and the Service name), both capped at 63 characters.
@@ -434,8 +437,8 @@ export const JobProvider = () =>
         props.name
           ? Effect.succeed(props.name)
           : createPhysicalName({ id, maxLength: 63, lowercase: true }).pipe(
-            Effect.map((name) => name.replaceAll(/[^a-z0-9-]/g, "-")),
-          )
+              Effect.map((name) => name.replaceAll(/[^a-z0-9-]/g, "-")),
+            );
 
       return {
         stables: ["connection", "namespace", "serviceAccountName", "identity", "registry"],
@@ -444,34 +447,31 @@ export const JobProvider = () =>
         // reconstructs the composite, so enumeration is empty; `read`
         // refreshes known instances.
         list: () => Effect.succeed([] as Job["Attributes"][]),
-        diff: effect ({ olds = {} as JobProps, news: input, output }) => {
+        diff: Effect.fn(function* ({ olds = {} as JobProps, news: input, output }) {
           // `exports` carries the program's runtime Effects (never plain
           // data); everything else must be resolved to diff.
           const { exports: _exports, ...declared } = input as typeof input & {
-            exports?: unknown
-          }
-          const props = try Effect.orDie(
-            Effect.try({ try: () => (isResolved(declared) ? declared : undefined), catch: (e) => e }),
-          )
-          if (props === undefined) return
-          const news = input as unknown as JobProps
-          const oldCluster = connectionIdentity(tryConnectionOf(olds.cluster))
-          const newCluster = connectionIdentity(tryConnectionOf(news.cluster))
+            exports?: unknown;
+          };
+          if (!isResolved(declared)) return;
+          const news = input as unknown as JobProps;
+          const oldCluster = connectionIdentity(tryConnectionOf(olds.cluster));
+          const newCluster = connectionIdentity(tryConnectionOf(news.cluster));
           if (oldCluster !== undefined && newCluster !== undefined && oldCluster !== newCluster) {
-            return { action: "replace" } as const
+            return { action: "replace" } as const;
           }
           if (
-            oldCluster !== undefined
-            && (olds.namespace ?? "default") !== (news.namespace ?? "default")
+            oldCluster !== undefined &&
+            (olds.namespace ?? "default") !== (news.namespace ?? "default")
           ) {
-            return { action: "replace" } as const
+            return { action: "replace" } as const;
           }
           // Content drift (see Deployment).
-          const connection = tryConnectionOf(news.cluster)
+          const connection = tryConnectionOf(news.cluster);
           if (output && connection) {
-            const adapter = try findClusterAdapter(connection.auth.kind)
-            const source = news as WorkloadImageSource
-            const hash = try workloadImageHash({
+            const adapter = yield* findClusterAdapter(connection.auth.kind);
+            const source = news as WorkloadImageSource;
+            const hash = yield* workloadImageHash({
               adapter,
               connection,
               connectionRegistry,
@@ -479,70 +479,71 @@ export const JobProvider = () =>
               platform: imagePlatformOf(news.architecture, connection),
               isExternal: news.isExternal,
               bootstrap: (adapter.bootstrap?.job ?? makeJobBootstrap)(source.handler ?? "default"),
-            })
+            });
             if (hash !== undefined && hash !== output.code.hash) {
-              return { action: "update" } as const
+              return { action: "update" } as const;
             }
           }
-        },
-        read: effect ({ output }) => {
-          if (!output) return undefined
-          const connection = connectionOfOutput(output)
-          if (!connection) return undefined
-          const transport = try connectCluster(connection)
+        }),
+        read: Effect.fn(function* ({ output }) {
+          if (!output) return undefined;
+          const connection = connectionOfOutput(output);
+          if (!connection) return undefined;
+          const transport = yield* connectCluster(connection);
           // The ServiceAccount is the stable existence anchor: one-shot Job
           // objects are content-addressed and may have been TTL-collected.
-          const anchor = (output.kubernetesObjects ?? [])[0]
-          if (!anchor) return output
-          const observed = try readObject({
+          const anchor = (output.kubernetesObjects ?? [])[0];
+          if (!anchor) return output;
+          const observed = yield* readObject({
             transport,
             object: anchor,
-          }).pipe(Effect.catchTag("KubernetesNotFound", () => Effect.undefined))
-          if (observed === undefined) return undefined
-          return output
-        },
-        reconcile: effect ({ id, news, bindings, output, session }) => {
-          const connection = try Effect.orDie(Effect.try({ try: () => toConnection(news.cluster), catch: (e) => e }))
-          const adapter = try findClusterAdapter(connection.auth.kind)
-          const transport = try adapter.connect(connection)
-          const namespace = news.namespace ?? "default"
+          }).pipe(Effect.catchTag("KubernetesNotFound", () => Effect.undefined));
+          if (observed === undefined) return undefined;
+          return output;
+        }),
+        reconcile: Effect.fn(function* ({ id, news, bindings, output, session }) {
+          const connection = toConnection(news.cluster);
+          const adapter = yield* findClusterAdapter(connection.auth.kind);
+          const transport = yield* adapter.connect(connection);
+          const namespace = news.namespace ?? "default";
 
-          const baseName = try toBaseName(id, news)
-          const serviceAccountName = output?.serviceAccountName ?? baseName
+          const baseName = yield* toBaseName(id, news);
+          const serviceAccountName = output?.serviceAccountName ?? baseName;
           const tags = {
-            ...(try createInternalTags(id)),
+            ...(yield* createInternalTags(id)),
             ...news.tags,
-          }
+          };
 
-          const { env: bindingEnv, grantKeys } = collectBindingEnv(bindings)
+          const { env: bindingEnv, grantKeys } = collectBindingEnv(bindings);
           if (grantKeys.length > 0 && adapter.identity === undefined) {
-            return try Effect.die(
+            return yield* Effect.die(
               new Error(
-                `'${id}': bindings carry cloud credential grants `
-                  + `(${grantKeys.join(", ")}) but this cluster's platform `
-                  + "has no workload-identity adapter. Target a managed "
-                  + "cluster (e.g. AWS.EKS.Cluster) or bind through "
-                  + "environment variables instead.",
+                `'${id}': bindings carry cloud credential grants ` +
+                  `(${grantKeys.join(", ")}) but this cluster's platform ` +
+                  "has no workload-identity adapter. Target a managed " +
+                  "cluster (e.g. AWS.EKS.Cluster) or bind through " +
+                  "environment variables instead.",
               ),
-            )
+            );
           }
           const identity = adapter.identity
-            ? try adapter.identity.reconcile({
-              id,
-              connection,
-              namespace,
-              serviceAccount: serviceAccountName,
-              bindings,
-              options: news.identity,
-              state: (output?.identity as Record<string, unknown> | undefined)
-                ?? (output as Record<string, unknown> | undefined),
-              tags,
-            })
-            : undefined
+            ? yield* adapter.identity.reconcile({
+                id,
+                connection,
+                namespace,
+                serviceAccount: serviceAccountName,
+                bindings,
+                options: news.identity,
+                state:
+                  (output?.identity as Record<string, unknown> | undefined) ??
+                  (output as Record<string, unknown> | undefined),
+                tags,
+              })
+            : undefined;
 
           // Resolve the container image (`main` | `context` | `image`).
-          const source = news as WorkloadImageSource
-          const resolved = try resolveWorkloadImage({
+          const source = news as WorkloadImageSource;
+          const resolved = yield* resolveWorkloadImage({
             adapter,
             connection,
             connectionRegistry,
@@ -552,10 +553,11 @@ export const JobProvider = () =>
             isExternal: news.isExternal,
             bootstrap: (adapter.bootstrap?.job ?? makeJobBootstrap)(source.handler ?? "default"),
             tags,
-            state: (output?.registry as Record<string, unknown> | undefined)
-              ?? (output as Record<string, unknown> | undefined),
+            state:
+              (output?.registry as Record<string, unknown> | undefined) ??
+              (output as Record<string, unknown> | undefined),
             session,
-          })
+          });
 
           // Synthesize the Kubernetes objects. The generated name label is
           // always present so selectors and Kueue-style extra labels
@@ -563,13 +565,13 @@ export const JobProvider = () =>
           const labels = {
             "app.kubernetes.io/name": baseName,
             ...news.labels,
-          }
+          };
           const containerEnv = {
             ...bindingEnv,
             ...identity?.env,
             ...alchemyEnv,
             ...news.env,
-          }
+          };
 
           const serviceAccountObject: KubernetesObjectDefinition = {
             apiVersion: "v1",
@@ -582,7 +584,7 @@ export const JobProvider = () =>
                 ? { annotations: identity.serviceAccountAnnotations }
                 : {}),
             },
-          }
+          };
           const podTemplate = deepMerge(
             {
               metadata: { labels },
@@ -605,14 +607,14 @@ export const JobProvider = () =>
               },
             },
             news.podTemplate,
-          )
+          );
           const jobSpec = {
             backoffLimit: news.backoffLimit,
             ttlSecondsAfterFinished: news.ttlSecondsAfterFinished,
             template: podTemplate,
-          }
+          };
 
-          const kind: "Job" | "CronJob" = news.schedule ? "CronJob" : "Job"
+          const kind: "Job" | "CronJob" = news.schedule ? "CronJob" : "Job";
 
           // A Kubernetes Job's pod template is immutable after creation, so
           // one-shot Jobs are content-addressed: the object name embeds a
@@ -625,41 +627,37 @@ export const JobProvider = () =>
           // content-address suffix always fits.
           const jobName = news.schedule
             ? baseName.slice(0, 52).replace(/-+$/, "")
-            : `${baseName.slice(0, 54).replace(/-+$/, "")}-${
-              (try sha256Object(
-                try Effect.orDie(Effect.try({ try: () => unwrapRedacted(jobSpec), catch: (e) => e })),
-              )).slice(0, 8)
-            }`
+            : `${baseName.slice(0, 54).replace(/-+$/, "")}-${(yield* sha256Object(unwrapRedacted(jobSpec))).slice(0, 8)}`;
 
           const workloadObject: KubernetesObjectDefinition = news.schedule
             ? {
-              apiVersion: "batch/v1",
-              kind: "CronJob",
-              metadata: { name: jobName, namespace, labels },
-              spec: {
-                schedule: news.schedule,
-                jobTemplate: {
-                  metadata: { labels },
-                  spec: jobSpec,
+                apiVersion: "batch/v1",
+                kind: "CronJob",
+                metadata: { name: jobName, namespace, labels },
+                spec: {
+                  schedule: news.schedule,
+                  jobTemplate: {
+                    metadata: { labels },
+                    spec: jobSpec,
+                  },
                 },
-              },
-            }
+              }
             : {
-              apiVersion: "batch/v1",
-              kind: "Job",
-              metadata: { name: jobName, namespace, labels },
-              spec: jobSpec,
-            }
+                apiVersion: "batch/v1",
+                kind: "Job",
+                metadata: { name: jobName, namespace, labels },
+                spec: jobSpec,
+              };
 
-          const desiredObjects = [serviceAccountObject, workloadObject]
+          const desiredObjects = [serviceAccountObject, workloadObject];
 
-          const kubernetesObjects = try reconcileObjects({
+          const kubernetesObjects = yield* reconcileObjects({
             transport,
             previousObjects: output?.kubernetesObjects ?? [],
             desiredObjects,
-          })
+          });
 
-          try session.note(`Applied Kubernetes ${kind} ${namespace}/${jobName}`)
+          yield* session.note(`Applied Kubernetes ${kind} ${namespace}/${jobName}`);
 
           return {
             connection,
@@ -673,37 +671,39 @@ export const JobProvider = () =>
             registry: resolved.state,
             kubernetesObjects,
             code: { hash: resolved.codeHash },
-          }
-        },
-        delete: effect ({ output }) => {
-          const connection = connectionOfOutput(output)
-          if (!connection) return
-          const adapter = try findClusterAdapter(connection.auth.kind)
+          };
+        }),
+        delete: Effect.fn(function* ({ output }) {
+          const connection = connectionOfOutput(output);
+          if (!connection) return;
+          const adapter = yield* findClusterAdapter(connection.auth.kind);
 
           // Skip only a missing cluster, then still clean up adapter-owned
           // cloud resources (image repository, identity role).
-          const transport = try ifClusterExists(adapter.connect(connection))
+          const transport = yield* ifClusterExists(adapter.connect(connection));
           if (transport && (output.kubernetesObjects ?? []).length > 0) {
-            try deleteObjects({
+            yield* deleteObjects({
               transport,
               objects: output.kubernetesObjects ?? [],
-            })
+            });
           }
 
           if (adapter.identity) {
-            try adapter.identity.delete({
+            yield* adapter.identity.delete({
               connection,
-              state: (output.identity as Record<string, unknown> | undefined)
-                ?? (output as Record<string, unknown>),
-            })
+              state:
+                (output.identity as Record<string, unknown> | undefined) ??
+                (output as Record<string, unknown>),
+            });
           }
           if (adapter.registry) {
-            try adapter.registry.delete({
-              state: (output.registry as Record<string, unknown> | undefined)
-                ?? (output as Record<string, unknown>),
-            })
+            yield* adapter.registry.delete({
+              state:
+                (output.registry as Record<string, unknown> | undefined) ??
+                (output as Record<string, unknown>),
+            });
           }
-        },
-      }
-    },
-  )
+        }),
+      };
+    }),
+  );
