@@ -1,25 +1,28 @@
-import * as Console from "effect/Console"
-import * as Context from "effect/Context"
-import * as Deferred from "effect/Deferred"
-import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import * as Fiber from "effect/Fiber"
-import * as FetchHttpClient from "effect/http/FetchHttpClient"
-import type { HttpClient } from "effect/http/HttpClient"
-import * as Layer from "effect/Layer"
-import * as Scope from "effect/Scope"
-import { ArtifactStore, createArtifactStore } from "../Artifacts.vibe"
-import type { ProviderService } from "../Provider.ts"
-import type { ResourceLike } from "../Resource.ts"
-import { childJsonLogLayer, LOG_FORMAT_ENV, LogProcess } from "../Util/LogRecord.vibe"
-import { platformLayer, PlatformServices, runMain } from "../Util/PlatformServices.ts"
-import { logShutdown } from "../Util/Shutdown.vibe"
-import { processTrace, withTraceParent } from "../Util/TraceParent.vibe"
-import * as RpcSerialization from "./RpcSerialization.vibe"
-import { logFormatFromEnv } from "./RpcServer.platform.ts"
-import * as RpcServerEnvironment from "./RpcServerEnvironment.ts"
-import type { SessionEnvironment } from "./RpcServerEnvironment.ts"
-import { makeServerRpcSession, type ServerRpcSession, type ServerWebSocketLike } from "./RpcServerSession.ts"
+import * as Console from "effect/Console";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import type { HttpClient } from "effect/http/HttpClient";
+import * as Layer from "effect/Layer";
+import * as Scope from "effect/Scope";
+import { ArtifactStore, createArtifactStore } from "../Artifacts.vibe";
+import type { ProviderService } from "../Provider.ts";
+import type { ResourceLike } from "../Resource.ts";
+import { childJsonLogLayer, LOG_FORMAT_ENV, LogProcess } from "../Util/LogRecord.vibe";
+import { platformLayer, PlatformServices, runMain } from "../Util/PlatformServices.ts";
+import { logShutdown } from "../Util/Shutdown.vibe";
+import { processTrace, withTraceParent } from "../Util/TraceParent.vibe";
+import * as RpcSerialization from "./RpcSerialization.ts";
+import * as RpcServerEnvironment from "./RpcServerEnvironment.ts";
+import type { SessionEnvironment } from "./RpcServerEnvironment.ts";
+import {
+  makeServerRpcSession,
+  type ServerRpcSession,
+  type ServerWebSocketLike,
+} from "./RpcServerSession.ts";
 
 /**
  * A service that exposes one or more resource providers over RPC.
@@ -33,7 +36,7 @@ export class RpcServer extends Context.Service<RpcServer, never>()("alchemy/Loca
  * cannot cross the RPC boundary — the sidecar serves the concrete provider
  * implementation, never the mode-dispatching wrapper.
  */
-export type RpcProviderService<R extends ResourceLike> = Omit<ProviderService<R>, "mode" | "modes">
+export type RpcProviderService<R extends ResourceLike> = Omit<ProviderService<R>, "mode" | "modes">;
 
 /**
  * The RPC API that is implemented by the server and consumed by {@link RpcProviderProxy}.
@@ -53,20 +56,20 @@ export interface RpcProxyApi {
     type: R["Type"],
     group: string,
     testOwned?: boolean,
-  ) => Promise<RpcSerialization.RpcWrapped<RpcProviderService<R>>>
+  ) => Promise<RpcSerialization.RpcWrapped<RpcProviderService<R>>>;
   /** Release only this connection's test-owned provider contexts. */
-  readonly releaseSession: () => Promise<void>
+  readonly releaseSession: () => Promise<void>;
   /** Bounded, payload-free counts; does not build any provider contexts. */
-  readonly getDiagnostics: () => Promise<SessionProviderCounts>
+  readonly getDiagnostics: () => Promise<SessionProviderCounts>;
 }
 
 export interface SessionProviderCounts {
-  readonly sessions: number
-  readonly testSessions: number
-  readonly contexts: number
-  readonly building: number
-  readonly artifactBags: number
-  readonly artifacts: number
+  readonly sessions: number;
+  readonly testSessions: number;
+  readonly contexts: number;
+  readonly building: number;
+  readonly artifactBags: number;
+  readonly artifacts: number;
 }
 
 /** The layer shape a served provider group must have. */
@@ -78,37 +81,37 @@ export type ProviderLayer = Layer.Layer<
   | PlatformServices
   | HttpClient
   | ArtifactStore
->
+>;
 
 /**
  * Resolves a provider group to its layer. Receives the `group` the client
  * passed to {@link RpcProxyApi.getProvider}.
  */
-export type ProviderGroupLoader = (group: string) => Effect.Effect<ProviderLayer, unknown>
+export type ProviderGroupLoader = (group: string) => Effect.Effect<ProviderLayer, unknown>;
 
 const serverPlatformLayer = platformLayer({
   bun: async () => {
-    const { RpcServerBun } = await import("./RpcServerBun.vibe")
-    return RpcServerBun
+    const { RpcServerBun } = await import("./RpcServerBun.vibe");
+    return RpcServerBun;
   },
   node: async () => {
-    const { RpcServerNode } = await import("./RpcServerNode.ts")
-    return RpcServerNode
+    const { RpcServerNode } = await import("./RpcServerNode.ts");
+    return RpcServerNode;
   },
-})
+});
 
 /** Test leases are connection-local; dev contexts remain keyed by environment. */
 interface SessionLease {
-  closed: boolean
-  closing?: Promise<void>
-  readonly calls: Set<Fiber.Fiber<unknown, unknown>>
+  closed: boolean;
+  closing?: Promise<void>;
+  readonly calls: Set<Fiber.Fiber<unknown, unknown>>;
 }
 
 interface SessionContext {
-  readonly scope: Scope.Closeable
-  readonly resources: Scope.Closeable
-  readonly artifacts: ArtifactStore["Service"]
-  readonly builds: Map<string, { pending: Promise<Context.Context<any>>; ready: boolean }>
+  readonly scope: Scope.Closeable;
+  readonly resources: Scope.Closeable;
+  readonly artifacts: ArtifactStore["Service"];
+  readonly builds: Map<string, { pending: Promise<Context.Context<any>>; ready: boolean }>;
 }
 
 /** Each provider group is built with its own MemoMap and session scope. */
@@ -120,20 +123,20 @@ export class SessionProviders extends Context.Service<
       type: string,
       group: string,
       lease?: SessionLease,
-    ) => Promise<RpcSerialization.RpcWrapped<RpcProviderService<any>>>
-    readonly release: (lease: SessionLease) => Promise<void>
-    readonly diagnostics: () => SessionProviderCounts
+    ) => Promise<RpcSerialization.RpcWrapped<RpcProviderService<any>>>;
+    readonly release: (lease: SessionLease) => Promise<void>;
+    readonly diagnostics: () => SessionProviderCounts;
   }
 >()("alchemy/Local/SessionProviders") {}
 
 const sessionProviders = (resolve: ProviderGroupLoader) =>
   Layer.effect(
     SessionProviders,
-    effect {
-      const scope = try Effect.scope
-      const ambient = Context.omit(Scope.Scope)(try Effect.context<never>())
-      const base = try RpcServerEnvironment.fromProcessEnv.pipe(Effect.orDie)
-      const sessions = new Map<string | undefined | SessionLease, SessionContext>()
+    Effect.gen(function* () {
+      const scope = yield* Effect.scope;
+      const ambient = Context.omit(Scope.Scope)(yield* Effect.context<never>());
+      const base = yield* RpcServerEnvironment.fromProcessEnv.pipe(Effect.orDie);
+      const sessions = new Map<string | undefined | SessionLease, SessionContext>();
 
       const contextFor = (
         sessionEnv: string | undefined,
@@ -141,57 +144,58 @@ const sessionProviders = (resolve: ProviderGroupLoader) =>
         lease?: SessionLease,
       ): Promise<Context.Context<any>> => {
         if (lease?.closed) {
-          return Promise.reject(new Error("Test RPC session is closed"))
+          return Promise.reject(new Error("Test RPC session is closed"));
         }
-        const key = lease ?? sessionEnv
-        let session = sessions.get(key)
+        const key = lease ?? sessionEnv;
+        let session = sessions.get(key);
         if (session === undefined) {
           session = {
             scope: Scope.forkUnsafe(scope),
             resources: Scope.makeUnsafe("sequential"),
             artifacts: createArtifactStore(),
             builds: new Map(),
-          }
-          sessions.set(key, session)
-          const current = session
+          };
+          sessions.set(key, session);
+          const current = session;
           Effect.runSyncWith(ambient)(
             Scope.addFinalizer(
               current.scope,
               // Calls drain before provider finalizers and artifact disposal.
               Effect.suspend(() => {
-                if (lease === undefined) return Effect.void
-                lease.closed = true
-                return Fiber.interruptAll([...lease.calls])
+                if (lease === undefined) return Effect.void;
+                lease.closed = true;
+                return Fiber.interruptAll([...lease.calls]);
               }).pipe(
                 Effect.ensuring(Scope.close(current.resources, Exit.void)),
                 Effect.ensuring(
                   Effect.sync(() => {
-                    if (sessions.get(key) === current) sessions.delete(key)
-                    current.builds.clear()
-                    for (const bag of current.artifacts.values()) bag.clear()
-                    current.artifacts.clear()
+                    if (sessions.get(key) === current) sessions.delete(key);
+                    current.builds.clear();
+                    for (const bag of current.artifacts.values()) bag.clear();
+                    current.artifacts.clear();
                   }),
                 ),
               ),
             ),
-          )
+          );
         }
-        const current = session
-        const existing = current.builds.get(group)
-        if (existing !== undefined) return existing.pending
-        const resolved: SessionEnvironment | undefined = sessionEnv !== undefined
-          ? RpcServerEnvironment.decodeSessionEnvironment(sessionEnv)
-          : base.stack !== undefined && base.alchemyContext !== undefined
-          ? { stack: base.stack, alchemyContext: base.alchemyContext }
-          : undefined
+        const current = session;
+        const existing = current.builds.get(group);
+        if (existing !== undefined) return existing.pending;
+        const resolved: SessionEnvironment | undefined =
+          sessionEnv !== undefined
+            ? RpcServerEnvironment.decodeSessionEnvironment(sessionEnv)
+            : base.stack !== undefined && base.alchemyContext !== undefined
+              ? { stack: base.stack, alchemyContext: base.alchemyContext }
+              : undefined;
         if (resolved === undefined) {
           return Promise.reject(
             new Error(
               "RPC session carried no session environment and the server was booted without a default one",
             ),
-          )
+          );
         }
-        const groupScope = Scope.forkUnsafe(current.resources)
+        const groupScope = Scope.forkUnsafe(current.resources);
         const pending = Effect.runPromiseWith(ambient)(
           resolve(group).pipe(
             Effect.flatMap((providers) =>
@@ -207,7 +211,7 @@ const sessionProviders = (resolve: ProviderGroupLoader) =>
                 ),
                 Layer.makeMemoMapUnsafe(),
                 groupScope,
-              )
+              ),
             ),
             Effect.provideService(ArtifactStore, current.artifacts),
             Scope.provide(groupScope),
@@ -216,35 +220,35 @@ const sessionProviders = (resolve: ProviderGroupLoader) =>
             Effect.flatMap(Fiber.join),
             Effect.onError(() => Scope.close(groupScope, Exit.void)),
           ) as Effect.Effect<Context.Context<any>>,
-        )
-        const build = { pending, ready: false }
-        current.builds.set(group, build)
+        );
+        const build = { pending, ready: false };
+        current.builds.set(group, build);
         pending.then(
           () => {
-            build.ready = true
+            build.ready = true;
           },
           () => {
-            if (current.builds.get(group) === build) current.builds.delete(group)
+            if (current.builds.get(group) === build) current.builds.delete(group);
           },
-        )
-        return pending
-      }
+        );
+        return pending;
+      };
 
       return SessionProviders.of({
         diagnostics: () => {
-          let testSessions = 0
-          let contexts = 0
-          let building = 0
-          let artifactBags = 0
-          let artifacts = 0
+          let testSessions = 0;
+          let contexts = 0;
+          let building = 0;
+          let artifactBags = 0;
+          let artifacts = 0;
           for (const [key, session] of sessions) {
-            if (typeof key === "object") testSessions++
+            if (typeof key === "object") testSessions++;
             for (const build of session.builds.values()) {
-              if (build.ready) contexts++
-              else building++
+              if (build.ready) contexts++;
+              else building++;
             }
-            artifactBags += session.artifacts.size
-            for (const bag of session.artifacts.values()) artifacts += bag.size
+            artifactBags += session.artifacts.size;
+            for (const bag of session.artifacts.values()) artifacts += bag.size;
           }
           return {
             sessions: sessions.size,
@@ -253,49 +257,51 @@ const sessionProviders = (resolve: ProviderGroupLoader) =>
             building,
             artifactBags,
             artifacts,
-          }
+          };
         },
         release: (lease) => {
-          if (lease.closing !== undefined) return lease.closing
-          lease.closed = true
-          const session = sessions.get(lease)
-          lease.closing = session === undefined
-            ? Promise.resolve()
-            : Effect.runPromiseWith(ambient)(Scope.close(session.scope, Exit.void))
-          return lease.closing
+          if (lease.closing !== undefined) return lease.closing;
+          lease.closed = true;
+          const session = sessions.get(lease);
+          lease.closing =
+            session === undefined
+              ? Promise.resolve()
+              : Effect.runPromiseWith(ambient)(Scope.close(session.scope, Exit.void));
+          return lease.closing;
         },
         get: async (sessionEnv, type, group, lease) => {
-          const context = await contextFor(sessionEnv, group, lease)
-          if (lease?.closed) throw new Error("Test RPC session is closed")
-          const provider = context.mapUnsafe.get(type) as ProviderService<any> | undefined
+          const context = await contextFor(sessionEnv, group, lease);
+          if (lease?.closed) throw new Error("Test RPC session is closed");
+          const provider = context.mapUnsafe.get(type) as ProviderService<any> | undefined;
           if (!provider) {
-            throw new Error(`Provider "${type}" not found in provider group ${group}`)
+            throw new Error(`Provider "${type}" not found in provider group ${group}`);
           }
-          const { mode: _mode, modes: _modes, ...serializable } = provider
-          const registerCall = lease === undefined
-            ? undefined
-            : Effect.acquireRelease(
-              Effect.withFiber((fiber) =>
-                Effect.suspend(() => {
-                  if (lease.closed) return Effect.die(new Error("Test RPC session is closed"))
-                  lease.calls.add(fiber)
-                  return Effect.succeed(fiber)
-                })
-              ),
-              (fiber) =>
-                Effect.sync(() => {
-                  lease.calls.delete(fiber)
-                }),
-            ).pipe(Effect.asVoid)
+          const { mode: _mode, modes: _modes, ...serializable } = provider;
+          const registerCall =
+            lease === undefined
+              ? undefined
+              : Effect.acquireRelease(
+                  Effect.withFiber((fiber) =>
+                    Effect.sync(() => {
+                      if (lease.closed) throw new Error("Test RPC session is closed");
+                      lease.calls.add(fiber);
+                      return fiber;
+                    }),
+                  ),
+                  (fiber) =>
+                    Effect.sync(() => {
+                      lease.calls.delete(fiber);
+                    }),
+                ).pipe(Effect.asVoid);
           return RpcSerialization.wrapRpcHandlers(
             serializable as RpcProviderService<any>,
             ["tail"],
             registerCall,
-          )
+          );
         },
-      })
-    },
-  )
+      });
+    }),
+  );
 
 /**
  * Launches an RPC server that serves providers.
@@ -322,24 +328,23 @@ const sessionProviders = (resolve: ProviderGroupLoader) =>
  *   from group to layer.
  */
 export const launch = (providers: ProviderLayer | ProviderGroupLoader) =>
-  runMain(
-    serverPlatformLayer.pipe(
-      Layer.provide(
-        sessionProviders(Layer.isLayer(providers) ? () => Effect.succeed(providers) : providers),
-      ),
-      Layer.provide(Layer.mergeAll(PlatformServices, FetchHttpClient.layer)),
-      Layer.launch,
-      logShutdown("sidecar"),
-      // Spans outside RPC calls join the `alchemy dev` trace, like its records.
-      withTraceParent(processTrace),
-      // The spawner asks for JSON records: the process that owns the
-      // terminal decodes and renders them, so structure (level, resource,
-      // text as written) survives the pipe.
-      Effect.provide(logFormatFromEnv(LOG_FORMAT_ENV) === "json" ? childJsonLogLayer : Layer.empty),
-      Effect.provideService(LogProcess, "sidecar"),
-      Effect.scoped,
+  serverPlatformLayer.pipe(
+    Layer.provide(
+      sessionProviders(Layer.isLayer(providers) ? () => Effect.succeed(providers) : providers),
     ),
-  )
+    Layer.provide(Layer.mergeAll(PlatformServices, FetchHttpClient.layer)),
+    Layer.launch,
+    logShutdown("sidecar"),
+    // Spans outside RPC calls join the `alchemy dev` trace, like its records.
+    withTraceParent(processTrace),
+    // The spawner asks for JSON records: the process that owns the
+    // terminal decodes and renders them, so structure (level, resource,
+    // text as written) survives the pipe.
+    Effect.provide(process.env[LOG_FORMAT_ENV] === "json" ? childJsonLogLayer : Layer.empty),
+    Effect.provideService(LogProcess, "sidecar"),
+    Effect.scoped,
+    runMain,
+  );
 
 /**
  * Constructs an `RpcServer` layer using the given server implementation.
@@ -356,60 +361,60 @@ export const layerServer = (
     createRpcSession: (
       ws: ServerWebSocketLike,
       sessionEnv?: string,
-    ) => ServerRpcSession<RpcProxyApi>
+    ) => ServerRpcSession<RpcProxyApi>;
     /** Called when the parent connection, indicated by the `/parent` path, is established. */
-    parentConnected: () => void
+    parentConnected: () => void;
     /** Called when the parent disconnects. The server will shut down when this is called. */
     /** The parent link closed; `detail` says how, when the server knows. */
-    parentDisconnected: (detail?: string) => void
+    parentDisconnected: (detail?: string) => void;
   }) => Effect.Effect<{ readonly url: string }, never, Scope.Scope>,
 ) =>
   Layer.effect(
     RpcServer,
-    effect {
-      const providers = try SessionProviders
-      const context = try Effect.context()
-      const connected = try Deferred.make<void>()
-      const disconnected = try Deferred.make<string | undefined>()
-      const { url } = try serve({
+    Effect.gen(function* () {
+      const providers = yield* SessionProviders;
+      const context = yield* Effect.context();
+      const connected = yield* Deferred.make<void>();
+      const disconnected = yield* Deferred.make<string | undefined>();
+      const { url } = yield* serve({
         createRpcSession: (ws, sessionEnv) => {
-          const lease: SessionLease = { closed: false, calls: new Set() }
-          let testOwned = false
+          const lease: SessionLease = { closed: false, calls: new Set() };
+          let testOwned = false;
           const session = makeServerRpcSession<RpcProxyApi>(ws, {
             getProvider: (<R extends ResourceLike>(
               type: R["Type"],
               group: string,
               owned = false,
             ) => {
-              testOwned ||= owned
-              return providers.get(sessionEnv, type, group, testOwned ? lease : undefined)
+              testOwned ||= owned;
+              return providers.get(sessionEnv, type, group, testOwned ? lease : undefined);
             }) as RpcProxyApi["getProvider"],
             releaseSession: () => providers.release(lease),
             getDiagnostics: () => Promise.resolve(providers.diagnostics()),
-          })
-          const close = session.dispatch.close
+          });
+          const close = session.dispatch.close;
           session.dispatch.close = (code, reason) => {
-            close(code, reason)
+            close(code, reason);
             // A broken test transport has no remaining owner; dev sessions
             // deliberately retain their contexts across hot reloads.
             if (testOwned) {
               void providers.release(lease).catch((error) => {
-                Effect.runForkWith(context)(Effect.logError(error))
-              })
+                Effect.runForkWith(context)(Effect.logError(error));
+              });
             }
-          }
-          return session
+          };
+          return session;
         },
         parentConnected: () => Deferred.doneUnsafe(connected, Effect.void),
         parentDisconnected: (detail) => Deferred.doneUnsafe(disconnected, Effect.succeed(detail)),
-      })
-      try Console.log(`<ALCHEMY_RPC_ADDRESS>${url}</ALCHEMY_RPC_ADDRESS>`)
-      try Deferred.await(connected).pipe(Effect.timeout("10 seconds")) // TODO(john): should the timeout be shorter?
+      });
+      yield* Console.log(`<ALCHEMY_RPC_ADDRESS>${url}</ALCHEMY_RPC_ADDRESS>`);
+      yield* Deferred.await(connected).pipe(Effect.timeout("10 seconds")); // TODO(john): should the timeout be shorter?
       // The sidecar exits with its parent; record why the link closed.
-      const detail = try Deferred.await(disconnected)
-      try Effect.logInfo(
+      const detail = yield* Deferred.await(disconnected);
+      yield* Effect.logInfo(
         `parent connection closed${detail === undefined ? "" : ` (${detail})`}; shutting down`,
-      )
-      return try Effect.interrupt
-    },
-  )
+      );
+      return yield* Effect.interrupt;
+    }),
+  );

@@ -29,7 +29,7 @@ import {
   compatibilityCommands,
   type CompatibilityCommand,
 } from "./commands/compat.vibe";
-import { handleCliErrors } from "./commands/errors.vibe";
+import { handleCliErrors } from "./commands/errors.ts";
 import { VersionCheck } from "./commands/instrument.vibe";
 import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.vibe";
 import { selectCliServices } from "./selectCli.vibe";
