@@ -63,7 +63,7 @@ import {
   type SelectionOutput,
 } from "./ResourceSelection.ts";
 import { capturedEnvKeys } from "./RuntimeContext.vibe";
-import { cachedInScope } from "./Util/Memoize.ts";
+import { cachedInScope } from "./Util/Memoize.vibe";
 export { InvalidResourceSelection, UnsafeSelectionBoundary } from "./ResourceSelection.ts";
 import { type StackSpec } from "./Stack.ts";
 import {
@@ -80,9 +80,9 @@ import {
   type UpdatedResourceState,
   type UpdatingReourceState,
 } from "./State/index.ts";
-import { isPlainData, mapPlainData } from "./Util/data.ts";
+import { isPlainData, mapPlainData } from "./Util/data.vibe";
 import { findCycleMembers } from "./Util/scc.ts";
-import { hashInput } from "./Util/sha256.ts";
+import { hashInput } from "./Util/sha256.vibe";
 
 export type PlanError = never;
 

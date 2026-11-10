@@ -12,7 +12,7 @@ import * as Alchemist from "../../../Alchemist/index.ts";
 import { getEnv } from "../../../Auth/Env.vibe";
 import { resolveProfileName } from "../../../Auth/Resolve.ts";
 import * as Interaction from "../../../Interaction.ts";
-import { loadConfigProvider } from "../../../Util/ConfigProvider.ts";
+import { loadConfigProvider } from "../../../Util/ConfigProvider.vibe";
 import { formatElapsed } from "../../Format.ts";
 import { exitDeclined, failWithHelp, UserInputError } from "../errors.ts";
 import { config, envFile, profile, yes } from "../flags.ts";

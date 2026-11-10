@@ -1,6 +1,6 @@
 import { detectCapabilities } from "@alchemy.run/sigil/capabilities";
 import type { TerminalCapabilities, TerminalOptions } from "../../Interaction.ts";
-import { isNonInteractive } from "../../Util/interactive.ts";
+import { isNonInteractive } from "../../Util/interactive.vibe";
 
 /** Detect what the terminal behind the given streams supports. */
 export const resolveCapabilities = (options: TerminalOptions = {}): TerminalCapabilities => {

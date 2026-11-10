@@ -10,7 +10,7 @@ import { RuntimeContext, sanitizeKey } from "./RuntimeContext.vibe";
 import { StackContext } from "./StackContext.vibe";
 import { Stage } from "./Stage.ts";
 import * as State from "./State/State.ts";
-import { isPlainData, isPrimitive, type Primitive } from "./Util/data.ts";
+import { isPlainData, isPrimitive, type Primitive } from "./Util/data.vibe";
 
 const inspect = Symbol.for("nodejs.util.inspect.custom");
 

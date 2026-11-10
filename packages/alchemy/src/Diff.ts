@@ -6,7 +6,7 @@ import * as Output from "./Output.ts";
 import type { BindingNode } from "./Plan.ts";
 import type { ResourceBinding } from "./Resource.ts";
 import { bytesToBase64 } from "./Util/base64.ts";
-import { isPlainData, isPrimitive, mapPlainData } from "./Util/data.ts";
+import { isPlainData, isPrimitive, mapPlainData } from "./Util/data.vibe";
 
 export type Diff = NoopDiff | UpdateDiff | ReplaceDiff;
 

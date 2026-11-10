@@ -7,7 +7,7 @@ import { havePropsChanged, isResolved } from "../Diff.ts";
 import * as Provider from "../Provider.ts";
 import { Resource } from "../Resource.ts";
 import { initialCwd } from "../Util/Node.ts";
-import { sha256Object } from "../Util/sha256.ts";
+import { sha256Object } from "../Util/sha256.vibe";
 import {
   CommandExecutor,
   OutputNotFound,

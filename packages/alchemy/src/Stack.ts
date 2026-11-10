@@ -28,7 +28,7 @@ import type { SecretsEntry, SecretsOption } from "./Secrets/Provider.vibe";
 import { StackContext } from "./StackContext.vibe";
 import { Stage } from "./Stage.ts";
 import type { State } from "./State/State.ts";
-import { stackConfigLayer } from "./Util/ConfigProvider.ts";
+import { stackConfigLayer } from "./Util/ConfigProvider.vibe";
 import { effectClass, taggedFunction } from "./Util/effect.vibe";
 import type { PlatformServices } from "./Util/PlatformServices.ts";
 

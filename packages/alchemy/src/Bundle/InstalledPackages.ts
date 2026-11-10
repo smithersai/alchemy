@@ -8,7 +8,7 @@ import type { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import * as Schema from "effect/Schema";
 import { parseAllDocuments, parse as parseYaml } from "yaml";
 import { exec } from "../Util/exec.vibe";
-import { sha256, sha256Object } from "../Util/sha256.ts";
+import { sha256, sha256Object } from "../Util/sha256.vibe";
 import { BundleError } from "./Bundle.ts";
 
 export interface InstalledPackageFile {

@@ -8,8 +8,8 @@ import type { ApplyEvent, ApplyStatus } from "../Events.vibe";
 import { NonInteractiveTerminal } from "../Interaction.ts";
 import type { ActionApply, ActionDelete, CRUD, Plan } from "../Plan.ts";
 import { Cli, type PlanDisplayOptions } from "../Report.vibe";
-import { canPromptOnStdin } from "../Util/interactive.ts";
-import { formatResourceTag } from "../Util/ResourceOutput.ts";
+import { canPromptOnStdin } from "../Util/interactive.vibe";
+import { formatResourceTag } from "../Util/ResourceOutput.vibe";
 import { ansiFg, colorsEnabled } from "../Util/Terminal.ts";
 import { theme } from "../Util/Theme.ts";
 import {

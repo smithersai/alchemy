@@ -6,12 +6,12 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { hashDirectory, type MemoOptions } from "../Command/Memo.vibe";
 import { havePropsChanged, isResolved } from "../Diff.ts";
-import * as LocalProvider from "../Local/LocalProvider.ts";
+import * as LocalProvider from "../Local/LocalProvider.vibe";
 import * as ProviderLayer from "../Local/ProviderLayer.vibe";
 import * as Provider from "../Provider.ts";
 import { Resource } from "../Resource.ts";
 import { initialCwd, moduleExtension } from "../Util/Node.ts";
-import { sha256Object } from "../Util/sha256.ts";
+import { sha256Object } from "../Util/sha256.vibe";
 
 /**
  * The structural slice of a framework-integration module

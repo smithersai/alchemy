@@ -13,7 +13,7 @@ import { encodeFqn } from "../FQN.ts";
 import { ResourceContext } from "../ResourceContext.vibe";
 import { StackContext } from "../StackContext.vibe";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";
-import { sha256, sha256Object } from "../Util/sha256.ts";
+import { sha256, sha256Object } from "../Util/sha256.vibe";
 import { bundleAnalyzerPlugin, type BundleAnalyzerPluginOptions } from "./BundleAnalyzerPlugin.ts";
 import { namespaceImportPlugin } from "./NamespaceImportPlugin.ts";
 import { purePlugin, type PurePluginOptions } from "./PurePlugin.ts";

@@ -4,9 +4,9 @@
 // Deep-import it instead: `@alchemy.run/sql/PostgresState`.
 export * from "./Export.vibe";
 export * from "./HttpStateApi.vibe";
-export * from "./HttpStateStore.ts";
+export * from "./HttpStateStore.vibe";
 export * from "./InMemoryState.vibe";
-export * from "./LocalState.ts";
+export * from "./LocalState.vibe";
 export * from "./ResourceState.ts";
 export * from "./State.ts";
 export * from "./ActionState.ts";

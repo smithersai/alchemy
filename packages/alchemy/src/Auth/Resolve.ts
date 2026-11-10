@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { UserFacingError } from "../UserFacingError.ts";
-import { loadConfigProvider } from "../Util/ConfigProvider.ts";
+import { loadConfigProvider } from "../Util/ConfigProvider.vibe";
 import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.vibe";
 import { cacheUntilExpiry } from "./CredentialsCache.vibe";
 import { ProfileStore, reloadProviderConfig, SuppressMissingProviderConfig } from "./Profile.vibe";

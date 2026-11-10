@@ -72,7 +72,7 @@ import {
 } from "./State/index.ts";
 import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.vibe";
 import { LogAnnotation } from "./Util/LogAnnotation.ts";
-import { hashInput } from "./Util/sha256.ts";
+import { hashInput } from "./Util/sha256.vibe";
 
 export type AppliedPlan<P extends Plan> = {
   [id in keyof P["resources"]]: P["resources"][id] extends Delete | undefined

@@ -2,12 +2,12 @@ import { stripVTControlCharacters } from "node:util";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import * as LocalProvider from "../Local/LocalProvider.ts";
+import * as LocalProvider from "../Local/LocalProvider.vibe";
 import * as ProviderLayer from "../Local/ProviderLayer.vibe";
 import * as Provider from "../Provider.ts";
 import { Resource } from "../Resource.ts";
 import { moduleExtension } from "../Util/Node.ts";
-import { makeResourceOutput } from "../Util/ResourceOutput.ts";
+import { makeResourceOutput } from "../Util/ResourceOutput.vibe";
 import { CommandExecutor, UnexpectedExit, makeCommandError, type CommandProps } from "./Command.ts";
 import { makeCommandRedactor } from "./Redaction.vibe";
 

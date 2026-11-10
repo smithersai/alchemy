@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type * as RpcServer from "./RpcServer.ts";
+import type * as RpcServer from "./RpcServer.vibe";
 import { SESSION_ENV_PARAM } from "./RpcServerEnvironment.ts";
 import type { ServerRpcSession } from "./RpcServerSession.ts";
 

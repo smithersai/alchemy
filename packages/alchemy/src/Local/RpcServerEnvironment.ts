@@ -10,7 +10,7 @@ import { AuthProvidersLive } from "../Auth/Registry.vibe";
 import { withProfileOverride } from "../Auth/Resolve.ts";
 import { Stack } from "../Stack.ts";
 import { Stage } from "../Stage.ts";
-import { loadConfigProvider } from "../Util/ConfigProvider.ts";
+import { loadConfigProvider } from "../Util/ConfigProvider.vibe";
 
 /**
  * The stack-specific half of the sidecar environment. One sidecar process

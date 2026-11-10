@@ -17,7 +17,7 @@ import { CurrentLogAnnotations, MinimumLogLevel } from "effect/References";
 import packageJson from "../../package.json" with { type: "json" };
 import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
 import { rootDir } from "../Auth/Paths.ts";
-import { makePlainConsoleSink } from "../Util/ConsoleSink.ts";
+import { makePlainConsoleSink } from "../Util/ConsoleSink.vibe";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";
 import {
   formatJsonRecord,
@@ -26,8 +26,8 @@ import {
   LOG_LEVEL_ENV,
   type LogRecord,
   safeStringify,
-} from "../Util/LogRecord.ts";
-import { processTrace } from "../Util/TraceParent.ts";
+} from "../Util/LogRecord.vibe";
+import { processTrace } from "../Util/TraceParent.vibe";
 
 /** Logs older than this are pruned (by mtime) on CLI start. */
 const MAX_LOG_AGE = Duration.days(7);

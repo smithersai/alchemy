@@ -3,7 +3,7 @@ import * as Redacted from "effect/Redacted";
 import { stringify } from "yaml";
 import { havePropsChanged } from "../Diff.ts";
 import * as Output from "../Output.ts";
-import { isPlainData } from "../Util/data.ts";
+import { isPlainData } from "../Util/data.vibe";
 
 export type YamlDisplayValue =
   | string

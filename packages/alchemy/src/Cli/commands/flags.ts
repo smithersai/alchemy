@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { loadConfigProvider } from "../../Util/ConfigProvider.ts";
+import { loadConfigProvider } from "../../Util/ConfigProvider.vibe";
 import { UserInputError } from "./errors.ts";
 
 export const USER = Config.String("USER").pipe(

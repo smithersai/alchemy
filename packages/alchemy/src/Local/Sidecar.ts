@@ -17,7 +17,7 @@
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as RpcServer from "./RpcServer.ts";
+import * as RpcServer from "./RpcServer.vibe";
 
 export class SidecarInvalidProps extends Data.TaggedError("SidecarInvalidProps")<{
   readonly message: string;

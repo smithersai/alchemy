@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { WebSocketServer, type Server } from "ws";
-import * as RpcServer from "./RpcServer.ts";
+import * as RpcServer from "./RpcServer.vibe";
 import { SESSION_ENV_PARAM } from "./RpcServerEnvironment.ts";
 
 export const RpcServerNode = RpcServer.layerServer(
