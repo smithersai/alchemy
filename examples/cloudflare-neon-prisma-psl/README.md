@@ -16,7 +16,7 @@ const db = yield* makeDatabase(connection.connectionString);
 const users = yield* db.orm.public.User.all();
 ```
 
-`src/Api.ts` validates newly created rows through `schemas.public.User`. The schema
+`src/Api.vibe` validates newly created rows through `schemas.public.User`. The schema
 module can also be used without a database client. These are scalar database row
 validators, not create inputs or public API definitions.
 

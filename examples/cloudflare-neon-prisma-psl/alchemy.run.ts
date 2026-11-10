@@ -4,7 +4,7 @@ import * as Prisma from "@alchemy.run/prisma";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import Api from "./src/Api.ts";
+import Api from "./src/Api.vibe";
 import { Hyperdrive, NeonDb } from "./src/Db.vibe";
 
 export default Alchemy.Stack(

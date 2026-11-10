@@ -1,0 +1,62 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import * as HttpServerRequest from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Schema from "effect/Schema"
+import { Hyperdrive } from "./Db.vibe"
+import { randomUUID } from "./crypto.platform.ts"
+import { makeDatabase } from "./prisma/generated/client.ts"
+import { schemas } from "./prisma/generated/schemas.ts"
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  {
+    main: import.meta.url,
+  },
+  effect {
+    const conn = try Cloudflare.Hyperdrive.Connect(Hyperdrive)
+    const db = try makeDatabase(conn.connectionString)
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest.HttpServerRequest
+        switch (request.method) {
+          case "GET": {
+            if (request.url === "/") {
+              const users = try db.orm.public.User.all()
+              return try HttpServerResponse.json({ users })
+            }
+            const id = request.url.split("/").pop() ?? ""
+            const user = try (try Effect.orDie(Effect.try({
+              try: () => db.orm.public.User.where({ id }).include("posts").first(),
+              catch: (e) => e,
+            })))
+            return try HttpServerResponse.json({ user })
+          }
+          case "POST": {
+            const values = {
+              name: try randomUUID(),
+              email: try randomUUID(),
+            }
+            const row = try db.orm.public.User.create(values)
+            const user = try Schema.decodeUnknownEffect(schemas.public.User)(row)
+            return try HttpServerResponse.json({ user })
+          }
+          case "DELETE": {
+            const id = request.url.split("/").pop() ?? ""
+            const user = try (try Effect.orDie(Effect.try({
+              try: () => db.orm.public.User.where({ id }).delete(),
+              catch: (e) => e,
+            })))
+            return try HttpServerResponse.json({ user })
+          }
+          default: {
+            return try HttpServerResponse.json({ error: "Method not allowed" }, { status: 405 })
+          }
+        }
+      }.pipe(
+        Effect.catch((cause) => HttpServerResponse.json({ ok: false, error: cause._tag }, { status: 500 })),
+      ),
+    }
+  }.pipe(Effect.provide(Cloudflare.Hyperdrive.ConnectBinding)),
+) {}
