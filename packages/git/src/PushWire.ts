@@ -10,7 +10,7 @@ import type { ObjectType } from "./Protocol/ObjectCodec.ts";
  * `u32 jsonLen | json | zdata…` where the JSON array lists each row's
  * metadata and the byte length of its zdata run, in order.
  */
-import type { StagedObject } from "./Store/ObjectStore.ts";
+import type { StagedObject } from "./Store/ObjectStore.vibe";
 
 interface RowMeta {
   /** oid */

@@ -60,7 +60,7 @@ import {
 } from "./Api.vibe";
 import type { BlobMultipart, UploadedPart } from "./BlobStore.vibe";
 import { BlobStore, type BlobStoreShape } from "./BlobStore.vibe";
-import { type HasherShape, type HashPartResult } from "./Hasher/Hasher.ts";
+import { type HasherShape, type HashPartResult } from "./Hasher/Hasher.vibe";
 import { bundleCovers, runBundleJob, type BundleInfo } from "./Jobs/Bundle.vibe";
 import { runCompactJob, runGeometricMergeJob, shouldCompact } from "./Jobs/Compact.vibe";
 import { runForkJob, snapshotStream, type SnapshotChunk } from "./Jobs/Fork.vibe";
@@ -124,8 +124,8 @@ import {
   type ObjectStore,
   type StagedObject,
   LIVE_OBJECTS,
-} from "./Store/ObjectStore.ts";
-import { blobRandomAccess } from "./Store/PackSource.ts";
+} from "./Store/ObjectStore.vibe";
+import { blobRandomAccess } from "./Store/PackSource.vibe";
 import {
   initRepoSchema,
   makeSqlClient,

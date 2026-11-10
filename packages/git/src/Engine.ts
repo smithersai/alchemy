@@ -9,8 +9,8 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import { PushDenied, RefConflict, RepoNotFound } from "./Api/Schema.vibe";
 import { BlobStore } from "./BlobStore.vibe";
-import { Hasher } from "./Hasher/Hasher.ts";
-import { Operations, OperationsLive } from "./Operations.ts";
+import { Hasher } from "./Hasher/Hasher.vibe";
+import { Operations, OperationsLive } from "./Operations.vibe";
 import { StoreError } from "./Protocol/Store.vibe";
 import {
   incomingStates,
@@ -35,7 +35,7 @@ import {
   type RepoMetaData,
 } from "./RepoObject.ts";
 import { incomingKey, wirePackId } from "./Store/Keys.ts";
-import { sliceRandomAccess } from "./Store/PackSource.ts";
+import { sliceRandomAccess } from "./Store/PackSource.vibe";
 
 const path = (repo: RepoMetaData) => ({ owner: repo.owner, repo: repo.name });
 

@@ -31,7 +31,7 @@ import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import * as Semaphore from "effect/Semaphore";
 import { hashBounds, resolveDeltas, scanPart } from "../Protocol/PartialScan.vibe";
-import { Hasher, type HasherShape } from "./Hasher.ts";
+import { Hasher, type HasherShape } from "./Hasher.vibe";
 import {
   decodeDeltaResults,
   decodeScanResult,

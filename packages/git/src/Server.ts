@@ -48,11 +48,11 @@ import {
   frame,
   HASHER_BINDING,
   InternalSecret,
-} from "./Hasher/Hasher.ts";
+} from "./Hasher/Hasher.vibe";
 import { decodeDeltaBatch, encodeDeltaResults } from "./Hasher/Protocol.ts";
 import * as ReceivePackHttp from "./Http/ReceivePack.ts";
 import { bundleCovers, type BundleInfo } from "./Jobs/Bundle.vibe";
-import { Operations } from "./Operations.ts";
+import { Operations } from "./Operations.vibe";
 import { concatBytes, utf8Decode } from "./Protocol/ObjectCodec.ts";
 import { hashBounds, resolveDeltas, scanPart } from "./Protocol/PartialScan.vibe";
 import { decodePktLines, flushPkt, pktText } from "./Protocol/Pkt.ts";

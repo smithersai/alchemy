@@ -1,9 +1,9 @@
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
-import { Base64 } from "effect/encoding";
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import { Base64 } from "effect/encoding"
 /** Repository operations over storage services. HTTP handlers adapt these results. */
-import type * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
-import * as Layer from "effect/Layer";
+import type * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint"
+import * as Layer from "effect/Layer"
 import type {
   CompactRepo,
   Compare,
@@ -28,7 +28,7 @@ import type {
   UpdatePull,
   UpdateRef,
   UpdateRepo,
-} from "./Api.vibe";
+} from "./Api.vibe"
 import {
   CommitDiff,
   CommitInfo,
@@ -49,10 +49,10 @@ import {
   RepoNotReady,
   TreeEntry,
   type Oid,
-} from "./Api.vibe";
-import { parseCommit, parseTree, treeEntryKind } from "./Protocol/ObjectCodec.ts";
-import type { StoreError } from "./Protocol/Store.vibe";
-import { RegistryStore, type RegistryEntry } from "./RegistryObject.ts";
+} from "./Api.vibe"
+import { parseCommit, parseTree, treeEntryKind } from "./Protocol/ObjectCodec.ts"
+import type { StoreError } from "./Protocol/Store.vibe"
+import { RegistryStore, type RegistryEntry } from "./RegistryObject.ts"
 import {
   RepoStore,
   type CommitData,
@@ -61,22 +61,22 @@ import {
   type PullDetailData,
   type RefData,
   type RepoMetaData,
-} from "./RepoObject.ts";
+} from "./RepoObject.ts"
 
 /** TTL of the in-isolate `owner/name → repoId` cache (DESIGN.md §2.1). */
-export const RESOLVE_CACHE_TTL_MS = 60_000;
+export const RESOLVE_CACHE_TTL_MS = 60_000
 
 /** Max entries of the in-isolate resolve cache (insertion-order eviction). */
-export const RESOLVE_CACHE_MAX = 1024;
+export const RESOLVE_CACHE_MAX = 1024
 
 /** Blobs above this size are 422 on the JSON endpoint (use `/raw`). */
-export const MAX_JSON_BLOB_BYTES = 1024 * 1024;
+export const MAX_JSON_BLOB_BYTES = 1024 * 1024
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure mapping helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const asOid = (value: string): Oid => value as Oid;
+const asOid = (value: string): Oid => value as Oid
 
 /** Maps the Repo DO's plain metadata onto the REST `Repo` schema class. */
 const toRepo = (meta: RepoMetaData): Repo =>
@@ -93,17 +93,17 @@ const toRepo = (meta: RepoMetaData): Repo =>
     createdAt: meta.createdAt,
     objects: ObjectStats.make(meta.objects),
     lastPush: meta.lastPush === null ? null : PushStats.make(meta.lastPush),
-  });
+  })
 
 /** Maps a DO ref onto the REST `Ref` schema class. */
 const toRef = (ref: RefData): Ref =>
   ref.peeled === undefined
     ? Ref.make({ name: ref.name, oid: asOid(ref.oid) })
     : Ref.make({
-        name: ref.name,
-        oid: asOid(ref.oid),
-        peeled: asOid(ref.peeled),
-      });
+      name: ref.name,
+      oid: asOid(ref.oid),
+      peeled: asOid(ref.peeled),
+    })
 
 /** Maps a DO diff entry onto the REST `DiffEntry` schema class. */
 const toDiffEntry = (entry: DiffEntryData): DiffEntry =>
@@ -116,7 +116,7 @@ const toDiffEntry = (entry: DiffEntryData): DiffEntry =>
     newMode: entry.newMode,
     oldSize: entry.oldSize,
     newSize: entry.newSize,
-  });
+  })
 
 /** Maps a DO pull row onto the REST `Pull` schema class. */
 const toPull = (pull: PullData): Pull =>
@@ -131,7 +131,7 @@ const toPull = (pull: PullData): Pull =>
     updatedAt: pull.updatedAt,
     mergedAt: pull.mergedAt,
     mergeCommit: pull.mergeCommit === null ? null : asOid(pull.mergeCommit),
-  });
+  })
 
 /** Maps a DO pull detail onto the REST `PullDetail` schema class. */
 const toPullDetail = (pull: PullDetailData): PullDetail =>
@@ -153,7 +153,7 @@ const toPullDetail = (pull: PullDetailData): PullDetail =>
     behindBy: pull.behindBy,
     mergeable: pull.mergeable,
     mergeableReason: pull.mergeableReason,
-  });
+  })
 
 /** Maps a DO commit onto the REST `CommitInfo` schema class. */
 const toCommitInfo = (commit: CommitData): CommitInfo =>
@@ -164,7 +164,7 @@ const toCommitInfo = (commit: CommitData): CommitInfo =>
     author: commit.author,
     committer: commit.committer,
     message: commit.message,
-  });
+  })
 
 /**
  * Registry-derived fallback `Repo` for list pages when a Repo DO cannot be
@@ -192,54 +192,54 @@ const registryFallbackRepo = (entry: RegistryEntry): Repo =>
       bytes: 0,
     }),
     lastPush: null,
-  });
+  })
 
-export const makeOperations = Effect.gen(function* () {
-  const registry = yield* RegistryStore;
-  const repos = yield* RepoStore;
+export const makeOperations = effect {
+  const registry = try RegistryStore
+  const repos = try RepoStore
   // The registry block, whichever backend the assembly provided.
-  const registryStub = () => registry;
+  const registryStub = () => registry
 
   // ── owner/name → RegistryEntry, 60 s in-isolate LRU (DESIGN.md §2.1) ──
   // A stale hit fails safe: the Repo DO stores its own (owner, name) and
   // 404s mismatched requests, and cache entries are dropped on delete.
   interface CacheSlot {
-    readonly entry: RegistryEntry;
-    readonly expires: number;
+    readonly entry: RegistryEntry
+    readonly expires: number
   }
-  const resolveCache = new Map<string, CacheSlot>();
+  const resolveCache = new Map<string, CacheSlot>()
 
-  const cacheKey = (owner: string, repo: string) => `${owner.toLowerCase()}/${repo.toLowerCase()}`;
+  const cacheKey = (owner: string, repo: string) => `${owner.toLowerCase()}/${repo.toLowerCase()}`
 
   const dropCached = (owner: string, repo: string) =>
     Effect.sync(() => {
-      resolveCache.delete(cacheKey(owner, repo));
-    });
+      resolveCache.delete(cacheKey(owner, repo))
+    })
 
   const resolveCached = (owner: string, repo: string) =>
-    Effect.gen(function* () {
-      const key = cacheKey(owner, repo);
-      const now = yield* Effect.sync(() => Date.now());
-      const hit = resolveCache.get(key);
-      if (hit !== undefined && hit.expires > now) return hit.entry;
-      const entry = yield* registryStub().resolve(owner, repo);
+    effect {
+      const key = cacheKey(owner, repo)
+      const now = try Effect.sync(() => Date.now())
+      const hit = resolveCache.get(key)
+      if (hit !== undefined && hit.expires > now) return hit.entry
+      const entry = try registryStub().resolve(owner, repo)
       // Rows mid-purge are transient (removed when the purge alarm
       // finishes) — never cache them, or a 60 s stale hit would keep
       // reporting "deleting" after the name has freed.
       if (entry !== undefined && entry.deletedAt === null) {
-        yield* Effect.sync(() => {
+        try Effect.sync(() => {
           if (resolveCache.size >= RESOLVE_CACHE_MAX) {
-            const oldest = resolveCache.keys().next().value;
-            if (oldest !== undefined) resolveCache.delete(oldest);
+            const oldest = resolveCache.keys().next().value
+            if (oldest !== undefined) resolveCache.delete(oldest)
           }
           resolveCache.set(key, {
             entry,
             expires: now + RESOLVE_CACHE_TTL_MS,
-          });
-        });
+          })
+        })
       }
-      return entry;
-    });
+      return entry
+    }
 
   /**
    * Resolve including rows whose async purge is still draining
@@ -252,9 +252,9 @@ export const makeOperations = Effect.gen(function* () {
       Effect.flatMap((entry) =>
         entry === undefined
           ? Effect.fail(RepoNotFound.make({ owner, repo }))
-          : Effect.succeed(entry),
+          : Effect.succeed(entry)
       ),
-    );
+    )
 
   /**
    * Resolve or fail with a typed 404. Rows mid-purge count as gone for
@@ -267,9 +267,9 @@ export const makeOperations = Effect.gen(function* () {
         (entry) => entry.deletedAt === null,
         () => RepoNotFound.make({ owner, repo }),
       ),
-    );
+    )
 
-  const remoteUrl = (owner: string, name: string) => Effect.succeed(`/${owner}/${name}.git`);
+  const remoteUrl = (owner: string, name: string) => Effect.succeed(`/${owner}/${name}.git`)
 
   // Accept decoded fields rather than endpoint metadata so these handlers also
   // work with APIs that add middleware or prefixes.
@@ -284,10 +284,10 @@ export const makeOperations = Effect.gen(function* () {
    * `RepoNotFound`), drop the row, and insert again.
    */
   const insertRepoRow = (input: {
-    readonly owner: string;
-    readonly name: string;
-    readonly description?: string | undefined;
-    readonly public?: boolean | undefined;
+    readonly owner: string
+    readonly name: string
+    readonly description?: string | undefined
+    readonly public?: boolean | undefined
   }) =>
     registryStub()
       .createRepo(input)
@@ -295,46 +295,48 @@ export const makeOperations = Effect.gen(function* () {
         Effect.catchTags({
           StoreError: (error) => Effect.die(error),
           RepoAlreadyExists: (conflict) =>
-            Effect.gen(function* () {
-              const existing = yield* resolveCached(input.owner, input.name).pipe(
+            effect {
+              const existing = try resolveCached(input.owner, input.name).pipe(
                 Effect.catchTag("StoreError", (error) => Effect.die(error)),
-              );
+              )
               if (existing === undefined) {
-                return yield* conflict;
+                return try conflict
               }
-              const orphaned = yield* repos
-                .getByName(existing.repoId)
+              const stub = try Effect.orDie(
+                Effect.try({ try: () => repos.getByName(existing.repoId), catch: (e) => e }),
+              )
+              const orphaned = try stub
                 .readMeta()
                 .pipe(
                   Effect.as(false),
                   Effect.catchTag("RepoNotFound", () => Effect.succeed(true)),
                   Effect.catchCause(() => Effect.succeed(false)),
-                );
+                )
               if (!orphaned) {
-                return yield* conflict;
+                return try conflict
               }
-              yield* registryStub()
+              try registryStub()
                 .removeRow(existing.repoId)
-                .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)));
-              yield* dropCached(input.owner, input.name);
-              return yield* registryStub()
+                .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)))
+              try dropCached(input.owner, input.name)
+              return try registryStub()
                 .createRepo(input)
-                .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)));
-            }),
+                .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)))
+            },
         }),
-      );
+      )
 
   const reposRoutes = {
     create: ({ payload }: Pick<HttpApiEndpoint.Request<typeof CreateRepo>, "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* insertRepoRow({
+      effect {
+        const entry = try insertRepoRow({
           owner: payload.owner,
           name: payload.name,
           description: payload.description,
           public: payload.public,
-        });
-        const init = yield* repos
-          .getByName(entry.repoId)
+        })
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const init = try stub
           .initRepo({
             repoId: entry.repoId,
             owner: entry.owner,
@@ -351,28 +353,28 @@ export const makeOperations = Effect.gen(function* () {
             Effect.onError(() =>
               registryStub()
                 .removeRow(entry.repoId)
-                .pipe(Effect.ignore, Effect.andThen(dropCached(entry.owner, entry.name))),
+                .pipe(Effect.ignore, Effect.andThen(dropCached(entry.owner, entry.name)))
             ),
             Effect.catchTag("StoreError", (error) => Effect.die(error)),
-          );
-        const remote = yield* remoteUrl(entry.owner, entry.name);
+          )
+        const remote = try remoteUrl(entry.owner, entry.name)
         return RepoCreated.make({
           repo: toRepo(init.meta),
           remote,
-        });
-      }),
+        })
+      },
     get: ({ params }: Pick<HttpApiEndpoint.Request<typeof GetRepo>, "params">) =>
-      Effect.gen(function* () {
+      effect {
         // Includes rows mid-purge: GET keeps reporting
         // status "deleting" until the purge alarm frees the name (only
         // then a 404), so "poll GET until 404 then re-create" never
         // races the purge.
-        const entry = yield* resolveIncludingDeleting(params.owner, params.repo);
+        const entry = try resolveIncludingDeleting(params.owner, params.repo)
         if (entry.deletedAt !== null) {
-          return registryFallbackRepo(entry);
+          return registryFallbackRepo(entry)
         }
-        const meta = yield* repos
-          .getByName(entry.repoId)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const meta = try stub
           .getRepoMeta()
           .pipe(
             Effect.catchTags({
@@ -385,17 +387,17 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toRepo(meta);
-      }),
+          )
+        return toRepo(meta)
+      },
     update: ({
       params,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof UpdateRepo>, "params" | "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const meta = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const meta = try stub
           .updateRepoMeta({
             description: payload.description,
             defaultBranch: payload.defaultBranch,
@@ -413,42 +415,42 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toRepo(meta);
-      }),
+          )
+        return toRepo(meta)
+      },
     list: ({ query }: Pick<HttpApiEndpoint.Request<typeof ListRepos>, "query">) =>
-      Effect.gen(function* () {
+      effect {
         // Everything the Registry holds; `public: true` narrows it. Who
         // may list at all was decided in front of the route.
-        const page = yield* registryStub()
+        const page = try registryStub()
           .list({
             owner: query.owner,
             cursor: query.cursor,
             limit: query.limit,
             publicOnly: query.public === true,
           })
-          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)));
+          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)))
         // Rendered straight from the Registry's denormalised columns:
         // listing must NOT wake one Durable Object per row (measured at
         // ~30 ms per row — DESIGN.md §14.1 / §15 bottleneck 7). Live
         // `objects` stats need the DO, so a listing reports zeros and
         // callers who want them read the repo directly.
-        const items = page.items.map(registryFallbackRepo);
+        const items = page.items.map(registryFallbackRepo)
         return {
           items,
           nextCursor: page.nextCursor,
           hasMore: page.hasMore,
-        };
-      }),
+        }
+      },
     delete: ({ params }: Pick<HttpApiEndpoint.Request<typeof DeleteRepo>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveIncludingDeleting(params.owner, params.repo);
+      effect {
+        const entry = try resolveIncludingDeleting(params.owner, params.repo)
         // Always (re-)arm the purge — even when the row is already
         // soft-deleted. A second DELETE mid-drain is an idempotent 204,
         // and re-arming is what recovers a purge whose alarm was lost
         // (crash between markDeleted and the first alarm run).
-        yield* repos
-          .getByName(entry.repoId)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        try stub
           .startPurge()
           .pipe(
             Effect.catchTags({
@@ -462,20 +464,20 @@ export const makeOperations = Effect.gen(function* () {
                   .removeRow(entry.repoId)
                   .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error))),
             }),
-          );
-        yield* registryStub()
+          )
+        try registryStub()
           .markDeleted(entry.repoId)
-          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)));
-        yield* dropCached(params.owner, params.repo);
-      }),
+          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)))
+        try dropCached(params.owner, params.repo)
+      },
     fork: ({
       params,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof ForkRepo>, "params" | "payload">) =>
-      Effect.gen(function* () {
-        const source = yield* resolveOrNotFound(params.owner, params.repo);
-        const sourceMeta = yield* repos
-          .getByName(source.repoId)
+      effect {
+        const source = try resolveOrNotFound(params.owner, params.repo)
+        const sourceStub = try Effect.orDie(Effect.try({ try: () => repos.getByName(source.repoId), catch: (e) => e }))
+        const sourceMeta = try sourceStub
           .readMeta()
           .pipe(
             Effect.catchTags({
@@ -488,11 +490,11 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         if (sourceMeta.status !== "ready") {
-          return yield* RepoNotReady.make({ status: sourceMeta.status });
+          return try RepoNotReady.make({ status: sourceMeta.status })
         }
-        const entry = yield* registryStub()
+        const entry = try registryStub()
           .createRepo({
             owner: payload.targetOwner,
             name: payload.targetName,
@@ -512,9 +514,9 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        const init = yield* repos
-          .getByName(entry.repoId)
+          )
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const init = try stub
           .startFork({
             repoId: entry.repoId,
             owner: entry.owner,
@@ -527,18 +529,18 @@ export const makeOperations = Effect.gen(function* () {
             forkOf: source.repoId,
             parentRepoId: source.repoId,
           })
-          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)));
-        const remote = yield* remoteUrl(entry.owner, entry.name);
+          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)))
+        const remote = try remoteUrl(entry.owner, entry.name)
         return RepoCreated.make({
           repo: toRepo(init.meta),
           remote,
-        });
-      }),
+        })
+      },
     compact: ({ params }: Pick<HttpApiEndpoint.Request<typeof CompactRepo>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        try stub
           .startCompact()
           .pipe(
             Effect.catchTags({
@@ -551,11 +553,11 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-      }),
+          )
+      },
     import: ({ payload }: Pick<HttpApiEndpoint.Request<typeof ImportRepo>, "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* registryStub()
+      effect {
+        const entry = try registryStub()
           .createRepo({
             owner: payload.owner,
             name: payload.name,
@@ -567,9 +569,9 @@ export const makeOperations = Effect.gen(function* () {
               // is an import that can never succeed.
               ValidationError: (error) => Effect.fail(ImportFailed.make({ reason: error.message })),
             }),
-          );
-        const init = yield* repos
-          .getByName(entry.repoId)
+          )
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const init = try stub
           .startImport({
             repoId: entry.repoId,
             owner: entry.owner,
@@ -585,21 +587,21 @@ export const makeOperations = Effect.gen(function* () {
               depth: payload.source.depth,
             },
           })
-          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)));
-        const remote = yield* remoteUrl(entry.owner, entry.name);
+          .pipe(Effect.catchTag("StoreError", (error) => Effect.die(error)))
+        const remote = try remoteUrl(entry.owner, entry.name)
         return RepoCreated.make({
           repo: toRepo(init.meta),
           remote,
-        });
-      }),
-  };
+        })
+      },
+  }
 
   const refsRoutes = {
     list: ({ params, query }: Pick<HttpApiEndpoint.Request<typeof ListRefs>, "params" | "query">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const page = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const page = try stub
           .listRefs(query.prefix)
           .pipe(
             Effect.catchTags({
@@ -612,14 +614,14 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return { head: page.head, refs: page.refs.map(toRef) };
-      }),
+          )
+        return { head: page.head, refs: page.refs.map(toRef) }
+      },
     get: ({ params, query }: Pick<HttpApiEndpoint.Request<typeof GetRef>, "params" | "query">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const ref = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const ref = try stub
           .getRef(query.name)
           .pipe(
             Effect.catchTags({
@@ -632,18 +634,18 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toRef(ref);
-      }),
+          )
+        return toRef(ref)
+      },
     update: ({
       params,
       query,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof UpdateRef>, "params" | "query" | "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const stub = repos.getByName(entry.repoId);
-        const ref = yield* stub
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const ref = try stub
           .updateRef({
             name: query.name,
             newOid: payload.newOid,
@@ -660,18 +662,18 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toRef(ref);
-      }),
+          )
+        return toRef(ref)
+      },
     remove: ({
       params,
       query,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof RemoveRef>, "params" | "query" | "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const stub = repos.getByName(entry.repoId);
-        yield* stub
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        try stub
           .removeRef({
             name: query.name,
             expectedOid: payload.expectedOid,
@@ -687,16 +689,16 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-      }),
-  };
+          )
+      },
+  }
 
   const objectsRoutes = {
     commit: ({ params }: Pick<HttpApiEndpoint.Request<typeof GetCommit>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const data = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const data = try stub
           .readObject({ oid: params.oid, expect: "commit" })
           .pipe(
             Effect.catchTags({
@@ -709,9 +711,9 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         // A stored commit that fails to parse is corrupt — a defect.
-        const parsed = yield* parseCommit(data.content).pipe(Effect.orDie);
+        const parsed = try parseCommit(data.content).pipe(Effect.orDie)
         return CommitInfo.make({
           oid: params.oid,
           tree: asOid(parsed.tree),
@@ -729,13 +731,13 @@ export const makeOperations = Effect.gen(function* () {
             tz: parsed.committer.tz,
           },
           message: parsed.message,
-        });
-      }),
+        })
+      },
     log: ({ params, query }: Pick<HttpApiEndpoint.Request<typeof GetLog>, "params" | "query">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const page = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const page = try stub
           .readCommitLog({
             ref: query.ref,
             cursor: query.cursor,
@@ -752,18 +754,18 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         return {
           items: page.items.map(toCommitInfo),
           nextCursor: page.nextCursor,
           hasMore: page.hasMore,
-        };
-      }),
+        }
+      },
     tree: ({ params }: Pick<HttpApiEndpoint.Request<typeof GetTree>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const data = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const data = try stub
           .readObject({ oid: params.oid, expect: "tree" })
           .pipe(
             Effect.catchTags({
@@ -776,8 +778,8 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        const entries = yield* parseTree(data.content).pipe(Effect.orDie);
+          )
+        const entries = try parseTree(data.content).pipe(Effect.orDie)
         return {
           oid: params.oid,
           entries: entries.map((item) =>
@@ -786,15 +788,15 @@ export const makeOperations = Effect.gen(function* () {
               name: item.name,
               oid: asOid(item.oid),
               type: treeEntryKind(item.mode),
-            }),
+            })
           ),
-        };
-      }),
+        }
+      },
     blob: ({ params }: Pick<HttpApiEndpoint.Request<typeof GetBlob>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const data = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const data = try stub
           .readObject({ oid: params.oid, expect: "blob" })
           .pipe(
             Effect.catchTags({
@@ -807,25 +809,25 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         if (data.size > MAX_JSON_BLOB_BYTES) {
-          return yield* ObjectTooLarge.make({
+          return try ObjectTooLarge.make({
             oid: params.oid,
             size: data.size,
-          });
+          })
         }
         return {
           oid: params.oid,
           size: data.size,
           encoding: "base64" as const,
           content: Base64.encode(data.content),
-        };
-      }),
+        }
+      },
     diff: ({ params }: Pick<HttpApiEndpoint.Request<typeof GetDiff>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const data = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const data = try stub
           .readCommitDiff({ oid: params.oid })
           .pipe(
             Effect.catchTags({
@@ -838,22 +840,22 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         return CommitDiff.make({
           oid: params.oid,
           parent: data.parent === null ? null : asOid(data.parent),
           files: data.files.map(toDiffEntry),
           truncated: data.truncated,
-        });
-      }),
+        })
+      },
     compare: ({
       params,
       query,
     }: Pick<HttpApiEndpoint.Request<typeof Compare>, "params" | "query">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const data = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const data = try stub
           .compareCommits({ base: query.base, head: query.head })
           .pipe(
             Effect.catchTags({
@@ -866,7 +868,7 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         return Comparison.make({
           base: asOid(data.base),
           head: asOid(data.head),
@@ -877,19 +879,19 @@ export const makeOperations = Effect.gen(function* () {
           commitsTruncated: data.commitsTruncated,
           files: data.files.map(toDiffEntry),
           filesTruncated: data.filesTruncated,
-        });
-      }),
-  };
+        })
+      },
+  }
 
   const pullsRoutes = {
     create: ({
       params,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof CreatePull>, "params" | "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const pull = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const pull = try stub
           .createPull({
             title: payload.title,
             body: payload.body,
@@ -907,17 +909,17 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toPull(pull);
-      }),
+          )
+        return toPull(pull)
+      },
     list: ({
       params,
       query,
     }: Pick<HttpApiEndpoint.Request<typeof ListPulls>, "params" | "query">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const page = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const page = try stub
           .listPulls({
             state: query.state,
             cursor: query.cursor,
@@ -934,18 +936,18 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         return {
           items: page.items.map(toPull),
           nextCursor: page.nextCursor,
           hasMore: page.hasMore,
-        };
-      }),
+        }
+      },
     get: ({ params }: Pick<HttpApiEndpoint.Request<typeof GetPull>, "params">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const detail = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const detail = try stub
           .getPull(params.number)
           .pipe(
             Effect.catchTags({
@@ -958,17 +960,17 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toPullDetail(detail);
-      }),
+          )
+        return toPullDetail(detail)
+      },
     update: ({
       params,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof UpdatePull>, "params" | "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const pull = yield* repos
-          .getByName(entry.repoId)
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const pull = try stub
           .updatePull({
             number: params.number,
             title: payload.title,
@@ -986,17 +988,17 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
-        return toPull(pull);
-      }),
+          )
+        return toPull(pull)
+      },
     merge: ({
       params,
       payload,
     }: Pick<HttpApiEndpoint.Request<typeof MergePull>, "params" | "payload">) =>
-      Effect.gen(function* () {
-        const entry = yield* resolveOrNotFound(params.owner, params.repo);
-        const stub = repos.getByName(entry.repoId);
-        const result = yield* stub
+      effect {
+        const entry = try resolveOrNotFound(params.owner, params.repo)
+        const stub = try Effect.orDie(Effect.try({ try: () => repos.getByName(entry.repoId), catch: (e) => e }))
+        const result = try stub
           .mergePull({
             number: params.number,
             message: payload.message,
@@ -1013,14 +1015,14 @@ export const makeOperations = Effect.gen(function* () {
                   }),
                 ),
             }),
-          );
+          )
         return MergeResult.make({
           method: result.method,
           oid: asOid(result.oid),
           pull: toPull(result.pull),
-        });
-      }),
-  };
+        })
+      },
+  }
 
   return {
     repos: reposRoutes,
@@ -1028,11 +1030,11 @@ export const makeOperations = Effect.gen(function* () {
     objects: objectsRoutes,
     pulls: pullsRoutes,
     resolveCached,
-  };
-});
+  }
+}
 /** @internal Shared operations/cache used by the engine and default HTTP adapters. */
 export class Operations extends Context.Service<
   Operations,
   Effect.Success<typeof makeOperations>
 >()("alchemy/Git/Operations") {}
-export const OperationsLive = Layer.effect(Operations, makeOperations);
+export const OperationsLive = Layer.effect(Operations, makeOperations)

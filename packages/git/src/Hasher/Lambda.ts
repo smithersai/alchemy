@@ -15,7 +15,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { hashBounds, resolveDeltas, scanPart } from "../Protocol/PartialScan.vibe";
-import { Hasher, HashError, type HasherShape } from "./Hasher.ts";
+import { Hasher, HashError, type HasherShape } from "./Hasher.vibe";
 import {
   decodeHashResponse,
   encodeHashEvent,

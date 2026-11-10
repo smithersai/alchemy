@@ -38,8 +38,8 @@ export {
   type BlobMultipart,
   type BlobStoreShape,
 } from "./BlobStore.vibe";
-export { BlobStoreR2 } from "./BlobStoreR2.ts";
-export { BlobStoreS3 } from "./BlobStoreS3.ts";
+export { BlobStoreR2 } from "./BlobStoreR2.vibe";
+export { BlobStoreS3 } from "./BlobStoreS3.vibe";
 export { RegistryD1 } from "./RegistryD1.vibe";
 export {
   GitRepo,
@@ -62,4 +62,4 @@ export {
   RESERVED_OWNERS,
 } from "./RegistryObject.ts";
 
-export { Hasher, HasherInline, HasherSelf, HASHER_BINDING } from "./Hasher/Hasher.ts";
+export { Hasher, HasherInline, HasherSelf, HASHER_BINDING } from "./Hasher/Hasher.vibe";
