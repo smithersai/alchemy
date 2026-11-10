@@ -1,4 +1,4 @@
-export * from "./Bundle.ts";
+export * from "./Bundle.vibe";
 export * from "./BundleAnalyzerPlugin.ts";
 export * from "./InstalledPackages.ts";
 export * from "./NamespaceImportPlugin.ts";

@@ -9,7 +9,7 @@ import * as Schema from "effect/Schema";
 import { parseAllDocuments, parse as parseYaml } from "yaml";
 import { exec } from "../Util/exec.vibe";
 import { sha256, sha256Object } from "../Util/sha256.vibe";
-import { BundleError } from "./Bundle.ts";
+import { BundleError } from "./Bundle.vibe";
 
 export interface InstalledPackageFile {
   readonly path: string;

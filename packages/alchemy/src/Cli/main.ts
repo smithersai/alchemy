@@ -69,7 +69,7 @@ const loadContributions = () =>
 const loadCommand = async (name: CommandName) => {
   switch (name) {
     case "provider":
-      return (await import("./commands/provider.ts")).providerCommand(await loadContributions());
+      return (await import("./commands/provider.vibe")).providerCommand(await loadContributions());
     case "deploy":
       return (await import("./commands/deploy.vibe")).deployCommand;
     case "dev":
