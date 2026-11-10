@@ -1,57 +1,47 @@
-import * as Cause from "effect/Cause";
-import type { ConfigError } from "effect/Config";
-import * as Data from "effect/Data";
-import * as Deferred from "effect/Deferred";
-import * as Effect from "effect/Effect";
-import * as Formatter from "effect/Formatter";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import type { PlatformError } from "effect/PlatformError";
-import * as Predicate from "effect/Predicate";
-import type { Simplify } from "effect/Types";
-import type { ActionLike } from "./Action.vibe";
-import { makeResolveContext } from "./ActionRuntimeContext.vibe";
-import {
-  OwnedBySomeoneElse,
-  stripUnowned,
-  Unowned,
-  Unresolved,
-  UnverifiableReplacement,
-} from "./AdoptPolicy.vibe";
-import { AlchemyContext } from "./AlchemyContext.vibe";
+import * as Cause from "effect/Cause"
+import type { ConfigError } from "effect/Config"
+import * as Data from "effect/Data"
+import * as Deferred from "effect/Deferred"
+import * as Effect from "effect/Effect"
+import * as Formatter from "effect/Formatter"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import type { PlatformError } from "effect/PlatformError"
+import * as Predicate from "effect/Predicate"
+import type { Simplify } from "effect/Types"
+import type { ActionLike } from "./Action.vibe"
+import { makeResolveContext } from "./ActionRuntimeContext.vibe"
+import { OwnedBySomeoneElse, stripUnowned, Unowned, Unresolved, UnverifiableReplacement } from "./AdoptPolicy.vibe"
+import { AlchemyContext } from "./AlchemyContext.vibe"
 import {
   Artifacts,
   ArtifactStore,
   createArtifactStore,
   ensureArtifactStore,
   makeScopedArtifacts,
-} from "./Artifacts.vibe";
-import type { AuthError, NeedsReauth } from "./Auth/AuthProvider.vibe";
-import {
-  type CredentialsRequired,
-  failCredentialsRequired,
-  demandPlanCredentials,
-} from "./Auth/Demand.vibe";
-import { havePropsChanged, isResolved, stripEffects, stripUnresolved } from "./Diff.ts";
-import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.vibe";
-import type { Input } from "./Input.vibe";
-import { generateInstanceId } from "./InstanceId.vibe";
-import * as Output from "./Output.ts";
-import { type ActionApply, type Apply, type Delete, type Plan } from "./Plan.ts";
+} from "./Artifacts.vibe"
+import type { AuthError, NeedsReauth } from "./Auth/AuthProvider.vibe"
+import { type CredentialsRequired, failCredentialsRequired, demandPlanCredentials } from "./Auth/Demand.vibe"
+import { havePropsChanged, isResolved, stripEffects, stripUnresolved } from "./Diff.ts"
+import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.vibe"
+import type { Input } from "./Input.vibe"
+import { generateInstanceId } from "./InstanceId.vibe"
+import * as Output from "./Output.ts"
+import { type ActionApply, type Apply, type Delete, type Plan } from "./Plan.ts"
 import {
   type DeleteInProgress,
   type ProviderService,
   findProviderByType,
   missingProviderError,
   tryFindProviderByType,
-} from "./Provider.ts";
-import { stampedMode, type ProviderMode } from "./ProviderMode.vibe";
-import { resourceSession } from "./Report.vibe";
-import type { ResourceBinding } from "./Resource.ts";
-import { ResourceContext } from "./ResourceContext.vibe";
-import { RuntimeContext } from "./RuntimeContext.vibe";
-import { Stack } from "./Stack.ts";
-import { Stage } from "./Stage.ts";
+} from "./Provider.ts"
+import { stampedMode, type ProviderMode } from "./ProviderMode.vibe"
+import { resourceSession } from "./Report.vibe"
+import type { ResourceBinding } from "./Resource.ts"
+import { ResourceContext } from "./ResourceContext.vibe"
+import { RuntimeContext } from "./RuntimeContext.vibe"
+import { Stack } from "./Stack.ts"
+import { Stage } from "./Stage.ts"
 import {
   type ActionState,
   type CreatedResourceState,
@@ -69,28 +59,27 @@ import {
   type UpdatingReourceState,
   State,
   StateStoreError,
-} from "./State/index.ts";
-import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.vibe";
-import { LogAnnotation } from "./Util/LogAnnotation.ts";
-import { hashInput } from "./Util/sha256.vibe";
+} from "./State/index.ts"
+import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.vibe"
+import { LogAnnotation } from "./Util/LogAnnotation.ts"
+import { hashInput } from "./Util/sha256.vibe"
 
 export type AppliedPlan<P extends Plan> = {
-  [id in keyof P["resources"]]: P["resources"][id] extends Delete | undefined
-    ? never
-    : Simplify<P["resources"][id]["resource"]["attr"]>;
-};
+  [id in keyof P["resources"]]: P["resources"][id] extends Delete | undefined ? never
+    : Simplify<P["resources"][id]["resource"]["attr"]>
+}
 
 /**
  * Where the engine reports apply progress. Every event goes out as a log
  * record; renderers observe them with `onEvent`.
  */
-type Reporter = (event: ApplyEvent) => Effect.Effect<void>;
+type Reporter = (event: ApplyEvent) => Effect.Effect<void>
 
 interface ResourceTracker {
-  output: any;
-  props: any;
-  bindings: ResourceBinding[];
-  instanceId: string;
+  output: any
+  props: any
+  bindings: ResourceBinding[]
+  instanceId: string
 }
 
 /**
@@ -105,9 +94,9 @@ const track = (
   fqn: string,
   entry: ResourceTracker,
 ) => {
-  tracker[fqn] = entry;
-  outputs[fqn] = entry.output;
-};
+  tracker[fqn] = entry
+  outputs[fqn] = entry.output
+}
 
 /**
  * Whether an attr-less checkpoint lost props to `stripUnresolved`. Its stored
@@ -121,29 +110,35 @@ const track = (
  * would mark every create of such a resource and orphan it on interruption.
  */
 const propsIncomplete = (value: {
-  attr?: unknown;
-  props?: unknown;
-  propsIncomplete?: true;
+  attr?: unknown
+  props?: unknown
+  propsIncomplete?: true
 }): true | undefined =>
   value.attr === undefined && (value.propsIncomplete || !isResolved(stripEffects(value.props)))
     ? true
-    : undefined;
+    : undefined
 
-const provideLifecycleScope =
-  (resource: ResourceContext["Service"]) =>
-  <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    Effect.serviceOption(ArtifactStore).pipe(
-      Effect.map(Option.getOrElse(createArtifactStore)),
-      Effect.flatMap((store) =>
-        effect.pipe(
-          failCredentialsRequired(resource.fqn),
+const provideLifecycleScope = (resource: ResourceContext["Service"]) => <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.serviceOption(ArtifactStore).pipe(
+    Effect.map(Option.getOrElse(createArtifactStore)),
+    Effect.flatMap((store) =>
+      effect {
+        const requireCredentials = try Effect.orDie(
+          Effect.try({ try: () => failCredentialsRequired(resource.fqn), catch: (e) => e }),
+        )
+        const artifacts = try Effect.orDie(
+          Effect.try({ try: () => makeScopedArtifacts(store, resource.fqn), catch: (e) => e }),
+        )
+        return try effect.pipe(
+          requireCredentials,
           Effect.provide([
-            Layer.succeed(Artifacts, makeScopedArtifacts(store, resource.fqn)),
+            Layer.succeed(Artifacts, artifacts),
             Layer.succeed(ResourceContext, resource),
           ]),
-        ),
-      ),
-    );
+        )
+      }
+    ),
+  )
 
 /**
  * Instruments a single provider lifecycle call with an OTel span
@@ -172,14 +167,14 @@ const instrumentLifecycle =
           "alchemy.resource.op": op,
         },
       }),
-    );
+    )
 
 type AdmissionNode = {
-  provider: Pick<ProviderService<any>, "observe" | "read">;
-  props: any;
-  deferredAdoption?: { adopt: boolean };
-  resource: { Type: string };
-};
+  provider: Pick<ProviderService<any>, "observe" | "read">
+  props: any
+  deferredAdoption?: { adopt: boolean }
+  resource: { Type: string }
+}
 
 /**
  * A dependency cycle precreates on raw props, before `read` can check
@@ -189,38 +184,40 @@ type AdmissionNode = {
  * identity has not resolved yet reports it `unresolved`, so the engine must
  * check the resolved identity before reconcile claims it.
  */
-const observeBeforePrecreate = Effect.fn(function* (
+const observeBeforePrecreate = effect (
   node: AdmissionNode,
   news: any,
   fqn: string,
   logicalId: string,
   instanceId: string,
   previous?: any,
-) {
+) => {
   if (node.provider.observe === undefined || node.deferredAdoption === undefined) {
-    return "unchecked" as const;
+    return "unchecked" as const
   }
-  const observed = yield* node.provider
+  const observed = try node.provider
     .observe({ id: logicalId, fqn, instanceId, news, previous })
-    .pipe(instrumentLifecycle("observe", fqn, node.resource.Type, logicalId, instanceId));
-  if (observed === Unresolved) return "unresolved" as const;
-  if (observed !== undefined && Unowned.is(observed) && !node.deferredAdoption.adopt) {
-    return yield* new OwnedBySomeoneElse({
-      message:
-        `Cannot pre-create resource '${fqn}' (${node.resource.Type}): ` +
-        "it exists in the cloud but is not owned by this " +
-        "stack/stage/logical-id. Re-run with `--adopt` (or " +
-        "wrap the effect in `adopt(true)`) to take it over.",
+    .pipe(instrumentLifecycle("observe", fqn, node.resource.Type, logicalId, instanceId))
+  if (observed === Unresolved) return "unresolved" as const
+  if (
+    observed !== undefined && (try Effect.orDie(Effect.try({ try: () => Unowned.is(observed), catch: (e) => e })))
+    && !node.deferredAdoption.adopt
+  ) {
+    return try new OwnedBySomeoneElse({
+      message: `Cannot pre-create resource '${fqn}' (${node.resource.Type}): `
+        + "it exists in the cloud but is not owned by this "
+        + "stack/stage/logical-id. Re-run with `--adopt` (or "
+        + "wrap the effect in `adopt(true)`) to take it over.",
       resourceType: node.resource.Type,
       logicalId,
-    });
+    })
   }
-  return "admitted" as const;
-});
+  return "admitted" as const
+}
 
 /** A provider's `observe` reported `Unresolved` for fully resolved props. */
 class UnresolvedObservation extends Data.TaggedError("UnresolvedObservation")<{
-  message: string;
+  message: string
 }> {}
 
 /**
@@ -228,35 +225,36 @@ class UnresolvedObservation extends Data.TaggedError("UnresolvedObservation")<{
  * when the provider implements it, `observe` otherwise. A replacement passes
  * its `previous` generation's attributes, so the provider can recognize it.
  */
-const observeResolved = Effect.fn(function* (
+const observeResolved = effect (
   node: AdmissionNode,
   news: Record<string, any>,
   fqn: string,
   logicalId: string,
   instanceId: string,
   previous?: any,
-) {
+) => {
   if (node.provider.read) {
-    return yield* node.provider
+    return try node.provider
       .read({ id: logicalId, fqn, instanceId, olds: news, output: undefined, previous })
-      .pipe(instrumentLifecycle("read", fqn, node.resource.Type, logicalId, instanceId));
+      .pipe(instrumentLifecycle("read", fqn, node.resource.Type, logicalId, instanceId))
   }
-  const observed = yield* node.provider.observe!({
+  const observed = try node.provider.observe!({
     id: logicalId,
     fqn,
     instanceId,
     news,
     previous,
-  }).pipe(instrumentLifecycle("observe", fqn, node.resource.Type, logicalId, instanceId));
+  }).pipe(instrumentLifecycle("observe", fqn, node.resource.Type, logicalId, instanceId))
   if (observed === Unresolved) {
-    return yield* Effect.die(
+    return try Effect.die(
       new UnresolvedObservation({
-        message: `The provider for '${fqn}' (${node.resource.Type}) reported its identity as Unresolved, but its props are resolved.`,
+        message:
+          `The provider for '${fqn}' (${node.resource.Type}) reported its identity as Unresolved, but its props are resolved.`,
       }),
-    );
+    )
   }
-  return observed;
-});
+  return observed
+}
 
 export const apply = <P extends Plan>(
   plan: P,
@@ -273,7 +271,7 @@ export const apply = <P extends Plan>(
   | ConfigError,
   State | Stack | Stage
 > =>
-  Effect.gen(function* () {
+  effect {
     // Credential-free dev: a dev-mode plan that needs the real cloud
     // (`Alchemy.remote()` rows, remote-proxied bindings, deletions of rows
     // stamped `providerMode: "live"`) demands cloud credentials exactly
@@ -283,39 +281,39 @@ export const apply = <P extends Plan>(
     // in Deploy/Destroy) because `apply` is the single choke point every
     // path shares — CLI deploy/destroy, `Test.make` deploys, and
     // `test.provider` scratch stacks. See `Auth/Demand.ts`.
-    const alchemy = yield* Effect.serviceOption(AlchemyContext);
+    const alchemy = try Effect.serviceOption(AlchemyContext)
     if (Option.isSome(alchemy) && alchemy.value.dev) {
-      yield* demandPlanCredentials(plan);
+      try demandPlanCredentials(plan)
     }
 
-    const emitEvent = yield* captureEmit;
+    const emitEvent = try captureEmit
     // The last status each resource announced, so the post-convergence
     // flush below re-emits only what is still unannounced (cycle members).
-    const announced = new Map<string, ApplyStatus>();
+    const announced = new Map<string, ApplyStatus>()
     const reportEvent: Reporter = (event) => {
-      if (event.type === "apply.resource.status") announced.set(event.fqn, event.status);
-      return emitEvent(event);
-    };
+      if (event.type === "apply.resource.status") announced.set(event.fqn, event.status)
+      return emitEvent(event)
+    }
     // No Effect.scoped around apply: local dev providers start long-running
     // processes in the AMBIENT scope during reconcile, which a scope here
     // would kill when apply returns.
-    const state = yield* yield* State;
-    const stack = yield* Stack;
-    const stage = yield* Stage;
-    const stackName = stack.name;
+    const state = try try State
+    const stack = try Stack
+    const stage = try Stage
+    const stackName = stack.name
 
-    const tracker: Record<string, ResourceTracker> = {};
-    const outputs: Record<string, any> = {};
+    const tracker: Record<string, ResourceTracker> = {}
+    const outputs: Record<string, any> = {}
     const terminalStatuses = new Map<
       string,
       {
-        fqn: string;
-        id: string;
-        type: string;
-        status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">;
-        providerMode?: ProviderMode;
+        fqn: string
+        id: string
+        type: string
+        status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">
+        providerMode?: ProviderMode
       }
-    >();
+    >()
 
     // ── FQN migrations (renamedFrom) ──
     // Persist renames before any lifecycle operation runs: a node whose row
@@ -335,26 +333,26 @@ export const apply = <P extends Plan>(
       Object.values(plan.resources)
         .filter((node) => node.renamedFrom?.length && node.state !== undefined)
         .map((node) => node.resource.FQN),
-    );
-    yield* Effect.forEach(
+    )
+    try Effect.forEach(
       Object.values(plan.resources),
       (node) => {
-        const { renamedFrom, state: row } = node;
+        const { renamedFrom, state: row } = node
         return renamedFrom === undefined || renamedFrom.length === 0 || row === undefined
           ? Effect.void
-          : Effect.gen(function* () {
-              yield* state.set({ stack: stackName, stage, fqn: node.resource.FQN, value: row });
-              yield* Effect.forEach(
-                renamedFrom.filter((formerFqn) => !migrationTargets.has(formerFqn)),
-                (formerFqn) => state.delete({ stack: stackName, stage, fqn: formerFqn }),
-                { concurrency: "unbounded" },
-              );
-            });
+          : effect {
+            try state.set({ stack: stackName, stage, fqn: node.resource.FQN, value: row })
+            try Effect.forEach(
+              renamedFrom.filter((formerFqn) => !migrationTargets.has(formerFqn)),
+              (formerFqn) => state.delete({ stack: stackName, stage, fqn: formerFqn }),
+              { concurrency: "unbounded" },
+            )
+          }
       },
       { concurrency: "unbounded" },
-    );
+    )
 
-    yield* executePlan(
+    try executePlan(
       plan,
       tracker,
       outputs,
@@ -363,19 +361,19 @@ export const apply = <P extends Plan>(
       state,
       stackName,
       stage,
-    );
+    )
 
     // TODO(sam): support roll back to previous state if errors occur during expansion
     // -> RISK: some UPDATEs may not be reversible (i.e. trigger replacements)
     // TODO(sam): should pivot be done separately? E.g shift traffic?
 
-    yield* collectGarbage(plan, reportEvent);
+    try collectGarbage(plan, reportEvent)
 
-    yield* converge(plan, tracker, outputs, terminalStatuses, reportEvent, state, stackName, stage);
+    try converge(plan, tracker, outputs, terminalStatuses, reportEvent, state, stackName, stage)
 
     // Cycle members hold their terminal status until `converge` settles
     // it; everything else announced it as it finished.
-    yield* Effect.forEach(
+    try Effect.forEach(
       Array.from(terminalStatuses.values()).filter(
         ({ fqn, status }) => announced.get(fqn) !== status,
       ),
@@ -389,7 +387,7 @@ export const apply = <P extends Plan>(
           providerMode,
         }),
       { concurrency: "unbounded" },
-    );
+    )
 
     if (plan.destroy) {
       // The destroy converged: every resource row was deleted above. Drop
@@ -397,38 +395,37 @@ export const apply = <P extends Plan>(
       // record written by the last deploy — so `getOutput` returns
       // undefined and `listStages` no longer reports the stage.
       // https://github.com/alchemy-run/alchemy/issues/961
-      yield* state.deleteStack({ stack: stackName, stage });
+      try state.deleteStack({ stack: stackName, stage })
       // Invariant: a successful destroy leaves the stage EMPTY. If rows
       // survive, this destroy session could not actually see (or delete)
       // the stack's state — e.g. its plan listed an empty store while
       // committed rows existed — and reporting success here would silently
       // leak every cloud resource those rows track. Fail loudly instead so
       // the leak surfaces in the run that caused it.
-      const remaining = yield* state.list({ stack: stackName, stage });
+      const remaining = try state.list({ stack: stackName, stage })
       if (remaining.length > 0) {
-        return yield* new StateStoreError({
-          message:
-            `destroy of ${stackName}/${stage} reported success but ${remaining.length} ` +
-            `state row(s) remain (${remaining.join(", ")}) — the destroy session could ` +
-            `not see the stack's persisted state, so its cloud resources were NOT deleted`,
-        });
+        return try new StateStoreError({
+          message: `destroy of ${stackName}/${stage} reported success but ${remaining.length} `
+            + `state row(s) remain (${remaining.join(", ")}) — the destroy session could `
+            + `not see the stack's persisted state, so its cloud resources were NOT deleted`,
+        })
       }
-      return undefined;
+      return undefined
     }
 
     if (plan.selectedFqns !== undefined || !plan.output) {
-      return undefined;
+      return undefined
     }
 
-    const resolved = yield* Output.evaluate(plan.output, outputs);
+    const resolved = try Output.evaluate(plan.output, outputs)
 
     // Persist the stack's evaluated outputs so cross-stack references
     // (`yield* OtherStack` / `OtherStack.stage.<name>` / `Output.stackRef`)
     // can read them back out of the state store.
-    yield* state.setOutput({ stack: stackName, stage, value: resolved });
+    try state.setOutput({ stack: stackName, stage, value: resolved })
 
-    return resolved;
-  }).pipe(
+    return resolved
+  }.pipe(
     ensureArtifactStore,
     Effect.withSpan("apply", {
       attributes: {
@@ -436,7 +433,7 @@ export const apply = <P extends Plan>(
         "alchemy.deletions.count": Object.keys(plan.deletions).length,
       },
     }),
-  );
+  )
 
 // ── Phase 1: concurrent initial execution ──────────────────────────────────
 //
@@ -445,52 +442,48 @@ export const apply = <P extends Plan>(
 // downstream resources can resolve stable identifiers without deadlocking.
 // The actual output lives in the mutable `tracker` map, not in the Deferred.
 
-const executePlan = Effect.fn(function* (
+const executePlan = effect (
   plan: Plan,
   tracker: Record<string, ResourceTracker>,
   outputs: Record<string, any>,
   terminalStatuses: Map<
     string,
     {
-      fqn: string;
-      id: string;
-      type: string;
-      status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">;
-      providerMode?: ProviderMode;
+      fqn: string
+      id: string
+      type: string
+      status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">
+      providerMode?: ProviderMode
     }
   >,
   reportEvent: Reporter,
   state: {
     set: <V extends PersistedState>(req: {
-      stack: string;
-      stage: string;
-      fqn: string;
-      value: V;
-    }) => Effect.Effect<V, StateStoreError, never>;
+      stack: string
+      stage: string
+      fqn: string
+      value: V
+    }) => Effect.Effect<V, StateStoreError, never>
   },
   stackName: string,
   stage: string,
-) {
+) => {
   // Resources and tasks share the same FQN namespace and DAG, so the
   // scheduler tracks them together. Each entry gets a single Deferred that
   // signals "my output is available in `tracker`."
-  const allNodes: Record<string, Apply | ActionApply> = { ...plan.resources, ...plan.actions };
+  const allNodes: Record<string, Apply | ActionApply> = { ...plan.resources, ...plan.actions }
 
   const ready = Object.fromEntries(
-    yield* Effect.forEach(Object.keys(allNodes), (fqn) =>
-      Effect.map(Deferred.make<void>(), (d) => [fqn, d] as const),
-    ),
-  ) as Record<string, Deferred.Deferred<void>>;
+    try Effect.forEach(Object.keys(allNodes), (fqn) => Effect.map(Deferred.make<void>(), (d) => [fqn, d] as const)),
+  ) as Record<string, Deferred.Deferred<void>>
 
   // `readyStable` fires only when a node has reached its TERMINAL output —
   // resources after `reconcile`, tasks after the body completes. Resource
   // precreate stubs do NOT signal `readyStable`, so any consumer that
   // requires stable inputs (e.g. Tasks) waits past the precreate phase.
   const readyStable = Object.fromEntries(
-    yield* Effect.forEach(Object.keys(allNodes), (fqn) =>
-      Effect.map(Deferred.make<void>(), (d) => [fqn, d] as const),
-    ),
-  ) as Record<string, Deferred.Deferred<void>>;
+    try Effect.forEach(Object.keys(allNodes), (fqn) => Effect.map(Deferred.make<void>(), (d) => [fqn, d] as const)),
+  ) as Record<string, Deferred.Deferred<void>>
 
   const waitForDeps = (downstreamFqn: string, fqns: string[]) =>
     Effect.forEach(
@@ -515,68 +508,68 @@ const executePlan = Effect.fn(function* (
           ? Deferred.await(ready[fqn])
           : Deferred.await(readyStable[fqn]),
       { concurrency: "unbounded" },
-    );
+    )
 
   const waitForStableDeps = (fqns: string[]) =>
     Effect.forEach(
       fqns.filter((fqn) => fqn in readyStable),
       (fqn) => Deferred.await(readyStable[fqn]),
       { concurrency: "unbounded" },
-    );
+    )
 
-  const failures: LifecycleFailure[] = [];
+  const failures: LifecycleFailure[] = []
 
-  yield* Effect.forEach(
+  try Effect.forEach(
     Object.entries(allNodes),
     ([fqn, node]) =>
       (node as ActionApply).kind === "action"
         ? executeActionNode(
-            fqn,
-            node as ActionApply,
-            tracker,
-            outputs,
-            ready,
-            readyStable,
-            terminalStatuses,
-            reportEvent,
-            state,
-            stackName,
-            stage,
-            waitForStableDeps,
-            failures,
-          )
+          fqn,
+          node as ActionApply,
+          tracker,
+          outputs,
+          ready,
+          readyStable,
+          terminalStatuses,
+          reportEvent,
+          state,
+          stackName,
+          stage,
+          waitForStableDeps,
+          failures,
+        )
         : executeNode(
-            fqn,
-            node as Apply,
-            tracker,
-            outputs,
-            ready,
-            readyStable,
-            terminalStatuses as any,
-            reportEvent,
-            state,
-            stackName,
-            stage,
-            (fqns) => waitForDeps(fqn, fqns),
-            failures,
-            plan.cycleMembers,
-          ),
+          fqn,
+          node as Apply,
+          tracker,
+          outputs,
+          ready,
+          readyStable,
+          terminalStatuses as any,
+          reportEvent,
+          state,
+          stackName,
+          stage,
+          (fqns) => waitForDeps(fqn, fqns),
+          failures,
+          plan.cycleMembers,
+        ),
     { concurrency: "unbounded" },
-  );
+  )
 
   if (failures.length > 0) {
     // Aggregate every collected lifecycle failure into a single parallel Cause
     // so the apply ends with one combined error containing every distinct
     // failure / defect that occurred across the concurrent fibers.
-    return yield* Effect.failCause(failures.map((f) => f.cause).reduce(Cause.combine));
+    return try Effect.failCause(failures.map((f) => f.cause).reduce(Cause.combine))
   }
-});
+}
 
 interface LifecycleFailure {
-  fqn: string;
-  logicalId: string;
-  type: string;
-  cause: Cause.Cause<unknown>;
+  fqn: string
+  logicalId: string
+  type: string
+  cause: Cause.Cause<unknown>
 }
 
 /**
@@ -592,24 +585,22 @@ const failureMessage = (cause: Cause.Cause<unknown>): string | undefined => {
     const error = Cause.isFailReason(reason)
       ? reason.error
       : Cause.isDieReason(reason)
-        ? reason.defect
-        : undefined;
-    if (error === undefined) continue;
-    const tag =
-      Predicate.hasProperty(error, "_tag") && typeof error._tag === "string"
-        ? error._tag
-        : undefined;
-    const message =
-      Predicate.hasProperty(error, "message") && typeof error.message === "string"
-        ? error.message
-        : typeof error === "string"
-          ? error
-          : Formatter.format(error);
-    const line = message.split("\n", 1)[0]!;
-    return tag !== undefined && !line.includes(tag) ? `${tag}: ${line}` : line;
+      ? reason.defect
+      : undefined
+    if (error === undefined) continue
+    const tag = Predicate.hasProperty(error, "_tag") && typeof error._tag === "string"
+      ? error._tag
+      : undefined
+    const message = Predicate.hasProperty(error, "message") && typeof error.message === "string"
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : Formatter.format(error)
+    const line = message.split("\n", 1)[0]!
+    return tag !== undefined && !line.includes(tag) ? `${tag}: ${line}` : line
   }
-  return undefined;
-};
+  return undefined
+}
 
 const executeNode = (
   fqn: string,
@@ -621,21 +612,21 @@ const executeNode = (
   terminalStatuses: Map<
     string,
     {
-      fqn: string;
-      id: string;
-      type: string;
-      status: Extract<ApplyStatus, "created" | "updated" | "adopted">;
-      providerMode?: ProviderMode;
+      fqn: string
+      id: string
+      type: string
+      status: Extract<ApplyStatus, "created" | "updated" | "adopted">
+      providerMode?: ProviderMode
     }
   >,
   reportEvent: Reporter,
   state: {
     set: <V extends ResourceState>(req: {
-      stack: string;
-      stage: string;
-      fqn: string;
-      value: V;
-    }) => Effect.Effect<V, StateStoreError, never>;
+      stack: string
+      stage: string
+      fqn: string
+      value: V
+    }) => Effect.Effect<V, StateStoreError, never>
   },
   stackName: string,
   stage: string,
@@ -643,50 +634,60 @@ const executeNode = (
   failures: LifecycleFailure[],
   cycleMembers: ReadonlySet<string>,
 ): Effect.Effect<void, never, never> =>
-  Effect.gen(function* () {
-    const inCycle = cycleMembers.has(fqn);
-    const logicalId = node.resource.LogicalId;
-    const namespace = node.resource.Namespace;
+  effect {
+    const inCycle = cycleMembers.has(fqn)
+    const logicalId = node.resource.LogicalId
+    const namespace = node.resource.Namespace
 
     const commit = <S extends ResourceState>(value: Omit<S, "namespace">) =>
-      state.set({
-        stack: stackName,
-        stage,
-        fqn,
-        // Early commits (`creating`/`replacing`) persist plan props that may
-        // still hold unresolved Output exprs; strip them so state stores only
-        // plain data (see stripUnresolved in Diff.ts).
-        //
-        // Binding rows follow the same rule. Even the RESOLVED binding
-        // payload can carry Effect leaves — a tagged Worker/Function class in
-        // `env` (the circular-bindings pattern) is a function-typed Effect
-        // that `Output.evaluate` passes through untouched. A JSON state store
-        // would persist it via its `toJSON` as an `{"_id":"Effect",...}`
-        // relic, which the next plan's `diffBindings` compares against the
-        // live class stripped to `undefined` — a phantom binding "update" on
-        // every deploy, forever. Stripping at the commit boundary keeps both
-        // store kinds consistent with the comparison in `havePropsChanged`.
-        value: {
-          ...value,
-          adoptionBlocked: value.adoptionBlocked ?? node.adoptionBlocked,
-          propsIncomplete: propsIncomplete(value),
-          props: stripUnresolved(value.props),
-          bindings: stripUnresolved(value.bindings),
-          namespace,
-        } as S,
-      });
+      effect {
+        const incomplete = propsIncomplete(value)
+        const props = try Effect.orDie(
+          Effect.try({ try: () => stripUnresolved(value.props), catch: (e) => e }),
+        )
+        const bindings = try Effect.orDie(
+          Effect.try({ try: () => stripUnresolved(value.bindings), catch: (e) => e }),
+        )
+        return try state.set({
+          stack: stackName,
+          stage,
+          fqn,
+          // Early commits (`creating`/`replacing`) persist plan props that may
+          // still hold unresolved Output exprs; strip them so state stores only
+          // plain data (see stripUnresolved in Diff.ts).
+          //
+          // Binding rows follow the same rule. Even the RESOLVED binding
+          // payload can carry Effect leaves — a tagged Worker/Function class in
+          // `env` (the circular-bindings pattern) is a function-typed Effect
+          // that `Output.evaluate` passes through untouched. A JSON state store
+          // would persist it via its `toJSON` as an `{"_id":"Effect",...}`
+          // relic, which the next plan's `diffBindings` compares against the
+          // live class stripped to `undefined` — a phantom binding "update" on
+          // every deploy, forever. Stripping at the commit boundary keeps both
+          // store kinds consistent with the comparison in `havePropsChanged`.
+          value: {
+            ...value,
+            adoptionBlocked: value.adoptionBlocked ?? node.adoptionBlocked,
+            propsIncomplete: incomplete,
+            props,
+            bindings,
+            namespace,
+          } as S,
+        })
+      }
 
-    const scopedSession = resourceSession(reportEvent, fqn, logicalId);
+    const scopedSession = try Effect.orDie(
+      Effect.try({ try: () => resourceSession(reportEvent, fqn, logicalId), catch: (e) => e }),
+    )
 
     // On a mode-switch replacement (local ⇄ live) surface the transition:
     // the old generation's stamped mode → the mode resolved for this run.
-    const fromProviderMode =
-      node.action === "replace" &&
-      node.mode !== undefined &&
-      node.state.providerMode !== undefined &&
-      node.state.providerMode !== node.mode
-        ? node.state.providerMode
-        : undefined;
+    const fromProviderMode = node.action === "replace"
+        && node.mode !== undefined
+        && node.state.providerMode !== undefined
+        && node.state.providerMode !== node.mode
+      ? node.state.providerMode
+      : undefined
 
     const report = (status: ApplyStatus) =>
       reportEvent({
@@ -697,25 +698,25 @@ const executeNode = (
         status,
         providerMode: node.mode,
         fromProviderMode,
-      });
+      })
 
     const markTerminal = (status: "created" | "updated") =>
-      Effect.gen(function* () {
+      effect {
         terminalStatuses.set(fqn, {
           fqn,
           id: logicalId,
           type: node.resource.Type,
           status,
           providerMode: node.mode,
-        });
+        })
         // A local dev instance announces where it's serving: any
         // local-mode row whose fresh Attributes carry a string `url`
         // (Workers expose their dev-proxy URL this way) gets a
         // `[id] ready at http://localhost:1337` line.
         if (node.mode === "local") {
-          const url = (tracker[fqn]?.output as { url?: unknown })?.url;
+          const url = (tracker[fqn]?.output as { url?: unknown })?.url
           if (typeof url === "string" && url.length > 0) {
-            yield* scopedSession.note(`ready at ${url}`);
+            try scopedSession.note(`ready at ${url}`)
           }
         }
         // Emit immediately so the CLI surfaces the terminal status as soon
@@ -730,28 +731,28 @@ const executeNode = (
         // would surface that intermediate state to the CLI before the real
         // terminal status is known. Their final status is flushed from
         // `terminalStatuses` after `converge` completes.
-        if (inCycle) return;
-        yield* reportEvent({
+        if (inCycle) return
+        try reportEvent({
           type: "apply.resource.status",
           fqn,
           id: logicalId,
           resourceType: node.resource.Type,
           status,
           providerMode: node.mode,
-        });
-      });
+        })
+      }
 
-    const signalReady = Deferred.succeed(ready[fqn], void 0);
+    const signalReady = Deferred.succeed(ready[fqn], void 0)
     // Signal only after reconcile completes — never during precreate. Tasks
     // (and any other consumer that calls `waitForStableDeps`) block on this
     // so they observe the resource's final attrs rather than a stub.
-    const signalReadyStable = Deferred.succeed(readyStable[fqn], void 0);
+    const signalReadyStable = Deferred.succeed(readyStable[fqn], void 0)
 
     const storeAndSignal = (t: ResourceTracker) =>
-      Effect.gen(function* () {
-        track(tracker, outputs, fqn, t);
-        yield* signalReady;
-      });
+      effect {
+        track(tracker, outputs, fqn, t)
+        try signalReady
+      }
 
     // ── noop ──
 
@@ -776,63 +777,63 @@ const executeNode = (
       //    persisted `downstream` of the resource being deleted, so without
       //    this commit a later destroy deletes B concurrently with the
       //    dependent that still references it (and needlessly waits on A).
-      const policyChanged = node.state.removalPolicy !== node.resource.RemovalPolicy;
-      const downstreamChanged = !sameSet(node.state.downstream ?? [], node.downstream);
+      const policyChanged = node.state.removalPolicy !== node.resource.RemovalPolicy
+      const downstreamChanged = !sameSet(node.state.downstream ?? [], node.downstream)
       if (node.state.resourceType !== node.resource.Type || policyChanged || downstreamChanged) {
-        yield* commit({
+        try commit({
           ...node.state,
           resourceType: node.resource.Type,
           removalPolicy: node.resource.RemovalPolicy,
           downstream: node.downstream,
-        });
+        })
       }
       // A policy flip is otherwise invisible (the row is a noop), and it is
       // exactly the change a user wants confirmation of. Legacy rows with no
       // persisted policy normalize silently — there is nothing to report.
       if (policyChanged && node.state.removalPolicy !== undefined) {
-        yield* scopedSession.note(
+        try scopedSession.note(
           `removal policy ${node.state.removalPolicy} → ${node.resource.RemovalPolicy}`,
-        );
+        )
       }
-      yield* storeAndSignal({
+      try storeAndSignal({
         output: node.state.attr,
         props: node.state.props,
         bindings: node.state.bindings ?? [],
         instanceId: node.state.instanceId,
-      });
-      yield* signalReadyStable;
-      return;
+      })
+      try signalReadyStable
+      return
     }
 
     const allUpstreamFqns = () => {
-      const propDeps = Object.keys(Output.resolveUpstream(node.props));
-      const bindingDeps = Object.keys(Output.resolveUpstream(node.bindings));
-      return [...new Set([...propDeps, ...bindingDeps])];
-    };
+      const propDeps = Object.keys(Output.resolveUpstream(node.props))
+      const bindingDeps = Object.keys(Output.resolveUpstream(node.bindings))
+      return [...new Set([...propDeps, ...bindingDeps])]
+    }
 
     // A cycle precreates before its peers reconcile. An upstream outside the
     // cycle cannot depend on it, so wait for those upstreams and resolve the
     // props they determine: only values derived from cycle peers stay
     // unresolved when precreate and `observe` run.
-    const resolvePrecreateProps = Effect.gen(function* () {
-      const outside = allUpstreamFqns().filter((upstream) => !cycleMembers.has(upstream));
-      yield* waitForDeps(outside);
-      return yield* Output.evaluateAvailable(
+    const resolvePrecreateProps = effect {
+      const outside = allUpstreamFqns().filter((upstream) => !cycleMembers.has(upstream))
+      try waitForDeps(outside)
+      return try Output.evaluateAvailable(
         node.props,
         Object.fromEntries(
           outside
             .filter((upstream) => Object.hasOwn(outputs, upstream))
             .map((upstream) => [upstream, outputs[upstream]]),
         ),
-      );
-    });
+      )
+    }
 
     // ── instance ID ──
 
-    const resolveInstanceId = Effect.gen(function* () {
+    const resolveInstanceId = effect {
       if (node.action === "create" && !node.state?.instanceId) {
-        const id = yield* generateInstanceId();
-        yield* commit<CreatingResourceState>({
+        const id = try generateInstanceId()
+        try commit<CreatingResourceState>({
           status: "creating",
           fqn,
           logicalId,
@@ -845,19 +846,19 @@ const executeNode = (
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
           adoptionBlocked: node.adoptionBlocked,
-        });
-        return id;
+        })
+        return id
       } else if (node.action === "replace") {
         if (
-          (node.state.status === "replaced" || node.state.status === "replacing") &&
-          !node.restart
+          (node.state.status === "replaced" || node.state.status === "replacing")
+          && !node.restart
         ) {
           // Ordinary replacement recovery keeps using the same replacement
           // generation. Only `restart` is allowed to mint a new instance id.
-          return node.state.instanceId;
+          return node.state.instanceId
         }
-        const id = yield* generateInstanceId();
-        yield* commit<ReplacingResourceState>({
+        const id = try generateInstanceId()
+        try commit<ReplacingResourceState>({
           status: "replacing",
           fqn,
           logicalId,
@@ -871,16 +872,16 @@ const executeNode = (
           deleteFirst: node.deleteFirst,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
-        });
-        return id;
+        })
+        return id
       } else if (node.state?.instanceId) {
-        return node.state.instanceId;
+        return node.state.instanceId
       }
-      return yield* Effect.die(
+      return try Effect.die(
         `Instance ID not found for resource '${logicalId}' and action is '${node.action}'`,
-      );
-    });
-    const instanceId = yield* resolveInstanceId;
+      )
+    }
+    const instanceId = try resolveInstanceId
 
     // ── lifecycle ──
 
@@ -890,7 +891,7 @@ const executeNode = (
         // First persistence point for a brand new logical resource. Once this is
         // written, retries know they should resume creation instead of planning
         // another fresh create from scratch.
-        yield* commit<CreatingResourceState>({
+        try commit<CreatingResourceState>({
           status: "creating",
           fqn,
           logicalId,
@@ -904,17 +905,17 @@ const executeNode = (
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
           adoptionBlocked: node.adoptionBlocked,
-        });
+        })
       }
 
-      let attr: any = node.state?.attr;
+      let attr: any = node.state?.attr
       // Whether the identity reconcile claims has passed the ownership check.
-      let admitted = node.deferredAdoption === undefined;
+      let admitted = node.deferredAdoption === undefined
 
       if (attr !== undefined) {
         // Precreate/read may already have produced a usable output snapshot. Publish
         // it early so downstream resources can start resolving against it.
-        yield* storeAndSignal({ output: attr, props: {}, bindings: [], instanceId });
+        try storeAndSignal({ output: attr, props: {}, bindings: [], instanceId })
       }
 
       // Only cycle peers rendezvous on a precreate stub (`waitForDeps`); every
@@ -923,14 +924,13 @@ const executeNode = (
       // Durable Object classes are empty) can serve traffic while the real
       // version propagates.
       if (inCycle && node.provider.precreate && attr === undefined) {
-        const props = yield* resolvePrecreateProps;
+        const props = try resolvePrecreateProps
         // Without `observe`, precreate and reconcile claim the identity unchecked.
-        admitted =
-          (yield* observeBeforePrecreate(node, props, fqn, logicalId, instanceId)) !== "unresolved";
+        admitted = (try observeBeforePrecreate(node, props, fqn, logicalId, instanceId)) !== "unresolved"
         // Some resources need a placeholder physical resource before their real
         // create can finish. Persist that stub so downstream evaluation can proceed.
-        yield* report("pre-creating");
-        attr = yield* node.provider
+        try report("pre-creating")
+        attr = try node.provider
           .precreate({
             id: logicalId,
             fqn,
@@ -939,8 +939,8 @@ const executeNode = (
             instanceId,
             bindings: excludeDeletedBindings(node.bindings),
           })
-          .pipe(instrumentLifecycle("precreate", fqn, node.resource.Type, logicalId, instanceId));
-        yield* commit<CreatingResourceState>({
+          .pipe(instrumentLifecycle("precreate", fqn, node.resource.Type, logicalId, instanceId))
+        try commit<CreatingResourceState>({
           status: "creating",
           fqn,
           logicalId,
@@ -956,24 +956,24 @@ const executeNode = (
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
           adoptionBlocked: node.adoptionBlocked,
-        });
-        yield* storeAndSignal({ output: attr, props: {}, bindings: [], instanceId });
+        })
+        try storeAndSignal({ output: attr, props: {}, bindings: [], instanceId })
       }
 
       // While we're waiting on upstream outputs the resource isn't actually
       // creating anything yet — surface that as "pending" so the CLI doesn't
       // look stuck in "creating" for slow-upstream deploys.
-      yield* report("pending");
+      try report("pending")
 
       // Create runs against fully resolved upstream outputs and bindings, not the
       // raw Output expressions stored in the plan.
-      yield* waitForDeps(allUpstreamFqns());
+      try waitForDeps(allUpstreamFqns())
 
-      yield* report("creating");
+      try report("creating")
 
-      const news = (yield* Output.evaluate(node.props, outputs)) as Record<string, any>;
+      const news = (try Output.evaluate(node.props, outputs)) as Record<string, any>
 
-      const bindingOutputs = excludeDeletedBindings(yield* Output.evaluate(node.bindings, outputs));
+      const bindingOutputs = excludeDeletedBindings(try Output.evaluate(node.bindings, outputs))
 
       if (!admitted) {
         const checkpoint = (attr: any) =>
@@ -991,31 +991,35 @@ const executeNode = (
             removalPolicy: node.resource.RemovalPolicy,
             providerMode: node.mode,
             adoptionBlocked: node.adoptionBlocked,
-          });
+          })
         // Refusal or interruption must retain identity, never foreign
         // attributes, nor a stub for an identity not yet checked.
-        yield* checkpoint(undefined);
-        const observed = yield* observeResolved(node, news, fqn, logicalId, instanceId);
+        try checkpoint(undefined)
+        const observed = try observeResolved(node, news, fqn, logicalId, instanceId)
         if (observed !== undefined) {
-          if (Unowned.is(observed) && !node.deferredAdoption?.adopt) {
-            return yield* new OwnedBySomeoneElse({
-              message:
-                `Cannot adopt resource '${fqn}' (${node.resource.Type}): ` +
-                "it exists in the cloud but is not owned by this " +
-                "stack/stage/logical-id. Re-run with `--adopt` (or " +
-                "wrap the effect in `adopt(true)`) to take it over.",
+          if (
+            (try Effect.orDie(Effect.try({ try: () => Unowned.is(observed), catch: (e) => e })))
+            && !node.deferredAdoption?.adopt
+          ) {
+            return try new OwnedBySomeoneElse({
+              message: `Cannot adopt resource '${fqn}' (${node.resource.Type}): `
+                + "it exists in the cloud but is not owned by this "
+                + "stack/stage/logical-id. Re-run with `--adopt` (or "
+                + "wrap the effect in `adopt(true)`) to take it over.",
               resourceType: node.resource.Type,
               logicalId,
-            });
+            })
           }
           // Reconcile keeps a precreated stub as its output.
-          attr ??= stripUnowned(observed);
+          attr ??= try Effect.orDie(
+            Effect.try({ try: () => stripUnowned(observed), catch: (e) => e }),
+          )
           // A creating checkpoint retains olds: undefined on retry.
-          yield* checkpoint(attr);
+          try checkpoint(attr)
         }
       }
 
-      attr = yield* node.provider
+      attr = try node.provider
         .reconcile({
           id: logicalId,
           fqn,
@@ -1026,9 +1030,9 @@ const executeNode = (
           olds: undefined,
           output: attr,
         })
-        .pipe(instrumentLifecycle("create", fqn, node.resource.Type, logicalId, instanceId));
+        .pipe(instrumentLifecycle("create", fqn, node.resource.Type, logicalId, instanceId))
 
-      yield* commit<CreatedResourceState>({
+      try commit<CreatedResourceState>({
         status: "created",
         fqn,
         logicalId,
@@ -1048,19 +1052,19 @@ const executeNode = (
         downstream: node.downstream,
         removalPolicy: node.resource.RemovalPolicy,
         providerMode: node.mode,
-      });
+      })
 
       track(tracker, outputs, fqn, {
         output: attr,
         props: news,
         bindings: bindingOutputs,
         instanceId,
-      });
-      yield* signalReady;
-      yield* signalReadyStable;
+      })
+      try signalReady
+      try signalReadyStable
 
-      yield* markTerminal("created");
-      return;
+      try markTerminal("created")
+      return
     }
 
     // ── update ──
@@ -1078,67 +1082,66 @@ const executeNode = (
       // destructive intermediate updates (e.g. a Worker deploying with
       // stale Build assets).
       if (inCycle) {
-        yield* storeAndSignal({
+        try storeAndSignal({
           output: node.state.attr,
           props: node.state.props,
           bindings: node.state.bindings ?? [],
           instanceId,
-        });
+        })
       }
 
       // See create-flow note: while we're waiting on upstream outputs
       // this resource isn't actually updating yet.
-      yield* report("pending");
-      yield* waitForDeps(allUpstreamFqns());
+      try report("pending")
+      try waitForDeps(allUpstreamFqns())
 
-      const news = (yield* Output.evaluate(node.props, outputs)) as Record<string, any>;
-      const adopting =
-        node.adopting === true ||
-        (node.state.status === "updating" && node.state.adopting === true);
+      const news = (try Output.evaluate(node.props, outputs)) as Record<string, any>
+      const adopting = node.adopting === true
+        || (node.state.status === "updating" && node.state.adopting === true)
 
-      yield* node.state.status === "replaced"
+      try (node.state.status === "replaced"
         ? commit<ReplacedResourceState>({
-            // Keep the replacement wrapper intact while changing the live
-            // replacement props; GC still has older generations to delete.
-            ...node.state,
-            attr: node.state.attr,
-            props: news,
-            providerMode: node.mode,
-          })
+          // Keep the replacement wrapper intact while changing the live
+          // replacement props; GC still has older generations to delete.
+          ...node.state,
+          attr: node.state.attr,
+          props: news,
+          providerMode: node.mode,
+        })
         : commit<UpdatingReourceState>({
-            // For ordinary updates we snapshot the previously stable props/attrs
-            // once, so retries can continue from the same baseline.
-            status: "updating",
-            fqn,
-            logicalId,
-            instanceId,
-            resourceType: node.resource.Type,
-            props: news,
-            attr: node.state.attr,
-            providerVersion: node.provider.version ?? 0,
-            bindings: excludeDeletedBindings(node.bindings),
-            downstream: node.downstream,
-            old: node.state.status === "updating" ? node.state.old : node.state,
-            adopting: adopting ? true : undefined,
-            removalPolicy: node.resource.RemovalPolicy,
-            providerMode: node.mode,
-          });
+          // For ordinary updates we snapshot the previously stable props/attrs
+          // once, so retries can continue from the same baseline.
+          status: "updating",
+          fqn,
+          logicalId,
+          instanceId,
+          resourceType: node.resource.Type,
+          props: news,
+          attr: node.state.attr,
+          providerVersion: node.provider.version ?? 0,
+          bindings: excludeDeletedBindings(node.bindings),
+          downstream: node.downstream,
+          old: node.state.status === "updating" ? node.state.old : node.state,
+          adopting: adopting ? true : undefined,
+          removalPolicy: node.resource.RemovalPolicy,
+          providerMode: node.mode,
+        }))
 
-      yield* report(node.action === "adopted" ? "adopting" : "updating");
+      try report(node.action === "adopted" ? "adopting" : "updating")
 
       const previousProps = adopting
         ? undefined
-        : node.state.status === "created" ||
-            node.state.status === "updated" ||
-            node.state.status === "replaced"
-          ? node.state.props
-          : node.state.old.props;
+        : node.state.status === "created"
+            || node.state.status === "updated"
+            || node.state.status === "replaced"
+        ? node.state.props
+        : node.state.old.props
 
       // Providers receive the resolved binding payload for this exact pass, while
       // `previousProps` tells them what state the live resource is being updated from.
-      const bindingOutputs = excludeDeletedBindings(yield* Output.evaluate(node.bindings, outputs));
+      const bindingOutputs = excludeDeletedBindings(try Output.evaluate(node.bindings, outputs))
 
-      const attr = yield* node.provider
+      const attr = try node.provider
         .reconcile({
           id: logicalId,
           fqn,
@@ -1149,10 +1152,10 @@ const executeNode = (
           olds: previousProps,
           output: node.state.attr,
         })
-        .pipe(instrumentLifecycle("update", fqn, node.resource.Type, logicalId, instanceId));
+        .pipe(instrumentLifecycle("update", fqn, node.resource.Type, logicalId, instanceId))
 
       if (node.state.status === "replaced") {
-        yield* commit<ReplacedResourceState>({
+        try commit<ReplacedResourceState>({
           // The live replacement changed, but cleanup of older generations still
           // has to continue afterwards.
           ...node.state,
@@ -1161,9 +1164,9 @@ const executeNode = (
           // Resolved payload, not raw `node.bindings` — see create commit.
           bindings: bindingOutputs,
           providerMode: node.mode,
-        });
+        })
       } else {
-        yield* commit<UpdatedResourceState>({
+        try commit<UpdatedResourceState>({
           status: "updated",
           fqn,
           logicalId,
@@ -1177,7 +1180,7 @@ const executeNode = (
           downstream: node.downstream,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
-        });
+        })
       }
 
       track(tracker, outputs, fqn, {
@@ -1185,12 +1188,12 @@ const executeNode = (
         props: news,
         bindings: bindingOutputs,
         instanceId,
-      });
+      })
       // Signal here for the linear (non-cycle) path. For in-cycle updates
       // the deferred has already been resolved by the early `storeAndSignal`
       // above and `signalReady` is a no-op the second time.
-      yield* signalReady;
-      yield* signalReadyStable;
+      try signalReady
+      try signalReadyStable
 
       if (node.action === "adopted") {
         terminalStatuses.set(fqn, {
@@ -1199,12 +1202,12 @@ const executeNode = (
           type: node.resource.Type,
           status: "adopted",
           providerMode: node.mode,
-        });
-        if (!inCycle) yield* report("adopted");
+        })
+        if (!inCycle) try report("adopted")
       } else {
-        yield* markTerminal("updated");
+        try markTerminal("updated")
       }
-      return;
+      return
     }
 
     // ── replace ──
@@ -1217,18 +1220,18 @@ const executeNode = (
           props: node.state.props,
           bindings: node.state.bindings ?? [],
           instanceId,
-        });
-        yield* signalReady;
-        yield* signalReadyStable;
-        yield* markTerminal("created");
-        return;
+        })
+        try signalReady
+        try signalReadyStable
+        try markTerminal("created")
+        return
       }
 
-      let replState: ReplacingResourceState;
+      let replState: ReplacingResourceState
       if (node.state.status !== "replacing" || node.restart) {
         // `restart` deliberately nests the previous top-level replacement state
         // into `old`, creating a new outer generation to replace it.
-        replState = yield* commit<ReplacingResourceState>({
+        replState = try commit<ReplacingResourceState>({
           status: "replacing",
           fqn,
           logicalId,
@@ -1243,10 +1246,10 @@ const executeNode = (
           downstream: node.downstream,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
-        });
+        })
       } else {
         // Resume the same replacement generation after an interrupted apply.
-        replState = node.state;
+        replState = node.state
       }
 
       // ── delete-first replacements ──
@@ -1267,8 +1270,8 @@ const executeNode = (
       const deleteOldGenerations = (
         old: ReplacementOldResourceState,
       ): Effect.Effect<void, any, any> =>
-        Effect.gen(function* () {
-          const retain = node.resource.RemovalPolicy === "retain";
+        effect {
+          const retain = node.resource.RemovalPolicy === "retain"
           if (old.attr !== undefined && !retain) {
             // Delete each old generation with the provider variant of the
             // mode that created it — after a local ⇄ live switch,
@@ -1276,8 +1279,11 @@ const executeNode = (
             // runtime's instance. Unstamped rows (legacy or written by a
             // mode-agnostic provider) are physically live, unless their
             // attrs carry the `dev:` identity marker — see stampedMode.
-            const oldProvider = yield* findProviderByType(node.resource.Type, stampedMode(old));
-            yield* oldProvider
+            const oldProvider = try findProviderByType(
+              node.resource.Type,
+              try Effect.orDie(Effect.try({ try: () => stampedMode(old), catch: (e) => e })),
+            )
+            try oldProvider
               .delete({
                 id: logicalId,
                 fqn,
@@ -1289,21 +1295,21 @@ const executeNode = (
               })
               .pipe(
                 instrumentLifecycle("delete", fqn, node.resource.Type, logicalId, old.instanceId),
-              );
+              )
           }
           if (old.status === "replacing" || old.status === "replaced") {
-            yield* deleteOldGenerations(old.old);
+            try deleteOldGenerations(old.old)
           }
-        });
+        }
 
-      const deleteFirst = Effect.fn(function* () {
-        yield* scopedSession.note(
+      const deleteFirst = effect () => {
+        try scopedSession.note(
           "Deleting previous resource before creating its replacement (deleteFirst)...",
-        );
-        yield* deleteOldGenerations(replState.old);
-      });
+        )
+        try deleteOldGenerations(replState.old)
+      }
 
-      let attr: any = replState.attr;
+      let attr: any = replState.attr
 
       // ── replacement admission ──
       //
@@ -1313,41 +1319,50 @@ const executeNode = (
       // precreate, reconcile, and delete-first cleanup of the previous
       // generation — and refuse an unowned target unless adoption is allowed,
       // exactly like a fresh create.
-      let admitted = attr !== undefined || node.deferredAdoption === undefined;
-      const admit = Effect.fn(function* (props: Record<string, any>) {
-        admitted = true;
-        const observed = yield* observeResolved(
+      let admitted = attr !== undefined || node.deferredAdoption === undefined
+      const admit = effect (props: Record<string, any>) => {
+        admitted = true
+        const observed = try observeResolved(
           node,
           props,
           fqn,
           logicalId,
           instanceId,
           replState.old?.attr,
-        );
-        if (observed === undefined) return;
-        if (Unowned.is(observed) && !node.deferredAdoption?.adopt) {
-          return yield* new OwnedBySomeoneElse({
-            message:
-              `Cannot replace resource '${fqn}' (${node.resource.Type}): ` +
-              "its replacement exists in the cloud but is not owned by this " +
-              "stack/stage/logical-id. Re-run with `--adopt` (or " +
-              "wrap the effect in `adopt(true)`) to take it over.",
+        )
+        if (observed === undefined) return
+        if (
+          (try Effect.orDie(Effect.try({ try: () => Unowned.is(observed), catch: (e) => e })))
+          && !node.deferredAdoption?.adopt
+        ) {
+          return try new OwnedBySomeoneElse({
+            message: `Cannot replace resource '${fqn}' (${node.resource.Type}): `
+              + "its replacement exists in the cloud but is not owned by this "
+              + "stack/stage/logical-id. Re-run with `--adopt` (or "
+              + "wrap the effect in `adopt(true)`) to take it over.",
             resourceType: node.resource.Type,
             logicalId,
-          });
+          })
         }
         // A delete-first target may be the previous generation itself, which
         // is about to be deleted — never hand its attributes to reconcile.
         // Reconcile keeps a precreated stub as its output.
-        if (!node.deleteFirst) attr ??= stripUnowned(observed);
-      });
+        if (!node.deleteFirst) {
+          attr ??= try Effect.orDie(Effect.try({ try: () => stripUnowned(observed), catch: (e) => e }))
+        }
+      }
 
       // A cycle precreates on the props its upstreams outside the cycle
       // determine; anything else waits for every upstream.
-      const precreateProps = inCycle ? yield* resolvePrecreateProps : node.props;
+      const precreateProps = inCycle ? try resolvePrecreateProps : node.props
 
-      if (!admitted && isResolved(precreateProps)) {
-        yield* admit(precreateProps);
+      if (!admitted) {
+        const precreatePropsResolved = try Effect.orDie(
+          Effect.try({ try: () => isResolved(precreateProps), catch: (e) => e }),
+        )
+        if (precreatePropsResolved) {
+          try admit(precreateProps)
+        }
       }
 
       // A cycle precreates before its props resolve, so `observe` admits the
@@ -1355,26 +1370,25 @@ const executeNode = (
       // `observe`, precreate and reconcile claim it unchecked. An unresolved
       // identity is admitted once it resolves, before reconcile.
       if (!admitted && inCycle) {
-        const observation = yield* observeBeforePrecreate(
+        const observation = try observeBeforePrecreate(
           node,
           precreateProps,
           fqn,
           logicalId,
           instanceId,
           replState.old?.attr,
-        );
-        admitted = observation !== "unresolved";
+        )
+        admitted = observation !== "unresolved"
         if (!admitted && node.deleteFirst && !node.deferredAdoption?.adopt) {
-          return yield* new UnverifiableReplacement({
-            message:
-              `Cannot replace resource '${fqn}' (${node.resource.Type}): ` +
-              "it must be deleted before its replacement is pre-created, but " +
-              "the replacement's identity depends on outputs that are not " +
-              "resolved yet, so its ownership cannot be checked first. Re-run " +
-              "with `--adopt` (or wrap the effect in `adopt(true)`) to replace it anyway.",
+          return try new UnverifiableReplacement({
+            message: `Cannot replace resource '${fqn}' (${node.resource.Type}): `
+              + "it must be deleted before its replacement is pre-created, but "
+              + "the replacement's identity depends on outputs that are not "
+              + "resolved yet, so its ownership cannot be checked first. Re-run "
+              + "with `--adopt` (or wrap the effect in `adopt(true)`) to replace it anyway.",
             resourceType: node.resource.Type,
             logicalId,
-          });
+          })
         }
       }
 
@@ -1383,21 +1397,21 @@ const executeNode = (
       // without `observe`; the check above refuses an unresolved one.
       // Otherwise the previous generation survives until reconcile is
       // about to run, so a failed upstream never leaves the resource missing.
-      let deletedFirst = false;
+      let deletedFirst = false
       if (node.deleteFirst && inCycle) {
-        yield* deleteFirst();
-        deletedFirst = true;
+        try deleteFirst()
+        deletedFirst = true
       }
 
       if (attr !== undefined) {
         // If precreate already ran, expose that intermediate output immediately so
         // downstream resources can resolve against the same in-flight replacement.
-        yield* storeAndSignal({ output: attr, props: {}, bindings: [], instanceId });
+        try storeAndSignal({ output: attr, props: {}, bindings: [], instanceId })
       }
 
       if (inCycle && node.provider.precreate && attr === undefined) {
-        yield* report("pre-creating");
-        attr = yield* node.provider
+        try report("pre-creating")
+        attr = try node.provider
           .precreate({
             id: logicalId,
             fqn,
@@ -1406,8 +1420,8 @@ const executeNode = (
             instanceId,
             bindings: excludeDeletedBindings(node.bindings),
           })
-          .pipe(instrumentLifecycle("precreate", fqn, node.resource.Type, logicalId, instanceId));
-        yield* commit<ReplacingResourceState>({
+          .pipe(instrumentLifecycle("precreate", fqn, node.resource.Type, logicalId, instanceId))
+        try commit<ReplacingResourceState>({
           status: "replacing",
           fqn,
           logicalId,
@@ -1424,32 +1438,32 @@ const executeNode = (
           deleteFirst: node.deleteFirst,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
-        });
-        yield* storeAndSignal({ output: attr, props: {}, bindings: [], instanceId });
+        })
+        try storeAndSignal({ output: attr, props: {}, bindings: [], instanceId })
       }
 
       // See create-flow note: while we're waiting on upstream outputs
       // the replacement isn't actually being created yet.
-      yield* report("pending");
+      try report("pending")
 
       // Replacement create is evaluated exactly like create, but against the new
       // generation's instance id and with the previous generations preserved in `old`.
-      yield* waitForDeps(allUpstreamFqns());
+      try waitForDeps(allUpstreamFqns())
 
-      yield* report("creating replacement");
+      try report("creating replacement")
 
-      const news = (yield* Output.evaluate(node.props, outputs)) as Record<string, any>;
+      const news = (try Output.evaluate(node.props, outputs)) as Record<string, any>
 
-      const bindingOutputs = excludeDeletedBindings(yield* Output.evaluate(node.bindings, outputs));
+      const bindingOutputs = excludeDeletedBindings(try Output.evaluate(node.bindings, outputs))
 
       if (!admitted) {
-        yield* admit(news);
+        try admit(news)
       }
       if (node.deleteFirst && !deletedFirst) {
-        yield* deleteFirst();
+        try deleteFirst()
       }
 
-      attr = yield* node.provider
+      attr = try node.provider
         .reconcile({
           id: logicalId,
           fqn,
@@ -1460,13 +1474,13 @@ const executeNode = (
           olds: undefined,
           output: attr,
         })
-        .pipe(instrumentLifecycle("create", fqn, node.resource.Type, logicalId, instanceId));
+        .pipe(instrumentLifecycle("create", fqn, node.resource.Type, logicalId, instanceId))
 
       if (node.deleteFirst) {
         // The old generation(s) were already torn down above, so there is
         // nothing left for `collectGarbage` to drain — collapse straight to
         // the terminal `created` state.
-        yield* commit<CreatedResourceState>({
+        try commit<CreatedResourceState>({
           status: "created",
           fqn,
           logicalId,
@@ -1480,9 +1494,9 @@ const executeNode = (
           downstream: node.downstream,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
-        });
+        })
       } else {
-        yield* commit<ReplacedResourceState>({
+        try commit<ReplacedResourceState>({
           // Creation of the new generation succeeded; from here on the only remaining
           // work is draining the old chain via garbage collection.
           status: "replaced",
@@ -1502,7 +1516,7 @@ const executeNode = (
           deleteFirst: node.deleteFirst,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
-        });
+        })
       }
 
       track(tracker, outputs, fqn, {
@@ -1510,29 +1524,29 @@ const executeNode = (
         props: news,
         bindings: bindingOutputs,
         instanceId,
-      });
-      yield* signalReady;
-      yield* signalReadyStable;
+      })
+      try signalReady
+      try signalReadyStable
 
       // Keep progress anchored to the live replacement while GC drains the
       // previous generation(s) in the background.
-      yield* markTerminal("created");
-      return;
+      try markTerminal("created")
+      return
     }
 
-    return yield* Effect.die(`Unknown action: ${(node as { action: string }).action}`);
-  }).pipe(
+    return try Effect.die(`Unknown action: ${(node as { action: string }).action}`)
+  }.pipe(
     Effect.catchCause((cause) =>
       // Record the failure, propagate it to any downstream resources waiting on
       // our Deferred (so their waitForDeps short-circuits instead of deadlocking),
       // emit a "fail" status, and resolve to void so Effect.all
       // does not interrupt sibling fibers. The aggregated cause is raised at
       // the end of executePlan.
-      Effect.gen(function* () {
-        failures.push({ fqn, logicalId: node.resource.LogicalId, type: node.resource.Type, cause });
-        yield* Deferred.failCause(ready[fqn], cause as Cause.Cause<never>);
-        yield* Deferred.failCause(readyStable[fqn], cause as Cause.Cause<never>);
-        yield* reportEvent({
+      effect {
+        failures.push({ fqn, logicalId: node.resource.LogicalId, type: node.resource.Type, cause })
+        try Deferred.failCause(ready[fqn], cause as Cause.Cause<never>)
+        try Deferred.failCause(readyStable[fqn], cause as Cause.Cause<never>)
+        try reportEvent({
           type: "apply.resource.status",
           fqn,
           id: node.resource.LogicalId,
@@ -1540,8 +1554,8 @@ const executeNode = (
           status: "fail",
           message: failureMessage(cause),
           providerMode: node.mode,
-        });
-      }),
+        })
+      }
     ),
     Effect.withSpan("apply.resource", {
       attributes: {
@@ -1551,7 +1565,7 @@ const executeNode = (
         "alchemy.resource.action": node.action,
       },
     }),
-  ) as Effect.Effect<void, never, never>;
+  ) as Effect.Effect<void, never, never>
 
 // ── Task execution ─────────────────────────────────────────────────────────
 //
@@ -1565,19 +1579,19 @@ const executeNode = (
  * during init against the current tracker and exposing them to the body through
  * the resolve {@link RuntimeContext}. See {@link makeCaptureContext}.
  */
-const runAction = Effect.fn("apply.runAction")(function* (
+const runAction = Effect.fn("apply.runAction")(effect (
   task: ActionLike,
   input: any,
   outputs: Record<string, any>,
-) {
-  const resolved: Record<string, unknown> = {};
+) => {
+  const resolved: Record<string, unknown> = {}
   for (const [key, output] of Object.entries(task.Captures)) {
-    resolved[key] = yield* Output.evaluate(output, outputs);
+    resolved[key] = try Output.evaluate(output, outputs)
   }
-  return yield* task
+  return try task
     .Run(input)
-    .pipe(Effect.provideService(RuntimeContext, makeResolveContext(resolved)));
-});
+    .pipe(Effect.provideService(RuntimeContext, makeResolveContext(resolved)))
+})
 
 const executeActionNode = (
   fqn: string,
@@ -1589,34 +1603,34 @@ const executeActionNode = (
   terminalStatuses: Map<
     string,
     {
-      fqn: string;
-      id: string;
-      type: string;
-      status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">;
-      providerMode?: ProviderMode;
+      fqn: string
+      id: string
+      type: string
+      status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">
+      providerMode?: ProviderMode
     }
   >,
   reportEvent: Reporter,
   state: {
     set: <V extends PersistedState>(req: {
-      stack: string;
-      stage: string;
-      fqn: string;
-      value: V;
-    }) => Effect.Effect<V, StateStoreError, never>;
+      stack: string
+      stage: string
+      fqn: string
+      value: V
+    }) => Effect.Effect<V, StateStoreError, never>
   },
   stackName: string,
   stage: string,
   waitForDeps: (fqns: string[]) => Effect.Effect<void[], never, never>,
   failures: LifecycleFailure[],
 ): Effect.Effect<void, never, any> =>
-  Effect.gen(function* () {
-    const task = node.def;
-    const logicalId = task.LogicalId;
-    const namespace = task.Namespace;
+  effect {
+    const task = node.def
+    const logicalId = task.LogicalId
+    const namespace = task.Namespace
 
     const commit = <S extends ActionState>(value: Omit<S, "namespace">) =>
-      state.set({ stack: stackName, stage, fqn, value: { ...value, namespace } as S });
+      state.set({ stack: stackName, stage, fqn, value: { ...value, namespace } as S })
 
     const report = (status: ApplyStatus) =>
       reportEvent({
@@ -1625,30 +1639,30 @@ const executeActionNode = (
         id: logicalId,
         resourceType: task.Type,
         status,
-      });
+      })
 
-    const signalReady = Deferred.succeed(ready[fqn], void 0);
-    const signalReadyStable = Deferred.succeed(readyStable[fqn], void 0);
+    const signalReady = Deferred.succeed(ready[fqn], void 0)
+    const signalReadyStable = Deferred.succeed(readyStable[fqn], void 0)
 
     const skip = (state: RanActionState) =>
-      Effect.gen(function* () {
+      effect {
         if (!sameSet(state.downstream ?? [], node.downstream)) {
-          yield* commit<RanActionState>({ ...state, downstream: node.downstream });
+          try commit<RanActionState>({ ...state, downstream: node.downstream })
         }
         track(tracker, outputs, fqn, {
           output: state.output,
           props: { __input: state.input },
           bindings: [],
           instanceId: fqn,
-        });
-        yield* signalReady;
-        yield* signalReadyStable;
-        terminalStatuses.set(fqn, { fqn, id: logicalId, type: task.Type, status: "skipped" });
-        yield* report("skipped");
-      });
+        })
+        try signalReady
+        try signalReadyStable
+        terminalStatuses.set(fqn, { fqn, id: logicalId, type: task.Type, status: "skipped" })
+        try report("skipped")
+      }
 
     if (node.action === "noop") {
-      return yield* skip(node.state);
+      return try skip(node.state)
     }
 
     // ── run ──
@@ -1656,25 +1670,30 @@ const executeActionNode = (
     // upstreams, which is often the slowest dep chain in the deploy.
     // Surface that as "pending" instead of having the task show no status
     // until its run actually starts.
-    yield* report("pending");
-    yield* waitForDeps(
-      [
-        ...new Set([
-          ...Object.keys(Output.resolveUpstream(node.input)),
-          ...Object.keys(Output.upstreamAny(task.Captures)),
-        ]),
-      ].filter((f) => f in readyStable),
-    );
+    try report("pending")
+    const upstreamFqns = try Effect.orDie(
+      Effect.try({
+        try: () =>
+          [
+            ...new Set([
+              ...Object.keys(Output.resolveUpstream(node.input)),
+              ...Object.keys(Output.upstreamAny(task.Captures)),
+            ]),
+          ].filter((f) => f in readyStable),
+        catch: (e) => e,
+      }),
+    )
+    try waitForDeps(upstreamFqns)
 
-    const resolvedInput = (yield* Output.evaluate(node.input, outputs)) as any;
-    const inputHashValue = yield* hashInput(resolvedInput);
+    const resolvedInput = (try Output.evaluate(node.input, outputs)) as any
+    const inputHashValue = try hashInput(resolvedInput)
 
     // Inputs unknown during planning may resolve to the last successful input.
     if (!node.forced && node.state?.status === "ran" && node.state.inputHash === inputHashValue) {
-      return yield* skip(node.state);
+      return try skip(node.state)
     }
 
-    yield* commit<RunningActionState>({
+    try commit<RunningActionState>({
       kind: "action",
       status: "running",
       fqn,
@@ -1683,12 +1702,12 @@ const executeActionNode = (
       inputHash: inputHashValue,
       input: resolvedInput,
       downstream: node.downstream,
-    });
-    yield* report("running");
+    })
+    try report("running")
 
-    const result = yield* runAction(task, resolvedInput, outputs);
+    const result = try runAction(task, resolvedInput, outputs)
 
-    yield* commit<RanActionState>({
+    try commit<RanActionState>({
       kind: "action",
       status: "ran",
       fqn,
@@ -1698,33 +1717,33 @@ const executeActionNode = (
       input: resolvedInput,
       output: result,
       downstream: node.downstream,
-    });
+    })
 
     track(tracker, outputs, fqn, {
       output: result,
       props: { __input: resolvedInput },
       bindings: [],
       instanceId: fqn,
-    });
-    yield* signalReady;
-    yield* signalReadyStable;
-    terminalStatuses.set(fqn, { fqn, id: logicalId, type: task.Type, status: "ran" });
-    yield* report("ran");
-  }).pipe(
+    })
+    try signalReady
+    try signalReadyStable
+    terminalStatuses.set(fqn, { fqn, id: logicalId, type: task.Type, status: "ran" })
+    try report("ran")
+  }.pipe(
     Effect.catchCause((cause) =>
-      Effect.gen(function* () {
-        failures.push({ fqn, logicalId: node.def.LogicalId, type: node.def.Type, cause });
-        yield* Deferred.failCause(ready[fqn], cause as Cause.Cause<never>);
-        yield* Deferred.failCause(readyStable[fqn], cause as Cause.Cause<never>);
-        yield* reportEvent({
+      effect {
+        failures.push({ fqn, logicalId: node.def.LogicalId, type: node.def.Type, cause })
+        try Deferred.failCause(ready[fqn], cause as Cause.Cause<never>)
+        try Deferred.failCause(readyStable[fqn], cause as Cause.Cause<never>)
+        try reportEvent({
           type: "apply.resource.status",
           fqn,
           id: node.def.LogicalId,
           resourceType: node.def.Type,
           status: "fail",
           message: failureMessage(cause),
-        });
-      }),
+        })
+      }
     ),
     Effect.withSpan("apply.action", {
       attributes: {
@@ -1734,7 +1753,7 @@ const executeActionNode = (
         "alchemy.action.verb": node.action,
       },
     }),
-  ) as Effect.Effect<void, never, any>;
+  ) as Effect.Effect<void, never, any>
 
 // ── Phase 3: imperative convergence loop ───────────────────────────────────
 //
@@ -1745,86 +1764,94 @@ const executeActionNode = (
 // resource whose resolved inputs differ from what it was last applied with.
 // Repeat until no resource needs updating.
 
-const converge = Effect.fn(function* (
+const converge = effect (
   plan: Plan,
   tracker: Record<string, ResourceTracker>,
   outputs: Record<string, any>,
   terminalStatuses: Map<
     string,
     {
-      fqn: string;
-      id: string;
-      type: string;
-      status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">;
-      providerMode?: ProviderMode;
+      fqn: string
+      id: string
+      type: string
+      status: Extract<ApplyStatus, "created" | "updated" | "adopted" | "ran" | "skipped">
+      providerMode?: ProviderMode
     }
   >,
   reportEvent: Reporter,
   state: {
     set: <V extends PersistedState>(req: {
-      stack: string;
-      stage: string;
-      fqn: string;
-      value: V;
-    }) => Effect.Effect<V, StateStoreError, never>;
+      stack: string
+      stage: string
+      fqn: string
+      value: V
+    }) => Effect.Effect<V, StateStoreError, never>
   },
   stackName: string,
   stage: string,
-) {
+) => {
   for (;;) {
-    let anyUpdated = false;
+    let anyUpdated = false
 
     for (const [fqn, node] of Object.entries(plan.resources)) {
-      if (node.action === "noop") continue;
-      if (!tracker[fqn]) continue;
+      if (node.action === "noop") continue
+      if (!tracker[fqn]) continue
 
-      const newProps = (yield* Output.evaluate(node.props, outputs)) as Record<string, any>;
+      const newProps = (try Output.evaluate(node.props, outputs)) as Record<string, any>
 
-      const newBindings = excludeDeletedBindings(yield* Output.evaluate(node.bindings, outputs));
+      const newBindings = excludeDeletedBindings(try Output.evaluate(node.bindings, outputs))
 
-      const oldProps = tracker[fqn].props;
-      const oldBindings = tracker[fqn].bindings;
+      const oldProps = tracker[fqn].props
+      const oldBindings = tracker[fqn].bindings
 
-      const propsChanged = havePropsChanged(oldProps, newProps);
-      const bindingsChanged = JSON.stringify(oldBindings) !== JSON.stringify(newBindings);
+      const propsChanged = try Effect.orDie(
+        Effect.try({ try: () => havePropsChanged(oldProps, newProps), catch: (e) => e }),
+      )
+      const bindingsChanged = JSON.stringify(oldBindings) !== JSON.stringify(newBindings)
 
-      if (!propsChanged && !bindingsChanged) continue;
+      if (!propsChanged && !bindingsChanged) continue
 
-      anyUpdated = true;
+      anyUpdated = true
 
-      const logicalId = node.resource.LogicalId;
-      const namespace = node.resource.Namespace;
-      const instanceId = tracker[fqn].instanceId;
+      const logicalId = node.resource.LogicalId
+      const namespace = node.resource.Namespace
+      const instanceId = tracker[fqn].instanceId
 
-      const scopedSession = resourceSession(reportEvent, fqn, logicalId);
+      const scopedSession = try Effect.orDie(
+        Effect.try({ try: () => resourceSession(reportEvent, fqn, logicalId), catch: (e) => e }),
+      )
 
       // A cycle peer resolves against its peers' first outputs, so an
       // identity checked then may resolve differently now. Check the identity
       // these props resolve to before reconcile claims it.
-      const deferredAdoption = "deferredAdoption" in node ? node.deferredAdoption : undefined;
+      const deferredAdoption = "deferredAdoption" in node ? node.deferredAdoption : undefined
       if (propsChanged && deferredAdoption !== undefined) {
-        const observed = yield* observeResolved(
+        const observed = try observeResolved(
           node,
           newProps,
           fqn,
           logicalId,
           instanceId,
           tracker[fqn].output,
-        );
-        if (observed !== undefined && Unowned.is(observed) && !deferredAdoption.adopt) {
-          return yield* new OwnedBySomeoneElse({
-            message:
-              `Cannot converge resource '${fqn}' (${node.resource.Type}): ` +
-              "its final identity exists in the cloud but is not owned by this " +
-              "stack/stage/logical-id. Re-run with `--adopt` (or " +
-              "wrap the effect in `adopt(true)`) to take it over.",
+        )
+        if (
+          observed !== undefined && (try Effect.orDie(Effect.try({
+            try: () => Unowned.is(observed),
+            catch: (e) => e,
+          }))) && !deferredAdoption.adopt
+        ) {
+          return try new OwnedBySomeoneElse({
+            message: `Cannot converge resource '${fqn}' (${node.resource.Type}): `
+              + "its final identity exists in the cloud but is not owned by this "
+              + "stack/stage/logical-id. Re-run with `--adopt` (or "
+              + "wrap the effect in `adopt(true)`) to take it over.",
             resourceType: node.resource.Type,
             logicalId,
-          });
+          })
         }
       }
 
-      const attr = yield* node.provider
+      const attr = try node.provider
         .reconcile({
           id: logicalId,
           fqn,
@@ -1835,16 +1862,22 @@ const converge = Effect.fn(function* (
           olds: oldProps,
           output: tracker[fqn].output,
         })
-        .pipe(instrumentLifecycle("update", fqn, node.resource.Type, logicalId, instanceId));
+        .pipe(instrumentLifecycle("update", fqn, node.resource.Type, logicalId, instanceId))
 
       track(tracker, outputs, fqn, {
         output: attr,
         props: newProps,
         bindings: newBindings,
         instanceId,
-      });
+      })
 
-      yield* state.set({
+      const strippedProps = try Effect.orDie(
+        Effect.try({ try: () => stripUnresolved(newProps), catch: (e) => e }),
+      )
+      const strippedBindings = try Effect.orDie(
+        Effect.try({ try: () => stripUnresolved(newBindings), catch: (e) => e }),
+      )
+      try state.set({
         stack: stackName,
         stage,
         fqn,
@@ -1857,21 +1890,21 @@ const converge = Effect.fn(function* (
           // This site bypasses the `commit` helper, so strip unresolved
           // leaves (Effect-valued env entries survive `Output.evaluate`)
           // the same way `commit` does — state only ever holds plain data.
-          props: stripUnresolved(newProps),
+          props: strippedProps,
           attr,
           providerVersion: node.provider.version ?? 0,
           // Resolved payload, not raw `node.bindings` — see the create
           // commit in applyResource. Stripped like the commit helper so
           // Effect leaves (e.g. tagged Worker classes in `env`) never reach
           // the state store.
-          bindings: stripUnresolved(newBindings),
+          bindings: strippedBindings,
           downstream: node.downstream,
           namespace,
           removalPolicy: node.resource.RemovalPolicy,
           providerMode: node.mode,
           adoptionBlocked: node.adoptionBlocked,
         } as UpdatedResourceState,
-      });
+      })
 
       terminalStatuses.set(fqn, {
         fqn,
@@ -1879,7 +1912,7 @@ const converge = Effect.fn(function* (
         type: node.resource.Type,
         status: node.action === "adopted" ? "adopted" : "updated",
         providerMode: node.mode,
-      });
+      })
     }
 
     // Tasks: re-run when their resolved input drifts vs. the value they
@@ -1887,18 +1920,18 @@ const converge = Effect.fn(function* (
     // this pass). Skipped (noop) tasks are not re-checked here — their
     // recorded inputHash is authoritative until the next plan.
     for (const [fqn, node] of Object.entries(plan.actions)) {
-      if (node.action !== "run") continue;
-      if (!tracker[fqn]) continue;
+      if (node.action !== "run") continue
+      if (!tracker[fqn]) continue
 
-      const newInput = (yield* Output.evaluate(node.input, outputs)) as any;
-      const newHash = yield* hashInput(newInput);
-      const oldInput = tracker[fqn].props?.__input;
-      const oldHash = yield* hashInput(oldInput);
-      if (newHash === oldHash) continue;
+      const newInput = (try Output.evaluate(node.input, outputs)) as any
+      const newHash = try hashInput(newInput)
+      const oldInput = tracker[fqn].props?.__input
+      const oldHash = try hashInput(oldInput)
+      if (newHash === oldHash) continue
 
-      anyUpdated = true;
+      anyUpdated = true
 
-      yield* state.set({
+      try state.set({
         stack: stackName,
         stage,
         fqn,
@@ -1913,11 +1946,11 @@ const converge = Effect.fn(function* (
           input: newInput,
           downstream: node.downstream,
         } satisfies RunningActionState,
-      });
+      })
 
-      const result = yield* runAction(node.def, newInput, outputs);
+      const result = try runAction(node.def, newInput, outputs)
 
-      yield* state.set({
+      try state.set({
         stack: stackName,
         stage,
         fqn,
@@ -1933,34 +1966,34 @@ const converge = Effect.fn(function* (
           output: result,
           downstream: node.downstream,
         } satisfies RanActionState,
-      });
+      })
 
       track(tracker, outputs, fqn, {
         output: result,
         props: { __input: newInput },
         bindings: [],
         instanceId: fqn,
-      });
+      })
       terminalStatuses.set(fqn, {
         fqn,
         id: node.def.LogicalId,
         type: node.def.Type,
         status: "ran",
-      });
+      })
     }
 
-    if (!anyUpdated) break;
+    if (!anyUpdated) break
   }
-});
+}
 
 // ── Phase 2: delete orphans and old replaced resources ─────────────────────
 
 /** A provider delete (or its attr-recovery read / state commit) that failed. */
 export interface DeleteFailure {
-  fqn: string;
-  logicalId: string;
-  resourceType: string;
-  cause: Cause.Cause<unknown>;
+  fqn: string
+  logicalId: string
+  resourceType: string
+  cause: Cause.Cause<unknown>
 }
 
 /**
@@ -1969,11 +2002,11 @@ export interface DeleteFailure {
  * dependents still exist, so skipping is not an error in its own right.
  */
 export interface BlockedDelete {
-  fqn: string;
-  logicalId: string;
-  resourceType: string;
+  fqn: string
+  logicalId: string
+  resourceType: string
   /** FQNs of the dependents whose failed/blocked deletes block this one. */
-  blockedBy: string[];
+  blockedBy: string[]
 }
 
 /**
@@ -1983,90 +2016,88 @@ export interface BlockedDelete {
  * unrelated siblings.
  */
 export class DestroyError extends Data.TaggedError("DestroyError")<{
-  failures: ReadonlyArray<DeleteFailure>;
-  blocked: ReadonlyArray<BlockedDelete>;
+  failures: ReadonlyArray<DeleteFailure>
+  blocked: ReadonlyArray<BlockedDelete>
 }> {
   override get message(): string {
     return [
-      `Failed to delete ${this.failures.length} resource(s)` +
-        (this.blocked.length > 0
-          ? ` (${this.blocked.length} more skipped because a dependent's delete failed)`
-          : "") +
-        ":",
+      `Failed to delete ${this.failures.length} resource(s)`
+      + (this.blocked.length > 0
+        ? ` (${this.blocked.length} more skipped because a dependent's delete failed)`
+        : "")
+      + ":",
       ...this.failures.map((f) => `  ✗ ${f.fqn} (${f.resourceType}): ${Cause.pretty(f.cause)}`),
       ...this.blocked.map(
-        (b) =>
-          `  ⊘ ${b.fqn} (${b.resourceType}): skipped — blocked by failed delete of ${b.blockedBy.join(", ")}`,
+        (b) => `  ⊘ ${b.fqn} (${b.resourceType}): skipped — blocked by failed delete of ${b.blockedBy.join(", ")}`,
       ),
-    ].join("\n");
+    ].join("\n")
   }
 }
 
-const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
-  const state = yield* yield* State;
-  const stack = yield* Stack;
-  const stackName = stack.name;
-  const stage = yield* Stage;
+const collectGarbage = effect (plan: Plan, reportEvent: Reporter) => {
+  const state = try try State
+  const stack = try Stack
+  const stackName = stack.name
+  const stage = try Stage
 
   // Task deletions are pure state drops — no body is invoked. Run them in
   // parallel before resource GC; tasks never have provider-side dependencies
   // to wait on.
-  yield* Effect.forEach(
+  try Effect.forEach(
     Object.entries(plan.actionDeletions ?? {}),
     ([fqn, node]) =>
       node === undefined
         ? Effect.void
-        : Effect.gen(function* () {
-            yield* reportEvent({
-              type: "apply.resource.status",
-              fqn,
-              id: node.def.LogicalId,
-              resourceType: node.def.Type,
-              status: "deleting",
-            });
-            yield* state.delete({ stack: stackName, stage, fqn });
-            yield* reportEvent({
-              type: "apply.resource.status",
-              fqn,
-              id: node.def.LogicalId,
-              resourceType: node.def.Type,
-              status: "deleted",
-            });
-          }),
+        : effect {
+          try reportEvent({
+            type: "apply.resource.status",
+            fqn,
+            id: node.def.LogicalId,
+            resourceType: node.def.Type,
+            status: "deleting",
+          })
+          try state.delete({ stack: stackName, stage, fqn })
+          try reportEvent({
+            type: "apply.resource.status",
+            fqn,
+            id: node.def.LogicalId,
+            resourceType: node.def.Type,
+            status: "deleted",
+          })
+        },
     { concurrency: "unbounded" },
-  );
+  )
 
   // Failures are collected — not propagated — so one bad delete never
   // strands unrelated siblings. `unresolved` tracks every FQN whose delete
   // failed or was blocked this run: later passes must not retry them (a
   // still-`replaced` row would otherwise spin the drain loop forever) and
   // dependencies scheduled in later passes must observe them as blocking.
-  const failures: DeleteFailure[] = [];
-  const blockedDeletes: BlockedDelete[] = [];
-  const unresolved = new Set<string>();
+  const failures: DeleteFailure[] = []
+  const blockedDeletes: BlockedDelete[] = []
+  const unresolved = new Set<string>()
   // Skipped by later passes so generations older than a draining one are still reclaimed.
-  const inProgress = new Set<string>();
+  const inProgress = new Set<string>()
 
-  const pendingDeletes = { ...plan.deletions };
+  const pendingDeletes = { ...plan.deletions }
   // Pending means this generation drained; deferred means it is still live.
-  type DeleteOutcome = "deleted" | "pending" | "deferred" | "failed" | "blocked";
+  type DeleteOutcome = "deleted" | "pending" | "deferred" | "failed" | "blocked"
 
-  const deleteGraph = Effect.fn(function* (
+  const deleteGraph = effect (
     deletionGraph: Record<string, Delete | ReplacementResourceState | undefined>,
-  ) {
-    const deletions: { [fqn: string]: Effect.Effect<DeleteOutcome, never, ArtifactStore> } = {};
+  ) => {
+    const deletions: { [fqn: string]: Effect.Effect<DeleteOutcome, never, ArtifactStore> } = {}
 
     const deleteResource = (
       node: Delete | ReplacementResourceState,
       ancestors: ReadonlySet<string> = new Set(),
     ): Effect.Effect<DeleteOutcome, never, ArtifactStore> =>
-      Effect.gen(function* () {
-        const isDeleteNode = (node: Delete | ReplacementResourceState): node is Delete =>
-          "action" in node;
+      effect {
+        const isDeleteNode = (node: Delete | ReplacementResourceState): node is Delete => "action" in node
 
         const generation = isDeleteNode(node)
           ? node.state
-          : (nextOldGeneration(node, inProgress) ?? node.old);
+          : (nextOldGeneration(node, inProgress) ?? node.old)
 
         const {
           fqn,
@@ -2081,86 +2112,93 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
           providerMode,
         } = isDeleteNode(node)
           ? {
-              // Use the persisted FQN verbatim — never recompute it from
-              // `toFqn(namespace, logicalId)`. A logical ID may legitimately
-              // contain the FQN separator (`/`), in which case `parseFqn`
-              // truncated it and a recomputed key would miss the real state
-              // row (the row would then resurface as an orphan on every
-              // subsequent destroy, never getting deleted).
-              fqn: node.resource.FQN,
-              logicalId: node.resource.LogicalId,
-              namespace: node.resource.Namespace,
-              resourceType: node.resource.Type,
-              instanceId: node.state.instanceId,
-              downstream: node.downstream,
-              props: node.state.props,
-              attr: node.state.attr,
-              // Plan resolved this provider for the row's persisted (or
-              // marker-inferred) `providerMode` (see the deletions builder
-              // in Plan.ts).
-              provider: node.provider,
-              providerMode: node.state.providerMode,
-            }
+            // Use the persisted FQN verbatim — never recompute it from
+            // `toFqn(namespace, logicalId)`. A logical ID may legitimately
+            // contain the FQN separator (`/`), in which case `parseFqn`
+            // truncated it and a recomputed key would miss the real state
+            // row (the row would then resurface as an orphan on every
+            // subsequent destroy, never getting deleted).
+            fqn: node.resource.FQN,
+            logicalId: node.resource.LogicalId,
+            namespace: node.resource.Namespace,
+            resourceType: node.resource.Type,
+            instanceId: node.state.instanceId,
+            downstream: node.downstream,
+            props: node.state.props,
+            attr: node.state.attr,
+            // Plan resolved this provider for the row's persisted (or
+            // marker-inferred) `providerMode` (see the deletions builder
+            // in Plan.ts).
+            provider: node.provider,
+            providerMode: node.state.providerMode,
+          }
           : {
-              fqn: node.fqn,
-              logicalId: node.logicalId,
-              namespace: node.namespace,
-              resourceType: generation.resourceType,
-              instanceId: generation.instanceId,
-              downstream: generation.downstream,
-              props: generation.props,
-              attr: generation.attr,
-              // A missing provider is fatal — plan already dies on zombie
-              // rows (see the deletions builder in Plan.ts); this guards
-              // the replaced-chain generations that bypass plan. The old
-              // generation is torn down with the provider variant of the
-              // mode that created it (local ⇄ live replacements);
-              // unstamped rows are physically live unless their attrs
-              // carry the `dev:` identity marker (see stampedMode).
-              provider: yield* tryFindProviderByType(
-                generation.resourceType,
-                stampedMode(generation),
-              ).pipe(
-                Effect.flatMap(
-                  Option.match({
-                    onNone: () =>
-                      Effect.die(missingProviderError(generation.resourceType, node.fqn)),
-                    onSome: Effect.succeed,
-                  }),
-                ),
+            fqn: node.fqn,
+            logicalId: node.logicalId,
+            namespace: node.namespace,
+            resourceType: generation.resourceType,
+            instanceId: generation.instanceId,
+            downstream: generation.downstream,
+            props: generation.props,
+            attr: generation.attr,
+            // A missing provider is fatal — plan already dies on zombie
+            // rows (see the deletions builder in Plan.ts); this guards
+            // the replaced-chain generations that bypass plan. The old
+            // generation is torn down with the provider variant of the
+            // mode that created it (local ⇄ live replacements);
+            // unstamped rows are physically live unless their attrs
+            // carry the `dev:` identity marker (see stampedMode).
+            provider: try tryFindProviderByType(
+              generation.resourceType,
+              try Effect.orDie(Effect.try({ try: () => stampedMode(generation), catch: (e) => e })),
+            ).pipe(
+              Effect.flatMap(
+                Option.match({
+                  onNone: () => Effect.die(missingProviderError(generation.resourceType, node.fqn)),
+                  onSome: Effect.succeed,
+                }),
               ),
-              providerMode: generation.providerMode,
-            };
+            ),
+            providerMode: generation.providerMode,
+          }
 
         const adoptionBlocked = isDeleteNode(node)
           ? node.state.adoptionBlocked
-          : generation.adoptionBlocked;
+          : generation.adoptionBlocked
         const incompleteProps = isDeleteNode(node)
           ? node.state.propsIncomplete
-          : generation.propsIncomplete;
+          : generation.propsIncomplete
         // Mutable: an attr-less row (interrupted create) may recover its
         // attributes from `provider.read` below, right before deletion.
-        let attr = persistedAttr;
+        let attr = persistedAttr
 
-        const nextAncestors = new Set(ancestors).add(fqn);
+        const nextAncestors = new Set(ancestors).add(fqn)
 
         const commit = <S extends ResourceState>(value: Omit<S, "namespace">) =>
-          state.set({
-            stack: stackName,
-            stage,
-            fqn,
-            // Same rule as the lifecycle commit above: state only stores
-            // plain data, never unresolved Output exprs or Effect leaves.
-            value: {
-              ...value,
-              adoptionBlocked:
-                value.adoptionBlocked ??
-                (isDeleteNode(node) ? node.state.adoptionBlocked : node.adoptionBlocked),
-              props: stripUnresolved(value.props),
-              bindings: stripUnresolved(value.bindings),
-              namespace,
-            } as S,
-          });
+          effect {
+            const rowAdoptionBlocked = value.adoptionBlocked
+              ?? (isDeleteNode(node) ? node.state.adoptionBlocked : node.adoptionBlocked)
+            const props = try Effect.orDie(
+              Effect.try({ try: () => stripUnresolved(value.props), catch: (e) => e }),
+            )
+            const bindings = try Effect.orDie(
+              Effect.try({ try: () => stripUnresolved(value.bindings), catch: (e) => e }),
+            )
+            return try state.set({
+              stack: stackName,
+              stage,
+              fqn,
+              // Same rule as the lifecycle commit above: state only stores
+              // plain data, never unresolved Output exprs or Effect leaves.
+              value: {
+                ...value,
+                adoptionBlocked: rowAdoptionBlocked,
+                props,
+                bindings,
+                namespace,
+              } as S,
+            })
+          }
 
         const report = (status: ApplyStatus) =>
           reportEvent({
@@ -2170,83 +2208,84 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
             resourceType,
             status,
             providerMode,
-          });
+          })
 
-        const scopedSession = resourceSession(reportEvent, fqn, logicalId);
+        const scopedSession = try Effect.orDie(
+          Effect.try({ try: () => resourceSession(reportEvent, fqn, logicalId), catch: (e) => e }),
+        )
 
-        return yield* (deletions[fqn] ??= yield* Effect.cached(
-          Effect.gen(function* () {
+        return try (deletions[fqn] ??= try Effect.cached(
+          effect {
             // Dependents (`downstream`) are deleted before this resource. A
             // dependent whose delete failed (or was itself blocked) may make
             // this resource legitimately undeletable (dependency violation),
             // so it is skipped with a "blocked by" note instead of surfacing
             // a spurious second error.
-            const dependents = yield* Effect.forEach(
+            const dependents = try Effect.forEach(
               downstream,
               (dep) =>
                 dep !== fqn && !ancestors.has(dep)
                   ? dep in deletionGraph
                     ? deleteResource(
-                        deletionGraph[dep] as Delete | ReplacementResourceState,
-                        nextAncestors,
-                      ).pipe(Effect.map((outcome) => ({ dep, outcome })))
-                    : // Not in this pass's graph — but it may have failed in
-                      // an earlier drain pass of the same destroy.
-                      Effect.sync(() => ({
-                        dep,
-                        outcome: unresolved.has(dep) ? ("failed" as const) : ("deleted" as const),
-                      }))
+                      deletionGraph[dep] as Delete | ReplacementResourceState,
+                      nextAncestors,
+                    ).pipe(Effect.map((outcome) => ({ dep, outcome })))
+                    // Not in this pass's graph — but it may have failed in
+                    // an earlier drain pass of the same destroy.
+                    : Effect.sync(() => ({
+                      dep,
+                      outcome: unresolved.has(dep) ? ("failed" as const) : ("deleted" as const),
+                    }))
                   : Effect.succeed({ dep, outcome: "deleted" as const }),
               { concurrency: "unbounded" },
-            );
+            )
 
             const blockedBy = dependents
               .filter(({ outcome }) => outcome === "failed" || outcome === "blocked")
-              .map(({ dep }) => dep);
+              .map(({ dep }) => dep)
 
             if (blockedBy.length > 0) {
-              unresolved.add(fqn);
-              blockedDeletes.push({ fqn, logicalId, resourceType, blockedBy });
-              yield* scopedSession.note(
+              unresolved.add(fqn)
+              blockedDeletes.push({ fqn, logicalId, resourceType, blockedBy })
+              try scopedSession.note(
                 `Skipping delete — blocked by failed delete of ${blockedBy.join(", ")}.`,
-              );
-              yield* report("skipped");
-              return "blocked" as const;
+              )
+              try report("skipped")
+              return "blocked" as const
             }
 
             if (
               dependents.some(
-                ({ outcome }) =>
-                  outcome === "deferred" || (isDeleteNode(node) && outcome === "pending"),
+                ({ outcome }) => outcome === "deferred" || (isDeleteNode(node) && outcome === "pending"),
               )
             ) {
               // Even GC must wait when the dependent's physical delete has not run.
-              return "deferred" as const;
+              return "deferred" as const
             }
 
-            return yield* deleteResourceBody().pipe(
+            return try deleteResourceBody().pipe(
               Effect.catchCause((cause) =>
-                Effect.gen(function* () {
-                  unresolved.add(fqn);
-                  failures.push({ fqn, logicalId, resourceType, cause });
-                  yield* report("fail");
-                  return "failed" as const;
-                }),
+                effect {
+                  unresolved.add(fqn)
+                  failures.push({ fqn, logicalId, resourceType, cause })
+                  try report("fail")
+                  return "failed" as const
+                }
               ),
-            );
-          }),
-        ));
+            )
+          },
+        ))
 
         function deleteResourceBody() {
-          return Effect.gen(function* () {
+          return effect {
             if (isDeleteNode(node)) {
-              yield* report(node.action === "orphaned" ? "orphaning" : "deleting");
+              try report(node.action === "orphaned" ? "orphaning" : "deleting")
               if (node.action === "orphaned") {
-                yield* state.delete({ stack: stackName, stage, fqn });
-                yield* report("orphaned");
-                delete pendingDeletes[fqn];
+                try state.delete({ stack: stackName, stage, fqn })
+                try report("orphaned")
+                delete pendingDeletes[fqn]
                 // Retention is intentional — it never blocks dependencies.
-                return "deleted" as const;
+                return "deleted" as const
               }
             }
 
@@ -2254,10 +2293,10 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
             // the orphan-delete path above. Delete-node retain is already
             // handled with an early return; this guards the replaced
             // old-generation physical delete.
-            const retainOldGeneration = !isDeleteNode(node) && node.removalPolicy === "retain";
+            const retainOldGeneration = !isDeleteNode(node) && node.removalPolicy === "retain"
 
             if (retainOldGeneration) {
-              yield* scopedSession.note("Retaining replaced resource (removal policy: retain)...");
+              try scopedSession.note("Retaining replaced resource (removal policy: retain)...")
             }
 
             // A row can reach deletion with `attr === undefined` when a create
@@ -2276,20 +2315,20 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
             //   - undefined      → nothing exists; dropping state is safe
             if (attr === undefined && !retainOldGeneration) {
               if (adoptionBlocked === "migrated-fqn") {
-                yield* scopedSession.note(
-                  "Skipping recovery of a reused FQN: a lookup could find its " +
-                    "migrated predecessor. Any interrupted new physical " +
-                    "resource must be identified and cleaned up manually.",
-                );
+                try scopedSession.note(
+                  "Skipping recovery of a reused FQN: a lookup could find its "
+                    + "migrated predecessor. Any interrupted new physical "
+                    + "resource must be identified and cleaned up manually.",
+                )
               } else if (incompleteProps) {
-                yield* scopedSession.note(
-                  "Skipping recovery: unresolved properties were omitted from " +
-                    "this interrupted create's state, so they cannot identify it. " +
-                    "Any interrupted physical resource must be identified and " +
-                    "cleaned up manually.",
-                );
+                try scopedSession.note(
+                  "Skipping recovery: unresolved properties were omitted from "
+                    + "this interrupted create's state, so they cannot identify it. "
+                    + "Any interrupted physical resource must be identified and "
+                    + "cleaned up manually.",
+                )
               } else if (provider.read) {
-                const recovered = yield* provider
+                const recovered = try provider
                   .read({ id: logicalId, fqn, instanceId, olds: props as never, output: undefined })
                   .pipe(
                     instrumentLifecycle("read", fqn, resourceType, logicalId, instanceId),
@@ -2305,37 +2344,42 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
                     Effect.catchDefect((defect) =>
                       scopedSession
                         .note(
-                          "Recovery read crashed while looking up this " +
-                            "resource's interrupted create " +
-                            `(${String(defect)}) — if a physical resource ` +
-                            "was created, it must be cleaned up manually.",
+                          "Recovery read crashed while looking up this "
+                            + "resource's interrupted create "
+                            + `(${String(defect)}) — if a physical resource `
+                            + "was created, it must be cleaned up manually.",
                         )
-                        .pipe(Effect.as(undefined)),
+                        .pipe(Effect.as(undefined))
                     ),
-                  );
+                  )
                 if (recovered !== undefined) {
-                  if (Unowned.is(recovered)) {
-                    yield* scopedSession.note(
-                      "Resource exists in the cloud but is not owned by this " +
-                        "stack — leaving it in place (re-deploy with --adopt " +
-                        "to take ownership, then destroy).",
-                    );
+                  if ((try Effect.orDie(Effect.try({ try: () => Unowned.is(recovered), catch: (e) => e })))) {
+                    try scopedSession.note(
+                      "Resource exists in the cloud but is not owned by this "
+                        + "stack — leaving it in place (re-deploy with --adopt "
+                        + "to take ownership, then destroy).",
+                    )
                   } else {
-                    attr = stripUnowned(recovered as Record<string, any>);
+                    attr = try Effect.orDie(
+                      Effect.try({
+                        try: () => stripUnowned(recovered as Record<string, any>),
+                        catch: (e) => e,
+                      }),
+                    )
                   }
                 }
               } else {
-                yield* scopedSession.note(
-                  "No attributes were recorded for this resource (its create " +
-                    "was interrupted) and the provider does not implement " +
-                    "`read` — if a physical resource was created, it must be " +
-                    "cleaned up manually.",
-                );
+                try scopedSession.note(
+                  "No attributes were recorded for this resource (its create "
+                    + "was interrupted) and the provider does not implement "
+                    + "`read` — if a physical resource was created, it must be "
+                    + "cleaned up manually.",
+                )
               }
             }
 
             if (isDeleteNode(node)) {
-              yield* commit<DeletingResourceState>({
+              try commit<DeletingResourceState>({
                 status: "deleting",
                 fqn,
                 logicalId,
@@ -2350,13 +2394,13 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
                 providerMode,
                 adoptionBlocked,
                 propsIncomplete: incompleteProps,
-              });
+              })
             }
 
             if (attr !== undefined && !retainOldGeneration) {
               // A destroy must finish now; only a replacement's old generation can wait for the next apply.
-              const canFinishLater = !isDeleteNode(node) && pendingDeletes[fqn] === undefined;
-              const deleteInProgress = yield* provider
+              const canFinishLater = !isDeleteNode(node) && pendingDeletes[fqn] === undefined
+              const deleteInProgress = try provider
                 .delete({
                   id: logicalId,
                   fqn,
@@ -2374,39 +2418,39 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
                       canFinishLater && Predicate.isTagged(error, "DeleteInProgress"),
                     (error) => Effect.succeed(error),
                   ),
-                );
+                )
               if (deleteInProgress !== undefined) {
-                inProgress.add(instanceId);
-                yield* scopedSession.note(
+                inProgress.add(instanceId)
+                try scopedSession.note(
                   `${deleteInProgress.message} The replaced resource stays in state and its delete is retried on the next apply.`,
-                );
-                return "deferred" as const;
+                )
+                return "deferred" as const
               }
             }
 
             if (isDeleteNode(node)) {
-              yield* state.delete({ stack: stackName, stage, fqn });
-              yield* report("deleted");
+              try state.delete({ stack: stackName, stage, fqn })
+              try report("deleted")
             } else {
               if (!retainOldGeneration) {
-                yield* scopedSession.note("Cleaning up replaced resource...");
+                try scopedSession.note("Cleaning up replaced resource...")
               }
               if (generation !== node.old) {
-                yield* commit<ReplacementResourceState>({
+                try commit<ReplacementResourceState>({
                   ...node,
                   bindings: excludeDeletedBindings(node.bindings),
                   old: withoutGeneration(node.old, generation),
-                });
+                })
               } else if (node.old.status === "replacing" || node.old.status === "replaced") {
                 const remaining: ReplacementResourceState = {
                   ...node,
                   bindings: excludeDeletedBindings(node.bindings),
                   old: node.old.old,
-                };
-                yield* commit(remaining);
+                }
+                try commit(remaining)
               } else {
                 // Precreate attributes do not mean the replacement reconcile completed.
-                yield* commit<CreatedResourceState | CreatingResourceState>({
+                try commit<CreatedResourceState | CreatingResourceState>({
                   ...(node.status === "replacing"
                     ? { status: "creating" as const, attr: node.attr }
                     : { status: "created" as const, attr: node.attr }),
@@ -2421,97 +2465,97 @@ const collectGarbage = Effect.fn(function* (plan: Plan, reportEvent: Reporter) {
                   removalPolicy: node.removalPolicy,
                   providerMode: node.providerMode,
                   propsIncomplete: node.propsIncomplete,
-                });
+                })
               }
-              yield* scopedSession.note(
+              try scopedSession.note(
                 retainOldGeneration
                   ? "Replaced resource retained."
                   : "Replaced resource cleanup complete.",
-              );
+              )
             }
             if (isDeleteNode(node)) {
-              delete pendingDeletes[fqn];
-              return "deleted" as const;
+              delete pendingDeletes[fqn]
+              return "deleted" as const
             }
-            return node.old.status === "replacing" ||
-              node.old.status === "replaced" ||
-              pendingDeletes[fqn] !== undefined
+            return node.old.status === "replacing"
+                || node.old.status === "replaced"
+                || pendingDeletes[fqn] !== undefined
               ? ("pending" as const)
-              : ("deleted" as const);
-          });
+              : ("deleted" as const)
+          }
         }
-      });
+      }
 
     // Attempt every root. Per-node failures were recorded (and their state
     // retained) inside each node's delete effect — the effects resolve to
     // outcomes and never fail, so one bad resource never interrupts sibling
     // deletions mid-flight.
-    yield* Effect.forEach(
+    try Effect.forEach(
       Object.values(deletionGraph).filter((node) => node !== undefined),
       (node) => deleteResource(node),
       { concurrency: "unbounded" },
-    );
-  });
+    )
+  }
 
   // Drain one old generation per FQN per pass, preserving that generation's
   // dependency edges. Planned deletions remain queued until their chains drain.
   while (true) {
-    const remainingReplacedResources = (yield* state.getReplacedResources({
+    const remainingReplacedResources = (try state.getReplacedResources({
       stack: stackName,
       stage,
     })).filter((replaced) => {
-      if (unresolved.has(replaced.fqn)) return false;
+      if (unresolved.has(replaced.fqn)) return false
       if (plan.selectedFqns !== undefined && !plan.selectedFqns.has(replaced.fqn)) {
-        return false;
+        return false
       }
       if (nextOldGeneration(replaced, inProgress) === undefined) {
         // Only draining generations remain: keep them for the next apply and block dependent deletes.
-        unresolved.add(replaced.fqn);
-        return false;
+        unresolved.add(replaced.fqn)
+        return false
       }
-      return true;
-    });
-    const deletionGraph: Record<string, Delete | ReplacementResourceState | undefined> =
-      Object.fromEntries(remainingReplacedResources.map((replaced) => [replaced.fqn, replaced]));
+      return true
+    })
+    const deletionGraph: Record<string, Delete | ReplacementResourceState | undefined> = Object.fromEntries(
+      remainingReplacedResources.map((replaced) => [replaced.fqn, replaced]),
+    )
     for (const [fqn, node] of Object.entries(pendingDeletes)) {
-      if (node === undefined || unresolved.has(fqn)) continue;
-      const current = yield* state.get({ stack: stackName, stage, fqn });
+      if (node === undefined || unresolved.has(fqn)) continue
+      const current = try state.get({ stack: stackName, stage, fqn })
       if (current === undefined) {
-        delete pendingDeletes[fqn];
+        delete pendingDeletes[fqn]
       } else if (current.kind !== "action") {
-        deletionGraph[fqn] =
-          node.action !== "orphaned" &&
-          (current.status === "replacing" || current.status === "replaced")
-            ? current
-            : { ...node, state: current, downstream: current.downstream };
+        deletionGraph[fqn] = node.action !== "orphaned"
+            && (current.status === "replacing" || current.status === "replaced")
+          ? current
+          : { ...node, state: current, downstream: current.downstream }
       }
     }
-    if (Object.keys(deletionGraph).length === 0) break;
-    yield* deleteGraph(deletionGraph);
+    if (Object.keys(deletionGraph).length === 0) break
+    try deleteGraph(deletionGraph)
   }
 
   if (failures.length > 0) {
     // Every independent delete was still attempted; now surface everything
     // that went wrong (and everything skipped as a consequence) as one
     // typed aggregate. The destroy as a whole still fails.
-    return yield* new DestroyError({ failures, blocked: blockedDeletes });
+    return try new DestroyError({ failures, blocked: blockedDeletes })
   }
-});
+}
 
 /** The newest old generation of `row` whose instance ID is not in `skip`. */
 const nextOldGeneration = (
   row: ReplacementResourceState,
   skip: ReadonlySet<string>,
 ): ReplacementOldResourceState | undefined => {
-  let generation = row.old;
+  let generation = row.old
   while (skip.has(generation.instanceId)) {
     if (generation.status !== "replacing" && generation.status !== "replaced") {
-      return undefined;
+      return undefined
     }
-    generation = generation.old;
+    generation = generation.old
   }
-  return generation;
-};
+  return generation
+}
 
 /** The chain below `generation` without `target`; a wrapper left with no old generation becomes a plain row. */
 const withoutGeneration = (
@@ -2519,27 +2563,26 @@ const withoutGeneration = (
   target: ResourceState,
 ): ReplacementOldResourceState => {
   if (generation.status !== "replacing" && generation.status !== "replaced") {
-    return generation;
+    return generation
   }
   if (generation.old !== target) {
-    return { ...generation, old: withoutGeneration(generation.old, target) };
+    return { ...generation, old: withoutGeneration(generation.old, target) }
   }
   if (target.status === "replacing" || target.status === "replaced") {
-    return { ...generation, old: target.old };
+    return { ...generation, old: target.old }
   }
-  const { old: _old, deleteFirst: _deleteFirst, ...rest } = generation;
+  const { old: _old, deleteFirst: _deleteFirst, ...rest } = generation
   return generation.status === "replacing"
     ? { ...rest, status: "creating" }
-    : { ...rest, status: "created", attr: generation.attr };
-};
+    : { ...rest, status: "created", attr: generation.attr }
+}
 
 const excludeDeletedBindings = (
   bindings: ReadonlyArray<ResourceBinding & { action?: string }>,
-): ResourceBinding[] =>
-  bindings.flatMap(({ action, sid, data }) => (action === "delete" ? [] : [{ sid, data }]));
+): ResourceBinding[] => bindings.flatMap(({ action, sid, data }) => (action === "delete" ? [] : [{ sid, data }]))
 
 /** Order-insensitive equality of two FQN lists. */
 const sameSet = (a: ReadonlyArray<string>, b: ReadonlyArray<string>) => {
-  const sa = new Set(a);
-  return sa.size === new Set(b).size && b.every((fqn) => sa.has(fqn));
-};
+  const sa = new Set(a)
+  return sa.size === new Set(b).size && b.every((fqn) => sa.has(fqn))
+}
