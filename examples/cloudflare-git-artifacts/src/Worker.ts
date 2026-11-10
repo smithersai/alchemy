@@ -13,7 +13,7 @@ import {
   RepoInfo,
   RepoNotFound,
 } from "./Api.ts";
-import Repo from "./Repo.ts";
+import Repo from "./Repo.vibe";
 import { Repos } from "./Repos.ts";
 
 export default class Worker extends Cloudflare.Worker<Worker>()(
