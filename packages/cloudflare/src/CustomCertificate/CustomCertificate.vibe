@@ -1,20 +1,20 @@
-import crypto from "node:crypto";
-import * as customCertificates from "@distilled.cloud/cloudflare/custom-certificates";
-import { Unowned } from "alchemy/AdoptPolicy";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Redacted from "effect/Redacted";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import { createHash, X509Certificate } from "./CustomCertificate.platform.ts"
+import * as customCertificates from "@distilled.cloud/cloudflare/custom-certificates"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Redacted from "effect/Redacted"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.CustomCertificate.CustomCertificate" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.CustomCertificate.CustomCertificate" as const
+type TypeId = typeof TypeId
 
 /**
  * How Cloudflare builds the certificate chain served to clients.
@@ -24,14 +24,14 @@ type TypeId = typeof TypeId;
  * `optimal` bundle uses the shortest chain and newest intermediates. `force`
  * serves exactly the certificate you uploaded.
  */
-export type BundleMethod = "ubiquitous" | "optimal" | "force";
+export type BundleMethod = "ubiquitous" | "optimal" | "force"
 
 /**
  * SNI support of the uploaded certificate. `legacy_custom` enables support
  * for legacy clients which do not include SNI in the TLS handshake (requires
  * dedicated IPs); `sni_custom` is the recommended modern option.
  */
-export type Type = "legacy_custom" | "sni_custom";
+export type Type = "legacy_custom" | "sni_custom"
 
 /**
  * Lifecycle status of a custom certificate. Uploads are asynchronous —
@@ -45,7 +45,7 @@ export type Status =
   | "initializing"
   // Keep the union open so new Cloudflare statuses aren't blocked by stale
   // types.
-  | (string & {});
+  | (string & {})
 
 /**
  * Geo Key Manager region restriction: where the certificate's private key
@@ -55,7 +55,7 @@ export interface GeoRestrictions {
   /**
    * Region label: `us`, `eu`, or `highest_security`.
    */
-  label: "us" | "eu" | "highest_security";
+  label: "us" | "eu" | "highest_security"
 }
 
 export interface Props {
@@ -65,7 +65,7 @@ export interface Props {
    *
    * Immutable — moving a certificate between zones triggers a replacement.
    */
-  zoneId: string;
+  zoneId: string
   /**
    * The zone's SSL certificate — the leaf certificate plus any
    * intermediates, in PEM format. Plain `string` (not `string`) so
@@ -74,7 +74,7 @@ export interface Props {
    * Mutable — Cloudflare PATCHes a new certificate onto the same record,
    * keeping the certificate id stable across rotations.
    */
-  certificate: string;
+  certificate: string
   /**
    * The certificate's private key in PEM format. Not required when
    * `customCsrId` is provided, in which case the private key is retrieved
@@ -83,17 +83,17 @@ export interface Props {
    * Write-only — Cloudflare never echoes the key back; a content hash of
    * the certificate/key pair is persisted in the attributes for diffing.
    */
-  privateKey?: Redacted.Redacted<string>;
+  privateKey?: Redacted.Redacted<string>
   /**
    * The identifier of a Custom CSR held by Cloudflare to source the private
    * key from, as an alternative to uploading `privateKey`.
    */
-  customCsrId?: string;
+  customCsrId?: string
   /**
    * How Cloudflare builds the certificate chain served to clients.
    * @default "ubiquitous"
    */
-  bundleMethod?: BundleMethod;
+  bundleMethod?: BundleMethod
   /**
    * SNI support: `sni_custom` (recommended) or `legacy_custom` (supports
    * non-SNI clients; requires dedicated IPs).
@@ -102,25 +102,25 @@ export interface Props {
    * triggers a replacement.
    * @default "legacy_custom"
    */
-  type?: Type;
+  type?: Type
   /**
    * Geo Key Manager region restriction for the private key. Mutually
    * exclusive with `policy`.
    */
-  geoRestrictions?: GeoRestrictions;
+  geoRestrictions?: GeoRestrictions
   /**
    * Geo Key Manager policy expression (e.g.
    * `(country: US) or (region: EU)`) that determines where the private key
    * is held. Mutually exclusive with `geoRestrictions`. Cloudflare echoes
    * this back as the `policyRestrictions` attribute.
    */
-  policy?: string;
+  policy?: string
   /**
    * The environment to deploy the certificate to. Staging deploys are an
    * Enterprise feature. Write-only — not echoed back by the API.
    * @default "production"
    */
-  deploy?: "staging" | "production";
+  deploy?: "staging" | "production"
   /**
    * The order/priority in which the certificate is used in a request. A
    * higher priority breaks ties across overlapping `legacy_custom`
@@ -128,48 +128,48 @@ export interface Props {
    * the observed value.
    * @default API-assigned
    */
-  priority?: number;
+  priority?: number
 }
 
 export interface Attributes {
   /** Cloudflare-assigned identifier of the custom certificate. Stable across in-place certificate rotations. */
-  certificateId: string;
+  certificateId: string
   /** Zone the certificate belongs to. */
-  zoneId: string;
+  zoneId: string
   /** Hostnames covered by the certificate. */
-  hosts: string[];
+  hosts: string[]
   /** The certificate authority that issued the certificate. */
-  issuer: string | undefined;
+  issuer: string | undefined
   /** The type of hash used for the certificate signature. */
-  signature: string | undefined;
+  signature: string | undefined
   /** ISO8601 date the certificate expires. */
-  expiresOn: string | undefined;
+  expiresOn: string | undefined
   /** ISO8601 date the certificate was uploaded to Cloudflare. */
-  uploadedOn: string | undefined;
+  uploadedOn: string | undefined
   /** ISO8601 date the certificate was last modified. */
-  modifiedOn: string | undefined;
+  modifiedOn: string | undefined
   /** How Cloudflare builds the certificate chain served to clients. */
-  bundleMethod: BundleMethod | undefined;
+  bundleMethod: BundleMethod | undefined
   /** SNI support the certificate was uploaded with. Not echoed by the API — persisted from the input props. */
-  type: Type;
+  type: Type
   /** The order/priority in which the certificate is used in a request. */
-  priority: number | undefined;
+  priority: number | undefined
   /** Lifecycle status of the certificate (`initializing` → `active`). */
-  status: Status | undefined;
+  status: Status | undefined
   /** Geo Key Manager policy expression, as echoed by the API for the `policy` prop. */
-  policyRestrictions: string | undefined;
+  policyRestrictions: string | undefined
   /** Geo Key Manager region restriction, if set. */
-  geoRestrictions: GeoRestrictions | undefined;
+  geoRestrictions: GeoRestrictions | undefined
   /**
    * SHA-256 hash of the uploaded certificate/private key pair. Cloudflare
    * never echoes the PEM contents back, so this hash is the diff baseline
    * for deciding whether to re-push the certificate (a documented exception
    * to "observation > assumption").
    */
-  contentHash: string;
+  contentHash: string
 }
 
-export type CustomCertificate = Resource<TypeId, Props, Attributes, never, Providers>;
+export type CustomCertificate = Resource<TypeId, Props, Attributes, never, Providers>
 
 /**
  * A Cloudflare custom (BYO) edge certificate — upload your own SSL
@@ -240,13 +240,13 @@ export type CustomCertificate = Resource<TypeId, Props, Attributes, never, Provi
  */
 export const CustomCertificate = Resource<CustomCertificate>(TypeId, {
   aliases: ["Cloudflare.CustomCertificate"],
-});
+})
 
 /**
  * Returns true if the given value is a CustomCertificate resource.
  */
 export const isCustomCertificate = (value: unknown): value is CustomCertificate =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const CustomCertificateProvider = () =>
   Provider.succeed(CustomCertificate, {
@@ -262,9 +262,9 @@ export const CustomCertificateProvider = () =>
     // list and read) reject with `ZoneNotFound` ("Cannot find a valid zone"),
     // and freshly-scoped tokens may blip `Forbidden`; all three skip the zone
     // so enumeration still returns every zone it can read.
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      const zones = yield* listAllZones(accountId);
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      const zones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         zones,
         (zone) =>
@@ -276,57 +276,58 @@ export const CustomCertificateProvider = () =>
                   toAttributes(cert, {
                     type: "legacy_custom",
                     contentHash: "",
-                  }),
-                ),
-              ),
+                  })
+                )
+              )
             ),
             Effect.catchTag(["PlanLevelNotAllowed", "ZoneNotFound", "Forbidden"], () =>
-              Effect.succeed([] as Attributes[]),
-            ),
+              Effect.succeed([] as Attributes[])),
           ),
         { concurrency: 10 },
-      );
-      return rows.flat();
+      )
+      return rows.flat()
     }),
 
-    diff: Effect.fn(function* ({ olds, news, output }) {
-      if (!isResolved(news)) return undefined;
+    diff: Effect.fn(function*({ olds, news, output }) {
+      if (!isResolved(news)) {
+        return undefined
+      }
       // Zone move replaces. zoneId is Input<string>; compare only once
       // both sides are concrete.
-      const oldZone =
-        output?.zoneId ??
-        (olds !== undefined && isResolved(olds) ? (olds.zoneId as string | undefined) : undefined);
+      const oldZone = output?.zoneId
+        ?? (olds !== undefined && isResolved(olds) ? (olds.zoneId as string | undefined) : undefined)
       if (
-        typeof oldZone === "string" &&
-        typeof news.zoneId === "string" &&
-        oldZone !== news.zoneId
+        typeof oldZone === "string"
+        && typeof news.zoneId === "string"
+        && oldZone !== news.zoneId
       ) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // `type` is create-only (the PATCH body does not accept it).
-      const oldType =
-        output?.type ??
-        (olds !== undefined && isResolved(olds) ? olds.type : undefined) ??
-        "legacy_custom";
+      const oldType = output?.type
+        ?? (olds !== undefined && isResolved(olds) ? olds.type : undefined)
+        ?? "legacy_custom"
       if ((news.type ?? "legacy_custom") !== oldType) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined);
-      if (zoneId === undefined) return undefined;
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined)
+      if (zoneId === undefined) {
+        return undefined
+      }
 
       // Owned path: refresh by our persisted certificate id.
       if (output?.certificateId) {
-        const observed = yield* getCertificate(zoneId, output.certificateId);
+        const observed = yield* getCertificate(zoneId, output.certificateId)
         return observed
           ? toAttributes(observed, {
-              type: output.type,
-              contentHash: output.contentHash,
-            })
-          : undefined;
+            type: output.type,
+            contentHash: output.contentHash,
+          })
+          : undefined
       }
 
       // Cold path: state was lost. Custom certificates carry no ownership
@@ -334,9 +335,11 @@ export const CustomCertificateProvider = () =>
       // parsed expiry timestamp (an upload of the same PEM always yields
       // the same `expires_on`) and report it as `Unowned` so the engine
       // gates takeover behind the adopt policy.
-      if (olds?.certificate === undefined) return undefined;
-      const parsed = yield* parseCertificate(olds.certificate);
-      const observed = yield* findByExpiry(zoneId, parsed.expiresAtMs);
+      if (olds?.certificate === undefined) {
+        return undefined
+      }
+      const parsed = yield* parseCertificate(olds.certificate)
+      const observed = yield* findByExpiry(zoneId, parsed.expiresAtMs)
       if (observed) {
         return Unowned(
           toAttributes(observed, {
@@ -345,23 +348,23 @@ export const CustomCertificateProvider = () =>
             // convergence PATCH after adoption.
             contentHash: "",
           }),
-        );
+        )
       }
-      return undefined;
+      return undefined
     }),
 
-    reconcile: Effect.fn(function* ({ news, output }) {
+    reconcile: Effect.fn(function*({ news, output }) {
       // Inputs have been resolved to concrete strings by Plan.
-      const zoneId = news.zoneId as string;
-      const customCsrId = news.customCsrId as string | undefined;
-      const type = news.type ?? output?.type ?? "legacy_custom";
-      const desiredHash = yield* hashContent(news);
+      const zoneId = news.zoneId as string
+      const customCsrId = news.customCsrId as string | undefined
+      const type = news.type ?? output?.type ?? "legacy_custom"
+      const desiredHash = yield* hashContent(news)
 
       // 1. Observe — the certificate id cached on `output` is a hint, not
       //    a guarantee: a missing certificate falls through to create.
       let observed = output?.certificateId
         ? yield* getCertificate(zoneId, output.certificateId)
-        : undefined;
+        : undefined
 
       // 2. Ensure — upload when missing. Certificates have no uniqueness
       //    constraint on Cloudflare's side, so there is no AlreadyExists
@@ -377,24 +380,21 @@ export const CustomCertificateProvider = () =>
           geoRestrictions: news.geoRestrictions,
           policy: news.policy,
           deploy: news.deploy,
-        });
+        })
         // The freshly uploaded contents are the desired contents.
-        observed = yield* syncPriority(zoneId, observed, news.priority);
-        return toAttributes(observed, { type, contentHash: desiredHash });
+        observed = yield* syncPriority(zoneId, observed, news.priority)
+        return toAttributes(observed, { type, contentHash: desiredHash })
       }
 
       // 3. Sync — diff observed cloud state against desired. The PEM
       //    contents are write-only, so the persisted content hash is the
       //    baseline for the certificate/key pair; everything else diffs
       //    against the observed response.
-      const certDirty = output?.contentHash !== desiredHash;
-      const bundleDirty =
-        news.bundleMethod !== undefined && observed.bundleMethod !== news.bundleMethod;
-      const geoDirty =
-        news.geoRestrictions !== undefined &&
-        observed.geoRestrictions?.label !== news.geoRestrictions.label;
-      const policyDirty =
-        news.policy !== undefined && (observed.policyRestrictions ?? undefined) !== news.policy;
+      const certDirty = output?.contentHash !== desiredHash
+      const bundleDirty = news.bundleMethod !== undefined && observed.bundleMethod !== news.bundleMethod
+      const geoDirty = news.geoRestrictions !== undefined
+        && observed.geoRestrictions?.label !== news.geoRestrictions.label
+      const policyDirty = news.policy !== undefined && (observed.policyRestrictions ?? undefined) !== news.policy
 
       if (certDirty || bundleDirty || geoDirty || policyDirty) {
         observed = yield* customCertificates.patchCustomCertificate({
@@ -402,37 +402,38 @@ export const CustomCertificateProvider = () =>
           customCertificateId: observed.id,
           ...(certDirty
             ? {
-                certificate: news.certificate,
-                privateKey: news.privateKey ? Redacted.value(news.privateKey) : undefined,
-                customCsrId,
-                deploy: news.deploy,
-              }
+              certificate: news.certificate,
+              privateKey: news.privateKey ? Redacted.value(news.privateKey) : undefined,
+              customCsrId,
+              deploy: news.deploy,
+            }
             : {}),
           ...(bundleDirty ? { bundleMethod: news.bundleMethod } : {}),
           ...(geoDirty ? { geoRestrictions: news.geoRestrictions } : {}),
           ...(policyDirty ? { policy: news.policy } : {}),
-        });
+        })
       }
 
-      observed = yield* syncPriority(zoneId, observed, news.priority);
-      return toAttributes(observed, { type, contentHash: desiredHash });
+      observed = yield* syncPriority(zoneId, observed, news.priority)
+      return toAttributes(observed, { type, contentHash: desiredHash })
     }),
 
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       yield* customCertificates
         .deleteCustomCertificate({
           zoneId: output.zoneId,
           customCertificateId: output.certificateId,
         })
-        .pipe(Effect.catchTag("CustomCertificateNotFound", () => Effect.void));
+        .pipe(Effect.catchTag("CustomCertificateNotFound", () =>
+          Effect.void))
     }),
-  });
+  })
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-type ObservedCertificate = customCertificates.GetCustomCertificateResponse;
+type ObservedCertificate = customCertificates.GetCustomCertificateResponse
 
 /**
  * Read a certificate by id, mapping "gone" (`CustomCertificateNotFound`,
@@ -442,7 +443,7 @@ const getCertificate = (zoneId: string, customCertificateId: string) =>
   customCertificates.getCustomCertificate({ zoneId, customCertificateId }).pipe(
     Effect.map((cert): ObservedCertificate | undefined => cert),
     Effect.catchTag("CustomCertificateNotFound", () => Effect.undefined),
-  );
+  )
 
 /**
  * Find a certificate in the zone whose `expires_on` matches the desired
@@ -458,9 +459,9 @@ const findByExpiry = (zoneId: string, expiresAtMs: number) =>
       Array.from(chunk)
         .filter((cert) => cert.expiresOn != null && Date.parse(cert.expiresOn) === expiresAtMs)
         .sort((a, b) => (a.uploadedOn ?? "").localeCompare(b.uploadedOn ?? ""))
-        .at(0),
+        .at(0)
     ),
-  );
+  )
 
 /**
  * Parse the leaf certificate of a PEM bundle. Sync CPU-only Node API,
@@ -468,22 +469,22 @@ const findByExpiry = (zoneId: string, expiresAtMs: number) =>
  * instead of a thrown exception.
  */
 class CertificateParseError extends Data.TaggedError("CertificateParseError")<{
-  message: string;
-  cause?: unknown;
+  message: string
+  cause?: unknown
 }> {}
 
 const parseCertificate = (pem: string) =>
   Effect.try({
     try: () => {
-      const x509 = new crypto.X509Certificate(pem);
-      return { expiresAtMs: Date.parse(x509.validTo) };
+      const x509 = new X509Certificate(pem)
+      return { expiresAtMs: Date.parse(x509.validTo) }
     },
     catch: (cause) =>
       new CertificateParseError({
         message: `failed to parse certificate PEM: ${cause instanceof Error ? cause.message : String(cause)}`,
         cause,
       }),
-  });
+  })
 
 /**
  * SHA-256 over the write-only inputs (certificate, private key, CSR id).
@@ -492,15 +493,14 @@ const parseCertificate = (pem: string) =>
  */
 const hashContent = (news: Props) =>
   Effect.sync(() =>
-    crypto
-      .createHash("sha256")
+    createHash("sha256")
       .update(news.certificate)
       .update("\n")
       .update(news.privateKey ? Redacted.value(news.privateKey) : "")
       .update("\n")
       .update((news.customCsrId as string | undefined) ?? "")
-      .digest("hex"),
-  );
+      .digest("hex")
+  )
 
 /**
  * Converge the certificate's priority via the prioritize endpoint when an
@@ -511,18 +511,18 @@ const syncPriority = (
   observed: ObservedCertificate,
   priority: number | undefined,
 ) =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     if (priority === undefined || observed.priority === priority) {
-      return observed;
+      return observed
     }
     yield* customCertificates.putPrioritize({
       zoneId,
       certificates: [{ id: observed.id, priority }],
-    });
+    })
     // Re-observe so the returned attributes reflect the final state.
-    const fresh = yield* getCertificate(zoneId, observed.id);
-    return fresh ?? observed;
-  });
+    const fresh = yield* getCertificate(zoneId, observed.id)
+    return fresh ?? observed
+  })
 
 const toAttributes = (
   cert: ObservedCertificate,
@@ -545,4 +545,4 @@ const toAttributes = (
     ? { label: cert.geoRestrictions.label as "us" | "eu" | "highest_security" }
     : undefined,
   contentHash: meta.contentHash,
-});
+})

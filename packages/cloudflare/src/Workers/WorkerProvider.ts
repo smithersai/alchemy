@@ -29,10 +29,10 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import {
   assertBindingContainersOnAsyncClasses,
   mergeWorkerContainers,
-} from "../Containers/ContainerConfiguration.ts";
+} from "../Containers/ContainerConfiguration.vibe";
 import { localRuntimeServices } from "../LocalRuntime.ts";
 import { CloudflareLogs } from "../Logs.vibe";
-import { detachQueueConsumersOfScript } from "../Queues/Consumer.ts";
+import { detachQueueConsumersOfScript } from "../Queues/Consumer.vibe";
 import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.vibe";
 import {
   getAssetsPathPrefix,

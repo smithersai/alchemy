@@ -1,17 +1,18 @@
-import type * as cf from "@cloudflare/workers-types";
-import * as Namespace from "alchemy/Namespace";
-import type { FunctionContext } from "alchemy/Runtime/Function";
-import { RuntimeContext } from "alchemy/RuntimeContext";
-import * as DurationUtil from "alchemy/Util/Duration";
-import * as Cause from "effect/Cause";
-import * as Context from "effect/Context";
-import * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Stream from "effect/Stream";
-import { isWorkerEvent, Worker } from "../Workers/Worker.ts";
-import { Consumer } from "./Consumer.ts";
-import type { Queue } from "./Queue.vibe";
+import type * as cf from "@cloudflare/workers-types"
+import * as Namespace from "alchemy/Namespace"
+import type { FunctionContext } from "alchemy/Runtime/Function"
+import { RuntimeContext } from "alchemy/RuntimeContext"
+import * as DurationUtil from "alchemy/Util/Duration"
+import * as Cause from "effect/Cause"
+import * as Context from "effect/Context"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Stream from "effect/Stream"
+import { isWorkerEvent, Worker } from "../Workers/Worker.ts"
+import { Consumer } from "./Consumer.vibe"
+import { consoleError } from "./EventSource.platform.ts"
+import type { Queue } from "./Queue.vibe"
 
 /**
  * Subscriber settings — the same shape Cloudflare's `Consumer`
@@ -21,21 +22,21 @@ import type { Queue } from "./Queue.vibe";
  */
 export interface MessagesProps {
   /** Maximum messages per batch. */
-  batchSize?: number;
+  batchSize?: number
   /** Maximum concurrent invocations. */
-  maxConcurrency?: number;
+  maxConcurrency?: number
   /** Maximum delivery attempts before dead-lettering. */
-  maxRetries?: number;
+  maxRetries?: number
   /**
    * Wait time before flushing a partial batch. Rounded up to whole
    * milliseconds when forwarded to Cloudflare.
    */
-  maxWaitTime?: Duration.Input;
+  maxWaitTime?: Duration.Input
   /**
    * Backoff applied to a retry. Rounded up to whole seconds when
    * forwarded to Cloudflare.
    */
-  retryDelay?: Duration.Input;
+  retryDelay?: Duration.Input
   /**
    * Queue that receives messages after `maxRetries` failed deliveries.
    * Pass the Queue resource, a `Queue.ref(...)` to one, or a queue name.
@@ -45,7 +46,7 @@ export interface MessagesProps {
    * `consumeQueueMessages` on the dead-letter queue as well to log,
    * persist, or alert on what arrives.
    */
-  deadLetterQueue?: string | Queue;
+  deadLetterQueue?: string | Queue
 }
 
 /**
@@ -63,14 +64,14 @@ export const toConsumerSettings = (props: MessagesProps) => ({
   maxRetries: props.maxRetries,
   maxWaitTimeMs: DurationUtil.toMillis(props.maxWaitTime),
   retryDelay: DurationUtil.toSeconds(props.retryDelay),
-});
+})
 
 /**
  * A single queue message handed to the subscribe handler. Mirrors
  * Cloudflare's runtime `Message<Body>` shape so per-message
  * `ack()` / `retry()` semantics match the platform docs.
  */
-export type Message<Body = unknown> = cf.Message<Body>;
+export type Message<Body = unknown> = cf.Message<Body>
 
 /**
  * Subscribe to a Cloudflare Queue with an Effect stream handler.
@@ -170,12 +171,12 @@ export type Message<Body = unknown> = cf.Message<Body>;
 export function consumeQueueMessages<Body = unknown>(
   queue: Queue,
   process: (stream: Stream.Stream<Message<Body>>) => Effect.Effect<void, unknown, any>,
-): Effect.Effect<void, never, EventSource>;
+): Effect.Effect<void, never, EventSource>
 export function consumeQueueMessages<Body = unknown>(
   queue: Queue,
   props: MessagesProps,
   process: (stream: Stream.Stream<Message<Body>>) => Effect.Effect<void, unknown, any>,
-): Effect.Effect<void, never, EventSource>;
+): Effect.Effect<void, never, EventSource>
 export function consumeQueueMessages<Body = unknown>(
   queue: Queue,
   propsOrProcess:
@@ -183,11 +184,10 @@ export function consumeQueueMessages<Body = unknown>(
     | ((stream: Stream.Stream<Message<Body>>) => Effect.Effect<void, unknown, any>),
   maybeProcess?: (stream: Stream.Stream<Message<Body>>) => Effect.Effect<void, unknown, any>,
 ): Effect.Effect<void, never, EventSource> {
-  const [props, process] =
-    typeof propsOrProcess === "function"
-      ? [{} as MessagesProps, propsOrProcess]
-      : [propsOrProcess, maybeProcess!];
-  return EventSource.use((source) => source<Body>(queue, props, process));
+  const [props, process] = typeof propsOrProcess === "function"
+    ? [{} as MessagesProps, propsOrProcess]
+    : [propsOrProcess, maybeProcess!]
+  return EventSource.use((source) => source<Body>(queue, props, process))
 }
 
 // `Req` is the handler's requirements. The service registers the
@@ -200,7 +200,7 @@ export type EventSourceService = <Body = unknown>(
   queue: Queue,
   props: MessagesProps,
   process: (stream: Stream.Stream<Message<Body>>) => Effect.Effect<void, unknown, any>,
-) => Effect.Effect<void, never, never>;
+) => Effect.Effect<void, never, never>
 
 /**
  * Service tag for the Cloudflare Queue event source. Provided by
@@ -222,9 +222,9 @@ export class EventSource extends Context.Service<EventSource, EventSourceService
  */
 export const EventSourceLive = Layer.effect(
   EventSource,
-  Effect.gen(function* () {
-    const host = yield* Worker;
-    return Effect.fn(function* <Body, Req>(
+  Effect.gen(function*() {
+    const host = yield* Worker
+    return Effect.fn(function*<Body, Req>(
       queue: Queue,
       props: MessagesProps,
       process: (stream: Stream.Stream<Message<Body>>) => Effect.Effect<void, unknown, any>,
@@ -247,39 +247,38 @@ export const EventSourceLive = Layer.effect(
             queueId: queue.queueId,
             scriptName: host.workerName,
             settings: toConsumerSettings(props),
-            deadLetterQueue:
-              typeof props.deadLetterQueue === "string"
-                ? props.deadLetterQueue
-                : props.deadLetterQueue?.queueName,
+            deadLetterQueue: typeof props.deadLetterQueue === "string"
+              ? props.deadLetterQueue
+              : props.deadLetterQueue?.queueName,
           }),
-        );
+        )
       }
 
       // Resolve the runtime context per-call rather than at layer
       // construction. Capturing it on the layer would leak the
       // requirement past `PlatformServices` exclusion when the
       // Worker typechecks its init effect.
-      const ctx = (yield* RuntimeContext) as unknown as FunctionContext;
+      const ctx = (yield* RuntimeContext) as unknown as FunctionContext
       // Capture the queue-name accessor once; the listener body
       // re-resolves it per event via `yield* QueueName`. A worker
       // can consume multiple queues — each subscribe registers its
       // own listener and they all see every queue event, so the
       // queue-name match is what scopes the handler.
-      const QueueName = yield* queue.queueName;
+      const QueueName = yield* queue.queueName
 
       yield* ctx.listen<void, Req>((event) => {
-        if (!isWorkerEvent(event) || event.type !== "queue") return;
-        const batch = event.input as cf.MessageBatch<Body>;
+        if (!isWorkerEvent(event) || event.type !== "queue") return
+        const batch = event.input as cf.MessageBatch<Body>
 
-        return Effect.gen(function* () {
-          const queueName = yield* QueueName;
-          if (batch.queue !== queueName) return;
+        return Effect.gen(function*() {
+          const queueName = yield* QueueName
+          if (batch.queue !== queueName) return
 
           yield* process(Stream.fromIterable(batch.messages)).pipe(
             Effect.tap(() =>
               Effect.sync(() => {
-                for (const msg of batch.messages) msg.ack();
-              }),
+                for (const msg of batch.messages) msg.ack()
+              })
             ),
             Effect.onError((cause) =>
               Effect.sync(() => {
@@ -287,17 +286,17 @@ export const EventSourceLive = Layer.effect(
                 // tripped the retry path; without this the only
                 // signal is the message reappearing on the next
                 // attempt.
-                console.error(
-                  `[EventSource] handler failed on queue ` +
-                    `"${queueName}": ${Cause.pretty(cause)}`,
-                );
-                for (const msg of batch.messages) msg.retry();
-              }),
+                consoleError(
+                  `[EventSource] handler failed on queue `
+                    + `"${queueName}": ${Cause.pretty(cause)}`,
+                )
+                for (const msg of batch.messages) msg.retry()
+              })
             ),
             Effect.ignoreCause,
-          );
-        });
-      });
-    }) as EventSourceService;
+          )
+        })
+      })
+    }) as EventSourceService
   }),
-);
+)

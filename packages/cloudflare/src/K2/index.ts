@@ -4,7 +4,7 @@ export * from "./ReadSubscriptionHttp.vibe";
 export * from "./ReadSubscriptionLocal.vibe";
 export * from "./Stream.vibe";
 export * from "./StreamEventSource.vibe";
-export * from "./StreamEventSourcePoller.ts";
+export * from "./StreamEventSourcePoller.vibe";
 export * from "./StreamSink.vibe";
 export * from "./StreamSinkBinding.vibe";
 export * from "./StreamSinkHttp.vibe";

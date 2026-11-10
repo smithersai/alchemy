@@ -1,1 +1,1 @@
-export { bootstrap, state, type BootstrapOptions, type CloudflareStateOptions } from "./State.ts";
+export { bootstrap, state, type BootstrapOptions, type CloudflareStateOptions } from "./State.vibe";

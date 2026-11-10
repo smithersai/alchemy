@@ -21,13 +21,13 @@ export {
   DurableObjectContainerBindingError,
   DurableObjectContainerConflict,
   DurableObjectContainersOnEffectNativeClass,
-} from "./ContainerConfiguration.ts";
+} from "./ContainerConfiguration.vibe";
 export { ContainerPlatform } from "./ContainerPlatform.ts";
-export * from "./ContainerProvider.ts";
+export * from "./ContainerProvider.vibe";
 export {
   DurableObjectApplication,
   DurableObjectApplicationProvider,
   type DurableObjectApplicationBinding,
   type DurableObjectApplicationProps,
-} from "./DurableObjectApplication.ts";
-export * from "./LocalContainerProvider.ts";
+} from "./DurableObjectApplication.vibe";
+export * from "./LocalContainerProvider.vibe";

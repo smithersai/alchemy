@@ -1,26 +1,27 @@
-import * as Binding from "alchemy/Binding";
-import * as Namespace from "alchemy/Namespace";
-import { ServerHost } from "alchemy/Runtime/Process";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
-import * as Cause from "effect/Cause";
-import type * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import * as Schedule from "effect/Schedule";
-import * as Stream from "effect/Stream";
-import { decodeWithSchema } from "./K2Codec.vibe";
-import type { Batch, ConsumedRecord, K2SchemaError } from "./K2Types.vibe";
-import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.vibe";
-import type { Stream as K2Stream } from "./Stream.vibe";
+import * as Binding from "alchemy/Binding"
+import * as Namespace from "alchemy/Namespace"
+import { ServerHost } from "alchemy/Runtime/Process"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Cause from "effect/Cause"
+import type * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import { decodeWithSchema } from "./K2Codec.vibe"
+import type { Batch, ConsumedRecord, K2SchemaError } from "./K2Types.vibe"
+import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.vibe"
+import type { Stream as K2Stream } from "./Stream.vibe"
 import {
   StreamEventSource,
   type ConsumeStreamRecordsProps,
   type ConsumeStreamRecordsHandler,
   type StreamEventSourceService,
-} from "./StreamEventSource.vibe";
-import { Subscription } from "./Subscription.vibe";
+} from "./StreamEventSource.vibe"
+import { Subscription } from "./Subscription.vibe"
+import { randomUUID } from "./StreamEventSourcePoller.platform.ts"
 
 /**
  * Polling implementation of {@link StreamEventSource} for hosts with a
@@ -53,38 +54,36 @@ import { Subscription } from "./Subscription.vibe";
  */
 export const StreamEventSourcePolling = Layer.effect(
   StreamEventSource,
-  Effect.gen(function* () {
-    const { run } = yield* ServerHost;
-    const readSubscription = yield* ReadSubscription;
+  Effect.gen(function*() {
+    const { run } = yield* ServerHost
+    const readSubscription = yield* ReadSubscription
 
-    return Effect.fn(function* (
+    return Effect.fn(function*(
       stream: K2Stream<any>,
       props: ConsumeStreamRecordsProps,
       process: ConsumeStreamRecordsHandler<any, any>,
     ) {
-      const host = yield* Binding.Host;
-      const hostId = host?.LogicalId ?? "Host";
+      const host = yield* Binding.Host
+      const hostId = host?.LogicalId ?? "Host"
       // Declared in both phases: at runtime the declaration resolves to the
       // deployed subscription's outputs, which the client reads.
-      const subscription =
-        props.subscription ??
-        (yield* Namespace.push(
+      const subscription = props.subscription
+        ?? (yield* Namespace.push(
           hostId,
           Subscription(`${stream.LogicalId}Subscription`, {
             stream,
             startAt: props.startAt,
           }),
-        ));
-      const client = yield* readSubscription(subscription);
+        ))
+      const client = yield* readSubscription(subscription)
       const decode = stream.RecordSchema
         ? decodeWithSchema(stream.RecordSchema)
-        : (records: ReadonlyArray<ConsumedRecord>) => Effect.succeed(records);
+        : (records: ReadonlyArray<ConsumedRecord>) => Effect.succeed(records)
 
       yield* run(
-        Effect.gen(function* () {
-          const workerId =
-            props.workerId ??
-            `${hostId}-${(yield* Effect.sync(() => crypto.randomUUID())).slice(0, 8)}`;
+        Effect.gen(function*() {
+          const workerId = props.workerId
+            ?? `${hostId}-${(yield* Effect.sync(() => randomUUID())).slice(0, 8)}`
           yield* pollSubscription({
             client,
             workerId,
@@ -93,12 +92,12 @@ export const StreamEventSourcePolling = Layer.effect(
             concurrency: props.concurrency,
             decode,
             process,
-          });
+          })
         }),
-      );
-    }) as StreamEventSourceService;
+      )
+    }) as StreamEventSourceService
   }),
-);
+)
 
 // ---- the pull loop -----------------------------------------------------------
 
@@ -108,29 +107,29 @@ const RETRYABLE_CONSUME_ERRORS: ReadonlyArray<string> = [
   "K2ReadFailed",
   "K2LeasesExhausted",
   "K2BatchPending",
-];
+]
 
 /** Bounded backoff for retryable `consume` errors: ~30 s in total. */
 const consumeRetry = Schedule.max([
   Schedule.min([Schedule.exponential("250 millis"), Schedule.spaced("5 seconds")]),
   Schedule.recurs(8),
-]);
+])
 
 interface PollOptions<A, Req> {
-  client: ReadSubscriptionClient;
+  client: ReadSubscriptionClient
   /** Worker id holding the leases. Must be unique per concurrent poller. */
-  workerId: string;
+  workerId: string
   /** @default 100 */
-  maxRecords?: number;
+  maxRecords?: number
   /** Sleep after an empty batch or a failed iteration. @default "1 second" */
-  idleBackoff?: Duration.Input;
+  idleBackoff?: Duration.Input
   /** Extend the five-minute lease this often while the handler runs. @default "2 minutes" */
-  extendEvery?: Duration.Input;
+  extendEvery?: Duration.Input
   /** Turn consumed records into the handler's elements (e.g. schema decode). */
   decode: (
     records: ReadonlyArray<ConsumedRecord>,
-  ) => Effect.Effect<ReadonlyArray<A>, K2SchemaError>;
-  process: (records: Stream.Stream<A>) => Effect.Effect<void, unknown, Req>;
+  ) => Effect.Effect<ReadonlyArray<A>, K2SchemaError>
+  process: (records: Stream.Stream<A>) => Effect.Effect<void, unknown, Req>
 }
 
 /**
@@ -141,13 +140,12 @@ const keepLeaseAlive = (client: ReadSubscriptionClient, batch: Batch, every: Dur
   Effect.sleep(every).pipe(
     Effect.andThen(client.extend(batch)),
     Effect.forever,
-    Effect.catchTag("K2LeaseLost", () =>
-      Effect.logWarning(`K2 lease lost for batch ${batch.batchId}; it may be redelivered`),
+    Effect.catchTag(
+      "K2LeaseLost",
+      () => Effect.logWarning(`K2 lease lost for batch ${batch.batchId}; it may be redelivered`),
     ),
-    Effect.catchCause((cause) =>
-      Effect.logWarning(`K2 lease extension failed for batch ${batch.batchId}`, cause),
-    ),
-  );
+    Effect.catchCause((cause) => Effect.logWarning(`K2 lease extension failed for batch ${batch.batchId}`, cause)),
+  )
 
 /**
  * One poll: lease a batch, run the handler, then ack it on success or nack
@@ -156,8 +154,8 @@ const keepLeaseAlive = (client: ReadSubscriptionClient, batch: Batch, every: Dur
 const pollOnce = <A, Req>(
   options: PollOptions<A, Req>,
 ): Effect.Effect<boolean, unknown, Req | RuntimeContext> =>
-  Effect.gen(function* () {
-    const { client } = options;
+  Effect.gen(function*() {
+    const { client } = options
     const leased = yield* client
       .consume({ workerId: options.workerId, maxRecords: options.maxRecords })
       .pipe(
@@ -165,32 +163,32 @@ const pollOnce = <A, Req>(
           while: (e) => RETRYABLE_CONSUME_ERRORS.includes(e._tag),
           schedule: consumeRetry,
         }),
-      );
-    if (Option.isNone(leased)) return false;
-    const batch = leased.value;
+      )
+    if (Option.isNone(leased)) return false
+    const batch = leased.value
 
     const outcome = yield* Effect.scoped(
-      Effect.gen(function* () {
-        yield* Effect.forkScoped(keepLeaseAlive(client, batch, options.extendEvery ?? "2 minutes"));
+      Effect.gen(function*() {
+        yield* Effect.forkScoped(keepLeaseAlive(client, batch, options.extendEvery ?? "2 minutes"))
         return yield* Effect.exit(
           options
             .decode(batch.records)
             .pipe(Effect.flatMap((values) => options.process(Stream.fromIterable(values)))),
-        );
+        )
       }),
-    );
+    )
 
     if (Exit.isSuccess(outcome)) {
-      yield* client.ack(batch);
+      yield* client.ack(batch)
     } else {
       yield* Effect.logWarning(
         `K2 handler failed for batch ${batch.batchId}; releasing it for redelivery`,
         Cause.pretty(outcome.cause),
-      );
-      yield* client.nack(batch);
+      )
+      yield* client.nack(batch)
     }
-    return true;
-  });
+    return true
+  })
 
 /**
  * Poll forever: an empty batch or a failed iteration sleeps `idleBackoff`;
@@ -203,13 +201,11 @@ const pollForever = <A, Req>(
     Effect.catchCause((cause) =>
       Effect.logWarning(`K2 poll failed for worker ${options.workerId}`, cause).pipe(
         Effect.as(false),
-      ),
+      )
     ),
-    Effect.flatMap((processed) =>
-      processed ? Effect.void : Effect.sleep(options.idleBackoff ?? "1 second"),
-    ),
+    Effect.flatMap((processed) => processed ? Effect.void : Effect.sleep(options.idleBackoff ?? "1 second")),
     Effect.forever,
-  );
+  )
 
 /** Run `concurrency` pollers, each with its own worker id (`${workerId}-${i}`). */
 const pollSubscription = <A, Req>(
@@ -219,4 +215,4 @@ const pollSubscription = <A, Req>(
     Array.from({ length: Math.max(1, options.concurrency ?? 1) }, (_, i) => i),
     (i) => pollForever({ ...options, workerId: `${options.workerId}-${i}` }),
     { concurrency: "unbounded", discard: true },
-  );
+  )

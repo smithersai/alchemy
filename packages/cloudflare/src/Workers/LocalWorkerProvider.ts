@@ -47,7 +47,7 @@ import type { DevContainerImage } from "../Containers/ContainerApplication.vibe"
 import {
   assertBindingContainersOnAsyncClasses,
   mergeWorkerContainers,
-} from "../Containers/ContainerConfiguration.ts";
+} from "../Containers/ContainerConfiguration.vibe";
 import { localAccountId } from "../LocalAccount.vibe";
 import {
   isLiveId,
@@ -55,7 +55,7 @@ import {
   LocalRuntimeState,
   localStorageDirectory,
 } from "../LocalRuntime.ts";
-import type { ConsumerSettings } from "../Queues/Consumer.ts";
+import type { ConsumerSettings } from "../Queues/Consumer.vibe";
 import type { WorkerAssetsConfig, WorkerProps } from "../Workers/Worker.ts";
 import { readAssetsConfigFiles } from "./Assets.vibe";
 import { getCompatibility } from "./Compatibility.ts";

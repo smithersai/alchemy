@@ -19,8 +19,8 @@ import {
   durableObjectContainerBinding,
   isDurableObjectContainerResource,
   workerContainerBinding,
-} from "./ContainerConfiguration.ts";
-import { declareDurableObjectApplication } from "./DurableObjectApplication.ts";
+} from "./ContainerConfiguration.vibe";
+import { declareDurableObjectApplication } from "./DurableObjectApplication.vibe";
 
 const toHttpUrl = (url: string) =>
   url.startsWith("https:") ? `http:${url.slice("https:".length)}` : url;
