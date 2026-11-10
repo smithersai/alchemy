@@ -59,7 +59,7 @@ import {
   orderedParts,
   type BlobMultipart,
   type BlobStoreShape,
-} from "./BlobStore.ts";
+} from "./BlobStore.vibe";
 
 const s3Error = (what: string) => (error: { readonly _tag?: string; readonly message?: string }) =>
   new BlobStoreError({

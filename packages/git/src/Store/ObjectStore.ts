@@ -23,7 +23,7 @@ import * as Stream from "effect/Stream";
  * (`staged_push IS NULL`); staged rows become visible to fetches only after
  * the final `transactionSync` flips them live.
  */
-import type { BlobStoreError, BlobStoreShape } from "../BlobStore.ts";
+import type { BlobStoreError, BlobStoreShape } from "../BlobStore.vibe";
 import type { ObjectType, Oid } from "../Protocol/ObjectCodec.ts";
 import { concatBytes, encodeTypeSize, type PackEntryType } from "../Protocol/ObjectCodec.ts";
 import type { ManifestEntry } from "../Protocol/Store.vibe";

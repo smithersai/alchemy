@@ -17,7 +17,7 @@ import {
   type BlobMeta,
   type BlobMultipart,
   type BlobStoreShape,
-} from "./BlobStore.ts";
+} from "./BlobStore.vibe";
 
 const r2Error = (what: string) => (error: R2Error) =>
   new BlobStoreError({ reason: `${what}: ${error.message}` });

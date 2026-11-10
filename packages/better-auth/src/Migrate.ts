@@ -5,7 +5,7 @@ import type { BetterAuthOptions } from "better-auth";
 import { getSchema } from "better-auth/db";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import type { DatabaseService } from "./Database.ts";
+import type { DatabaseService } from "./Database.vibe";
 import { BetterAuthMigrationError } from "./Errors.ts";
 
 /**
@@ -128,7 +128,7 @@ export const applyMigrations = (
 
 const runMigrationWith = (
   acquire: Effect.Effect<
-    import("./Database.ts").DirectDatabase,
+    import("./Database.vibe").DirectDatabase,
     BetterAuthMigrationError,
     import("effect/Scope").Scope
   >,

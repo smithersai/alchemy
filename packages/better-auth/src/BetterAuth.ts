@@ -9,9 +9,9 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { makeApiProxy, type BetterAuthApi } from "./ApiProxy.vibe";
-import { Database } from "./Database.ts";
+import { Database } from "./Database.vibe";
 import type { BetterAuthApiError } from "./Errors.ts";
-import { SecondaryStorage, toPromiseStorage } from "./SecondaryStorage.ts";
+import { SecondaryStorage, toPromiseStorage } from "./SecondaryStorage.vibe";
 
 /**
  * Better Auth options, minus the fields alchemy owns:

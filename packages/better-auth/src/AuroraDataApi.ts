@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import type * as Scope from "effect/Scope";
-import { Database, type DatabaseService, type DirectDatabase } from "./Database.ts";
+import { Database, type DatabaseService, type DirectDatabase } from "./Database.vibe";
 import { BetterAuthMigrationError } from "./Errors.ts";
 
 /**

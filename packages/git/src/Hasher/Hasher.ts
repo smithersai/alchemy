@@ -30,7 +30,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import { BlobStore, type BlobStoreShape, type UploadedPart } from "../BlobStore.ts";
+import { BlobStore, type BlobStoreShape, type UploadedPart } from "../BlobStore.vibe";
 import { ObjectTooLargeError, PackFormatError } from "../Protocol/PackParser.ts";
 import {
   type EntryBounds,

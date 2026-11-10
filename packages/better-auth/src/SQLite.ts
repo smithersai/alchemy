@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Scope from "effect/Scope";
 import path from "pathe";
-import { Database } from "./Database.ts";
+import { Database } from "./Database.vibe";
 import { BetterAuthMigrationError } from "./Errors.ts";
 
 const open = (path: string): Effect.Effect<BunDatabase, never, Scope.Scope> =>

@@ -37,7 +37,7 @@ export {
   type BlobMeta,
   type BlobMultipart,
   type BlobStoreShape,
-} from "./BlobStore.ts";
+} from "./BlobStore.vibe";
 export { BlobStoreR2 } from "./BlobStoreR2.ts";
 export { BlobStoreS3 } from "./BlobStoreS3.ts";
 export { RegistryD1 } from "./RegistryD1.vibe";

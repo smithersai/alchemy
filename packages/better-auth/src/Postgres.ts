@@ -12,7 +12,7 @@ import * as Layer from "effect/Layer";
 import type * as Redacted from "effect/Redacted";
 import type * as Scope from "effect/Scope";
 import type { PoolConfig } from "pg";
-import { Database, type DatabaseService, type DirectDatabase } from "./Database.ts";
+import { Database, type DatabaseService, type DirectDatabase } from "./Database.vibe";
 import { BetterAuthMigrationError } from "./Errors.ts";
 
 export type { ConnectionSource };
