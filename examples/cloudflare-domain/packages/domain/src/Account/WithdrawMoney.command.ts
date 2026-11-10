@@ -1,5 +1,5 @@
 import * as Domain from "@alchemy.run/domain";
-import { MfaChallenge } from "../MfaChallenge.middleware.ts";
+import { MfaChallenge } from "../MfaChallenge.middleware.vibe";
 import { Cents } from "../Money.vibe";
 import { Session } from "../Session.middleware.ts";
 import { AccountId } from "./Account.id.vibe";
