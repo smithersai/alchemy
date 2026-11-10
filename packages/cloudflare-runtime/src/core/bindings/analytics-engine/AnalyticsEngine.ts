@@ -7,7 +7,7 @@ const AnalyticsEngineWorker = {
       "#cloudflare-runtime-core-worker/bindings/analytics-engine/analytics-engine.worker",
     ),
 };
-import { formatExtensionModule } from "../../internal/internal-modules.vibe";
+import { formatExtensionModule } from "../../internal/internal-modules.ts";
 import * as Plugin from "../../Plugin.ts";
 import type { BindingHook } from "../../PluginContext.ts";
 

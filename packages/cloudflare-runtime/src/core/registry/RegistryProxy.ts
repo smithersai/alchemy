@@ -13,7 +13,7 @@ import {
   DEFAULT_COMPATIBILITY_DATE,
   SERVICE_USER_WORKER,
 } from "../internal/constants.ts";
-import { formatInternalWorkerModules } from "../internal/internal-modules.vibe";
+import { formatInternalWorkerModules } from "../internal/internal-modules.ts";
 import * as Plugin from "../Plugin.ts";
 import { PluginContext } from "../PluginContext.ts";
 import { SystemError } from "../RuntimeError.shared.ts";

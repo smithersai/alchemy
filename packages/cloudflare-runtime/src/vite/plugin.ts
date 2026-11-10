@@ -13,7 +13,7 @@ import {
   virtualModulesPlugin,
   wasmInitPlugin,
 } from "../rolldown/plugins/index.ts";
-import { dev } from "./dev-plugin.vibe";
+import { dev } from "./dev-plugin.ts";
 import { preview } from "./preview-plugin.ts";
 
 export interface CloudflareVitePluginDevOptions {

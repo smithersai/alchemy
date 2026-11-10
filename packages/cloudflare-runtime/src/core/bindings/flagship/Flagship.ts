@@ -9,7 +9,7 @@ const FlagshipWorker = {
 };
 import * as Storage from "../../globals/Storage.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
-import { formatInternalWorkerModules } from "../../internal/internal-modules.vibe";
+import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
 import * as Plugin from "../../Plugin.ts";
 import type { BindingHook } from "../../PluginContext.ts";
 import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";

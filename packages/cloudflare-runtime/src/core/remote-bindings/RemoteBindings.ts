@@ -16,7 +16,7 @@ const OutboundWorker = {
 };
 import * as Loopback from "../globals/Loopback.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../internal/constants.ts";
-import { formatInternalWorkerModules } from "../internal/internal-modules.vibe";
+import { formatInternalWorkerModules } from "../internal/internal-modules.ts";
 import * as Plugin from "../Plugin.ts";
 import * as PluginContext from "../PluginContext.ts";
 import type { ApiError, ConfigError, SystemError } from "../RuntimeError.shared.ts";

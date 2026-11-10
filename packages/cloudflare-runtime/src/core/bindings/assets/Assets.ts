@@ -29,7 +29,7 @@ import type {
   StaticRouting,
 } from "../../../internal/workers-shared/shared/types.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
-import { formatInternalWorkerModules } from "../../internal/internal-modules.vibe";
+import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
 import { loadInternalWorker } from "../../internal/internal-worker.ts";
 import * as Paths from "../../internal/Paths.ts";
 import * as Plugin from "../../Plugin.ts";
