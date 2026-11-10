@@ -8,7 +8,7 @@ import * as LogLevel from "effect/LogLevel";
 import * as Option from "effect/Option";
 import { CurrentLogAnnotations, MinimumLogLevel } from "effect/References";
 import * as Schema from "effect/Schema";
-import { Event, isKnownEventType } from "../Events.ts";
+import { Event, isKnownEventType } from "../Events.vibe";
 import { LogAnnotation } from "./LogAnnotation.ts";
 import { processTrace, type TraceParent, withTraceParent } from "./TraceParent.ts";
 

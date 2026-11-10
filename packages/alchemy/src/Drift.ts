@@ -6,20 +6,20 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
-import { stripUnowned } from "./AdoptPolicy.ts";
+import { stripUnowned } from "./AdoptPolicy.vibe";
 import {
   Artifacts,
   ArtifactStore,
   createArtifactStore,
   ensureArtifactStore,
   makeScopedArtifacts,
-} from "./Artifacts.ts";
+} from "./Artifacts.vibe";
 import { deepEqual } from "./Diff.ts";
-import { captureEmit, emit } from "./Events.ts";
+import { captureEmit, emit } from "./Events.vibe";
 import type { Apply, Plan } from "./Plan.ts";
 import { findProviderByType, Provider } from "./Provider.ts";
-import { stampedMode } from "./ProviderMode.ts";
-import { resourceSession } from "./Report.ts";
+import { stampedMode } from "./ProviderMode.vibe";
+import { resourceSession } from "./Report.vibe";
 import type { ResourceLike } from "./Resource.ts";
 import { ResourceContext } from "./ResourceContext.vibe";
 import {

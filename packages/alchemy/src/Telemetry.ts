@@ -51,7 +51,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type { Input } from "./Input.vibe";
 import * as Output from "./Output.ts";
-import { CurrentRuntimeContext } from "./RuntimeContext.ts";
+import { CurrentRuntimeContext } from "./RuntimeContext.vibe";
 import {
   EXPORTERS_KEY,
   fromBoundConfig,
@@ -59,14 +59,14 @@ import {
   type ResolvedSignal,
   Telemetry,
   type TelemetryLayer,
-} from "./TelemetryRuntime.ts";
+} from "./TelemetryRuntime.vibe";
 
 export {
   buildEventTelemetry,
   provideProcessTelemetry,
   Telemetry,
   type TelemetryLayer,
-} from "./TelemetryRuntime.ts";
+} from "./TelemetryRuntime.vibe";
 export {
   type Destination as RelayDestination,
   type RelayOptions,

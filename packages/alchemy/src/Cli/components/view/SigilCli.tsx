@@ -5,10 +5,10 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
-import type { ApplyEvent } from "../../../Events.ts";
+import type { ApplyEvent } from "../../../Events.vibe";
 import { Interaction } from "../../../Interaction.ts";
 import type { Plan } from "../../../Plan.ts";
-import { type PlanStatusSession, Cli } from "../../../Report.ts";
+import { type PlanStatusSession, Cli } from "../../../Report.vibe";
 import { formatElapsed } from "../../Format.ts";
 import { approvePlanScreen } from "./ApprovePlan.tsx";
 import { Plan as PlanComponent, PlanTree } from "./PlanView.tsx";
@@ -40,7 +40,7 @@ export const sigilCli = () =>
 const approvePlan = Effect.fn(function* <P extends Plan>(
   cli: Interaction["Service"],
   plan: P,
-  options?: import("../../../Report.ts").PlanDisplayOptions,
+  options?: import("../../../Report.vibe").PlanDisplayOptions,
 ) {
   // A dismissed screen means "declined"; NonInteractiveTerminal propagates
   // typed to the command-level handlers (a friendly line, not a raw cause).
@@ -52,7 +52,7 @@ const approvePlan = Effect.fn(function* <P extends Plan>(
 const displayPlan = Effect.fn(function* <P extends Plan>(
   cli: Interaction["Service"],
   plan: P,
-  options?: import("../../../Report.ts").PlanDisplayOptions,
+  options?: import("../../../Report.vibe").PlanDisplayOptions,
 ) {
   const tree = new PlanTree(plan, {
     detailed: options?.detailed,
@@ -111,7 +111,7 @@ const startPlanningSession = Effect.fn(function* (
 const startApplySession = Effect.fn(function* <P extends Plan>(
   cli: Interaction["Service"],
   plan: P,
-  options: import("../../../Report.ts").PlanDisplayOptions | undefined,
+  options: import("../../../Report.vibe").PlanDisplayOptions | undefined,
   preferences: SessionPreferences,
 ) {
   // Detailed applies render their YAML diffs inline in the progress tree.

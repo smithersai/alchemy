@@ -1,0 +1,745 @@
+import * as Config from "effect/Config"
+import * as Context from "effect/Context"
+import * as DateTime from "effect/DateTime"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Path from "effect/Path"
+import type { PlatformError } from "effect/PlatformError"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
+import { UserFacingError } from "../UserFacingError.ts"
+import { writeFileAtomic } from "../Util/AtomicFile.vibe"
+import { profileCommandHint } from "../Util/interactive.ts"
+import { AuthError, type AuthProvider } from "./AuthProvider.vibe"
+import { withLock } from "./Lock.vibe"
+import {
+  configFilePath,
+  credentialsDirPath,
+  profileCredentialsDirPath,
+  profileDirPath,
+  profileProviderFilePath,
+  profilesDirPath,
+  rootDir,
+} from "./Paths.ts"
+import * as V0 from "./ProfileMigrationV0.vibe"
+
+export {
+  configFilePath,
+  credentialsDirPath,
+  profileCredentialsDirPath,
+  profileDirPath,
+  profileProviderFilePath,
+  profilesDirPath,
+  rootDir,
+} from "./Paths.ts"
+
+/** Config key selecting a directory under `~/.alchemy/profiles`. */
+export const ALCHEMY_PROFILE = Config.String("ALCHEMY_PROFILE")
+
+/** Version of the synthesized in-memory manifest returned by readManifest. */
+export const PROFILE_MANIFEST_VERSION = 3
+
+/** Stable format identifier for an individual provider profile document. */
+export const PROFILE_FORMAT = "alchemy.profile/v1" as const
+
+export const DEFAULT_PROFILE_NAME = "default"
+export const DEFAULT_PROFILE_ID = "default"
+
+/**
+ * The minimum contract shared by provider-owned values. Providers refine this
+ * with their own Effect Schema codec. The method is deliberately an open
+ * string: adding an auth method never changes Alchemy's storage schema.
+ */
+export const ProviderConfigSchema = Schema.Record(Schema.String, Schema.Unknown)
+
+export interface ProviderConfig {
+  readonly method?: string
+  readonly [key: string]: unknown
+}
+
+/** User-facing, non-secret annotations. Provider schemas may refine it. */
+export const ProfileMetadataSchema = Schema.Record(Schema.String, Schema.Unknown)
+export type ProfileMetadata = typeof ProfileMetadataSchema.Type
+
+/**
+ * Base on-disk schema. Only this envelope is owned by Alchemy core; the
+ * selected AuthProvider decodes `metadata` and `values` with its own schemas.
+ */
+export const ProviderProfileFileSchema = Schema.StructWithRest(
+  Schema.Struct({
+    format: Schema.Literal(PROFILE_FORMAT),
+    provider: Schema.String,
+    metadata: ProfileMetadataSchema,
+    values: ProviderConfigSchema,
+  }),
+  [Schema.Record(Schema.String, Schema.Unknown)],
+)
+
+export type ProviderProfileFile = typeof ProviderProfileFileSchema.Type
+
+/** Compose the base envelope with a custom provider's typed schemas. */
+export const makeProviderProfileSchema = <Metadata, Values>(
+  provider: string,
+  metadata: Schema.Codec<Metadata>,
+  values: Schema.Codec<Values>,
+) =>
+  Schema.Struct({
+    format: Schema.Literal(PROFILE_FORMAT),
+    provider: Schema.Literal(provider),
+    metadata,
+    values,
+  })
+
+/**
+ * Aggregate view used by the profile UI. It is synthesized from provider
+ * files and is never persisted as a central manifest.
+ */
+export interface Profile {
+  readonly id: string
+  readonly providers: Record<string, ProviderConfig>
+}
+
+export interface ProfileManifest {
+  readonly version: typeof PROFILE_MANIFEST_VERSION
+  readonly profiles: Record<string, Profile>
+}
+
+export interface ProfileSelection {
+  readonly name: string
+  readonly source: "configuration" | "default"
+}
+
+export class ProfileError extends Schema.TaggedError<ProfileError>()("ProfileError", {
+  message: Schema.String,
+  cause: Schema.optional(Schema.Defect()),
+}) {
+  readonly [UserFacingError] = true
+}
+
+export class MissingProviderConfig extends Schema.TaggedError<MissingProviderConfig>()(
+  "MissingProviderConfig",
+  {
+    provider: Schema.String,
+    profileName: Schema.String,
+    message: Schema.String,
+  },
+) {}
+
+export const SuppressMissingProviderConfig = Context.Reference<boolean>(
+  "Auth/SuppressMissingProviderConfig",
+  { defaultValue: () => false },
+)
+
+const emptyManifest = (): ProfileManifest => ({
+  version: PROFILE_MANIFEST_VERSION,
+  profiles: {
+    [DEFAULT_PROFILE_NAME]: { id: DEFAULT_PROFILE_ID, providers: {} },
+  },
+})
+
+export const createProfileHint = (name?: string) =>
+  Effect.map(
+    profileCommandHint(`alchemy profile create ${name ?? "<name>"}`),
+    (command) => `Run \`${command}\`.`,
+  )
+
+const profileNotFound = effect (name: string) => {
+  return ProfileError.make({
+    message: `Profile '${name}' does not exist. ${try createProfileHint(name)}`,
+  })
+}
+
+export const cannotDeleteDefaultProfile = () =>
+  ProfileError.make({
+    message: `Cannot delete the built-in '${DEFAULT_PROFILE_NAME}' profile.`,
+  })
+
+export const cannotRenameDefaultProfile = () =>
+  ProfileError.make({
+    message: `Cannot rename the built-in '${DEFAULT_PROFILE_NAME}' profile.`,
+  })
+
+const PROFILE_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+
+export const validateProfileName = (name: string): Effect.Effect<string, ProfileError> =>
+  PROFILE_NAME_PATTERN.test(name)
+    ? Effect.succeed(name)
+    : Effect.fail(
+      ProfileError.make({
+        message: `Invalid profile name '${name}'. Profile names must start with an ASCII letter or number, `
+          + "contain only letters, numbers, '.', '_' or '-', and be at most 64 characters.",
+      }),
+    )
+
+const validateProviderName = (name: string): Effect.Effect<string, ProfileError> =>
+  PROFILE_NAME_PATTERN.test(name)
+    ? Effect.succeed(name)
+    : Effect.fail(
+      ProfileError.make({
+        message: `Invalid provider id '${name}'. Provider ids must be safe as filenames.`,
+      }),
+    )
+
+export interface ProfileStoreService {
+  readonly readManifest: Effect.Effect<ProfileManifest, ProfileError | PlatformError>
+  readonly getProfile: (
+    name: string,
+  ) => Effect.Effect<Profile | undefined, ProfileError | PlatformError>
+  readonly ensureProfile: (name: string) => Effect.Effect<Profile, ProfileError | PlatformError>
+  readonly createProfile: (name: string) => Effect.Effect<void, ProfileError | PlatformError>
+  readonly renameProfile: (
+    name: string,
+    newName: string,
+  ) => Effect.Effect<void, ProfileError | PlatformError>
+  readonly current: Effect.Effect<ProfileSelection, ProfileError | PlatformError>
+  readonly setProviderConfig: (
+    profile: string,
+    provider: string,
+    values: ProviderConfig,
+  ) => Effect.Effect<void, ProfileError | PlatformError>
+  readonly deleteProviderConfig: (
+    profile: string,
+    provider: string,
+  ) => Effect.Effect<boolean, ProfileError | PlatformError>
+  readonly deleteProfile: (name: string) => Effect.Effect<boolean, ProfileError | PlatformError>
+  readonly loadProviderConfig: <Config extends { method: string }>(
+    auth: AuthProvider<Config>,
+    profileName: string,
+  ) => Effect.Effect<Config, AuthError | MissingProviderConfig | ProfileError | PlatformError>
+}
+
+export class ProfileStore extends Context.Service<ProfileStore, ProfileStoreService>()(
+  "Alchemy::ProfileStore",
+) {}
+
+export const ProfileStoreLive = Layer.effect(
+  ProfileStore,
+  effect {
+    const fs = try FileSystem.FileSystem
+    const pathService = try Path.Path
+
+    try fs.makeDirectory(
+      try Effect.orDie(Effect.try({ try: () => profileDirPath(DEFAULT_PROFILE_NAME), catch: (e) => e })),
+      {
+        recursive: true,
+      },
+    )
+    try fs.chmod(
+      try Effect.orDie(Effect.try({ try: () => profileDirPath(DEFAULT_PROFILE_NAME), catch: (e) => e })),
+      0o700,
+    )
+
+    const provideLockServices = <A, E>(
+      effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>,
+    ): Effect.Effect<A, E> =>
+      effect.pipe(
+        Effect.provideService(FileSystem.FileSystem, fs),
+        Effect.provideService(Path.Path, pathService),
+      )
+
+    const decodeJson = (file: string) =>
+      fs.readFileString(file).pipe(
+        Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))),
+        Effect.mapError((cause) =>
+          ProfileError.make({
+            message: `Could not parse '${file}'.`,
+            cause,
+          })
+        ),
+      )
+
+    const backupInvalidProfileFile = (file: string, reason: unknown) =>
+      provideLockServices(
+        withLock(
+          "profiles-invalid",
+          effect {
+            if (!(try fs.exists(file))) return undefined
+            const stamp = DateTime.formatIso(try DateTime.now)
+              .replaceAll(":", "-")
+              .replaceAll(".", "-")
+            const backup = `${file}.invalid-${stamp}.bak`
+            try fs.rename(file, backup)
+            try Effect.logWarning(
+              `Invalid profile file '${file}' was backed up to '${backup}' and skipped.`,
+              reason,
+            )
+            return backup
+          },
+        ),
+      )
+
+    const writeProviderFile = (
+      profile: string,
+      provider: string,
+      values: ProviderConfig,
+      previous?: ProviderProfileFile,
+    ) =>
+      effect {
+        try validateProfileName(profile)
+        try validateProviderName(provider)
+        const dir = try Effect.orDie(Effect.try({ try: () => profileDirPath(profile), catch: (e) => e }))
+        try fs.makeDirectory(dir, { recursive: true })
+        try fs.chmod(dir, 0o700)
+        const document: ProviderProfileFile = {
+          format: PROFILE_FORMAT,
+          provider,
+          metadata: previous?.metadata ?? {},
+          values,
+        }
+        try writeFileAtomic(
+          fs,
+          try Effect.orDie(Effect.try({ try: () => profileProviderFilePath(profile, provider), catch: (e) => e })),
+          JSON.stringify(document, null, 2),
+          0o600,
+        )
+      }
+
+    const readLegacyProviderValues = (profile: string, provider: string, values: ProviderConfig) =>
+      effect {
+        const plan = V0.planSidecar(provider, values)
+        if (plan._tag === "Inline") return plan.values
+
+        let credentialFile: string | undefined
+        for (const candidate of plan.candidates) {
+          const file = pathService.join(
+            try Effect.orDie(Effect.try({ try: () => profileCredentialsDirPath(profile), catch: (e) => e })),
+            `${candidate}.json`,
+          )
+          if (try fs.exists(file)) {
+            credentialFile = file
+            break
+          }
+        }
+        if (credentialFile === undefined) return plan.fallback
+
+        const decoded = try Effect.result(
+          decodeJson(credentialFile).pipe(
+            Effect.flatMap(Schema.decodeUnknownEffect(ProviderConfigSchema)),
+          ),
+        )
+        if (Result.isFailure(decoded)) {
+          try Effect.logWarning(
+            `Could not decode legacy credentials from '${credentialFile}'; migrating the manifest values and preserving the sidecar in the v0 backup.`,
+            decoded.failure,
+          )
+          return plan.fallback
+        }
+        return V0.mergeSidecar(provider, values, decoded.success)
+      }
+
+    const migrateCentralManifestLocked = provideLockServices(
+      withLock(
+        "profiles-migrate",
+        effect {
+          const legacy = try Effect.orDie(Effect.try({ try: () => configFilePath(), catch: (e) => e }))
+          if (!(try fs.exists(legacy))) return
+          const jsonResult = try Effect.result(decodeJson(legacy))
+          if (Result.isFailure(jsonResult)) {
+            try backupInvalidProfileFile(legacy, jsonResult.failure)
+            return
+          }
+          const header = Schema.decodeUnknownOption(Schema.Struct({ version: Schema.Number }))(
+            jsonResult.success,
+          )
+          // The short-lived centralized versions were never released and do
+          // not need a compatibility path. Leave them untouched.
+          if (Option.isSome(header) && header.value.version !== 0) return
+          const storedResult = try Effect.result(
+            Schema.decodeUnknownEffect(V0.V0ManifestSchema)(jsonResult.success),
+          )
+          if (Result.isFailure(storedResult)) {
+            try backupInvalidProfileFile(legacy, storedResult.failure)
+            return
+          }
+          const stored = storedResult.success
+          for (const [name, entry] of Object.entries(stored.profiles)) {
+            const validName = try Effect.result(validateProfileName(name))
+            if (Result.isFailure(validName)) {
+              try Effect.logWarning(
+                `Skipping invalid v0 profile name '${name}'. It remains available in the v0 backup.`,
+              )
+              continue
+            }
+            const providersResult = try Effect.result(
+              Schema.decodeUnknownEffect(Schema.Record(Schema.String, Schema.Unknown))(entry),
+            )
+            if (Result.isFailure(providersResult)) {
+              try Effect.logWarning(
+                `Skipping invalid v0 profile '${name}'. It remains available in the v0 backup.`,
+                providersResult.failure,
+              )
+              continue
+            }
+            try fs.makeDirectory(try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })), {
+              recursive: true,
+            })
+            try fs.chmod(try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })), 0o700)
+            for (const [provider, rawValues] of Object.entries(providersResult.success)) {
+              const validProvider = try Effect.result(validateProviderName(provider))
+              if (Result.isFailure(validProvider)) {
+                try Effect.logWarning(
+                  `Skipping invalid v0 provider name '${provider}' in profile '${name}'. It remains available in the v0 backup.`,
+                )
+                continue
+              }
+              const valuesResult = try Effect.result(
+                Schema.decodeUnknownEffect(ProviderConfigSchema)(rawValues),
+              )
+              if (Result.isFailure(valuesResult)) {
+                const fallback = V0.undecodableValues(provider)
+                if (fallback !== undefined) {
+                  const target = try Effect.orDie(
+                    Effect.try({ try: () => profileProviderFilePath(name, provider), catch: (e) => e }),
+                  )
+                  if (!(try fs.exists(target))) {
+                    try writeProviderFile(name, provider, fallback)
+                  }
+                  continue
+                }
+                try Effect.logWarning(
+                  `Skipping invalid v0 provider '${provider}' in profile '${name}'. It remains available in the v0 backup.`,
+                  valuesResult.failure,
+                )
+                continue
+              }
+              const values = valuesResult.success
+              if (values.method === "env") continue
+              // Known legacy sidecars become inline provider values.
+              const migratedValues = try readLegacyProviderValues(name, provider, values)
+              const target = try Effect.orDie(
+                Effect.try({ try: () => profileProviderFilePath(name, provider), catch: (e) => e }),
+              )
+              if (!(try fs.exists(target))) {
+                try writeProviderFile(name, provider, migratedValues)
+              }
+            }
+          }
+          const stamp = DateTime.formatIso(try DateTime.now)
+            .replaceAll(":", "-")
+            .replaceAll(".", "-")
+          const backup = pathService.join(
+            try Effect.orDie(Effect.try({ try: () => rootDir(), catch: (e) => e })),
+            `.profiles-v0-${stamp}`,
+          )
+          try fs.makeDirectory(backup, { recursive: true })
+          try fs.chmod(backup, 0o700)
+          try fs.rename(legacy, pathService.join(backup, "profiles.json"))
+          const credentials = try Effect.orDie(Effect.try({ try: () => credentialsDirPath(), catch: (e) => e }))
+          if (try fs.exists(credentials)) {
+            try fs.rename(credentials, pathService.join(backup, "credentials"))
+          }
+        },
+      ),
+    )
+
+    /**
+     * Expand the released v0 store and preserve every original file. Checked
+     * once per process, on the first profile read, rather than on every read.
+     */
+    const migrateCentralManifest = try Effect.cached(migrateCentralManifestLocked)
+
+    const readProviderFile = (profile: string, file: string) =>
+      effect {
+        const fullPath = pathService.join(
+          try Effect.orDie(Effect.try({ try: () => profileDirPath(profile), catch: (e) => e })),
+          file,
+        )
+        const json = try decodeJson(fullPath)
+        const document = try Schema.decodeUnknownEffect(ProviderProfileFileSchema)(json).pipe(
+          Effect.mapError((cause) =>
+            ProfileError.make({
+              message: `Invalid provider profile at '${fullPath}'.`,
+              cause,
+            })
+          ),
+        )
+        const filenameProvider = file.slice(0, -".json".length)
+        if (document.provider.toLowerCase() !== filenameProvider) {
+          return try ProfileError.make({
+            message:
+              `Provider '${document.provider}' in '${fullPath}' does not match lowercase filename '${filenameProvider}'.`,
+          })
+        }
+        return document
+      }
+
+    const readManifest = effect {
+      try migrateCentralManifest
+      const manifest = emptyManifest()
+      const names = try fs
+        .readDirectory(try Effect.orDie(Effect.try({ try: () => profilesDirPath(), catch: (e) => e })))
+        .pipe(Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed<string[]>([])))
+      for (const name of names) {
+        if (!PROFILE_NAME_PATTERN.test(name)) continue
+        const info = try fs.stat(try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })))
+        if (info.type !== "Directory") continue
+        const providers: Record<string, ProviderConfig> = {}
+        const files = try fs.readDirectory(
+          try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })),
+        )
+        for (const file of files.sort()) {
+          if (!file.endsWith(".json")) continue
+          const read = try Effect.result(readProviderFile(name, file))
+          if (Result.isFailure(read)) {
+            try backupInvalidProfileFile(
+              pathService.join(
+                try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })),
+                file,
+              ),
+              read.failure,
+            )
+            continue
+          }
+          providers[read.success.provider] = read.success.values
+        }
+        manifest.profiles[name] = { id: name, providers }
+      }
+      return manifest
+    }
+
+    const getProfile = (name: string) =>
+      validateProfileName(name).pipe(
+        Effect.andThen(readManifest),
+        Effect.map((manifest) => manifest.profiles[name]),
+      )
+
+    const ensureProfile = (name: string) =>
+      getProfile(name).pipe(
+        Effect.flatMap((profile) =>
+          profile === undefined
+            ? Effect.flatMap(profileNotFound(name), Effect.fail)
+            : Effect.succeed(profile)
+        ),
+      )
+
+    const createProfile = (name: string) =>
+      validateProfileName(name).pipe(
+        Effect.flatMap(() =>
+          provideLockServices(
+            withLock(
+              "profiles",
+              effect {
+                const existing = (try readManifest).profiles[name]
+                if (existing !== undefined) {
+                  return try ProfileError.make({
+                    message: `Profile '${name}' already exists.`,
+                  })
+                }
+                try fs.makeDirectory(
+                  try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })),
+                  {
+                    recursive: true,
+                  },
+                )
+                try fs.chmod(
+                  try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })),
+                  0o700,
+                )
+              },
+            ),
+          )
+        ),
+      )
+
+    const renameProfile = (name: string, newName: string) =>
+      effect {
+        if (name === DEFAULT_PROFILE_NAME) {
+          return try cannotRenameDefaultProfile()
+        }
+        try validateProfileName(name)
+        try validateProfileName(newName)
+        try provideLockServices(
+          withLock(
+            "profiles",
+            effect {
+              const manifest = try readManifest
+              if (manifest.profiles[name] === undefined) {
+                return try ProfileError.make({
+                  message: `Profile '${name}' does not exist.`,
+                })
+              }
+              if (manifest.profiles[newName] !== undefined) {
+                return try ProfileError.make({
+                  message: `Profile '${newName}' already exists.`,
+                })
+              }
+              try fs.rename(
+                try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e })),
+                try Effect.orDie(Effect.try({ try: () => profileDirPath(newName), catch: (e) => e })),
+              )
+              const oldCredentials = try Effect.orDie(
+                Effect.try({ try: () => profileCredentialsDirPath(name), catch: (e) => e }),
+              )
+              if (try fs.exists(oldCredentials)) {
+                try fs.rename(
+                  oldCredentials,
+                  try Effect.orDie(Effect.try({ try: () => profileCredentialsDirPath(newName), catch: (e) => e })),
+                )
+              }
+            },
+          ),
+        )
+      }
+
+    const current: Effect.Effect<ProfileSelection, ProfileError | PlatformError> = effect {
+      const configured = try Config.option(ALCHEMY_PROFILE).pipe(
+        Effect.mapError((cause) =>
+          ProfileError.make({
+            message: "Could not resolve ALCHEMY_PROFILE.",
+            cause,
+          })
+        ),
+      )
+      if (Option.isSome(configured)) {
+        return {
+          name: try validateProfileName(configured.value),
+          source: "configuration" as const,
+        }
+      }
+      return { name: DEFAULT_PROFILE_NAME, source: "default" as const }
+    }
+
+    const setProviderConfig = (profile: string, provider: string, values: ProviderConfig) =>
+      effect {
+        try validateProfileName(profile)
+        try validateProviderName(provider)
+        try provideLockServices(
+          withLock(
+            "profiles",
+            effect {
+              if ((try readManifest).profiles[profile] === undefined) {
+                return try Effect.flatMap(profileNotFound(profile), Effect.fail)
+              }
+              const file = try Effect.orDie(
+                Effect.try({ try: () => profileProviderFilePath(profile, provider), catch: (e) => e }),
+              )
+              let previous: ProviderProfileFile | undefined
+              if (try fs.exists(file)) {
+                const read = try Effect.result(
+                  readProviderFile(profile, `${provider.toLowerCase()}.json`),
+                )
+                if (Result.isFailure(read)) {
+                  try backupInvalidProfileFile(file, read.failure)
+                } else {
+                  previous = read.success
+                }
+              }
+              try writeProviderFile(profile, provider, values, previous)
+            },
+          ),
+        )
+      }
+
+    const deleteProviderConfig = (profile: string, provider: string) =>
+      effect {
+        try validateProfileName(profile)
+        try validateProviderName(provider)
+        return try provideLockServices(
+          withLock(
+            "profiles",
+            effect {
+              const file = try Effect.orDie(
+                Effect.try({ try: () => profileProviderFilePath(profile, provider), catch: (e) => e }),
+              )
+              if (!(try fs.exists(file))) return false
+              try fs.remove(file)
+              return true
+            },
+          ),
+        )
+      }
+
+    const deleteProfile = (name: string): Effect.Effect<boolean, ProfileError | PlatformError> =>
+      effect {
+        try validateProfileName(name)
+        if (name === DEFAULT_PROFILE_NAME) {
+          return try cannotDeleteDefaultProfile()
+        }
+        return try provideLockServices(
+          withLock(
+            "profiles",
+            effect {
+              const dir = try Effect.orDie(Effect.try({ try: () => profileDirPath(name), catch: (e) => e }))
+              if (!(try fs.exists(dir))) return false
+              try fs.remove(dir, { recursive: true })
+              const credentials = try Effect.orDie(
+                Effect.try({ try: () => profileCredentialsDirPath(name), catch: (e) => e }),
+              )
+              if (try fs.exists(credentials)) {
+                try fs.remove(credentials, { recursive: true })
+              }
+              return true
+            },
+          ),
+        )
+      }
+
+    const loadProviderConfig = <Config extends { method: string }>(
+      auth: AuthProvider<Config>,
+      profileName: string,
+    ) =>
+      effect {
+        const existing = try ensureProfile(profileName)
+        const stored = existing.providers[auth.name]
+        if (stored !== undefined) {
+          return try auth.decodeConfig(profileName, stored)
+        }
+        if (try SuppressMissingProviderConfig) {
+          return try MissingProviderConfig.make({
+            provider: auth.name,
+            profileName,
+            message: `Provider '${auth.name}' is not configured in profile '${profileName}'.`,
+          })
+        }
+        const command = try profileCommandHint(
+          `alchemy profile edit --profile ${profileName} --add ${auth.name}`,
+        )
+        return try AuthError.make({
+          message: `Provider '${auth.name}' is not configured in profile '${profileName}'. Run \`${command}\`.`,
+        })
+      }
+
+    return {
+      readManifest,
+      getProfile,
+      ensureProfile,
+      createProfile,
+      renameProfile,
+      current,
+      setProviderConfig,
+      deleteProviderConfig,
+      deleteProfile,
+      loadProviderConfig,
+    } satisfies ProfileStoreService
+  },
+)
+
+/**
+ * Re-read a provider's stored configuration, failing only with
+ * {@link AuthError}. Silent refreshes rotate single-use refresh tokens, so
+ * {@link AuthProvider.read}/{@link AuthProvider.details} take this effect and
+ * run it under the profile's credentials lock instead of a config read before
+ * it.
+ */
+export const reloadProviderConfig = <Config extends { method: string }>(
+  store: ProfileStoreService,
+  auth: AuthProvider<Config>,
+  profileName: string,
+): Effect.Effect<Config, AuthError> =>
+  store.loadProviderConfig(auth, profileName).pipe(
+    Effect.mapError((cause) =>
+      cause._tag === "AuthError"
+        ? cause
+        : AuthError.make({
+          message: `Could not reload ${auth.name} configuration for profile '${profileName}'.`,
+          cause,
+        })
+    ),
+  )
+
+/** The name of the currently selected profile. */
+export const currentProfileName: Effect.Effect<string, ProfileError | PlatformError, ProfileStore> = ProfileStore.use((
+  store,
+) => store.current).pipe(Effect.map((selection) => selection.name))

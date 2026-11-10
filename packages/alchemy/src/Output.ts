@@ -6,7 +6,7 @@ import type { Pipeable } from "effect/Pipeable";
 import { SingleShotGen } from "effect/Utils";
 import { getRefMetadata, isRef, type Ref } from "./Ref.ts";
 import { isResource, type Resource, type ResourceLike } from "./Resource.ts";
-import { RuntimeContext, sanitizeKey } from "./RuntimeContext.ts";
+import { RuntimeContext, sanitizeKey } from "./RuntimeContext.vibe";
 import { StackContext } from "./StackContext.vibe";
 import { Stage } from "./Stage.ts";
 import * as State from "./State/State.ts";

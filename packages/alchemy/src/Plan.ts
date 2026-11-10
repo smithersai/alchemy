@@ -9,14 +9,14 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import { asEffect } from ".//Util/types.ts";
-import { isAction, type ActionLike } from "./Action.ts";
+import { isAction, type ActionLike } from "./Action.vibe";
 import {
   AdoptPolicy,
   OwnedBySomeoneElse,
   stripUnowned,
   Unowned,
   UnverifiableReplacement,
-} from "./AdoptPolicy.ts";
+} from "./AdoptPolicy.vibe";
 import { AlchemyContext } from "./AlchemyContext.vibe";
 import {
   Artifacts,
@@ -24,8 +24,8 @@ import {
   createArtifactStore,
   ensureArtifactStore,
   makeScopedArtifacts,
-} from "./Artifacts.ts";
-import { demandRemoteCredentials, failCredentialsRequired } from "./Auth/Demand.ts";
+} from "./Artifacts.vibe";
+import { demandRemoteCredentials, failCredentialsRequired } from "./Auth/Demand.vibe";
 import {
   dedupeBindings,
   diffBindings,
@@ -35,7 +35,7 @@ import {
   type ReplaceDiff,
   type UpdateDiff,
 } from "./Diff.ts";
-import { emit, type PlannedAction, type PlannedBinding, type PlannedResource } from "./Events.ts";
+import { emit, type PlannedAction, type PlannedBinding, type PlannedResource } from "./Events.vibe";
 import { parseFqn } from "./FQN.ts";
 import { generateInstanceId } from "./InstanceId.vibe";
 import * as Output from "./Output.ts";
@@ -47,7 +47,7 @@ import {
   tryFindProviderByType,
   type ProviderService,
 } from "./Provider.ts";
-import { defaultProviderMode, stampedMode, type ProviderMode } from "./ProviderMode.ts";
+import { defaultProviderMode, stampedMode, type ProviderMode } from "./ProviderMode.vibe";
 import {
   isResource,
   missingImplementation,
@@ -62,7 +62,7 @@ import {
   type ResourceSelection,
   type SelectionOutput,
 } from "./ResourceSelection.ts";
-import { capturedEnvKeys } from "./RuntimeContext.ts";
+import { capturedEnvKeys } from "./RuntimeContext.vibe";
 import { cachedInScope } from "./Util/Memoize.ts";
 export { InvalidResourceSelection, UnsafeSelectionBoundary } from "./ResourceSelection.ts";
 import { type StackSpec } from "./Stack.ts";

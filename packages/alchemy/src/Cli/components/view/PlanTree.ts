@@ -1,6 +1,6 @@
-import type { ApplyEvent, ApplyStatus, ResourceStatusChanged } from "../../../Events.ts";
+import type { ApplyEvent, ApplyStatus, ResourceStatusChanged } from "../../../Events.vibe";
 import type { ActionApply, ActionDelete, CRUD, Plan } from "../../../Plan.ts";
-import type { ProviderMode } from "../../../ProviderMode.ts";
+import type { ProviderMode } from "../../../ProviderMode.vibe";
 import {
   buildNamespaceTree,
   buildPlanSummary,

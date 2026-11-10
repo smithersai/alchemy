@@ -10,7 +10,7 @@ import * as Semaphore from "effect/Semaphore";
 import { isResolved, stripEffects, type Diff } from "../Diff.ts";
 import type { Platform } from "../Platform.ts";
 import type { ProviderService } from "../Provider.ts";
-import type { ScopedPlanStatusSession } from "../Report.ts";
+import type { ScopedPlanStatusSession } from "../Report.vibe";
 import type { ResourceBinding, ResourceClassLike, ResourceLike } from "../Resource.ts";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";
 import { sha256 } from "../Util/sha256.ts";

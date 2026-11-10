@@ -1,6 +1,6 @@
 import { toPath } from "../FQN.ts";
 import type { BindingAction, CRUD, ActionApply, ActionDelete, Plan } from "../Plan.ts";
-import type { ProviderMode } from "../ProviderMode.ts";
+import type { ProviderMode } from "../ProviderMode.vibe";
 import {
   formatDeclaredPropertyYaml,
   formatDriftPropertyYaml,

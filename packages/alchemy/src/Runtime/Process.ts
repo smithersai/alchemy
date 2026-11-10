@@ -9,7 +9,7 @@ import type { Terminal } from "effect/Terminal";
 import type { HttpEffect } from "../Http.ts";
 import * as Http from "../Http.ts";
 import * as Output from "../Output.ts";
-import { packEnvValue, unpackEnvValue, type BaseRuntimeContext } from "../RuntimeContext.ts";
+import { packEnvValue, unpackEnvValue, type BaseRuntimeContext } from "../RuntimeContext.vibe";
 import { ManagedHttpShutdown } from "./ManagedHttpShutdown.ts";
 
 export type ProcessServices = ChildProcessSpawner | FileSystem | Path | Stdio | Terminal;

@@ -21,7 +21,7 @@ import * as Redacted from "effect/Redacted";
 import type * as Scope from "effect/Scope";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
-import type { ScopedPlanStatusSession } from "../Report.ts";
+import type { ScopedPlanStatusSession } from "../Report.vibe";
 import { isNonInteractive } from "../Util/interactive.ts";
 import { initialCwd } from "../Util/Node.ts";
 import { makeCommandRedactor, redactPlatformReason, type CommandRedactor } from "./Redaction.vibe";

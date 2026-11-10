@@ -10,7 +10,7 @@ import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Output from "../Output.ts";
-import { isRedactedMarker, type RedactedMarker } from "../RuntimeContext.ts";
+import { isRedactedMarker, type RedactedMarker } from "../RuntimeContext.vibe";
 import { decodeDuration, DURATION_MARKER, encodeState } from "../State/StateEncoding.ts";
 import {
   currentTraceParent,

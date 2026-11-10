@@ -5,9 +5,9 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { UserFacingError } from "../UserFacingError.ts";
 import { loadConfigProvider } from "../Util/ConfigProvider.ts";
-import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.ts";
+import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.vibe";
 import { cacheUntilExpiry } from "./CredentialsCache.vibe";
-import { ProfileStore, reloadProviderConfig, SuppressMissingProviderConfig } from "./Profile.ts";
+import { ProfileStore, reloadProviderConfig, SuppressMissingProviderConfig } from "./Profile.vibe";
 
 /**
  * Resolve the selected Alchemy profile after the command's dotenv provider is

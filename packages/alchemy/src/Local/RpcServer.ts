@@ -8,7 +8,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type { HttpClient } from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
-import { ArtifactStore, createArtifactStore } from "../Artifacts.ts";
+import { ArtifactStore, createArtifactStore } from "../Artifacts.vibe";
 import type { ProviderService } from "../Provider.ts";
 import type { ResourceLike } from "../Resource.ts";
 import { childJsonLogLayer, LOG_FORMAT_ENV, LogProcess } from "../Util/LogRecord.ts";

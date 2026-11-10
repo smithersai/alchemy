@@ -9,7 +9,7 @@ import * as Option from "effect/Option";
 import type { PlatformError } from "effect/PlatformError";
 import * as Predicate from "effect/Predicate";
 import type { Simplify } from "effect/Types";
-import type { ActionLike } from "./Action.ts";
+import type { ActionLike } from "./Action.vibe";
 import { makeResolveContext } from "./ActionRuntimeContext.vibe";
 import {
   OwnedBySomeoneElse,
@@ -17,7 +17,7 @@ import {
   Unowned,
   Unresolved,
   UnverifiableReplacement,
-} from "./AdoptPolicy.ts";
+} from "./AdoptPolicy.vibe";
 import { AlchemyContext } from "./AlchemyContext.vibe";
 import {
   Artifacts,
@@ -25,15 +25,15 @@ import {
   createArtifactStore,
   ensureArtifactStore,
   makeScopedArtifacts,
-} from "./Artifacts.ts";
-import type { AuthError, NeedsReauth } from "./Auth/AuthProvider.ts";
+} from "./Artifacts.vibe";
+import type { AuthError, NeedsReauth } from "./Auth/AuthProvider.vibe";
 import {
   type CredentialsRequired,
   failCredentialsRequired,
   demandPlanCredentials,
-} from "./Auth/Demand.ts";
+} from "./Auth/Demand.vibe";
 import { havePropsChanged, isResolved, stripEffects, stripUnresolved } from "./Diff.ts";
-import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.ts";
+import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.vibe";
 import type { Input } from "./Input.vibe";
 import { generateInstanceId } from "./InstanceId.vibe";
 import * as Output from "./Output.ts";
@@ -45,11 +45,11 @@ import {
   missingProviderError,
   tryFindProviderByType,
 } from "./Provider.ts";
-import { stampedMode, type ProviderMode } from "./ProviderMode.ts";
-import { resourceSession } from "./Report.ts";
+import { stampedMode, type ProviderMode } from "./ProviderMode.vibe";
+import { resourceSession } from "./Report.vibe";
 import type { ResourceBinding } from "./Resource.ts";
 import { ResourceContext } from "./ResourceContext.vibe";
-import { RuntimeContext } from "./RuntimeContext.ts";
+import { RuntimeContext } from "./RuntimeContext.vibe";
 import { Stack } from "./Stack.ts";
 import { Stage } from "./Stage.ts";
 import {

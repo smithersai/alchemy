@@ -8,7 +8,7 @@ export {
   type PlanningPhase,
   type ResourceAnnotated,
   type ResourceStatusChanged,
-} from "../Events.ts";
+} from "../Events.vibe";
 export { layer, type Services } from "./Runtime.vibe";
 export {
   apply,
@@ -20,13 +20,13 @@ export {
   type PlanOutput,
   type PlanSummary,
   type StackPlan,
-} from "./Operations.ts";
+} from "./Operations.vibe";
 export {
   DEFAULT_ENTRYPOINT,
   importStack,
   StackEntrypointError,
   type Target,
-} from "./Entrypoint.ts";
+} from "./Entrypoint.vibe";
 
 export type { ConfiguredStack } from "../Stack.ts";
 
