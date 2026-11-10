@@ -46,7 +46,7 @@ export * from "./ReadRedisHttp.vibe";
 export * from "./ReadWriteRedis.vibe";
 export * from "./ReadWriteRedisHttp.vibe";
 export * from "./Redis.vibe";
-export * from "./Sandbox.ts";
+export * from "./Sandbox.vibe";
 export * from "./SandboxCheckpoint.vibe";
 export * from "./Service.vibe";
 export * as Website from "./Website/index.ts";
