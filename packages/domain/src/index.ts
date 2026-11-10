@@ -18,12 +18,12 @@
  * the Cloudflare platform is in `@alchemy.run/cloudflare/Domain`.
  */
 import * as AggregateModule from "./Aggregate.ts";
-import * as ApiModule from "./Api.ts";
+import * as ApiModule from "./Api.vibe";
 import * as CommandModule from "./Command.vibe";
 import * as EventModule from "./Event.vibe";
 import * as ExternalSystemModule from "./ExternalSystem.ts";
 import type * as KeyModule from "./Key.vibe";
-import * as ModelModule from "./Model.ts";
+import * as ModelModule from "./Model.vibe";
 import * as PolicyModule from "./Policy.vibe";
 import * as ProjectionModule from "./Projection.vibe";
 import * as RejectionModule from "./Rejection.vibe";
@@ -247,7 +247,7 @@ export { DefinitionError } from "./Kernel.ts";
 export const RequestContext = RequestContextModule.make;
 
 export type { Filter, OrderBy } from "./Filter.vibe";
-export { InMemory } from "./InMemory.ts";
+export { InMemory } from "./InMemory.vibe";
 export type * as Middleware from "./Middleware.vibe";
 export { Platform } from "./Platform.vibe";
 export * as Read from "./Read.vibe";
