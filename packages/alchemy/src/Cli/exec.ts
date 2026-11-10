@@ -28,11 +28,11 @@ import { initialCwd } from "../Util/Node.ts";
 import { PlatformServices } from "../Util/PlatformServices.ts";
 import { logShutdown } from "../Util/Shutdown.vibe";
 import { processTrace, withTraceParent } from "../Util/TraceParent.vibe";
-import { handleCliErrors, installShutdownFeedback } from "./commands/errors.ts";
+import { handleCliErrors, installShutdownFeedback } from "./commands/errors.vibe";
 import { renderPlanning } from "./commands/render.vibe";
 import { stackOutputsView } from "./components/view/StackOutputs.tsx";
 import { DEV_RELOAD_EXIT_CODE, DevOptions } from "./DevOptions.vibe";
-import { ConsoleLogLive } from "./GlobalLog.ts";
+import { ConsoleLogLive } from "./GlobalLog.vibe";
 import { selectCliServices } from "./selectCli.vibe";
 
 // Interactive dev/deploy runs use the Sigil progress UI; CI, redirected output,

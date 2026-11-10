@@ -8,8 +8,8 @@ import * as Alchemist from "../../Alchemist/index.ts";
 import * as Interaction from "../../Interaction.ts";
 import { renderNukeScan, renderNukeDelete, reviewNuke } from "../components/view/Nuke.tsx";
 import { formatElapsed } from "../Format.ts";
-import { exitDeclined, UserInputError } from "./errors.ts";
-import { configPath, envFile, optionalConfig, profile, resolveConfig, yes } from "./flags.ts";
+import { exitDeclined, UserInputError } from "./errors.vibe";
+import { configPath, envFile, optionalConfig, profile, resolveConfig, yes } from "./flags.vibe";
 import { instrumentCommand } from "./instrument.vibe";
 
 const includeFlag = Flag.String("include").pipe(

@@ -1,4 +1,4 @@
-export * from "./Build.ts";
+export * from "./Build.vibe";
 export * from "./Command.ts";
 export * from "./Dev.ts";
 export * from "./Exec.vibe";

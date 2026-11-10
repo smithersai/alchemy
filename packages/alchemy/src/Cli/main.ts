@@ -29,9 +29,9 @@ import {
   compatibilityCommands,
   type CompatibilityCommand,
 } from "./commands/compat.vibe";
-import { handleCliErrors } from "./commands/errors.ts";
+import { handleCliErrors } from "./commands/errors.vibe";
 import { VersionCheck } from "./commands/instrument.vibe";
-import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.ts";
+import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.vibe";
 import { selectCliServices } from "./selectCli.vibe";
 
 const commandMetadata = [

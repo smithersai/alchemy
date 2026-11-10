@@ -9,7 +9,7 @@ import {
   type FlattenedItem,
   type PlanSummaryCounts,
 } from "../../NamespaceTree.ts";
-import type { DeclaredPropertyYaml } from "../../PropertyDiff.ts";
+import type { DeclaredPropertyYaml } from "../../PropertyDiff.vibe";
 import { isInProgress, isTerminalStatus } from "./statusStyle.ts";
 
 export type PlanRow =

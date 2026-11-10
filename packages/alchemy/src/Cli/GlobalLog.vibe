@@ -1,24 +1,24 @@
-import type * as Cause from "effect/Cause";
-import * as Flag from "effect/cli/Flag";
-import * as GlobalFlag from "effect/cli/GlobalFlag";
-import * as Clock from "effect/Clock";
-import * as Context from "effect/Context";
-import * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
-import * as FileSystem from "effect/FileSystem";
-import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
-import * as LogLevel from "effect/LogLevel";
-import * as Option from "effect/Option";
-import { Path } from "effect/Path";
-import * as Queue from "effect/Queue";
-import { CurrentLogAnnotations, MinimumLogLevel } from "effect/References";
-import packageJson from "../../package.json" with { type: "json" };
-import { dotAlchemyDirectory } from "../AlchemyContext.vibe";
-import { rootDir } from "../Auth/Paths.ts";
-import { makePlainConsoleSink } from "../Util/ConsoleSink.vibe";
-import { LogAnnotation } from "../Util/LogAnnotation.ts";
+import type * as Cause from "effect/Cause"
+import * as Flag from "effect/cli/Flag"
+import * as GlobalFlag from "effect/cli/GlobalFlag"
+import * as Clock from "effect/Clock"
+import * as Context from "effect/Context"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Logger from "effect/Logger"
+import * as LogLevel from "effect/LogLevel"
+import * as Option from "effect/Option"
+import { Path } from "effect/Path"
+import * as Queue from "effect/Queue"
+import { CurrentLogAnnotations, MinimumLogLevel } from "effect/References"
+import packageJson from "../../package.json" with { type: "json" }
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe"
+import { rootDir } from "../Auth/Paths.ts"
+import { makePlainConsoleSink } from "../Util/ConsoleSink.vibe"
+import { LogAnnotation } from "../Util/LogAnnotation.ts"
 import {
   formatJsonRecord,
   jsonLogger,
@@ -26,11 +26,12 @@ import {
   LOG_LEVEL_ENV,
   type LogRecord,
   safeStringify,
-} from "../Util/LogRecord.vibe";
-import { processTrace } from "../Util/TraceParent.vibe";
+} from "../Util/LogRecord.vibe"
+import { processTrace } from "../Util/TraceParent.vibe"
+import { envValue, processDescription, processId, writeStderrLine } from "./GlobalLog.platform.ts"
 
 /** Logs older than this are pruned (by mtime) on CLI start. */
-const MAX_LOG_AGE = Duration.days(7);
+const MAX_LOG_AGE = Duration.days(7)
 
 /** The `--log-level` / `ALCHEMY_LOG_LEVEL` spellings. */
 const logLevelChoices: Record<string, LogLevel.LogLevel> = {
@@ -43,7 +44,7 @@ const logLevelChoices: Record<string, LogLevel.LogLevel> = {
   error: "Error",
   fatal: "Fatal",
   none: "None",
-};
+}
 
 /**
  * `--log-level`: the lowest level printed on the console. Registered on the
@@ -57,10 +58,10 @@ export const LogLevelFlag = GlobalFlag.Setting("log-level")({
     Flag.withDescription("Lowest level printed on the console"),
     Flag.withMetavar("<all|trace|debug|info|warn|error|fatal|none>"),
   ),
-});
+})
 
 /** How the terminal shows log records. */
-export type LogFormat = "pretty" | "json";
+export type LogFormat = "pretty" | "json"
 
 /**
  * `--log-format pretty|json`: `json` prints one {@link LogRecord} per line
@@ -72,17 +73,17 @@ export const LogFormatFlag = GlobalFlag.Setting("log-format")({
     Flag.withDescription("Print log records as text or as JSON lines on stderr"),
     Flag.optional,
   ),
-});
+})
 
 /** What the console shows, and how. */
 export interface ConsoleSettings {
   /** Records below this level stay in the run log only. */
-  readonly floor: LogLevel.LogLevel;
-  readonly format: LogFormat;
+  readonly floor: LogLevel.LogLevel
+  readonly format: LogFormat
 }
 
 const flagValue = <A>(context: Context.Context<never>, flag: Context.Key<any, Option.Option<A>>) =>
-  Context.getOption(context, flag).pipe(Option.flatten, Option.getOrUndefined);
+  Context.getOption(context, flag).pipe(Option.flatten, Option.getOrUndefined)
 
 /**
  * The console settings in `context`: the parsed `--log-level` and
@@ -92,30 +93,28 @@ const flagValue = <A>(context: Context.Context<never>, flag: Context.Key<any, Op
  * (#1231).
  */
 export const consoleSettings = (context: Context.Context<never>): ConsoleSettings => ({
-  floor:
-    flagValue(context, LogLevelFlag) ??
-    logLevelChoices[process.env[LOG_LEVEL_ENV]?.toLowerCase() ?? ""] ??
-    "Info",
-  format:
-    (flagValue(context, LogFormatFlag) ?? process.env[LOG_FORMAT_ENV]) === "json"
-      ? "json"
-      : "pretty",
-});
+  floor: flagValue(context, LogLevelFlag)
+    ?? logLevelChoices[envValue(LOG_LEVEL_ENV)?.toLowerCase() ?? ""]
+    ?? "Info",
+  format: (flagValue(context, LogFormatFlag) ?? envValue(LOG_FORMAT_ENV)) === "json"
+    ? "json"
+    : "pretty",
+})
 
 /** The current fiber's {@link consoleSettings}. */
 export const currentConsoleSettings: Effect.Effect<ConsoleSettings> = Effect.map(
   Effect.context<never>(),
   consoleSettings,
-);
+)
 
 /** {@link ConsoleSettings} as environment, for a child process that renders the run's logs. */
 export const consoleSettingsEnv = (settings: ConsoleSettings): Record<string, string> => ({
   [LOG_LEVEL_ENV]: settings.floor,
   [LOG_FORMAT_ENV]: settings.format,
-});
+})
 
-const jsonSink = jsonLogger((line) => process.stderr.write(`${line}\n`));
-const prettySink = makePlainConsoleSink();
+const jsonSink = jsonLogger((line) => writeStderrLine(line))
+const prettySink = makePlainConsoleSink()
 
 /**
  * Terminal sink: forwards records at or above the logging fiber's
@@ -124,20 +123,20 @@ const prettySink = makePlainConsoleSink();
  */
 export const makeConsoleLogger = (sink?: Logger.Logger<unknown, void>) =>
   Logger.make<unknown, void>((options) => {
-    const settings = consoleSettings(options.fiber.context);
+    const settings = consoleSettings(options.fiber.context)
     if (LogLevel.isGreaterThanOrEqualTo(options.logLevel, settings.floor)) {
-      (sink ?? (settings.format === "json" ? jsonSink : prettySink)).log(options);
+      ;(sink ?? (settings.format === "json" ? jsonSink : prettySink)).log(options)
     }
-  });
+  })
 
 /** Shared terminal logger for CLI entrypoints that do not need a run file. */
 export const ConsoleLogLive = Layer.mergeAll(
   Logger.layer([makeConsoleLogger()]),
   Layer.succeed(MinimumLogLevel, "Debug"),
-);
+)
 
 /** Drops everything — the fallback when the log file cannot be opened. */
-const noopLogger = Logger.make<unknown, void>(() => {});
+const noopLogger = Logger.make<unknown, void>(() => {})
 
 /**
  * The run log's file logger alone. The run log is the only log file: the
@@ -147,30 +146,30 @@ const noopLogger = Logger.make<unknown, void>(() => {});
  */
 export const RunLog = Context.Reference<Logger.Logger<unknown, void>>("alchemy/Cli/RunLog", {
   defaultValue: () => noopLogger,
-});
+})
 
 /** Delete run logs in `dir` older than {@link MAX_LOG_AGE}. Best-effort. */
 const pruneRunLogs = (dir: string) =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path;
-    const now = yield* Clock.currentTimeMillis;
-    const entries = yield* fs.readDirectory(dir).pipe(Effect.orElseSucceed(() => [] as string[]));
+  effect {
+    const fs = try FileSystem.FileSystem
+    const path = try Path
+    const now = try Clock.currentTimeMillis
+    const entries = try fs.readDirectory(dir).pipe(Effect.orElseSucceed(() => [] as string[]))
     // Only run logs: the directory may hold other tools' logs (the test
     // runner's `test/`).
-    yield* Effect.forEach(
+    try Effect.forEach(
       entries.filter((entry) => entry.endsWith(".ndjson")),
       (entry) =>
-        Effect.gen(function* () {
-          const file = path.join(dir, entry);
-          const mtime = Option.getOrUndefined((yield* fs.stat(file)).mtime)?.getTime();
+        effect {
+          const file = path.join(dir, entry)
+          const mtime = Option.getOrUndefined((try fs.stat(file)).mtime)?.getTime()
           if (mtime !== undefined && now - mtime > Duration.toMillis(MAX_LOG_AGE)) {
-            yield* fs.remove(file);
+            try fs.remove(file)
           }
-        }).pipe(Effect.ignore),
+        }.pipe(Effect.ignore),
       { discard: true },
-    );
-  });
+    )
+  }
 
 /**
  * A run log file that is created on its first record, so a run that sends
@@ -185,36 +184,37 @@ const pruneRunLogs = (dir: string) =>
  *
  * @internal exported for tests.
  */
-export const lazyRunLog = Effect.fn(function* (
+export const lazyRunLog = effect (
   dir: string,
   name: string,
-  scope: LogRecord["scope"],
-) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path;
-  const file = path.join(dir, name);
-  const lines = yield* Queue.unbounded<string, Cause.Done>();
+  scope: "global" | "project",
+) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path
+  const file = path.join(dir, name)
+  const lines = try Queue.unbounded<string, Cause.Done>()
   const append = (batch: ReadonlyArray<string>) =>
-    fs.writeFileString(file, batch.map((line) => `${line}\n`).join(""), { flag: "a" });
-  const writer = yield* Effect.gen(function* () {
-    const first = yield* Queue.take(lines);
-    yield* fs.makeDirectory(dir, { recursive: true });
-    yield* pruneRunLogs(dir);
-    yield* append([safeStringify(yield* runRecord(scope)), first]);
-    return yield* Effect.forever(Effect.flatMap(Queue.takeAll(lines), append));
-  }).pipe(
+    fs.writeFileString(file, batch.map((line) => `${line}\n`).join(""), { flag: "a" })
+  const writer = try effect {
+    const first = try Queue.take(lines)
+    try fs.makeDirectory(dir, { recursive: true })
+    try pruneRunLogs(dir)
+    const record = try runRecord(scope)
+    try append([try Effect.orDie(Effect.try({ try: () => safeStringify(record), catch: (e) => e })), first])
+    return try Effect.forever(Effect.flatMap(Queue.takeAll(lines), append))
+  }.pipe(
     // The queue ending stops the writer. Any other failure (an unwritable
     // directory) drops the log, never the command: a shut-down queue
     // ignores further records.
     Effect.catchCause(() => Queue.shutdown(lines)),
     Effect.forkDetach,
-  );
-  yield* Effect.addFinalizer(() => Effect.andThen(Queue.end(lines), Fiber.await(writer)));
+  )
+  try Effect.addFinalizer(() => Effect.andThen(Queue.end(lines), Fiber.await(writer)))
   // Formatted now, so a record keeps the annotations it was logged with.
   return Logger.make<unknown, void>((logged) => {
-    Queue.offerUnsafe(lines, formatJsonRecord.log(logged));
-  });
-});
+    Queue.offerUnsafe(lines, formatJsonRecord.log(logged))
+  })
+}
 
 /**
  * The two run logs: records scoped `global` (the state store, auth,
@@ -231,33 +231,33 @@ export const lazyRunLog = Effect.fn(function* (
  * scopes them out for that subtree only.
  */
 export const GlobalLogLive = Layer.unwrap(
-  Effect.gen(function* () {
-    const path = yield* Path;
-    const stamp = new Date(yield* Clock.currentTimeMillis)
+  effect {
+    const path = try Path
+    const stamp = new Date(try Clock.currentTimeMillis)
       .toISOString()
       .slice(0, 19)
-      .replaceAll(":", "-");
-    const name = `${stamp}-pid${process.pid}.ndjson`;
-    const global = yield* lazyRunLog(path.join(rootDir(), "logs"), name, "global");
-    const project = yield* lazyRunLog(
-      path.resolve(yield* dotAlchemyDirectory, "log"),
+      .replaceAll(":", "-")
+    const name = `${stamp}-pid${try processId}.ndjson`
+    const globalDir = try Effect.orDie(Effect.try({ try: () => path.join(rootDir(), "logs"), catch: (e) => e }))
+    const global = try lazyRunLog(globalDir, name, "global")
+    const project = try lazyRunLog(
+      path.resolve(try dotAlchemyDirectory, "log"),
       name,
       "project",
-    );
+    )
     const runLog = Logger.make<unknown, void>((options) =>
       (options.fiber.getRef(CurrentLogAnnotations)[LogAnnotation.scope] === "global"
         ? global
-        : project
-      ).log(options),
-    );
+        : project).log(options)
+    )
     return Layer.mergeAll(
       // Logs stay on this machine: telemetry exports spans and metrics only.
       Logger.layer([makeConsoleLogger(), runLog]),
       Layer.succeed(RunLog, runLog),
       Layer.succeed(MinimumLogLevel, "Debug"),
-    );
-  }).pipe(Effect.orElseSucceed(() => Layer.empty)),
-);
+    )
+  }.pipe(Effect.orElseSucceed(() => Layer.empty)),
+)
 
 /** First line of every run log: enough context to read it standalone. */
 const runRecord = (scope: LogRecord["scope"]) =>
@@ -271,8 +271,6 @@ const runRecord = (scope: LogRecord["scope"]) =>
     attributes: {},
     data: {
       version: packageJson.version,
-      pid: process.pid,
-      cwd: process.cwd(),
-      argv: process.argv.slice(2),
+      ...processDescription(),
     },
-  }));
+  }))

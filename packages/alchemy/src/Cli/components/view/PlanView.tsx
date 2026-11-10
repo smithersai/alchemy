@@ -26,7 +26,7 @@ import { theme } from "../../../Util/Theme.ts";
 import { formatElapsed } from "../../Format.ts";
 import { formatModeNote } from "../../ModeTag.ts";
 import type { ActionVerb, PlanSummaryCounts } from "../../NamespaceTree.ts";
-import { matchYamlChange, matchYamlKey } from "../../PropertyDiff.ts";
+import { matchYamlChange, matchYamlKey } from "../../PropertyDiff.vibe";
 import {
   Box,
   KeyBar,

@@ -8,7 +8,7 @@ import { onEvent, type Event } from "../../../Events.vibe";
 import { Interaction } from "../../../Interaction.ts";
 import type { Result as NukeResult, Target } from "../../../Nuke.vibe";
 import type { ProviderMode } from "../../../ProviderMode.vibe";
-import { currentConsoleSettings } from "../../GlobalLog.ts";
+import { currentConsoleSettings } from "../../GlobalLog.vibe";
 import { present } from "../../Present.vibe";
 import {
   LiveStore,

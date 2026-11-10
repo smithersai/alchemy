@@ -14,8 +14,8 @@ import { resolveProfileName } from "../../../Auth/Resolve.ts";
 import * as Interaction from "../../../Interaction.ts";
 import { loadConfigProvider } from "../../../Util/ConfigProvider.vibe";
 import { formatElapsed } from "../../Format.ts";
-import { exitDeclined, failWithHelp, UserInputError } from "../errors.ts";
-import { config, envFile, profile, yes } from "../flags.ts";
+import { exitDeclined, failWithHelp, UserInputError } from "../errors.vibe";
+import { config, envFile, profile, yes } from "../flags.vibe";
 import { instrumentCommand } from "../instrument.vibe";
 import {
   deleteProfileFlow,

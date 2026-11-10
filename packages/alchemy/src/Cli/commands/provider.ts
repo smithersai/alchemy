@@ -4,8 +4,8 @@ import * as Option from "effect/Option";
 import * as Alchemist from "../../Alchemist/index.ts";
 import * as Contributions from "../../Contributions.ts";
 import { Interaction } from "../../Interaction.ts";
-import { setExitCode } from "./errors.ts";
-import { config, envFile, profile } from "./flags.ts";
+import { setExitCode } from "./errors.vibe";
+import { config, envFile, profile } from "./flags.vibe";
 import { instrumentCommand } from "./instrument.vibe";
 
 /** Optional repeatable filter for checking a subset of registered providers. */

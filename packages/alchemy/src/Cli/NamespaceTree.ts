@@ -5,7 +5,7 @@ import {
   formatDeclaredPropertyYaml,
   formatDriftPropertyYaml,
   type DeclaredPropertyYaml,
-} from "./PropertyDiff.ts";
+} from "./PropertyDiff.vibe";
 
 export type ActionTreeItem = ActionApply | ActionDelete;
 export type ActionVerb = ActionTreeItem["action"]; // "run" | "noop" | "delete"
