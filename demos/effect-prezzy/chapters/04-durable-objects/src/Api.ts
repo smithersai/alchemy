@@ -8,7 +8,7 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import { Db } from "./Db.ts";
-import { LinkNotFound, newCode, type Link } from "./Link.ts";
+import { LinkNotFound, newCode, type Link } from "./Link.vibe";
 import LinkRoom from "./LinkRoom.vibe";
 import { ShortyApi } from "./ShortyApi.vibe";
 

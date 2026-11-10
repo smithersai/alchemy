@@ -12,7 +12,7 @@ import LinkRoom from "./LinkRoom.vibe";
 import { Links, LinksSql } from "./Links.ts";
 import { Telemetry } from "./Observability.vibe";
 import { ShortyApi } from "./ShortyApi.vibe";
-import { NeonStorage } from "./Storage.ts";
+import { NeonStorage } from "./Storage.vibe";
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",

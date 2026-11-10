@@ -10,7 +10,7 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { Clicks, type ClickEvent } from "./Clicks.ts";
 import { Db } from "./Db.ts";
-import { LinkNotFound, newCode, type Link } from "./Link.ts";
+import { LinkNotFound, newCode, type Link } from "./Link.vibe";
 import LinkRoom from "./LinkRoom.vibe";
 import { ShortyApi } from "./ShortyApi.vibe";
 
