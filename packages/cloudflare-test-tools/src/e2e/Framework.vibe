@@ -1,13 +1,9 @@
-import {
-  Framework,
-  FrameworkError,
-  loadProjectModule,
-} from "@alchemy.run/frontend-frameworks/core";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import { Cwd } from "./Cwd.vibe";
-import * as Options from "./Options.vibe";
-import * as Vite from "./Vite.vibe";
+import { Framework, FrameworkError, loadProjectModule } from "@alchemy.run/frontend-frameworks/core"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { Cwd } from "./Cwd.vibe"
+import * as Options from "./Options.vibe"
+import * as Vite from "./Vite.vibe"
 
 /**
  * The built-in Vite implementation of framework-core's `Framework` service —
@@ -17,15 +13,15 @@ import * as Vite from "./Vite.vibe";
 export const makeViteFramework = (options: Options.Options): Options.Options.FrameworkLayer =>
   Layer.effect(
     Framework,
-    Effect.gen(function* () {
-      const vite = yield* Vite.Vite;
-      const { worker } = Options.resolveCloudflareOptions(options);
+    effect {
+      const vite = try Vite.Vite
+      const { worker } = Options.resolveCloudflareOptions(options)
       const wrapError = (error: Vite.ViteError) =>
         new FrameworkError({
           framework: "vite",
           message: error.message,
           cause: error.cause,
-        });
+        })
       return Framework.of({
         build: (buildOptions) =>
           vite
@@ -46,48 +42,50 @@ export const makeViteFramework = (options: Options.Options): Options.Options.Fra
               Effect.map(({ url }) => ({ url })),
               Effect.mapError(wrapError),
             ),
-      });
-    }),
-  ).pipe(Layer.provide(Vite.ViteLive));
+      })
+    },
+  ).pipe(Layer.provide(Vite.ViteLive))
 
 /** The exports a framework package may provide (see {@link resolve}). */
 interface FrameworkModule {
-  readonly default?: unknown;
-  readonly framework?: unknown;
+  readonly default?: unknown
+  readonly framework?: unknown
 }
 
 const invalidExport = (specifier: string) =>
   new FrameworkError({
     framework: specifier,
-    message:
-      `"${specifier}" does not provide a usable framework export: expected a default export ` +
-      "(or named export `framework`) that is a `(options) => Layer<Framework>` factory " +
-      "or a `Layer<Framework>`",
-  });
+    message: `"${specifier}" does not provide a usable framework export: expected a default export `
+      + "(or named export `framework`) that is a `(options) => Layer<Framework>` factory "
+      + "or a `Layer<Framework>`",
+  })
 
 const toFrameworkLayer: (
   candidate: unknown,
   options: Options.Options,
   specifier: string,
-) => Effect.Effect<Options.Options.FrameworkLayer, unknown, Options.Options.FrameworkServices> =
-  Effect.fn(function* (candidate: unknown, options: Options.Options, specifier: string) {
-    const resolved = Effect.isEffect(candidate)
-      ? // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- framework export from a dynamically imported module
-        yield* candidate as Effect.Effect<unknown, unknown, Options.Options.FrameworkServices>
-      : candidate;
-    if (Layer.isLayer(resolved)) {
-      // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- framework export from a dynamically imported module
-      return resolved as Options.Options.FrameworkLayer;
-    }
-    if (typeof resolved === "function") {
-      return yield* toFrameworkLayer(
-        (resolved as Options.Options.FrameworkFactory)(options),
-        options,
-        specifier,
-      );
-    }
-    return yield* invalidExport(specifier);
-  });
+) => Effect.Effect<Options.Options.FrameworkLayer, unknown, Options.Options.FrameworkServices> = effect (
+  candidate: unknown,
+  options: Options.Options,
+  specifier: string,
+) => {
+  const resolved = Effect.isEffect(candidate)
+    // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- framework export from a dynamically imported module
+    ? try (candidate as Effect.Effect<unknown, unknown, Options.Options.FrameworkServices>)
+    : candidate
+  if (Layer.isLayer(resolved)) {
+    // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- framework export from a dynamically imported module
+    return resolved as Options.Options.FrameworkLayer
+  }
+  if (typeof resolved === "function") {
+    return try toFrameworkLayer(
+      (resolved as Options.Options.FrameworkFactory)(options),
+      options,
+      specifier,
+    )
+  }
+  return try invalidExport(specifier)
+}
 
 /**
  * Resolve the `Framework` Layer for a fixture from its options:
@@ -100,14 +98,14 @@ const toFrameworkLayer: (
  * - a factory — applied to the options
  * - a Layer — used as-is
  */
-export const resolve = Effect.fn(function* (options: Options.Options) {
-  const input = options.framework;
+export const resolve = effect (options: Options.Options) => {
+  const input = options.framework
   if (input === undefined) {
-    return makeViteFramework(options);
+    return makeViteFramework(options)
   }
   if (typeof input === "string") {
-    const cwd = yield* Cwd;
-    const module_ = yield* loadProjectModule<FrameworkModule>(cwd, input).pipe(
+    const cwd = try Cwd
+    const module_ = try loadProjectModule<FrameworkModule>(cwd, input).pipe(
       Effect.mapError(
         (error) =>
           new FrameworkError({
@@ -116,15 +114,15 @@ export const resolve = Effect.fn(function* (options: Options.Options) {
             cause: error.cause,
           }),
       ),
-    );
-    const candidate = module_.default ?? module_.framework;
+    )
+    const candidate = module_.default ?? module_.framework
     if (candidate === undefined) {
-      return yield* invalidExport(input);
+      return try invalidExport(input)
     }
-    return yield* toFrameworkLayer(candidate, options, input);
+    return try toFrameworkLayer(candidate, options, input)
   }
-  return yield* toFrameworkLayer(input, options, "e2e.config.ts framework option");
-});
+  return try toFrameworkLayer(input, options, "e2e.config.ts framework option")
+}
 
 /**
  * The `Framework` Layer for the current fixture: loads `e2e.config.ts` and
@@ -132,10 +130,9 @@ export const resolve = Effect.fn(function* (options: Options.Options) {
  * implementation). Everything downstream (`Cli`, `Server`) dispatches through
  * the `Framework` service and never talks to Vite directly.
  */
-export const layer: Layer.Layer<Framework, unknown, Options.Options.FrameworkServices> =
-  Layer.unwrap(
-    Effect.gen(function* () {
-      const options = yield* Options.load();
-      return yield* resolve(options);
-    }),
-  );
+export const layer: Layer.Layer<Framework, unknown, Options.Options.FrameworkServices> = Layer.unwrap(
+  effect {
+    const options = try Options.load()
+    return try resolve(options)
+  },
+)
