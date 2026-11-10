@@ -42,8 +42,8 @@ import {
   DurableObject as CloudflareDurableObject,
   type DurableObjectJurisdiction,
 } from "../Workers/DurableObject.ts";
-import { DurableObjectState } from "../Workers/DurableObjectState.ts";
-import { upgrade, type WebSocket } from "../Workers/WebSocket.ts";
+import { DurableObjectState } from "../Workers/DurableObjectState.vibe";
+import { upgrade, type WebSocket } from "../Workers/WebSocket.vibe";
 import type { Worker } from "../Workers/Worker.ts";
 import { layerDurableObjectEngine } from "../Workflows/DurableObjectEngine.ts";
 

@@ -8,7 +8,7 @@ import type {
 import type { BundleOutput } from "alchemy/Bundle/Bundle";
 import type { FoldkitBuildMetadata } from "../Website/FoldkitBuild.ts";
 import type { WorkerAssetsConfig, WorkerSourceDescriptor } from "./Worker.ts";
-import type { WorkerBinding } from "./WorkerBinding.ts";
+import type { WorkerBinding } from "./WorkerBinding.vibe";
 
 /**
  * Default first port of the local dev-server range. Vite and

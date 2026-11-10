@@ -26,7 +26,7 @@ import type { BindingHook } from "@alchemy.run/cloudflare-runtime/core/PluginCon
 import { splitSqliteStatements } from "@alchemy.run/sql/SqlFile";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { gatewayName, localGatewayRuntime } from "../LocalGateway.ts";
+import { gatewayName, localGatewayRuntime } from "../LocalGateway.vibe";
 import type { D1QueryResult, D1SqlExecutor } from "./ApplyMigrations.ts";
 
 export { localGatewayRuntime as localD1GatewayRuntime };

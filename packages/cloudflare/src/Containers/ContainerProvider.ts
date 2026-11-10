@@ -22,7 +22,7 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import { isLiveId } from "../LocalRuntime.ts";
 import { CloudflareLogs, type TelemetryFilter } from "../Logs.vibe";
 import type {

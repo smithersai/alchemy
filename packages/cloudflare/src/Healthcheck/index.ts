@@ -1,1 +1,1 @@
-export * from "./Healthcheck.ts";
+export * from "./Healthcheck.vibe";

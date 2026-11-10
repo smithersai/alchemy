@@ -20,9 +20,9 @@ import {
   BackgroundWork,
   DurableObjectState,
   fromDurableObjectState,
-} from "./DurableObjectState.ts";
-import { isScopeEjected, makeRequestEffect } from "./HttpServer.ts";
-import { fromWebSocket } from "./WebSocket.ts";
+} from "./DurableObjectState.vibe";
+import { isScopeEjected, makeRequestEffect } from "./HttpServer.vibe";
+import { fromWebSocket } from "./WebSocket.vibe";
 import { getWorkerExport, handleRpcExit } from "./WorkerBridge.ts";
 
 /**

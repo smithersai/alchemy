@@ -1,2 +1,2 @@
 export * from "./Account.vibe";
-export * from "./Member.ts";
+export * from "./Member.vibe";

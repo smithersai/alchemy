@@ -17,9 +17,9 @@ import * as Layer from "effect/Layer";
 import * as Predicate from "effect/Predicate";
 import type { Scope } from "effect/Scope";
 import type { Container } from "../Containers/Container.ts";
-import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.ts";
-import { makeRpcStub, type RpcErrorClass } from "./Rpc.ts";
-import { type WebSocket } from "./WebSocket.ts";
+import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.vibe";
+import { makeRpcStub, type RpcErrorClass } from "./Rpc.vibe";
+import { type WebSocket } from "./WebSocket.vibe";
 import { isWorker, Worker, WorkerEnvironment, type WorkerServices } from "./Worker.ts";
 
 export interface DurableObjectExport {

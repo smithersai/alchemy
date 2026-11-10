@@ -1,4 +1,4 @@
-export * from "./Images.ts";
+export * from "./Images.vibe";
 export * from "./ImagesBinding.vibe";
-export * from "./SigningKey.ts";
-export * from "./Variant.ts";
+export * from "./SigningKey.vibe";
+export * from "./Variant.vibe";

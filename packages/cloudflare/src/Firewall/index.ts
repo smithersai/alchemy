@@ -1,3 +1,3 @@
-export * from "./AccessRule.ts";
-export * from "./Lockdown.ts";
-export * from "./UaRule.ts";
+export * from "./AccessRule.vibe";
+export * from "./Lockdown.vibe";
+export * from "./UaRule.vibe";

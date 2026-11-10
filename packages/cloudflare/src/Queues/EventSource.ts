@@ -11,7 +11,7 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { isWorkerEvent, Worker } from "../Workers/Worker.ts";
 import { Consumer } from "./Consumer.ts";
-import type { Queue } from "./Queue.ts";
+import type { Queue } from "./Queue.vibe";
 
 /**
  * Subscriber settings — the same shape Cloudflare's `Consumer`

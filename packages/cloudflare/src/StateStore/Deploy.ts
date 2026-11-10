@@ -11,11 +11,11 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitForSecretActive } from "../SecretsStore/Secret.ts";
+import { waitForSecretActive } from "../SecretsStore/Secret.vibe";
 import { getCompatibility } from "../Workers/Compatibility.ts";
 import { WorkerBundle } from "../Workers/Sources/Rolldown.ts";
 import { contentTypeForModule, putWorkerScript } from "../Workers/WorkerProvider.ts";
-import { resolveZoneId } from "../Zone/lookup.ts";
+import { resolveZoneId } from "../Zone/lookup.vibe";
 import { API_MAIN, STATE_STORE_VERSION } from "./Api.ts";
 import {
   AuthTokenBinding,
@@ -23,7 +23,7 @@ import {
   EncryptionKeyBinding,
   EncryptionKeySecretName,
   stateStoreSecretName,
-} from "./Token.ts";
+} from "./Token.vibe";
 
 /** The Durable Object class holding every store's state. Its name must never change. */
 const STORE_CLASS = "Store";

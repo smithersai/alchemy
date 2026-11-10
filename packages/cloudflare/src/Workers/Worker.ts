@@ -30,22 +30,22 @@ import * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import path from "pathe";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import type { Container } from "../Containers/Container.ts";
 import type { DevContainerImage } from "../Containers/ContainerApplication.vibe";
-import type { DevOrigin } from "../Hyperdrive/Connection.ts";
+import type { DevOrigin } from "../Hyperdrive/Connection.vibe";
 import type { Providers } from "../Providers.vibe";
-import type { DispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.ts";
-import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.ts";
-import type { Reference as ZoneReference } from "../Zone/lookup.ts";
+import type { DispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.vibe";
+import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.vibe";
+import type { Reference as ZoneReference } from "../Zone/lookup.vibe";
 import { type Assets, type AssetsConfig, type AssetsProps } from "./Assets.ts";
 import { Request } from "./Request.vibe";
-import type { ModuleRule } from "./Sources/Prebuilt.ts";
+import type { ModuleRule } from "./Sources/Prebuilt.vibe";
 import type { WorkerBuildOptions } from "./Sources/Rolldown.ts";
-import type { WorkerAccessConfig, WorkerAccessIdentity } from "./WorkerAccess.ts";
-import { bindWorkerAsyncBindings } from "./WorkerAsyncBindings.ts";
-import type { WorkerBinding, WorkerBindingResource } from "./WorkerBinding.ts";
-import { transformWorkerDomainProps } from "./WorkerDomainDns.ts";
+import type { WorkerAccessConfig, WorkerAccessIdentity } from "./WorkerAccess.vibe";
+import { bindWorkerAsyncBindings } from "./WorkerAsyncBindings.vibe";
+import type { WorkerBinding, WorkerBindingResource } from "./WorkerBinding.vibe";
+import { transformWorkerDomainProps } from "./WorkerDomainDns.vibe";
 import { WorkerEnvironment, WorkerTypeId } from "./WorkerRuntime.ts";
 import {
   makeWorkerRuntimeContext,
@@ -54,7 +54,7 @@ import {
 } from "./WorkerRuntimeContext.ts";
 
 export * from "./WorkerRuntime.ts";
-export { WorkerDomainDnsError } from "./WorkerDomainDns.ts";
+export { WorkerDomainDnsError } from "./WorkerDomainDns.vibe";
 
 export const isWorker = <T>(value: T): value is T & Worker => isResourceOfType(value, WorkerTypeId);
 

@@ -1,4 +1,4 @@
-export * from "./Queue.ts";
+export * from "./Queue.vibe";
 export * from "./Consumer.ts";
 export * from "./EventSource.ts";
 export * from "./QueueTypes.vibe";
@@ -7,7 +7,7 @@ export * from "./QueueSinkBinding.vibe";
 export * from "./QueueSinkHttp.vibe";
 export * from "./QueueSinkLocal.vibe";
 export * from "./WriteQueue.vibe";
-export * from "./WriteQueueBinding.ts";
-export * from "./WriteQueueHttp.ts";
+export * from "./WriteQueueBinding.vibe";
+export * from "./WriteQueueHttp.vibe";
 export * from "./WriteQueueLocal.vibe";
-export * from "./Subscription.ts";
+export * from "./Subscription.vibe";

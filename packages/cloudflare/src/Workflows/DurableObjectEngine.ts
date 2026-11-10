@@ -26,7 +26,7 @@ import {
   DurableObject as CloudflareDurableObject,
   type DurableObjectJurisdiction,
 } from "../Workers/DurableObject.ts";
-import { DurableObjectState } from "../Workers/DurableObjectState.ts";
+import { DurableObjectState } from "../Workers/DurableObjectState.vibe";
 import type { Worker } from "../Workers/Worker.ts";
 
 /**

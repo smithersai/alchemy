@@ -4,7 +4,7 @@
  */
 export * from "./Fetcher.ts";
 export * from "./Workers/InferEnv.ts";
-export * from "./Workers/Rpc.ts";
+export * from "./Workers/Rpc.vibe";
 export * from "./Workers/RpcAsync.vibe";
 
 // ── runtime bridge factories ──

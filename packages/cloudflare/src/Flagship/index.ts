@@ -1,5 +1,5 @@
-export * from "./App.ts";
-export * from "./Flag.ts";
+export * from "./App.vibe";
+export * from "./Flag.vibe";
 export {
   ReadFlags,
   FlagshipError,

@@ -11,7 +11,7 @@ import * as Predicate from "effect/Predicate";
 import * as Schedule from "effect/Schedule";
 import type * as Schema from "effect/Schema";
 import * as EffectStream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import type { Providers } from "../Providers.vibe";
 import {
   canonicalStreamFields,

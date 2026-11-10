@@ -1,1 +1,1 @@
-export * from "./HostnameTlsSetting.ts";
+export * from "./HostnameTlsSetting.vibe";

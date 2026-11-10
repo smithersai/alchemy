@@ -4,12 +4,12 @@ import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import type * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
+import { AccountApiToken } from "../ApiToken/AccountApiToken.vibe";
 import type { PermissionGroupRef } from "../ApiToken/Common.ts";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Credentials } from "../Credentials.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
+import type { Credentials } from "../Credentials.vibe";
 import { requireLiveResource } from "../HttpBindingDev.vibe";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import { R2Error, type R2Object } from "./BucketTypes.vibe";
 
 /**

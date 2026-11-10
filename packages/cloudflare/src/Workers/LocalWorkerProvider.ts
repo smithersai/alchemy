@@ -64,15 +64,15 @@ import { LocalEdge } from "./LocalEdge.ts";
 import { routePatternHost } from "./RoutePattern.ts";
 import { materializeRuntimeBindings, WorkerValidationError } from "./RuntimeBindings.ts";
 import { loadSource, SourceProviderError, type DevContext } from "./Source.ts";
-import { watchPrebuiltWorkerBundle } from "./Sources/Prebuilt.ts";
+import { watchPrebuiltWorkerBundle } from "./Sources/Prebuilt.vibe";
 import { isPythonMain, watchPythonWorkerBundle } from "./Sources/Python.ts";
 import { WorkerBundle, type WorkerBundleOptions } from "./Sources/Rolldown.ts";
 import { DEFAULT_DEV_PORT, type ViteChildConfig } from "./ViteChild.shared.ts";
 import { startViteChild } from "./ViteChild.ts";
 import { resolveViteMain } from "./ViteMain.vibe";
 import { isSelfUrl, Worker } from "./Worker.ts";
-import { getCronBindings } from "./WorkerAsyncBindings.ts";
-import type { WorkerBinding } from "./WorkerBinding.ts";
+import { getCronBindings } from "./WorkerAsyncBindings.vibe";
+import type { WorkerBinding } from "./WorkerBinding.vibe";
 import { createWorkerName } from "./WorkerName.vibe";
 import { resolveTailConsumers } from "./WorkerProvider.ts";
 

@@ -25,7 +25,7 @@ import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import {
   assertBindingContainersOnAsyncClasses,
   mergeWorkerContainers,
@@ -33,7 +33,7 @@ import {
 import { localRuntimeServices } from "../LocalRuntime.ts";
 import { CloudflareLogs } from "../Logs.vibe";
 import { detachQueueConsumersOfScript } from "../Queues/Consumer.ts";
-import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.ts";
+import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.vibe";
 import {
   getAssetsPathPrefix,
   mergeAssetsConfigFiles,
@@ -47,7 +47,7 @@ import { LocalWorkerProvider } from "./LocalWorkerProvider.ts";
 import { placeholderResetReason } from "./Placeholder.ts";
 import { routePatternUrl } from "./RoutePattern.ts";
 import { makeSourceContext, resolveSource } from "./Source.ts";
-import { readPrebuiltWorkerBundle } from "./Sources/Prebuilt.ts";
+import { readPrebuiltWorkerBundle } from "./Sources/Prebuilt.vibe";
 import { isPythonMain, readPythonWorkerBundle } from "./Sources/Python.ts";
 import { WorkerBundle } from "./Sources/Rolldown.ts";
 import { assertCloudflareTelemetryCompatibility } from "./Telemetry.ts";
@@ -57,13 +57,13 @@ import {
   type WorkerRouteConfig,
   type WorkerVersionAffinity,
 } from "./Worker.ts";
-import { getCacheBinding, getCronBindings, resolveObservability } from "./WorkerAsyncBindings.ts";
+import { getCacheBinding, getCronBindings, resolveObservability } from "./WorkerAsyncBindings.vibe";
 import {
   type WireWorkerBinding,
   type WorkerBinding,
   type WorkerSettingsBinding,
   withoutDevOnlyBindings,
-} from "./WorkerBinding.ts";
+} from "./WorkerBinding.vibe";
 import { createWorkerName } from "./WorkerName.vibe";
 class MissingDurableObjects extends Data.TaggedError("MissingDurableObjects")<{
   scriptName: string;

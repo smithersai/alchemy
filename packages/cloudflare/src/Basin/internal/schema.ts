@@ -8,7 +8,7 @@ import type {
   TablePrimitiveType,
   TableSchema,
   TableSchemaInput,
-} from "../Table.ts";
+} from "../Table.vibe";
 
 /**
  * An Effect Schema (or column) that has no Iceberg representation.

@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import type { Providers } from "../Providers.vibe";
 
 const TypeId = "Cloudflare.Pipelines.LegacyPipeline" as const;

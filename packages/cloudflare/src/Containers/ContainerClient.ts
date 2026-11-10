@@ -21,7 +21,7 @@ import {
   type SocketAddress,
   type SocketOptions,
 } from "../Fetcher.ts";
-import { DurableObjectState } from "../Workers/DurableObjectState.ts";
+import { DurableObjectState } from "../Workers/DurableObjectState.vibe";
 import {
   ContainerCrashedError,
   ContainerError,

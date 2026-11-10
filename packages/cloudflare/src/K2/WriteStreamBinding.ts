@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import type { EncodedRecord, ProduceError } from "./K2Types.vibe";
-import type { Stream } from "./Stream.ts";
+import type { Stream } from "./Stream.vibe";
 import { WriteStream } from "./WriteStream.vibe";
 import { makeWriteStreamClient } from "./WriteStreamClient.vibe";
 

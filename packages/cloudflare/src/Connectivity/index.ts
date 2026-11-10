@@ -1,1 +1,1 @@
-export * from "./DirectoryService.ts";
+export * from "./DirectoryService.vibe";

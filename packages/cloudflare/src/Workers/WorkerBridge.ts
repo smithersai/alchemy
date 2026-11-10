@@ -26,14 +26,14 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironmentService.vibe";
 import cloudflare_workers from "./cloudflare_workers.vibe";
-import { isScopeEjected } from "./HttpServer.ts";
+import { isScopeEjected } from "./HttpServer.vibe";
 import {
   ErrorTag,
   type RpcErrorEnvelope,
   type RpcStreamEnvelope,
   encodeRpcError,
   toRpcStream,
-} from "./Rpc.ts";
+} from "./Rpc.vibe";
 import type { Worker } from "./Worker.ts";
 import {
   ExportedHandlerMethods,

@@ -1,4 +1,4 @@
-export * from "./Certificate.ts";
+export * from "./Certificate.vibe";
 export * from "./HostnameAssociation.vibe";
-export * from "./HostnameCertificate.ts";
+export * from "./HostnameCertificate.vibe";
 export * from "./Setting.vibe";

@@ -1,4 +1,4 @@
-export * from "./Config.ts";
+export * from "./Config.vibe";
 export type {
   InferZarazEcommerceEvents,
   InferZarazEvents,

@@ -1,2 +1,2 @@
-export * from "./ContentList.ts";
-export * from "./Hostname.ts";
+export * from "./ContentList.vibe";
+export * from "./Hostname.vibe";

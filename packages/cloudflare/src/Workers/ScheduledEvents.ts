@@ -3,7 +3,7 @@ import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { ensureAlarmTables, reconcileDurableObjectAlarm } from "./DurableObjectAlarmStorage.vibe";
-import { DurableObjectState } from "./DurableObjectState.ts";
+import { DurableObjectState } from "./DurableObjectState.vibe";
 import type { SqlStorageValue } from "./DurableObjectStorage.ts";
 
 // ---------------------------------------------------------------------------

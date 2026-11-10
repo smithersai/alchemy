@@ -1,10 +1,10 @@
-import type * as Binding from "./Binding.ts";
+import type * as Binding from "./Binding.vibe";
 import { makeBindingLayer } from "./BindingLayer.vibe";
 import {
   VersionMetadata,
   type VersionMetadataAccessor,
   type WorkerVersionMetadata,
-} from "./VersionMetadata.ts";
+} from "./VersionMetadata.vibe";
 
 /** The binding value produced by calling {@link VersionMetadata} (declared on `env` or `yield*`-ed). */
 export type VersionMetadataBinding = Binding.Binding<

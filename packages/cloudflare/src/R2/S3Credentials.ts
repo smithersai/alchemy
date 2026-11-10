@@ -3,10 +3,10 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { sanitizeKey } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import { isWorker, type Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import type { Bucket } from "./Bucket.ts";
-import { bindS3Credentials, type BucketInput, resolveBucket } from "./S3CredentialsBinding.ts";
+import type { Bucket } from "./Bucket.vibe";
+import { bindS3Credentials, type BucketInput, resolveBucket } from "./S3CredentialsBinding.vibe";
 
-export { isS3Credentials } from "./S3CredentialsBinding.ts";
+export { isS3Credentials } from "./S3CredentialsBinding.vibe";
 
 /** Which object operations the credentials' API token is granted. */
 export type S3CredentialsAccess = "read" | "write" | "read-write";

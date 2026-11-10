@@ -7,9 +7,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as MutableHashMap from "effect/MutableHashMap";
 import * as Path from "effect/Path";
-import { CloudflareEnvironment } from "./CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "./CloudflareEnvironment.vibe";
 import type { Consumer } from "./Queues/Consumer.ts";
-import type { Queue } from "./Queues/Queue.ts";
+import type { Queue } from "./Queues/Queue.vibe";
 import { LocalEdgeLive } from "./Workers/LocalEdge.ts";
 
 /**

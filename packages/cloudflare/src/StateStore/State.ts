@@ -28,7 +28,7 @@ import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import * as Access from "../Access.ts";
-import * as CloudflareEnvironment from "../CloudflareEnvironment.ts";
+import * as CloudflareEnvironment from "../CloudflareEnvironment.vibe";
 import { EdgeSessionError, createEdgeSession } from "../EdgeSession.vibe";
 import * as Cloudflare from "../Providers.vibe";
 import { STATE_STORE_SCRIPT_NAME, STATE_STORE_VERSION } from "./Api.ts";
@@ -48,7 +48,7 @@ import {
   stateStoreUrl,
   validateStateStoreWorkerName,
 } from "./Deploy.ts";
-import { AuthTokenSecretName, EncryptionKeySecretName, stateStoreSecretName } from "./Token.ts";
+import { AuthTokenSecretName, EncryptionKeySecretName, stateStoreSecretName } from "./Token.vibe";
 
 const CI = Config.Boolean("CI").pipe(Config.withDefault(false));
 

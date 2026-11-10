@@ -1,3 +1,3 @@
-export * from "./AccountEntrypoint.ts";
+export * from "./AccountEntrypoint.vibe";
 export * from "./CustomRuleset.vibe";
-export * from "./Ruleset.ts";
+export * from "./Ruleset.vibe";

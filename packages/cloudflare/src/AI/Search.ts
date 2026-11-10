@@ -2,12 +2,12 @@ import type { Input, InputProps } from "alchemy/Input";
 import * as CoreNamespace from "alchemy/Namespace";
 import { isResource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Bucket } from "../R2/Bucket.ts";
-import { SearchInstance, type SearchInstanceProps, type SourceParams } from "./SearchInstance.ts";
-import type { SearchNamespace } from "./SearchNamespace.ts";
-import { SearchToken } from "./SearchToken.ts";
+import { AccountApiToken } from "../ApiToken/AccountApiToken.vibe";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
+import type { Bucket } from "../R2/Bucket.vibe";
+import { SearchInstance, type SearchInstanceProps, type SourceParams } from "./SearchInstance.vibe";
+import type { SearchNamespace } from "./SearchNamespace.vibe";
+import { SearchToken } from "./SearchToken.vibe";
 
 type WebCrawlerParams = NonNullable<SourceParams["webCrawler"]>;
 

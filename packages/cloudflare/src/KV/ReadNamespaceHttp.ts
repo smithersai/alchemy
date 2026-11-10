@@ -9,7 +9,7 @@ import {
   makeKVHttpScope,
   toKVNamespaceError,
   type KVAuth,
-} from "./NamespaceHttp.ts";
+} from "./NamespaceHttp.vibe";
 import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.vibe";
 
 /**

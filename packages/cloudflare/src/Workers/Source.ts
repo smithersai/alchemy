@@ -22,7 +22,7 @@ import type * as Stream from "effect/Stream";
 import type { AssetReadResult, ValidationError } from "./Assets.ts";
 import { getToolingCompatibility } from "./Compatibility.ts";
 import { makeInlineScriptSource } from "./Sources/InlineScript.ts";
-import { makePrebuiltSource } from "./Sources/Prebuilt.ts";
+import { makePrebuiltSource } from "./Sources/Prebuilt.vibe";
 import { isPythonMain, makePythonSource } from "./Sources/Python.ts";
 import { makeRolldownSource } from "./Sources/Rolldown.ts";
 import type { WorkerAssetsConfig, WorkerProps, WorkerSourceDescriptor } from "./Worker.ts";

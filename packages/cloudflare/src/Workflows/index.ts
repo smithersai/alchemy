@@ -1,4 +1,4 @@
-export * from "./Workflow.ts";
+export * from "./Workflow.vibe";
 export { makeWorkflowBridge } from "./WorkflowBridge.ts";
 export {
   layerDurableObjectEngine,

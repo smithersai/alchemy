@@ -19,8 +19,8 @@ import type { SourceDevHandle, SourceProvider } from "../Source.ts";
 import { runViteBuildChild } from "../ViteChild.ts";
 import { resolveViteMain } from "../ViteMain.vibe";
 import { isSelfUrl, type ViteOptions } from "../Worker.ts";
-import { isContainerDecl } from "../WorkerAsyncBindings.ts";
-import { isWorkerLoader } from "../WorkerLoader.ts";
+import { isContainerDecl } from "../WorkerAsyncBindings.vibe";
+import { isWorkerLoader } from "../WorkerLoader.vibe";
 
 /**
  * This module statically imports `@alchemy.run/cloudflare-runtime/vite`

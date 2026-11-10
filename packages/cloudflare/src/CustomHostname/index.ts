@@ -1,2 +1,2 @@
-export * from "./CustomHostname.ts";
-export * from "./FallbackOrigin.ts";
+export * from "./CustomHostname.vibe";
+export * from "./FallbackOrigin.vibe";

@@ -18,7 +18,7 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Tracer from "effect/Tracer";
 import { ensureAlarmTables, reconcileDurableObjectAlarm } from "./DurableObjectAlarmStorage.vibe";
-import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.ts";
+import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.vibe";
 import { fromDurableObjectStorage } from "./DurableObjectStorage.ts";
 import { ActiveStorageTransactions } from "./DurableObjectTransactionContext.vibe";
 

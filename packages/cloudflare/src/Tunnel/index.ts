@@ -1,6 +1,6 @@
 export * from "./Configuration.vibe";
-export * from "./HostnameRoute.ts";
-export * from "./Route.ts";
+export * from "./HostnameRoute.vibe";
+export * from "./Route.vibe";
 export * from "./Tunnel.vibe";
 export * from "./TunnelBinding.vibe";
 export * from "./ReadTunnel.vibe";
@@ -12,5 +12,5 @@ export * from "./ReadWriteTunnelLocal.vibe";
 export * from "./WriteTunnel.vibe";
 export * from "./WriteTunnelBinding.vibe";
 export * from "./WriteTunnelLocal.vibe";
-export * from "./VirtualNetwork.ts";
-export * from "./WarpConnector.ts";
+export * from "./VirtualNetwork.vibe";
+export * from "./WarpConnector.vibe";

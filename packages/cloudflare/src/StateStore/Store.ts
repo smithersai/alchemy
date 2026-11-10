@@ -6,8 +6,8 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Secret from "../SecretsStore/index.ts";
 import { DurableObject } from "../Workers/DurableObject.ts";
-import { DurableObjectState } from "../Workers/DurableObjectState.ts";
-import { EncryptionKey } from "./Token.ts";
+import { DurableObjectState } from "../Workers/DurableObjectState.vibe";
+import { EncryptionKey } from "./Token.vibe";
 
 /**
  * Secrets Store reads from a Worker or Durable Object fail transiently

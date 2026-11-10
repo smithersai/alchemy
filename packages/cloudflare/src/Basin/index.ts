@@ -1,10 +1,10 @@
-export * from "./Table.ts";
+export * from "./Table.vibe";
 
 // Basin = Pipelines + Catalog + SQL. These are the same values as
 // `Cloudflare.Pipelines.*` / `Cloudflare.R2.DataCatalog` (persisted resource
 // types are unchanged), re-exported under the product's name.
-export * from "../Pipelines/Pipeline.ts";
-export * from "../Pipelines/Sink.ts";
+export * from "../Pipelines/Pipeline.vibe";
+export * from "../Pipelines/Sink.vibe";
 export * from "../Pipelines/Stream.ts";
 export * from "../Pipelines/StreamSchema.ts";
 export * from "../Pipelines/StreamSink.vibe";
@@ -21,4 +21,4 @@ export {
   isDataCatalog as isCatalog,
   type DataCatalogAttributes as CatalogAttributes,
   type DataCatalogProps as CatalogProps,
-} from "../R2/DataCatalog.ts";
+} from "../R2/DataCatalog.vibe";

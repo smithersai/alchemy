@@ -1,3 +1,3 @@
-export * from "./Deployment.ts";
-export * from "./Domain.ts";
-export * from "./Project.ts";
+export * from "./Deployment.vibe";
+export * from "./Domain.vibe";
+export * from "./Project.vibe";

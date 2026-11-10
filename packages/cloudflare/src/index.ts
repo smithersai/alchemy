@@ -1,5 +1,5 @@
 // ── cross-cutting utilities (flat) ──
-export * from "./CloudflareEnvironment.ts";
+export * from "./CloudflareEnvironment.vibe";
 export * from "./EdgeSession.vibe";
 export * from "./Fetcher.ts";
 export * from "./Providers.vibe";
@@ -7,7 +7,7 @@ export * from "./StateStore/index.ts";
 export * from "./Workers/RpcAsync.vibe";
 
 // ── services (namespaced) ──
-export * as ACME from "./ACME.ts";
+export * as ACME from "./ACME.vibe";
 export * as Access from "./Access/index.ts";
 export * as Account from "./Account/index.ts";
 export * as Acm from "./Acm/index.ts";
@@ -109,10 +109,10 @@ export * as Zone from "./Zone/index.ts";
 
 // ── convenience root re-exports (common building blocks) ──
 export * from "./Containers/index.ts";
-export * from "./Images/Images.ts";
+export * from "./Images/Images.vibe";
 export * from "./Workers/index.ts";
 // Only the Workflow resource: the workflow engines stay under `Cloudflare.Workflows`.
-export * from "./Workflows/Workflow.ts";
+export * from "./Workflows/Workflow.vibe";
 
 // runtime bridge factories — the generated Worker entry imports these from
 // the runtime-only "@alchemy.run/cloudflare/Bridge" entry (see Bridge.ts and

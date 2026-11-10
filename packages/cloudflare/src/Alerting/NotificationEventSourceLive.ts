@@ -17,7 +17,7 @@ import {
   type NotifyingPolicy,
 } from "./NotificationEventSource.vibe";
 import type { AlertType } from "./NotificationPolicy.vibe";
-import { NotificationWebhook } from "./Webhook.ts";
+import { NotificationWebhook } from "./Webhook.vibe";
 
 /**
  * `Cloudflare.Alerting.consumeNotifications` on any {@link WebhookHost}.

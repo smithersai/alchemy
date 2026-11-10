@@ -22,7 +22,7 @@ import { ReadSecret } from "../SecretsStore/ReadSecret.vibe";
 import { ReadSecretBinding } from "../SecretsStore/ReadSecretBinding.vibe";
 import { Worker } from "../Workers/Worker.ts";
 import Store, { retrySecretRead } from "./Store.ts";
-import { AuthToken, DEFAULT_STATE_STORE_NAME, StateStoreName } from "./Token.ts";
+import { AuthToken, DEFAULT_STATE_STORE_NAME, StateStoreName } from "./Token.vibe";
 
 export const STATE_STORE_SCRIPT_NAME = DEFAULT_STATE_STORE_NAME;
 

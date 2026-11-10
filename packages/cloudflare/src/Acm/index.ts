@@ -1,2 +1,2 @@
-export * from "./CustomTrustStore.ts";
-export * from "./TotalTls.ts";
+export * from "./CustomTrustStore.vibe";
+export * from "./TotalTls.vibe";

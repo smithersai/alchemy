@@ -6,7 +6,7 @@ import {
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import type { DurableObjectState } from "./DurableObjectState.ts";
+import type { DurableObjectState } from "./DurableObjectState.vibe";
 import { applySqlMigrations } from "./SqlMigrationsApply.ts";
 import {
   SqlMigrationsRuntime,

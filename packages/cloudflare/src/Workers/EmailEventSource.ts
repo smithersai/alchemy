@@ -11,8 +11,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { CatchAll } from "../Email/CatchAll.vibe";
 import { Routing } from "../Email/Routing.vibe";
-import { Rule, type Matcher } from "../Email/Rule.ts";
-import type { Reference } from "../Zone/lookup.ts";
+import { Rule, type Matcher } from "../Email/Rule.vibe";
+import type { Reference } from "../Zone/lookup.vibe";
 import { isWorkerEvent, Worker } from "./Worker.ts";
 
 /**

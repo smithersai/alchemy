@@ -10,7 +10,7 @@ import * as FiberSet from "effect/FiberSet";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
-import { isScopeEjected } from "../Workers/HttpServer.ts";
+import { isScopeEjected } from "../Workers/HttpServer.vibe";
 import { getWorkerExport } from "../Workers/WorkerBridge.ts";
 import type {
   WorkflowExport,
@@ -18,7 +18,7 @@ import type {
   WorkflowStepConfig,
   WorkflowStepEvent,
   WorkflowTaskOptions,
-} from "./Workflow.ts";
+} from "./Workflow.vibe";
 import {
   WorkflowEvent as WorkflowEventService,
   WorkflowStep,

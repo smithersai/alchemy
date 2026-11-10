@@ -2,7 +2,7 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as vectorize from "@distilled.cloud/cloudflare/vectorize";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Credentials } from "../Credentials.ts";
+import type { Credentials } from "../Credentials.vibe";
 import type { SearchIndexClient } from "./SearchIndex.vibe";
 
 // Shared HTTP scaffolding for the Vectorize `SearchIndex` binding. NOT

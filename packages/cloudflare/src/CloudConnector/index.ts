@@ -1,1 +1,1 @@
-export * from "./Rules.ts";
+export * from "./Rules.vibe";

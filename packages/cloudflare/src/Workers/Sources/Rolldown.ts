@@ -7,7 +7,7 @@ import { flow } from "effect/Function";
 import type * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
-import { isWorkflowExport } from "../../Workflows/Workflow.ts";
+import { isWorkflowExport } from "../../Workflows/Workflow.vibe";
 import { isDurableObjectExport } from "../DurableObject.ts";
 import type { SourceContext, SourceProvider } from "../Source.ts";
 import type { SqlMigrationSnapshot } from "../SqlMigrationsRuntime.vibe";

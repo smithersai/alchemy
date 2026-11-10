@@ -1,3 +1,3 @@
-export * from "./ResourceGroup.ts";
-export * from "./UserGroup.ts";
-export * from "./UserGroupMembership.ts";
+export * from "./ResourceGroup.vibe";
+export * from "./UserGroup.vibe";
+export * from "./UserGroupMembership.vibe";

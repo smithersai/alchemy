@@ -1,3 +1,3 @@
-export * from "./Dataset.ts";
-export * from "./WriteDataset.ts";
+export * from "./Dataset.vibe";
+export * from "./WriteDataset.vibe";
 export * from "./WriteDatasetBinding.vibe";

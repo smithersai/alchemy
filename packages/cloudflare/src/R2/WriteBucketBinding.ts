@@ -3,7 +3,7 @@ import { getRawStream } from "alchemy/Util/Stream";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { makeBucketBinding, makeHelpers } from "./BucketBinding.ts";
+import { makeBucketBinding, makeHelpers } from "./BucketBinding.vibe";
 import type {
   Conditional,
   MultipartOptions,

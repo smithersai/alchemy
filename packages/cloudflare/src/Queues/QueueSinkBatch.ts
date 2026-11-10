@@ -2,7 +2,7 @@ import type { NonEmptyReadonlyArray } from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Sink from "effect/Sink";
-import type { Queue } from "./Queue.ts";
+import type { Queue } from "./Queue.vibe";
 import { QueueSink, type QueueSinkClient } from "./QueueSink.vibe";
 import { WriteQueue, type WriteQueueClient } from "./WriteQueue.vibe";
 

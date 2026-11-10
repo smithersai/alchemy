@@ -39,7 +39,7 @@ import * as Schema from "effect/Schema";
 import { isInstantNamespaceLocalId } from "../KV/InstantNamespaceLocal.ts";
 import { isLocalId } from "../LocalRuntime.ts";
 import { LOCAL_R2_S3_CREDENTIALS, LOCAL_R2_S3_PATH } from "../R2/LocalS3.ts";
-import type { WorkerBinding } from "./WorkerBinding.ts";
+import type { WorkerBinding } from "./WorkerBinding.vibe";
 
 export class WorkerValidationError extends Schema.TaggedError<WorkerValidationError>()(
   "WorkerValidationError",

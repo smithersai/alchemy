@@ -27,8 +27,8 @@ import {
   type DurableObject as DurableObjectType,
   type DurableObjectServices,
 } from "./DurableObject.ts";
-import { DurableObjectState } from "./DurableObjectState.ts";
-import { bindEffectRpc } from "./Rpc.ts";
+import { DurableObjectState } from "./DurableObjectState.vibe";
+import { bindEffectRpc } from "./Rpc.vibe";
 import * as RpcWebSocket from "./RpcWebSocket.ts";
 import type { Worker as WorkerService } from "./Worker.ts";
 

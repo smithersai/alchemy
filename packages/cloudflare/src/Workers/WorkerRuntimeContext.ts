@@ -6,9 +6,9 @@ import { packEnvValueKeepRedacted, unpackEnvValue } from "alchemy/RuntimeContext
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import type { WorkflowExport } from "../Workflows/Workflow.ts";
+import type { WorkflowExport } from "../Workflows/Workflow.vibe";
 import type { DurableObjectExport } from "./DurableObject.ts";
-import { makeRequestHandler } from "./HttpServer.ts";
+import { makeRequestHandler } from "./HttpServer.vibe";
 import type { SqlMigrationsExport } from "./SqlMigrationsRuntime.vibe";
 import { WebhookHostLive } from "./WebhookHost.vibe";
 import {

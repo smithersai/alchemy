@@ -7,7 +7,7 @@ import { Resource, type ResourceBinding } from "alchemy/Resource";
 import { normalizeNulls } from "alchemy/Util/stable";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import { localAccountId } from "../LocalAccount.vibe";
 import { generateLocalId, isLiveId } from "../LocalRuntime.ts";
 import type { Providers } from "../Providers.vibe";

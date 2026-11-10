@@ -1,4 +1,4 @@
 export * from "./Configuration.vibe";
-export * from "./Label.ts";
-export * from "./Operation.ts";
+export * from "./Label.vibe";
+export * from "./Operation.vibe";
 export * from "./UserSchema.ts";

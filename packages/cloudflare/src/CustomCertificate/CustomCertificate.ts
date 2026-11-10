@@ -9,9 +9,9 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
 import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.ts";
+import { listAllZones } from "../Zone/lookup.vibe";
 
 const TypeId = "Cloudflare.CustomCertificate.CustomCertificate" as const;
 type TypeId = typeof TypeId;

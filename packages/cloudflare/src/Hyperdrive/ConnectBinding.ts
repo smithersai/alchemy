@@ -7,9 +7,9 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import { Connect, type ConnectClient } from "./Connect.vibe";
-import type { Connection } from "./Connection.ts";
-import { defaultPort, type DevOrigin, type Mtls, type Origin } from "./Connection.ts";
-import { type ConnectionLookup, isConnectionLookup } from "./ConnectionLookup.ts";
+import type { Connection } from "./Connection.vibe";
+import { defaultPort, type DevOrigin, type Mtls, type Origin } from "./Connection.vibe";
+import { type ConnectionLookup, isConnectionLookup } from "./ConnectionLookup.vibe";
 
 export const ConnectBinding = Layer.effect(
   Connect,

@@ -1,1 +1,1 @@
-export * from "./ManagedTransforms.ts";
+export * from "./ManagedTransforms.vibe";

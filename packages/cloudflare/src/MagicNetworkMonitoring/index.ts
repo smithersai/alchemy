@@ -1,2 +1,2 @@
 export * from "./Config.vibe";
-export * from "./Rule.ts";
+export * from "./Rule.vibe";
