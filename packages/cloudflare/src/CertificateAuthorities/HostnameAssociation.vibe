@@ -1,15 +1,15 @@
-import * as certificateAuthorities from "@distilled.cloud/cloudflare/certificate-authorities";
-import { Unowned } from "alchemy/AdoptPolicy";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as certificateAuthorities from "@distilled.cloud/cloudflare/certificate-authorities"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.CertificateAuthorities.HostnameAssociation" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.CertificateAuthorities.HostnameAssociation" as const
+type TypeId = typeof TypeId
 
 export type HostnameAssociationProps = {
   /**
@@ -17,7 +17,7 @@ export type HostnameAssociationProps = {
    * the association's identity, so changing it triggers a replacement (the
    * old zone's association is cleared).
    */
-  zoneId: string;
+  zoneId: string
   /**
    * UUID of an uploaded CA certificate from the account-level mTLS
    * Certificate Management store (`Cloudflare.MtlsCertificate.MtlsCertificate` with
@@ -29,26 +29,26 @@ export type HostnameAssociationProps = {
    *
    * @default the active Cloudflare Managed CA
    */
-  mtlsCertificateId?: string;
+  mtlsCertificateId?: string
   /**
    * Fully-qualified hostnames in the zone that enforce mTLS for the keyed
    * certificate authority. Mutable — the desired list replaces the current
    * one in full on update.
    */
-  hostnames: Array<string>;
-};
+  hostnames: Array<string>
+}
 
 export type HostnameAssociationAttributes = {
   /** Zone the association belongs to. */
-  zoneId: string;
+  zoneId: string
   /**
    * The mTLS CA certificate the hostnames are associated with, or
    * `undefined` when they are associated with the Cloudflare Managed CA.
    */
-  mtlsCertificateId: string | undefined;
+  mtlsCertificateId: string | undefined
   /** Hostnames currently enforcing mTLS for the keyed CA. */
-  hostnames: Array<string>;
-};
+  hostnames: Array<string>
+}
 
 export type HostnameAssociation = Resource<
   TypeId,
@@ -56,7 +56,7 @@ export type HostnameAssociation = Resource<
   HostnameAssociationAttributes,
   never,
   Providers
->;
+>
 
 /**
  * The set of hostnames in a Cloudflare zone that enforce mTLS, optionally
@@ -109,156 +109,154 @@ export type HostnameAssociation = Resource<
  * @product Certificate Authorities
  * @category SSL/TLS & Certificates
  */
-export const HostnameAssociation = Resource<HostnameAssociation>(TypeId);
+export const HostnameAssociation = Resource<HostnameAssociation>(TypeId)
 
 /**
  * Returns true if the given value is a HostnameAssociation resource.
  */
 export const isHostnameAssociation = (value: unknown): value is HostnameAssociation =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const HostnameAssociationProvider = () =>
   Provider.succeed(HostnameAssociation, {
     stables: ["zoneId", "mtlsCertificateId"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // The association is a per-zone settings singleton with no
       // account-wide enumeration API. The only enumerable key is the
       // zone's active Cloudflare Managed CA (no `mtlsCertificateId`):
       // associations keyed by an uploaded CA can't be enumerated because
       // there is no API to list the certificate ids in play. Fan out over
       // every zone and read its Managed-CA association.
-      const zones = yield* listAllZones(accountId);
+      const zones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         zones,
         (zone) =>
           certificateAuthorities.getHostnameAssociation({ zoneId: zone.id }).pipe(
             Effect.map((observed): HostnameAssociationAttributes | undefined => {
-              const hostnames = [...(observed.hostnames ?? [])];
+              const hostnames = [...(observed.hostnames ?? [])]
               // An empty list is the singleton's "unconfigured"
               // state — nothing exists to enumerate (matches `read`).
-              if (hostnames.length === 0) return undefined;
+              if (hostnames.length === 0) return undefined
               return {
                 zoneId: zone.id,
                 mtlsCertificateId: undefined,
                 hostnames,
-              };
+              }
             }),
             // Zones without the mTLS entitlement reject the route
             // (Forbidden) or aren't routable (InvalidRoute); skip them.
             Effect.catchTag(["Forbidden", "InvalidRoute"], () => Effect.undefined),
           ),
         { concurrency: 10 },
-      );
-      return rows.filter((row): row is HostnameAssociationAttributes => row !== undefined);
+      )
+      return rows.filter((row): row is HostnameAssociationAttributes => row !== undefined)
     }),
 
-    diff: Effect.fn(function* ({ olds = {}, news, output }) {
-      const o = olds as HostnameAssociationProps;
-      const n = news as HostnameAssociationProps;
+    diff: Effect.fn(function*({ olds = {}, news, output }) {
+      const o = olds as HostnameAssociationProps
+      const n = news as HostnameAssociationProps
       // zoneId is Input<string>; compare only once both sides are concrete.
-      const oldZoneId = output?.zoneId ?? (typeof o.zoneId === "string" ? o.zoneId : undefined);
+      const oldZoneId = output?.zoneId ?? (typeof o.zoneId === "string" ? o.zoneId : undefined)
       if (oldZoneId !== undefined && typeof n.zoneId === "string" && oldZoneId !== n.zoneId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // mtlsCertificateId keys the association — `undefined` (Managed CA)
       // is itself an identity value.
-      const oldCertId =
-        output !== undefined
-          ? output.mtlsCertificateId
-          : typeof o.mtlsCertificateId === "string"
-            ? o.mtlsCertificateId
-            : undefined;
+      const oldCertId = output !== undefined
+        ? output.mtlsCertificateId
+        : typeof o.mtlsCertificateId === "string"
+        ? o.mtlsCertificateId
+        : undefined
       // A presence flip (Managed CA <-> uploaded CA) is decidable even when
       // the new side is an unresolved Input reference — the reference itself
       // proves a certificate now keys (or no longer keys) the association.
       if ((oldCertId === undefined) !== (n.mtlsCertificateId === undefined)) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // Both sides keyed by a certificate: compare only once the new side is
       // a concrete string (an unresolved Input may still resolve to the same
       // id, so we leave that case to the engine's default update).
       if (typeof n.mtlsCertificateId === "string" && oldCertId !== n.mtlsCertificateId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined);
-      if (!zoneId) return undefined;
-      const mtlsCertificateId =
-        output !== undefined
-          ? output.mtlsCertificateId
-          : typeof olds?.mtlsCertificateId === "string"
-            ? olds.mtlsCertificateId
-            : undefined;
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined)
+      if (!zoneId) return undefined
+      const mtlsCertificateId = output !== undefined
+        ? output.mtlsCertificateId
+        : typeof olds?.mtlsCertificateId === "string"
+        ? olds.mtlsCertificateId
+        : undefined
       const observed = yield* certificateAuthorities.getHostnameAssociation({
         zoneId,
         mtlsCertificateId,
-      });
-      const hostnames = [...(observed.hostnames ?? [])];
+      })
+      const hostnames = [...(observed.hostnames ?? [])]
       // An empty list is the singleton's "unconfigured" state — nothing
       // exists to refresh or adopt.
-      if (hostnames.length === 0) return undefined;
+      if (hostnames.length === 0) return undefined
       const attrs: HostnameAssociationAttributes = {
         zoneId,
         mtlsCertificateId,
         hostnames,
-      };
+      }
       // Cold read with a non-empty pre-existing list: the association
       // carries no ownership markers, so we cannot prove we created it —
       // gate the takeover behind the adopt policy.
-      return output !== undefined ? attrs : Unowned(attrs);
+      return output !== undefined ? attrs : Unowned(attrs)
     }),
 
-    reconcile: Effect.fn(function* ({ news }) {
+    reconcile: Effect.fn(function*({ news }) {
       // Inputs have been resolved to concrete strings by Plan.
-      const zoneId = news.zoneId as string;
-      const mtlsCertificateId = news.mtlsCertificateId as string | undefined;
-      const desired = (news.hostnames ?? []) as Array<string>;
+      const zoneId = news.zoneId as string
+      const mtlsCertificateId = news.mtlsCertificateId as string | undefined
+      const desired = (news.hostnames ?? []) as Array<string>
 
       // 1. Observe — the association always "exists" (possibly empty);
       //    read the live hostname list.
       const observed = yield* certificateAuthorities.getHostnameAssociation({
         zoneId,
         mtlsCertificateId,
-      });
-      const current = [...(observed.hostnames ?? [])];
+      })
+      const current = [...(observed.hostnames ?? [])]
 
       // 2. Sync — full PUT of the desired list; skip when the observed
       //    set already matches (order is not significant).
       if (hostnameSetEquals(current, desired)) {
-        return { zoneId, mtlsCertificateId, hostnames: current };
+        return { zoneId, mtlsCertificateId, hostnames: current }
       }
       const updated = yield* certificateAuthorities.putHostnameAssociation({
         zoneId,
         mtlsCertificateId,
         hostnames: desired,
-      });
+      })
       return {
         zoneId,
         mtlsCertificateId,
         hostnames: [...(updated.hostnames ?? desired)],
-      };
+      }
     }),
 
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       // The association is a settings singleton — "delete" means clearing
       // the hostname list. PUT of an empty list is naturally idempotent.
       yield* certificateAuthorities.putHostnameAssociation({
         zoneId: output.zoneId,
         mtlsCertificateId: output.mtlsCertificateId,
         hostnames: [],
-      });
+      })
     }),
-  });
+  })
 
 /** Order-insensitive equality of two hostname lists (exact duplicates kept). */
 const hostnameSetEquals = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean => {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((v, i) => v === sortedB[i]);
-};
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort()
+  const sortedB = [...b].sort()
+  return sortedA.every((v, i) => v === sortedB[i])
+}

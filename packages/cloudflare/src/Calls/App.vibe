@@ -1,16 +1,16 @@
-import * as calls from "@distilled.cloud/cloudflare/calls";
-import { createPhysicalName } from "alchemy/PhysicalName";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Redacted from "effect/Redacted";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
+import * as calls from "@distilled.cloud/cloudflare/calls"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Redacted from "effect/Redacted"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
 
-const TypeId = "Cloudflare.Calls.App" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Calls.App" as const
+type TypeId = typeof TypeId
 
 export type AppProps = {
   /**
@@ -19,40 +19,40 @@ export type AppProps = {
    * stage, and logical ID.
    * @default ${app}-${stage}-${id}
    */
-  name?: string;
-};
+  name?: string
+}
 
 export type AppAttributes = {
   /**
    * Cloudflare-generated unique identifier for the app. Used in client SDK
    * session URLs (`https://rtc.live.cloudflare.com/v1/apps/{appId}/...`).
    */
-  appId: string;
+  appId: string
   /**
    * The Cloudflare account the app belongs to.
    */
-  accountId: string;
+  accountId: string
   /**
    * App secret (bearer token) used to authenticate against the Realtime SFU
    * HTTPS API. Returned only at creation time and never re-readable — Alchemy
    * persists it in state and carries it forward across updates.
    */
-  secret: Redacted.Redacted<string>;
+  secret: Redacted.Redacted<string>
   /**
    * A short description of the app.
    */
-  name: string;
+  name: string
   /**
    * When the app was created.
    */
-  created: string;
+  created: string
   /**
    * When the app was last modified.
    */
-  modified: string;
-};
+  modified: string
+}
 
-export type App = Resource<TypeId, AppProps, AppAttributes, never, Providers>;
+export type App = Resource<TypeId, AppProps, AppAttributes, never, Providers>
 
 /**
  * A Cloudflare Realtime (formerly "Calls") SFU application.
@@ -92,19 +92,18 @@ export type App = Resource<TypeId, AppProps, AppAttributes, never, Providers>;
  * @product Calls
  * @category Media
  */
-export const App = Resource<App>(TypeId);
+export const App = Resource<App>(TypeId)
 
 /**
  * Returns true if the given value is a App resource.
  */
-export const isApp = (value: unknown): value is App =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+export const isApp = (value: unknown): value is App => Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const AppProvider = () =>
   Provider.succeed(App, {
     stables: ["appId", "accountId", "secret", "created"],
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // Account-scoped collection: enumerate every Calls app under the
       // account, exhaustively paginating `result`. The create-only secret
       // is never returned by the list endpoint, so — matching `read` for a
@@ -113,61 +112,61 @@ export const AppProvider = () =>
         Stream.runCollect,
         Effect.map((chunk) =>
           Array.from(chunk).flatMap((page) =>
-            (page.result ?? []).map((app) => toAttributes(app, accountId, Redacted.make(""))),
-          ),
+            (page.result ?? []).map((app) => toAttributes(app, accountId, Redacted.make("")))
+          )
         ),
-      );
+      )
     }),
-    diff: Effect.fn(function* ({ output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    diff: Effect.fn(function*({ output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
       if (output !== undefined && output.accountId !== accountId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
-    read: Effect.fn(function* ({ output }) {
+    read: Effect.fn(function*({ output }) {
       // The app secret is returned only at creation time, so an app cannot
       // be re-hydrated without prior state — no cold read / adoption path.
-      if (!output?.appId) return undefined;
-      const observed = yield* getApp(output.accountId, output.appId);
-      return observed ? toAttributes(observed, output.accountId, output.secret) : undefined;
+      if (!output?.appId) return undefined
+      const observed = yield* getApp(output.accountId, output.appId)
+      return observed ? toAttributes(observed, output.accountId, output.secret) : undefined
     }),
-    reconcile: Effect.fn(function* ({ id, news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      const name = yield* createAppName(id, news.name);
+    reconcile: Effect.fn(function*({ id, news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      const name = yield* createAppName(id, news.name)
 
       // Observe — the appId cached on `output` is a hint, not a guarantee:
       // a missing app (code 20007) falls through and we recreate.
       const observed = output?.appId
         ? yield* getApp(output.accountId ?? accountId, output.appId)
-        : undefined;
+        : undefined
 
       if (!observed || !output) {
         // Ensure — greenfield (or out-of-band delete): create and capture
         // the create-only secret. Names are not unique on Cloudflare's
         // side, so there is no AlreadyExists race to tolerate.
-        const created = yield* calls.createSfu({ accountId, name });
-        return toAttributes(created, accountId, Redacted.make(created.secret ?? ""));
+        const created = yield* calls.createSfu({ accountId, name })
+        return toAttributes(created, accountId, Redacted.make(created.secret ?? ""))
       }
 
       // Sync — the only mutable aspect is `name`; diff observed cloud
       // state against desired and skip the PUT entirely on a no-op.
       if (observed.name === name) {
-        return toAttributes(observed, output.accountId, output.secret);
+        return toAttributes(observed, output.accountId, output.secret)
       }
       const updated = yield* calls.updateSfu({
         accountId: output.accountId,
         appId: output.appId,
         name,
-      });
-      return toAttributes(updated, output.accountId, output.secret);
+      })
+      return toAttributes(updated, output.accountId, output.secret)
     }),
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       yield* calls
         .deleteSfu({ accountId: output.accountId, appId: output.appId })
-        .pipe(Effect.catchTag("CallsAppNotFound", () => Effect.void));
+        .pipe(Effect.catchTag("CallsAppNotFound", () => Effect.void))
     }),
-  });
+  })
 
 /**
  * Read an app by id, mapping "gone" (`CallsAppNotFound`, Cloudflare error
@@ -176,12 +175,12 @@ export const AppProvider = () =>
 const getApp = (accountId: string, appId: string) =>
   calls
     .getSfu({ accountId, appId })
-    .pipe(Effect.catchTag("CallsAppNotFound", () => Effect.undefined));
+    .pipe(Effect.catchTag("CallsAppNotFound", () => Effect.undefined))
 
 const createAppName = (id: string, name: string | undefined) =>
-  Effect.gen(function* () {
-    return name ?? (yield* createPhysicalName({ id, lowercase: true }));
-  });
+  Effect.gen(function*() {
+    return name ?? (yield* createPhysicalName({ id, lowercase: true }))
+  })
 
 const toAttributes = (
   app: calls.GetSfuResponse | calls.CreateSfuResponse | calls.UpdateSfuResponse,
@@ -194,4 +193,4 @@ const toAttributes = (
   name: app.name ?? "",
   created: app.created ?? "",
   modified: app.modified ?? "",
-});
+})

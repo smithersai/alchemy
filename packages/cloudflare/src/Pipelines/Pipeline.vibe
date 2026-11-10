@@ -1,19 +1,19 @@
-import * as pipelines from "@distilled.cloud/cloudflare/pipelines";
-import { Unowned } from "alchemy/AdoptPolicy";
-import { isResolved } from "alchemy/Diff";
-import { createPhysicalName } from "alchemy/PhysicalName";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Schedule from "effect/Schedule";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
+import * as pipelines from "@distilled.cloud/cloudflare/pipelines"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
 
-const TypeId = "Cloudflare.Pipelines.Pipeline" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Pipelines.Pipeline" as const
+type TypeId = typeof TypeId
 
 export interface PipelineProps {
   /**
@@ -25,7 +25,7 @@ export interface PipelineProps {
    * triggers a replacement.
    * @default ${app}_${id}_${stage}_${suffix}
    */
-  name?: string;
+  name?: string
   /**
    * SQL statement describing the processing flow, e.g.
    * `INSERT INTO my_sink SELECT * FROM my_stream`. Streams and sinks are
@@ -37,7 +37,7 @@ export interface PipelineProps {
    * changes are a no-op. A changed, fully-resolved statement is validated
    * during plan, so invalid SQL fails before anything is replaced.
    */
-  sql: string;
+  sql: string
 }
 
 /**
@@ -48,28 +48,28 @@ export interface PipelineProps {
 export class PipelineSqlInvalid extends Data.TaggedError(
   "Cloudflare.Pipelines.PipelineSqlInvalid",
 )<{
-  message: string;
-  sql: string;
+  message: string
+  sql: string
 }> {}
 
 export interface PipelineAttributes {
   /** Cloudflare-assigned pipeline identifier. */
-  pipelineId: string;
+  pipelineId: string
   /** Account that owns the pipeline. */
-  accountId: string;
+  accountId: string
   /** Pipeline name (unique per account). */
-  name: string;
+  name: string
   /** SQL statement of the processing flow. */
-  sql: string;
+  sql: string
   /** Current status of the pipeline. */
-  status: string;
+  status: string
   /** When the pipeline was created. */
-  createdAt: string;
+  createdAt: string
   /** When the pipeline was last modified. */
-  modifiedAt: string;
+  modifiedAt: string
 }
 
-export type Pipeline = Resource<TypeId, PipelineProps, PipelineAttributes, never, Providers>;
+export type Pipeline = Resource<TypeId, PipelineProps, PipelineAttributes, never, Providers>
 
 /**
  * A Cloudflare SQL Pipeline — the transform of the Pipelines product. A
@@ -116,35 +116,35 @@ export type Pipeline = Resource<TypeId, PipelineProps, PipelineAttributes, never
  * @product Pipelines
  * @category Storage & Databases
  */
-export const Pipeline = Resource<Pipeline>(TypeId);
+export const Pipeline = Resource<Pipeline>(TypeId)
 
 /**
  * Returns true if the given value is a Pipeline resource.
  */
 export const isPipeline = (value: unknown): value is Pipeline =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const PipelineProvider = () =>
   Provider.succeed(Pipeline, {
     stables: ["pipelineId", "accountId", "name", "createdAt"],
 
-    diff: Effect.fn(function* ({ id, olds, news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      if (!isResolved(news)) return undefined;
+    diff: Effect.fn(function*({ id, olds, news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      if (!isResolved(news)) return undefined
       if ((output?.accountId ?? accountId) !== accountId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      const o = olds as PipelineProps | undefined;
-      if (o === undefined) return undefined;
+      const o = olds as PipelineProps | undefined
+      if (o === undefined) return undefined
       // Pipelines have no update API — name and sql changes replace.
-      const newName = yield* pipelineName(id, news.name);
-      const oldName = output?.name ?? (yield* pipelineName(id, o.name));
+      const newName = yield* pipelineName(id, news.name)
+      const oldName = output?.name ?? (yield* pipelineName(id, o.name))
       if (newName !== oldName) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      const oldSql = typeof o.sql === "string" ? o.sql : output?.sql;
+      const oldSql = typeof o.sql === "string" ? o.sql : output?.sql
       if (oldSql === undefined || canonicalSql(news.sql) === canonicalSql(oldSql)) {
-        return oldSql === undefined ? undefined : ({ action: "noop" } as const);
+        return oldSql === undefined ? undefined : ({ action: "noop" } as const)
       }
       // The replacement deletes the running pipeline — validate the new
       // statement first so bad SQL fails the plan, not the deploy. Tables
@@ -161,41 +161,41 @@ export const PipelineProvider = () =>
               }),
             ),
         }),
-      );
-      return { action: "replace" } as const;
+      )
+      return { action: "replace" } as const
     }),
 
-    read: Effect.fn(function* ({ id, output, olds }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      const acct = output?.accountId ?? accountId;
+    read: Effect.fn(function*({ id, output, olds }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      const acct = output?.accountId ?? accountId
       if (output?.pipelineId) {
-        const observed = yield* getPipeline(acct, output.pipelineId);
-        if (observed) return toAttributes(observed, acct);
+        const observed = yield* getPipeline(acct, output.pipelineId)
+        if (observed) return toAttributes(observed, acct)
       }
       // Cold read — pipeline names are unique per account; a
       // generated-name match is proof of ownership, an explicit name is
       // not.
-      const name = yield* pipelineName(id, olds?.name);
-      const match = yield* findPipelineByName(acct, name);
+      const name = yield* pipelineName(id, olds?.name)
+      const match = yield* findPipelineByName(acct, name)
       if (match) {
-        const attrs = toAttributes(match, acct);
-        return olds?.name !== undefined ? Unowned(attrs) : attrs;
+        const attrs = toAttributes(match, acct)
+        return olds?.name !== undefined ? Unowned(attrs) : attrs
       }
-      return undefined;
+      return undefined
     }),
 
-    reconcile: Effect.fn(function* ({ id, news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      const name = yield* pipelineName(id, news.name);
-      const sql = news.sql as string;
+    reconcile: Effect.fn(function*({ id, news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      const name = yield* pipelineName(id, news.name)
+      const sql = news.sql as string
 
       // 1. Observe — by cached id first, then by (unique) name so we
       //    recover from lost state writes.
       let observed = output?.pipelineId
         ? yield* getPipeline(output.accountId ?? accountId, output.pipelineId)
-        : undefined;
+        : undefined
       if (!observed) {
-        observed = yield* findPipelineByName(accountId, name);
+        observed = yield* findPipelineByName(accountId, name)
       }
 
       // Converge drift — there is no update API, so when the observed SQL
@@ -204,10 +204,10 @@ export const PipelineProvider = () =>
       // pipeline and fall through to recreate it under the same name.
       // Nothing references a pipeline downstream, so this is safe.
       if (
-        observed &&
-        (canonicalSql(observed.sql) !== canonicalSql(sql) || observed.name !== name)
+        observed
+        && (canonicalSql(observed.sql) !== canonicalSql(sql) || observed.name !== name)
       ) {
-        yield* deletePipeline(accountId, observed.id);
+        yield* deletePipeline(accountId, observed.id)
         // Wait until the delete is visible so the recreate below does not
         // race an `PipelineAlreadyExists` against the dying pipeline.
         yield* getPipeline(accountId, observed.id).pipe(
@@ -215,8 +215,8 @@ export const PipelineProvider = () =>
             schedule: Schedule.max([Schedule.exponential("250 millis"), Schedule.recurs(8)]),
             until: (p) => p === undefined,
           }),
-        );
-        observed = undefined;
+        )
+        observed = undefined
       }
 
       // 2. Ensure — create when missing. The referenced stream/sink may
@@ -234,33 +234,30 @@ export const PipelineProvider = () =>
           Effect.catchTag("PipelineAlreadyExists", (error) =>
             findPipelineByName(accountId, name).pipe(
               Effect.flatMap((match) => (match ? Effect.succeed(match) : Effect.fail(error))),
-            ),
-          ),
-        );
+            )),
+        )
       }
 
-      return toAttributes(observed, accountId);
+      return toAttributes(observed, accountId)
     }),
 
-    delete: Effect.fn(function* ({ output }) {
-      yield* deletePipeline(output.accountId, output.pipelineId);
+    delete: Effect.fn(function*({ output }) {
+      yield* deletePipeline(output.accountId, output.pipelineId)
     }),
 
     // Account collection — pipelines are account-scoped. Exhaustively
     // paginate the account-wide list and hydrate each row into the same
     // Attributes shape `read` returns.
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       return yield* pipelines.listV1Pipeline.pages({ accountId }).pipe(
         Stream.runCollect,
         Effect.map((chunk) =>
-          Array.from(chunk).flatMap((page) =>
-            (page.result ?? []).map((p) => toAttributes(p, accountId)),
-          ),
+          Array.from(chunk).flatMap((page) => (page.result ?? []).map((p) => toAttributes(p, accountId)))
         ),
-      );
+      )
     }),
-  });
+  })
 
 /**
  * Canonical SQL for change detection: whitespace runs outside quoted
@@ -268,49 +265,49 @@ export const PipelineProvider = () =>
  * a trailing `;` are dropped.
  */
 const canonicalSql = (sql: string): string => {
-  let out = "";
-  let quote: string | undefined;
-  let pendingSpace = false;
+  let out = ""
+  let quote: string | undefined
+  let pendingSpace = false
   for (const ch of sql.trim().replace(/;\s*$/, "")) {
     if (quote) {
-      out += ch;
-      if (ch === quote) quote = undefined;
+      out += ch
+      if (ch === quote) quote = undefined
     } else if (/\s/.test(ch)) {
-      pendingSpace = true;
+      pendingSpace = true
     } else {
-      if (pendingSpace && out.length > 0) out += " ";
-      pendingSpace = false;
-      if (ch === "'" || ch === '"' || ch === "`") quote = ch;
-      out += ch;
+      if (pendingSpace && out.length > 0) out += " "
+      pendingSpace = false
+      if (ch === "'" || ch === "\"" || ch === "`") quote = ch
+      out += ch
     }
   }
-  return out;
-};
+  return out
+}
 
 /**
  * The subset of pipeline state shared by get/list/create responses.
  */
 interface ObservedPipeline {
-  id: string;
-  name: string;
-  sql: string;
-  status: string;
-  createdAt: string;
-  modifiedAt: string;
+  id: string
+  name: string
+  sql: string
+  status: string
+  createdAt: string
+  modifiedAt: string
 }
 
 // Pipelines entity names must be alphanumeric/underscore only, so swap
 // the default hyphen delimiter for underscores.
 const pipelineName = (id: string, name: string | undefined) =>
-  Effect.gen(function* () {
-    if (name) return name;
+  Effect.gen(function*() {
+    if (name) return name
     const generated = yield* createPhysicalName({
       id,
       lowercase: true,
       delimiter: "_",
-    });
-    return generated.replaceAll(/[^a-zA-Z0-9_]/g, "_");
-  });
+    })
+    return generated.replaceAll(/[^a-zA-Z0-9_]/g, "_")
+  })
 
 /**
  * Read a pipeline by id, mapping "gone" (`PipelineNotExists`, Cloudflare
@@ -320,7 +317,7 @@ const getPipeline = (accountId: string, pipelineId: string) =>
   pipelines.getV1Pipeline({ accountId, pipelineId }).pipe(
     Effect.map((p): ObservedPipeline | undefined => p),
     Effect.catchTag("PipelineNotExists", () => Effect.undefined),
-  );
+  )
 
 /**
  * Idempotent delete — a pipeline that is already gone is success.
@@ -328,15 +325,13 @@ const getPipeline = (accountId: string, pipelineId: string) =>
 const deletePipeline = (accountId: string, pipelineId: string) =>
   pipelines
     .deleteV1Pipeline({ accountId, pipelineId })
-    .pipe(Effect.catchTag("PipelineNotExists", () => Effect.void));
+    .pipe(Effect.catchTag("PipelineNotExists", () => Effect.void))
 
 const findPipelineByName = (accountId: string, name: string) =>
   pipelines.listV1Pipeline.items({ accountId }).pipe(
     Stream.runCollect,
-    Effect.map((chunk): ObservedPipeline | undefined =>
-      Array.from(chunk).find((p) => p.name === name),
-    ),
-  );
+    Effect.map((chunk): ObservedPipeline | undefined => Array.from(chunk).find((p) => p.name === name)),
+  )
 
 const toAttributes = (observed: ObservedPipeline, accountId: string): PipelineAttributes => ({
   pipelineId: observed.id,
@@ -346,4 +341,4 @@ const toAttributes = (observed: ObservedPipeline, accountId: string): PipelineAt
   status: observed.status,
   createdAt: observed.createdAt,
   modifiedAt: observed.modifiedAt,
-});
+})

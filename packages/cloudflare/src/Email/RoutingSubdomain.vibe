@@ -1,18 +1,18 @@
-import * as dns from "@distilled.cloud/cloudflare/dns";
-import * as emailRouting from "@distilled.cloud/cloudflare/email-routing";
-import { Unowned } from "alchemy/AdoptPolicy";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as dns from "@distilled.cloud/cloudflare/dns"
+import * as emailRouting from "@distilled.cloud/cloudflare/email-routing"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const RoutingSubdomainTypeId = "Cloudflare.Email.RoutingSubdomain" as const;
-type RoutingSubdomainTypeId = typeof RoutingSubdomainTypeId;
+const RoutingSubdomainTypeId = "Cloudflare.Email.RoutingSubdomain" as const
+type RoutingSubdomainTypeId = typeof RoutingSubdomainTypeId
 
 export interface RoutingSubdomainProps {
   /**
@@ -21,23 +21,23 @@ export interface RoutingSubdomainProps {
    *
    * Stable — moving the subdomain to another zone triggers a replacement.
    */
-  zoneId: string;
+  zoneId: string
   /**
    * The fully-qualified subdomain to receive mail on (e.g.
    * `in.example.com`). Must be within the zone.
    *
    * Stable — a rename is a delete + create.
    */
-  name: string;
+  name: string
 }
 
 export interface RoutingSubdomainAttributes {
   /** Zone the subdomain belongs to. */
-  zoneId: string;
+  zoneId: string
   /** The subdomain receiving mail. */
-  name: string;
+  name: string
   /** The Email Routing MX hosts the subdomain's records point at. */
-  mx: string[];
+  mx: string[]
 }
 
 export type RoutingSubdomain = Resource<
@@ -46,7 +46,7 @@ export type RoutingSubdomain = Resource<
   RoutingSubdomainAttributes,
   never,
   Providers
->;
+>
 
 /**
  * Extends Email Routing on a zone to one of its subdomains, so literal
@@ -82,24 +82,24 @@ export type RoutingSubdomain = Resource<
  * @product Email
  * @category Email
  */
-export const RoutingSubdomain = Resource<RoutingSubdomain>(RoutingSubdomainTypeId);
+export const RoutingSubdomain = Resource<RoutingSubdomain>(RoutingSubdomainTypeId)
 
 /**
  * Returns true if the given value is a RoutingSubdomain resource.
  */
 export const isRoutingSubdomain = (value: unknown): value is RoutingSubdomain =>
-  Predicate.hasProperty(value, "Type") && value.Type === RoutingSubdomainTypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === RoutingSubdomainTypeId
 
 export const RoutingSubdomainProvider = () =>
   Provider.succeed(RoutingSubdomain, {
     stables: ["zoneId", "name"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // No API lists routing subdomains: a subdomain routes mail when it has
       // Email Routing MX records, so scan each zone's MX records for names
       // other than the apex.
-      const zones = yield* listAllZones(accountId);
+      const zones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         zones,
         (zone) =>
@@ -110,71 +110,69 @@ export const RoutingSubdomainProvider = () =>
             Effect.catchTag("Forbidden", () => Effect.succeed([])),
           ),
         { concurrency: 10 },
-      );
-      return rows.flat();
+      )
+      return rows.flat()
     }),
 
-    diff: Effect.fn(function* ({ news, output }) {
-      if (!output || !isResolved(news)) return undefined;
+    diff: Effect.fn(function*({ news, output }) {
+      if (!output || !isResolved(news)) return undefined
       if (news.zoneId !== output.zoneId || news.name !== output.name) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? olds?.zoneId;
-      const name = output?.name ?? olds?.name;
-      if (!zoneId || !name) return undefined;
-      const mx = yield* routingMxOf(zoneId, name);
-      if (mx.length === 0) return undefined;
-      const observed = { zoneId, name, mx };
-      return output ? observed : Unowned(observed);
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? olds?.zoneId
+      const name = output?.name ?? olds?.name
+      if (!zoneId || !name) return undefined
+      const mx = yield* routingMxOf(zoneId, name)
+      if (mx.length === 0) return undefined
+      const observed = { zoneId, name, mx }
+      return output ? observed : Unowned(observed)
     }),
 
-    reconcile: Effect.fn(function* ({ news }) {
-      const zoneId = news.zoneId;
+    reconcile: Effect.fn(function*({ news }) {
+      const zoneId = news.zoneId
       // Observe, then ensure: a subdomain already routing mail needs nothing.
-      const existing = yield* routingMxOf(zoneId, news.name);
-      if (existing.length > 0) return { zoneId, name: news.name, mx: existing };
-      yield* emailRouting.createDns({ zoneId, name: news.name });
-      return { zoneId, name: news.name, mx: yield* routingMxOf(zoneId, news.name) };
+      const existing = yield* routingMxOf(zoneId, news.name)
+      if (existing.length > 0) return { zoneId, name: news.name, mx: existing }
+      yield* emailRouting.createDns({ zoneId, name: news.name })
+      return { zoneId, name: news.name, mx: yield* routingMxOf(zoneId, news.name) }
     }),
 
-    delete: Effect.fn(function* ({ output }) {
-      const { zoneId, name } = output;
+    delete: Effect.fn(function*({ output }) {
+      const { zoneId, name } = output
       // Unlock the subdomain's records, then remove the Email Routing ones at
       // this exact name. Idempotent: nothing left to remove is success.
       yield* emailRouting
         .patchDns({ zoneId, name })
-        .pipe(Effect.catchTag("EmailRoutingSubdomainNotFound", () => Effect.void));
+        .pipe(Effect.catchTag("EmailRoutingSubdomainNotFound", () => Effect.void))
       const records = yield* dns.listRecords.items({ zoneId, name: { exact: name } }).pipe(
         Stream.filter(
           (record) =>
-            (record.type === "MX" && isRoutingMx(record.content)) ||
-            (record.type === "TXT" && isRoutingSpf(record.content)),
+            (record.type === "MX" && isRoutingMx(record.content))
+            || (record.type === "TXT" && isRoutingSpf(record.content)),
         ),
         Stream.runCollect,
-      );
+      )
       yield* Effect.forEach(
         Array.from(records),
         (record) => dns.deleteRecord({ zoneId, dnsRecordId: record.id }),
         { concurrency: 3, discard: true },
-      );
+      )
     }),
-  });
+  })
 
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
 
 /** Email Routing's inbound hosts: `route1.mx.cloudflare.net` to `route3`. */
-const isRoutingMx = (content: string | null | undefined) =>
-  /^route\d+\.mx\.cloudflare\.net\.?$/iu.test(content ?? "");
+const isRoutingMx = (content: string | null | undefined) => /^route\d+\.mx\.cloudflare\.net\.?$/iu.test(content ?? "")
 
 /** The SPF record Email Routing adds beside its MX records. */
-const isRoutingSpf = (content: string | null | undefined) =>
-  (content ?? "").includes("include:_spf.mx.cloudflare.net");
+const isRoutingSpf = (content: string | null | undefined) => (content ?? "").includes("include:_spf.mx.cloudflare.net")
 
 const routingMxOf = (zoneId: string, name: string) =>
   dns.listRecords.items({ zoneId, name: { exact: name }, type: "MX" }).pipe(
@@ -182,15 +180,15 @@ const routingMxOf = (zoneId: string, name: string) =>
     Stream.map((record) => record.content ?? ""),
     Stream.runCollect,
     Effect.map((chunk) => Array.from(chunk).sort()),
-  );
+  )
 
 const groupByName = (
   zoneId: string,
   records: ReadonlyArray<{ readonly name: string; readonly content?: string | null }>,
 ): RoutingSubdomainAttributes[] => {
-  const byName = new Map<string, string[]>();
+  const byName = new Map<string, string[]>()
   for (const record of records) {
-    byName.set(record.name, [...(byName.get(record.name) ?? []), record.content ?? ""]);
+    byName.set(record.name, [...(byName.get(record.name) ?? []), record.content ?? ""])
   }
-  return [...byName].map(([name, mx]) => ({ zoneId, name, mx: mx.sort() }));
-};
+  return [...byName].map(([name, mx]) => ({ zoneId, name, mx: mx.sort() }))
+}

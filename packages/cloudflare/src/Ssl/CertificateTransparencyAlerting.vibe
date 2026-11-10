@@ -1,15 +1,15 @@
-import * as zones from "@distilled.cloud/cloudflare/zones";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as zones from "@distilled.cloud/cloudflare/zones"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.Ssl.CertificateTransparencyAlerting" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Ssl.CertificateTransparencyAlerting" as const
+type TypeId = typeof TypeId
 
 export type CertificateTransparencyAlertingProps = {
   /**
@@ -17,32 +17,32 @@ export type CertificateTransparencyAlertingProps = {
    * changing the zone triggers a replacement (the old zone's subscription
    * is restored to what it was before Alchemy managed it).
    */
-  zoneId: string;
+  zoneId: string
   /**
    * Whether Cloudflare emails an alert when a certificate is issued for
    * one of the zone's hostnames. Cloudflare leaves it off for a new zone.
    * @default true
    */
-  enabled?: boolean;
+  enabled?: boolean
   /**
    * Addresses that receive the alerts (at most 100). When omitted, the
    * zone's stored recipients are left as they are.
    */
-  emails?: string[];
-};
+  emails?: string[]
+}
 
 export type CertificateTransparencyAlertingAttributes = {
   /** Zone the subscription belongs to. */
-  zoneId: string;
+  zoneId: string
   /** Whether CT alerting is enabled for the zone. */
-  enabled: boolean;
+  enabled: boolean
   /** The zone's alert recipients. */
-  emails: string[];
+  emails: string[]
   /** `enabled` before Alchemy first managed the subscription. */
-  initialEnabled: boolean;
+  initialEnabled: boolean
   /** `emails` before Alchemy first managed the subscription. */
-  initialEmails: string[];
-};
+  initialEmails: string[]
+}
 
 export type CertificateTransparencyAlerting = Resource<
   TypeId,
@@ -50,7 +50,7 @@ export type CertificateTransparencyAlerting = Resource<
   CertificateTransparencyAlertingAttributes,
   never,
   Providers
->;
+>
 
 /**
  * Certificate Transparency alerting for a Cloudflare zone ("Certificate
@@ -87,95 +87,93 @@ export type CertificateTransparencyAlerting = Resource<
  * @product SSL/TLS
  * @category SSL/TLS & Certificates
  */
-export const CertificateTransparencyAlerting = Resource<CertificateTransparencyAlerting>(TypeId);
+export const CertificateTransparencyAlerting = Resource<CertificateTransparencyAlerting>(TypeId)
 
 /**
  * Returns true if the given value is a CertificateTransparencyAlerting resource.
  */
 export const isCertificateTransparencyAlerting = (
   value: unknown,
-): value is CertificateTransparencyAlerting =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+): value is CertificateTransparencyAlerting => Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 const observe = (zoneId: string) =>
-  zones.getCtAlerting({ zoneId }).pipe(Effect.catchTag("InvalidRoute", () => Effect.undefined));
+  zones.getCtAlerting({ zoneId }).pipe(Effect.catchTag("InvalidRoute", () => Effect.undefined))
 
 const recipients = (
   observed: zones.GetCtAlertingResponse | zones.PatchCtAlertingResponse,
-): string[] => [...(observed.emails ?? [])];
+): string[] => [...(observed.emails ?? [])]
 
 const sameRecipients = (a: readonly string[], b: readonly string[]) => {
-  const sortedB = [...b].sort();
-  return a.length === b.length && [...a].sort().every((email, i) => email === sortedB[i]);
-};
+  const sortedB = [...b].sort()
+  return a.length === b.length && [...a].sort().every((email, i) => email === sortedB[i])
+}
 
 export const CertificateTransparencyAlertingProvider = () =>
   Provider.succeed(CertificateTransparencyAlerting, {
     nuke: { singleton: true },
     stables: ["zoneId", "initialEnabled", "initialEmails"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      const allZones = yield* listAllZones(accountId);
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      const allZones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         allZones.map((zone) => zone.id),
         (zoneId) =>
           observe(zoneId).pipe(
             Effect.map((observed) => {
-              if (observed === undefined) return undefined;
-              const emails = recipients(observed);
+              if (observed === undefined) return undefined
+              const emails = recipients(observed)
               return {
                 zoneId,
                 enabled: observed.enabled,
                 emails,
                 initialEnabled: observed.enabled,
                 initialEmails: emails,
-              };
+              }
             }),
           ),
         { concurrency: 10 },
-      );
+      )
       return rows.filter(
         (row): row is CertificateTransparencyAlertingAttributes => row !== undefined,
-      );
+      )
     }),
 
-    diff: Effect.fn(function* ({ olds, news, output }) {
-      if (!isResolved(news)) return undefined;
-      const oldZoneId =
-        output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined);
+    diff: Effect.fn(function*({ olds, news, output }) {
+      if (!isResolved(news)) return undefined
+      const oldZoneId = output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined)
       if (oldZoneId !== undefined && typeof news.zoneId === "string" && oldZoneId !== news.zoneId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined);
-      if (!zoneId) return undefined;
-      const observed = yield* observe(zoneId);
-      if (observed === undefined) return undefined;
-      const emails = recipients(observed);
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined)
+      if (!zoneId) return undefined
+      const observed = yield* observe(zoneId)
+      if (observed === undefined) return undefined
+      const emails = recipients(observed)
       return {
         zoneId,
         enabled: observed.enabled,
         emails,
         initialEnabled: output?.initialEnabled ?? observed.enabled,
         initialEmails: output?.initialEmails ?? emails,
-      };
+      }
     }),
 
-    reconcile: Effect.fn(function* ({ news, output }) {
-      const zoneId = news.zoneId as string;
-      const enabled = news.enabled ?? true;
-      const observed = yield* zones.getCtAlerting({ zoneId });
-      const emails = recipients(observed);
-      const initialEnabled = output?.initialEnabled ?? observed.enabled;
-      const initialEmails = output?.initialEmails ?? emails;
+    reconcile: Effect.fn(function*({ news, output }) {
+      const zoneId = news.zoneId as string
+      const enabled = news.enabled ?? true
+      const observed = yield* zones.getCtAlerting({ zoneId })
+      const emails = recipients(observed)
+      const initialEnabled = output?.initialEnabled ?? observed.enabled
+      const initialEmails = output?.initialEmails ?? emails
 
       if (
-        observed.enabled === enabled &&
-        (news.emails === undefined || sameRecipients(news.emails, emails))
+        observed.enabled === enabled
+        && (news.emails === undefined || sameRecipients(news.emails, emails))
       ) {
         return {
           zoneId,
@@ -183,32 +181,32 @@ export const CertificateTransparencyAlertingProvider = () =>
           emails,
           initialEnabled,
           initialEmails,
-        };
+        }
       }
       const patched = yield* zones.patchCtAlerting({
         zoneId,
         enabled,
         ...(news.emails === undefined ? {} : { emails: news.emails }),
-      });
+      })
       return {
         zoneId,
         enabled: patched.enabled,
         emails: recipients(patched),
         initialEnabled,
         initialEmails,
-      };
+      }
     }),
 
-    delete: Effect.fn(function* ({ output, olds }) {
-      const { zoneId, initialEnabled, initialEmails } = output;
-      const observed = yield* observe(zoneId);
-      if (observed === undefined) return;
-      const managedEmails = olds?.emails !== undefined;
+    delete: Effect.fn(function*({ output, olds }) {
+      const { zoneId, initialEnabled, initialEmails } = output
+      const observed = yield* observe(zoneId)
+      if (observed === undefined) return
+      const managedEmails = olds?.emails !== undefined
       if (
-        observed.enabled === initialEnabled &&
-        (!managedEmails || sameRecipients(recipients(observed), initialEmails))
+        observed.enabled === initialEnabled
+        && (!managedEmails || sameRecipients(recipients(observed), initialEmails))
       ) {
-        return;
+        return
       }
       yield* zones
         .patchCtAlerting({
@@ -216,6 +214,6 @@ export const CertificateTransparencyAlertingProvider = () =>
           enabled: initialEnabled,
           ...(managedEmails ? { emails: initialEmails } : {}),
         })
-        .pipe(Effect.catchTag("InvalidRoute", () => Effect.void));
+        .pipe(Effect.catchTag("InvalidRoute", () => Effect.void))
     }),
-  });
+  })

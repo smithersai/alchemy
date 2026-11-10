@@ -1,17 +1,17 @@
-import * as rum from "@distilled.cloud/cloudflare/rum";
-import { Unowned } from "alchemy/AdoptPolicy";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Schedule from "effect/Schedule";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
+import * as rum from "@distilled.cloud/cloudflare/rum"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
 
-const TypeId = "Cloudflare.Rum.Rule" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Rum.Rule" as const
+type TypeId = typeof TypeId
 
 export type RuleProps = {
   /**
@@ -20,70 +20,70 @@ export type RuleProps = {
    * pass its `rulesetId` attribute. Changing this property triggers a
    * replacement.
    */
-  rulesetId: string;
+  rulesetId: string
   /**
    * The hostname the rule applies to (e.g. `example.com`).
    */
-  host?: string;
+  host?: string
   /**
    * The paths the rule applies to (e.g. `["/blog/*"]`).
    */
-  paths?: string[];
+  paths?: string[]
   /**
    * Whether the rule includes (`true`) or excludes (`false`) matching
    * traffic from being measured.
    * @default true
    */
-  inclusive?: boolean;
+  inclusive?: boolean
   /**
    * Whether the rule is paused.
    * @default false
    */
-  isPaused?: boolean;
-};
+  isPaused?: boolean
+}
 
 export type RuleAttributes = {
   /**
    * The Web Analytics rule identifier. Stable for the lifetime of the rule.
    */
-  id: string;
+  id: string
   /**
    * The identifier of the ruleset the rule belongs to.
    */
-  rulesetId: string;
+  rulesetId: string
   /**
    * The Cloudflare account the rule belongs to.
    */
-  accountId: string;
+  accountId: string
   /**
    * The hostname the rule applies to.
    */
-  host: string | undefined;
+  host: string | undefined
   /**
    * The paths the rule applies to.
    */
-  paths: string[] | undefined;
+  paths: string[] | undefined
   /**
    * Whether the rule includes or excludes matching traffic from being
    * measured.
    */
-  inclusive: boolean;
+  inclusive: boolean
   /**
    * Whether the rule is paused.
    */
-  isPaused: boolean;
+  isPaused: boolean
   /**
    * The rule's evaluation priority within its ruleset (assigned by
    * Cloudflare).
    */
-  priority: number | undefined;
+  priority: number | undefined
   /**
    * When the rule was created.
    */
-  created: string | undefined;
-};
+  created: string | undefined
+}
 
-export type Rule = Resource<TypeId, RuleProps, RuleAttributes, never, Providers>;
+export type Rule = Resource<TypeId, RuleProps, RuleAttributes, never, Providers>
 
 /**
  * A Cloudflare Web Analytics (RUM) rule.
@@ -131,20 +131,19 @@ export type Rule = Resource<TypeId, RuleProps, RuleAttributes, never, Providers>
  * @product RUM
  * @category Observability & Analytics
  */
-export const Rule = Resource<Rule>(TypeId);
+export const Rule = Resource<Rule>(TypeId)
 
 /**
  * Returns true if the given value is a Rule resource.
  */
-export const isRule = (value: unknown): value is Rule =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+export const isRule = (value: unknown): value is Rule => Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const RuleProvider = () =>
   Provider.succeed(Rule, {
     stables: ["id", "rulesetId", "accountId", "created"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // Rules live under a Site's implicit ruleset and there is no
       // account-wide rule list. Enumerate every site (paginated), collect
       // their ruleset ids, then fan out the per-ruleset rule list and
@@ -152,60 +151,57 @@ export const RuleProvider = () =>
       const sites = yield* rum.listSiteInfos.pages({ accountId }).pipe(
         Stream.runCollect,
         Effect.map((chunk) => Array.from(chunk).flatMap((page) => page.result ?? [])),
-      );
+      )
       const rulesetIds = Array.from(
         new Set(
           sites
             .map((site) => site.ruleset?.id ?? undefined)
             .filter((id): id is string => id !== undefined),
         ),
-      );
+      )
       const rows = yield* Effect.forEach(
         rulesetIds,
         (rulesetId) =>
           listRules(accountId, rulesetId).pipe(
-            Effect.map((rules) =>
-              (rules ?? []).map((rule) => toAttributes(rule, rulesetId, accountId)),
-            ),
+            Effect.map((rules) => (rules ?? []).map((rule) => toAttributes(rule, rulesetId, accountId))),
             // A freshly minted scoped token can briefly 403 across the
             // edge — skip rulesets we momentarily can't read.
             Effect.catchTag("Forbidden", () => Effect.succeed([])),
           ),
         { concurrency: 10 },
-      );
-      return rows.flat();
+      )
+      return rows.flat()
     }),
 
-    diff: Effect.fn(function* ({ news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      if (!isResolved(news)) return undefined;
+    diff: Effect.fn(function*({ news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      if (!isResolved(news)) return undefined
       if ((output?.accountId ?? accountId) !== accountId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // A rule cannot be moved between rulesets — moving it means a new
       // rule under the new ruleset.
       if (output !== undefined && news.rulesetId !== output.rulesetId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      const acct = output?.accountId ?? accountId;
-      const rulesetId =
-        output?.rulesetId ?? (typeof olds?.rulesetId === "string" ? olds.rulesetId : undefined);
-      if (rulesetId === undefined) return undefined;
+    read: Effect.fn(function*({ output, olds }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      const acct = output?.accountId ?? accountId
+      const rulesetId = output?.rulesetId ?? (typeof olds?.rulesetId === "string" ? olds.rulesetId : undefined)
+      if (rulesetId === undefined) return undefined
 
       // There is no getRule — read through the ruleset's rule list. A
       // deleted ruleset (the parent site is gone) means the rule is gone.
-      const rules = yield* listRules(acct, rulesetId);
-      if (rules === undefined) return undefined;
+      const rules = yield* listRules(acct, rulesetId)
+      if (rules === undefined) return undefined
 
       // Owned path: refresh by our persisted rule id.
       if (output?.id) {
-        const observed = rules.find((rule) => rule.id === output.id);
-        return observed ? toAttributes(observed, rulesetId, acct) : undefined;
+        const observed = rules.find((rule) => rule.id === output.id)
+        return observed ? toAttributes(observed, rulesetId, acct) : undefined
       }
 
       // Adoption path: rules carry no ownership markers, so a rule matching
@@ -215,28 +211,27 @@ export const RuleProvider = () =>
         const match = rules
           .filter(
             (rule) =>
-              (rule.host ?? undefined) === olds.host &&
-              samePaths(rule.paths ?? undefined, olds.paths),
+              (rule.host ?? undefined) === olds.host
+              && samePaths(rule.paths ?? undefined, olds.paths),
           )
           .sort((a, b) => (a.created ?? "").localeCompare(b.created ?? ""))
-          .at(0);
-        if (match) return Unowned(toAttributes(match, rulesetId, acct));
+          .at(0)
+        if (match) return Unowned(toAttributes(match, rulesetId, acct))
       }
-      return undefined;
+      return undefined
     }),
 
-    reconcile: Effect.fn(function* ({ news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    reconcile: Effect.fn(function*({ news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // Inputs have been resolved to concrete strings by Plan.
-      const rulesetId = news.rulesetId as string;
+      const rulesetId = news.rulesetId as string
 
       // 1. Observe — the rule id cached on `output` is a hint, not a
       //    guarantee: a missing rule (or ruleset) falls through to create.
-      const rules =
-        output?.id !== undefined && output.rulesetId === rulesetId
-          ? yield* listRules(accountId, rulesetId)
-          : undefined;
-      let observed = rules?.find((rule) => rule.id === output?.id);
+      const rules = output?.id !== undefined && output.rulesetId === rulesetId
+        ? yield* listRules(accountId, rulesetId)
+        : undefined
+      let observed = rules?.find((rule) => rule.id === output?.id)
 
       // 2. Ensure — create when missing. Rules have no uniqueness
       //    constraint, so there is no AlreadyExists race to tolerate. The
@@ -265,10 +260,10 @@ export const RuleProvider = () =>
               while: (e) => e._tag === "RulesetNotFound",
               schedule: Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(8)]),
             }),
-          );
-        const fresh = yield* listRules(accountId, rulesetId);
-        observed = fresh?.find((rule) => rule.id === created.id) ?? toRule(created);
-        return toAttributes(observed, rulesetId, accountId);
+          )
+        const fresh = yield* listRules(accountId, rulesetId)
+        observed = fresh?.find((rule) => rule.id === created.id) ?? toRule(created)
+        return toAttributes(observed, rulesetId, accountId)
       }
 
       // 3. Sync — diff observed cloud state against desired. The update
@@ -280,14 +275,13 @@ export const RuleProvider = () =>
         paths: news.paths ?? [...(observed.paths ?? [])],
         inclusive: news.inclusive ?? observed.inclusive ?? true,
         isPaused: news.isPaused ?? observed.isPaused ?? false,
-      };
-      const dirty =
-        (observed.host ?? undefined) !== desired.host ||
-        !samePaths(observed.paths ?? undefined, desired.paths) ||
-        (observed.inclusive ?? true) !== desired.inclusive ||
-        (observed.isPaused ?? false) !== desired.isPaused;
+      }
+      const dirty = (observed.host ?? undefined) !== desired.host
+        || !samePaths(observed.paths ?? undefined, desired.paths)
+        || (observed.inclusive ?? true) !== desired.inclusive
+        || (observed.isPaused ?? false) !== desired.isPaused
       if (!dirty) {
-        return toAttributes(observed, rulesetId, accountId);
+        return toAttributes(observed, rulesetId, accountId)
       }
 
       const updated = yield* rum.updateRule({
@@ -295,15 +289,15 @@ export const RuleProvider = () =>
         rulesetId,
         ruleId: observed.id ?? "",
         ...desired,
-      });
+      })
       return toAttributes(
         { ...toRule(updated), priority: updated.priority ?? observed.priority },
         rulesetId,
         accountId,
-      );
+      )
     }),
 
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       yield* rum
         .deleteRule({
           accountId: output.accountId,
@@ -315,11 +309,11 @@ export const RuleProvider = () =>
           // `RulesetNotFound` (404) — the parent site/ruleset is gone,
           // taking the rule with it. Both make delete a success.
           Effect.catchTag(["RuleNotFound", "RulesetNotFound"], () => Effect.void),
-        );
+        )
     }),
-  });
+  })
 
-type ObservedRule = NonNullable<NonNullable<rum.ListRulesResponse["rules"]>>[number];
+type ObservedRule = NonNullable<NonNullable<rum.ListRulesResponse["rules"]>>[number]
 
 /**
  * List the rules of a ruleset, mapping "ruleset gone" (`RulesetNotFound`,
@@ -329,16 +323,16 @@ const listRules = (accountId: string, rulesetId: string) =>
   rum.listRules({ accountId, rulesetId }).pipe(
     Effect.map((response): readonly ObservedRule[] | undefined => response.rules ?? []),
     Effect.catchTag("RulesetNotFound", () => Effect.undefined),
-  );
+  )
 
-const toRule = (rule: rum.CreateRuleResponse | rum.UpdateRuleResponse): ObservedRule => rule;
+const toRule = (rule: rum.CreateRuleResponse | rum.UpdateRuleResponse): ObservedRule => rule
 
 const samePaths = (
   observed: readonly string[] | undefined,
   desired: readonly string[] | undefined,
 ) =>
-  (observed ?? []).length === (desired ?? []).length &&
-  (observed ?? []).join(" ") === (desired ?? []).join(" ");
+  (observed ?? []).length === (desired ?? []).length
+  && (observed ?? []).join(" ") === (desired ?? []).join(" ")
 
 const toAttributes = (
   rule: ObservedRule,
@@ -354,4 +348,4 @@ const toAttributes = (
   isPaused: rule.isPaused ?? false,
   priority: rule.priority ?? undefined,
   created: rule.created ?? undefined,
-});
+})

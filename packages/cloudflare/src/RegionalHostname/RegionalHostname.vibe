@@ -1,56 +1,56 @@
-import * as addressing from "@distilled.cloud/cloudflare/addressing";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as addressing from "@distilled.cloud/cloudflare/addressing"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.RegionalHostname.RegionalHostname" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.RegionalHostname.RegionalHostname" as const
+type TypeId = typeof TypeId
 
 export interface Props {
   /**
    * The zone the regional hostname belongs to. Changing it forces a
    * replacement.
    */
-  zoneId: string;
+  zoneId: string
   /**
    * DNS hostname to be regionalized. Must be a subdomain of the zone;
    * wildcards are supported for one level (e.g. `*.example.com`). The
    * hostname is the API path identifier — changing it forces a replacement.
    */
-  hostname: string;
+  hostname: string
   /**
    * Identifying key for the region (e.g. `"eu"`, `"us"` — discoverable via
    * `addressing.listRegionalHostnameRegions`). Mutable — patched in place.
    */
-  regionKey: string;
+  regionKey: string
   /**
    * Which routing method to use for the regional hostname. Create-only —
    * the PATCH endpoint only accepts `regionKey`, so changing it forces a
    * replacement.
    */
-  routing?: string;
+  routing?: string
 }
 
 export interface Attributes {
   /** The zone the regional hostname belongs to. */
-  zoneId: string;
+  zoneId: string
   /** The regionalized DNS hostname. */
-  hostname: string;
+  hostname: string
   /** Identifying key for the region. */
-  regionKey: string;
+  regionKey: string
   /** Routing method used for the regional hostname, if set. */
-  routing: string | undefined;
+  routing: string | undefined
   /** When the regional hostname was created. */
-  createdOn: string;
+  createdOn: string
 }
 
-export type RegionalHostname = Resource<TypeId, Props, Attributes, never, Providers>;
+export type RegionalHostname = Resource<TypeId, Props, Attributes, never, Providers>
 
 /**
  * A Regional Hostname restricts which Cloudflare data centers decrypt and
@@ -91,24 +91,24 @@ export type RegionalHostname = Resource<TypeId, Props, Attributes, never, Provid
  */
 export const RegionalHostname = Resource<RegionalHostname>(TypeId, {
   aliases: ["Cloudflare.RegionalHostname"],
-});
+})
 
 /**
  * Returns true if the given value is a RegionalHostname resource.
  */
 export const isRegionalHostname = (value: unknown): value is RegionalHostname =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const RegionalHostnameProvider = () =>
   Provider.succeed(RegionalHostname, {
     stables: ["zoneId", "hostname", "createdOn"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // Regional hostnames are zone-scoped (/zones/{id}/addressing/
       // regional_hostnames) with no account-wide enumeration API — fan out
       // over every zone and list each zone's regional hostnames.
-      const zones = yield* listAllZones(accountId);
+      const zones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         zones,
         (zone) =>
@@ -122,8 +122,8 @@ export const RegionalHostnameProvider = () =>
                   regionKey: item.regionKey,
                   routing: item.routing ?? undefined,
                   createdOn: item.createdOn,
-                })),
-              ),
+                }))
+              )
             ),
             // Plan-gated zones (no Data Localization Suite entitlement)
             // reject the route, and zones the ambient token cannot access
@@ -132,52 +132,52 @@ export const RegionalHostnameProvider = () =>
             Effect.catchTag(["InvalidRoute", "Forbidden"], () => Effect.succeed([])),
           ),
         { concurrency: 10 },
-      );
-      return rows.flat();
+      )
+      return rows.flat()
     }),
 
-    diff: Effect.fn(function* ({ olds, news, output }) {
-      if (olds === undefined) return undefined;
-      if (!isResolved(news) || !isResolved(olds)) return undefined;
+    diff: Effect.fn(function*({ olds, news, output }) {
+      if (olds === undefined) return undefined
+      if (!isResolved(news) || !isResolved(olds)) return undefined
       // zoneId is Input<string>; by diff time both sides are concrete.
-      const oldZoneId = output?.zoneId ?? olds.zoneId;
+      const oldZoneId = output?.zoneId ?? olds.zoneId
       if (
-        typeof oldZoneId === "string" &&
-        typeof news.zoneId === "string" &&
-        news.zoneId !== oldZoneId
+        typeof oldZoneId === "string"
+        && typeof news.zoneId === "string"
+        && news.zoneId !== oldZoneId
       ) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // The hostname is the API path identifier.
       if (news.hostname !== (output?.hostname ?? olds.hostname)) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // PATCH only accepts regionKey — routing is create-only.
       if (
-        olds.routing !== undefined &&
-        news.routing !== undefined &&
-        news.routing !== olds.routing
+        olds.routing !== undefined
+        && news.routing !== undefined
+        && news.routing !== olds.routing
       ) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
+    read: Effect.fn(function*({ output, olds }) {
       // The hostname is the identifier — cold reads are trivial.
-      const zoneId = output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined);
-      const hostname = output?.hostname ?? olds?.hostname;
-      if (!zoneId || typeof hostname !== "string") return undefined;
-      const observed = yield* getHostname(zoneId, hostname);
-      return observed ? toAttributes(observed, zoneId) : undefined;
+      const zoneId = output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined)
+      const hostname = output?.hostname ?? olds?.hostname
+      if (!zoneId || typeof hostname !== "string") return undefined
+      const observed = yield* getHostname(zoneId, hostname)
+      return observed ? toAttributes(observed, zoneId) : undefined
     }),
 
-    reconcile: Effect.fn(function* ({ news }) {
+    reconcile: Effect.fn(function*({ news }) {
       // Inputs have been resolved to concrete strings by Plan.
-      const zoneId = news.zoneId as string;
+      const zoneId = news.zoneId as string
 
       // 1. Observe — the hostname itself is the identifier.
-      const observed = yield* getHostname(zoneId, news.hostname);
+      const observed = yield* getHostname(zoneId, news.hostname)
 
       // 2. Ensure — create if missing.
       if (!observed) {
@@ -186,8 +186,8 @@ export const RegionalHostnameProvider = () =>
           hostname: news.hostname,
           regionKey: news.regionKey,
           routing: news.routing,
-        });
-        return toAttributes(created, zoneId);
+        })
+        return toAttributes(created, zoneId)
       }
 
       // 3. Sync — regionKey is the only patchable field; skip the PATCH
@@ -197,14 +197,14 @@ export const RegionalHostnameProvider = () =>
           zoneId,
           hostname: news.hostname,
           regionKey: news.regionKey,
-        });
-        return toAttributes(patched, zoneId);
+        })
+        return toAttributes(patched, zoneId)
       }
 
-      return toAttributes(observed, zoneId);
+      return toAttributes(observed, zoneId)
     }),
 
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       yield* addressing
         .deleteRegionalHostname({
           zoneId: output.zoneId,
@@ -212,9 +212,9 @@ export const RegionalHostnameProvider = () =>
         })
         .pipe(
           Effect.catchTag(["RegionalHostnameNotFound", "RegionalHostnameEmpty"], () => Effect.void),
-        );
+        )
     }),
-  });
+  })
 
 /**
  * Read a regional hostname, mapping "gone" (`RegionalHostnameNotFound` —
@@ -229,7 +229,7 @@ const getHostname = (zoneId: string, hostname: string) =>
         ["RegionalHostnameNotFound", "RegionalHostnameEmpty"],
         () => Effect.undefined,
       ),
-    );
+    )
 
 const toAttributes = (
   hostname: addressing.GetRegionalHostnameResponse,
@@ -240,4 +240,4 @@ const toAttributes = (
   regionKey: hostname.regionKey,
   routing: hostname.routing ?? undefined,
   createdOn: hostname.createdOn,
-});
+})

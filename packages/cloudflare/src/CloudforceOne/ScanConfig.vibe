@@ -1,59 +1,59 @@
-import * as cloudforceOne from "@distilled.cloud/cloudflare/cloudforce-one";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
+import * as cloudforceOne from "@distilled.cloud/cloudflare/cloudforce-one"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
 
-const TypeId = "Cloudflare.CloudforceOne.ScanConfig" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.CloudforceOne.ScanConfig" as const
+type TypeId = typeof TypeId
 
 export type ScanConfigProps = {
   /**
    * IP addresses or CIDR blocks to scan. The maximum number of total IP
    * addresses allowed is 5000.
    */
-  ips: string[];
+  ips: string[]
   /**
    * Number of days between each scan (`0` = one-off scan).
    * @default 0
    */
-  frequency?: number;
+  frequency?: number
   /**
    * Ports to scan. Valid values are `"default"` (the 100 most commonly open
    * ports), `"all"`, or a list of ports / port ranges (e.g. `["1-80", "443"]`).
    * @default ["default"]
    */
-  ports?: string[];
-};
+  ports?: string[]
+}
 
 export type ScanConfigAttributes = {
   /**
    * Server-assigned scan config identifier (UUID).
    */
-  configId: string;
+  configId: string
   /**
    * The Cloudflare account the scan config belongs to.
    */
-  accountId: string;
+  accountId: string
   /**
    * IP addresses or CIDR blocks being scanned.
    */
-  ips: string[];
+  ips: string[]
   /**
    * Number of days between each scan (`0` = one-off scan).
    */
-  frequency: number;
+  frequency: number
   /**
    * Ports being scanned.
    */
-  ports: string[];
-};
+  ports: string[]
+}
 
-export type ScanConfig = Resource<TypeId, ScanConfigProps, ScanConfigAttributes, never, Providers>;
+export type ScanConfig = Resource<TypeId, ScanConfigProps, ScanConfigAttributes, never, Providers>
 
 /**
  * A Cloudforce One attack-surface scan configuration.
@@ -101,58 +101,56 @@ export type ScanConfig = Resource<TypeId, ScanConfigProps, ScanConfigAttributes,
  * @product Cloudforce One
  * @category Observability & Analytics
  */
-export const ScanConfig = Resource<ScanConfig>(TypeId);
+export const ScanConfig = Resource<ScanConfig>(TypeId)
 
 /**
  * Returns true if the given value is a ScanConfig resource.
  */
 export const isScanConfig = (value: unknown): value is ScanConfig =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 export const ScanConfigProvider = () =>
   Provider.succeed(ScanConfig, {
     stables: ["configId", "accountId"],
-    diff: Effect.fn(function* ({ news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
-      if (!isResolved(news)) return undefined;
+    diff: Effect.fn(function*({ news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
+      if (!isResolved(news)) return undefined
       // Scan configs are account-scoped; moving accounts is a replacement.
       if ((output?.accountId ?? accountId) !== accountId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
       // ips / frequency / ports are all mutable via PATCH.
-      return undefined;
+      return undefined
     }),
-    read: Effect.fn(function* ({ output }) {
+    read: Effect.fn(function*({ output }) {
       // There is no get-by-id endpoint and configs carry no name, so a cold
       // read (lost state, no cached configId) has no identity to match — we
       // can only observe through the cached configId.
-      if (!output?.configId) return undefined;
-      const acct = output.accountId;
-      const observed = yield* findConfig(acct, output.configId);
-      return observed ? toAttributes(observed, acct) : undefined;
+      if (!output?.configId) return undefined
+      const acct = output.accountId
+      const observed = yield* findConfig(acct, output.configId)
+      return observed ? toAttributes(observed, acct) : undefined
     }),
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       return yield* cloudforceOne.listScanConfigs.pages({ accountId }).pipe(
         Stream.runCollect,
         Effect.map((chunk) =>
-          Array.from(chunk).flatMap((page) =>
-            (page.result ?? []).map((c) => toAttributes(c, accountId)),
-          ),
+          Array.from(chunk).flatMap((page) => (page.result ?? []).map((c) => toAttributes(c, accountId)))
         ),
         // Accounts without the cfone.port_scan entitlement reject every
         // scan-config call with the typed Unauthorized — treat as "none".
         Effect.catchTag("Unauthorized", () => Effect.succeed<ScanConfigAttributes[]>([])),
-      );
+      )
     }),
-    reconcile: Effect.fn(function* ({ news, output }) {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    reconcile: Effect.fn(function*({ news, output }) {
+      const { accountId } = yield* yield* CloudflareEnvironment
 
       // Observe — the configId cached on `output` is a hint, not a
       // guarantee: missing from the list falls through to create.
       const observed = output?.configId
         ? yield* findConfig(output.accountId ?? accountId, output.configId)
-        : undefined;
+        : undefined
 
       if (!observed) {
         // Ensure — greenfield (or out-of-band delete).
@@ -161,20 +159,19 @@ export const ScanConfigProvider = () =>
           ips: news.ips,
           frequency: news.frequency,
           ports: news.ports,
-        });
-        return toAttributes(created, accountId);
+        })
+        return toAttributes(created, accountId)
       }
 
       // Sync — diff observed cloud state against desired; PATCH accepts
       // partial bodies, so send only what the user pinned, and skip the
       // call entirely on a no-op.
-      const dirty =
-        !sameList(observed.ips, news.ips) ||
-        (news.frequency !== undefined && observed.frequency !== news.frequency) ||
-        (news.ports !== undefined && !sameList(observed.ports, news.ports));
+      const dirty = !sameList(observed.ips, news.ips)
+        || (news.frequency !== undefined && observed.frequency !== news.frequency)
+        || (news.ports !== undefined && !sameList(observed.ports, news.ports))
 
       if (!dirty) {
-        return toAttributes(observed, observed.accountId);
+        return toAttributes(observed, observed.accountId)
       }
 
       const updated = yield* cloudforceOne
@@ -193,28 +190,27 @@ export const ScanConfigProvider = () =>
               ips: news.ips,
               frequency: news.frequency,
               ports: news.ports,
-            }),
-          ),
-        );
-      return toAttributes(updated, observed.accountId);
+            })),
+        )
+      return toAttributes(updated, observed.accountId)
     }),
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       yield* cloudforceOne
         .deleteScanConfig({
           accountId: output.accountId,
           configId: output.configId,
         })
-        .pipe(Effect.catchTag("ScanConfigNotFound", () => Effect.void));
+        .pipe(Effect.catchTag("ScanConfigNotFound", () => Effect.void))
     }),
-  });
+  })
 
 type ObservedScanConfig = {
-  id: string;
-  accountId: string;
-  frequency: number;
-  ips: readonly string[];
-  ports: readonly string[];
-};
+  id: string
+  accountId: string
+  frequency: number
+  ips: readonly string[]
+  ports: readonly string[]
+}
 
 /**
  * Find a scan config by id. There is no get-by-id endpoint, so observe via
@@ -224,14 +220,12 @@ const findConfig = (accountId: string, configId: string) =>
   cloudforceOne
     .listScanConfigs({ accountId })
     .pipe(
-      Effect.map((page): ObservedScanConfig | undefined =>
-        page.result.find((c) => c.id === configId),
-      ),
-    );
+      Effect.map((page): ObservedScanConfig | undefined => page.result.find((c) => c.id === configId)),
+    )
 
 const sameList = (observed: readonly string[], desired: readonly string[]) =>
-  observed.length === desired.length &&
-  [...observed].sort().join(",") === [...desired].sort().join(",");
+  observed.length === desired.length
+  && [...observed].sort().join(",") === [...desired].sort().join(",")
 
 const toAttributes = (config: ObservedScanConfig, accountId: string): ScanConfigAttributes => ({
   configId: config.id,
@@ -239,4 +233,4 @@ const toAttributes = (config: ObservedScanConfig, accountId: string): ScanConfig
   ips: [...config.ips],
   frequency: config.frequency,
   ports: [...config.ports],
-});
+})

@@ -1,15 +1,15 @@
-import * as cache from "@distilled.cloud/cloudflare/cache";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Schedule from "effect/Schedule";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as cache from "@distilled.cloud/cloudflare/cache"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Schedule from "effect/Schedule"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.Cache.Reserve" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Cache.Reserve" as const
+type TypeId = typeof TypeId
 
 export interface ReserveProps {
   /**
@@ -17,13 +17,13 @@ export interface ReserveProps {
    * zone triggers a replacement (the old zone's setting is restored to
    * the value it had before Alchemy managed it).
    */
-  zoneId: string;
+  zoneId: string
   /**
    * Whether Cache Reserve is enabled on the zone (`value: "on"`) or
    * disabled (`value: "off"`). Mutable — patched in place.
    * @default true
    */
-  enabled?: boolean;
+  enabled?: boolean
   /**
    * When true, destroying the resource also clears any data already
    * stored in Cache Reserve (after restoring the setting), waiting for
@@ -32,30 +32,30 @@ export interface ReserveProps {
    * bill until it expires or is cleared.
    * @default false
    */
-  clearOnDelete?: boolean;
+  clearOnDelete?: boolean
 }
 
 export interface ReserveAttributes {
   /** Zone the setting belongs to. */
-  zoneId: string;
+  zoneId: string
   /** Resolved current value of the setting (`"on"` or `"off"`). */
-  value: string;
+  value: string
   /**
    * Whether the setting can be modified on the zone's current plan
    * (`false` means the setting is plan-gated).
    */
-  editable: boolean;
+  editable: boolean
   /** When the setting was last modified, if Cloudflare reports it. */
-  modifiedOn: string | undefined;
+  modifiedOn: string | undefined
   /**
    * The value the setting had before Alchemy first patched it. Restored
    * on destroy, so deleting the resource puts the zone back the way it
    * was found.
    */
-  initialValue: string;
+  initialValue: string
 }
 
-export type Reserve = Resource<TypeId, ReserveProps, ReserveAttributes, never, Providers>;
+export type Reserve = Resource<TypeId, ReserveProps, ReserveAttributes, never, Providers>
 
 /**
  * The Cache Reserve setting of a Cloudflare zone
@@ -107,28 +107,27 @@ export type Reserve = Resource<TypeId, ReserveProps, ReserveAttributes, never, P
  */
 export const Reserve = Resource<Reserve>(TypeId, {
   aliases: ["Cloudflare.Cache.CacheReserve"],
-});
+})
 
 /**
  * Returns true if the given value is a Reserve resource.
  */
 export const isReserve = (value: unknown): value is Reserve =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
-const desiredValue = (props: ReserveProps): "on" | "off" =>
-  (props.enabled ?? true) ? "on" : "off";
+const desiredValue = (props: ReserveProps): "on" | "off" => (props.enabled ?? true) ? "on" : "off"
 
 export const ReserveProvider = () =>
   Provider.succeed(Reserve, {
     stables: ["zoneId", "initialValue"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // No account-wide API for this zone singleton — enumerate every
       // zone in the account and read its setting. Cache Reserve is an
       // entitlement-gated add-on, so non-subscribed zones reject the
       // route (`SettingUnavailableForPlan`); skip those.
-      const allZones = yield* listAllZones(accountId);
+      const allZones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         allZones.map((zone) => zone.id),
         (zoneId) =>
@@ -142,66 +141,66 @@ export const ReserveProvider = () =>
             }),
           ),
         { concurrency: 10 },
-      );
-      return rows.filter((row): row is ReserveAttributes => row !== undefined);
+      )
+      return rows.filter((row): row is ReserveAttributes => row !== undefined)
     }),
 
-    diff: Effect.fn(function* ({ olds = {}, news, output }) {
-      const o = olds as ReserveProps;
-      const n = news as ReserveProps;
+    diff: Effect.fn(function*({ olds = {}, news, output }) {
+      const o = olds as ReserveProps
+      const n = news as ReserveProps
       // zoneId is Input<string>; compare only once both sides are concrete.
-      const oldZoneId = output?.zoneId ?? (typeof o.zoneId === "string" ? o.zoneId : undefined);
+      const oldZoneId = output?.zoneId ?? (typeof o.zoneId === "string" ? o.zoneId : undefined)
       if (oldZoneId !== undefined && typeof n.zoneId === "string" && oldZoneId !== n.zoneId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined);
-      if (!zoneId) return undefined;
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined)
+      if (!zoneId) return undefined
       const observed = yield* cache.getCacheReserve({ zoneId }).pipe(
         // Zone deleted out-of-band — the setting is gone with it.
         Effect.catchTag("InvalidRoute", () => Effect.undefined),
-      );
-      if (observed === undefined) return undefined;
+      )
+      if (observed === undefined) return undefined
       // The setting is a singleton that always exists with a Cloudflare
       // default — there is nothing to "own", so a cold read adopts
       // freely (never `Unowned`). The observed value at adoption time
       // becomes the `initialValue` restored on destroy.
-      const initialValue = output !== undefined ? output.initialValue : observed.value;
-      return toAttributes(zoneId, observed, initialValue);
+      const initialValue = output !== undefined ? output.initialValue : observed.value
+      return toAttributes(zoneId, observed, initialValue)
     }),
 
-    reconcile: Effect.fn(function* ({ news, output }) {
+    reconcile: Effect.fn(function*({ news, output }) {
       // Inputs have been resolved to concrete strings by Plan.
-      const zoneId = news.zoneId as string;
+      const zoneId = news.zoneId as string
 
       // 1. Observe — the setting always exists (on entitled zones); read
       //    its live value. Entitlement-gated zones fail here with the
       //    typed `SettingUnavailableForPlan` error.
-      const observed = yield* cache.getCacheReserve({ zoneId });
+      const observed = yield* cache.getCacheReserve({ zoneId })
 
       // 2. Capture — the pre-management value, restored on destroy.
       //    `output` (including an adoption read) already carries it;
       //    otherwise this is our first touch and the observed value is
       //    the zone's original.
-      const initialValue = output !== undefined ? output.initialValue : observed.value;
+      const initialValue = output !== undefined ? output.initialValue : observed.value
 
       // 3. Sync — patch only when the observed value differs.
-      const desired = desiredValue(news);
+      const desired = desiredValue(news)
       if (observed.value === desired) {
-        return toAttributes(zoneId, observed, initialValue);
+        return toAttributes(zoneId, observed, initialValue)
       }
       const patched = yield* cache.patchCacheReserve({
         zoneId,
         value: desired,
-      });
-      return toAttributes(zoneId, patched, initialValue);
+      })
+      return toAttributes(zoneId, patched, initialValue)
     }),
 
-    delete: Effect.fn(function* ({ output, olds }) {
-      const { zoneId, initialValue } = output;
+    delete: Effect.fn(function*({ output, olds }) {
+      const { zoneId, initialValue } = output
       // Observe — if the zone itself is gone (or the entitlement was
       // dropped so the setting no longer exists), nothing to restore.
       const observed = yield* cache.getCacheReserve({ zoneId }).pipe(
@@ -209,29 +208,29 @@ export const ReserveProvider = () =>
           InvalidRoute: () => Effect.undefined,
           SettingUnavailableForPlan: () => Effect.undefined,
         }),
-      );
-      if (observed === undefined) return;
+      )
+      if (observed === undefined) return
       // Restore the pre-management value; skip the call when it already
       // matches (idempotent re-delete after a crashed run).
       if (observed.value !== initialValue) {
         yield* cache
           .patchCacheReserve({ zoneId, value: initialValue })
-          .pipe(Effect.catchTag("InvalidRoute", () => Effect.void));
+          .pipe(Effect.catchTag("InvalidRoute", () => Effect.void))
       }
       // Optionally clear data already stored in reserve — an async
       // operation that we kick off and poll to completion (bounded).
       if (olds?.clearOnDelete === true) {
-        yield* cache.clearCacheReserve({ zoneId });
+        yield* cache.clearCacheReserve({ zoneId })
         yield* cache.statusCacheReserve({ zoneId }).pipe(
           Effect.repeat({
             schedule: Schedule.spaced("5 seconds"),
             until: (status) => status.state === "Completed",
             times: 60,
           }),
-        );
+        )
       }
     }),
-  });
+  })
 
 const toAttributes = (
   zoneId: string,
@@ -243,4 +242,4 @@ const toAttributes = (
   editable: setting.editable,
   modifiedOn: setting.modifiedOn ?? undefined,
   initialValue,
-});
+})

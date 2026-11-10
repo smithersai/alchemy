@@ -1,17 +1,17 @@
-import * as cache from "@distilled.cloud/cloudflare/cache";
-import { Unowned } from "alchemy/AdoptPolicy";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as cache from "@distilled.cloud/cloudflare/cache"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Stream from "effect/Stream"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.Cache.OriginCloudRegion" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Cache.OriginCloudRegion" as const
+type TypeId = typeof TypeId
 
 /**
  * The cloud vendor hosting an origin. Region identifiers are
@@ -19,14 +19,14 @@ type TypeId = typeof TypeId;
  * `supported_regions` endpoint
  * (`/zones/{zone_id}/cache/origin_cloud_regions/supported_regions`).
  */
-export type OriginCloudRegionVendor = "aws" | "azure" | "gcp" | "oci";
+export type OriginCloudRegionVendor = "aws" | "azure" | "gcp" | "oci"
 
 export interface OriginCloudRegionProps {
   /**
    * Zone the mapping belongs to. Stable — moving the mapping to a
    * different zone triggers a replacement.
    */
-  zoneId: string;
+  zoneId: string
   /**
    * Origin IP address (IPv4 or IPv6) the mapping applies to. The IP is the
    * mapping's identity within the zone, so changing it triggers a
@@ -36,30 +36,30 @@ export interface OriginCloudRegionProps {
    * (RFC 5952 for IPv6) — supply IPv6 addresses in canonical form so the
    * stored identity matches the prop.
    */
-  ip: string;
+  ip: string
   /**
    * Cloud vendor hosting the origin. Mutable — patched in place.
    */
-  vendor: OriginCloudRegionVendor;
+  vendor: OriginCloudRegionVendor
   /**
    * Cloud vendor region identifier, e.g. `us-east-1` for `aws`. Must be a
    * valid region for the specified vendor (see the vendor's entry in the
    * `supported_regions` endpoint). Mutable — patched in place.
    */
-  region: string;
+  region: string
 }
 
 export interface OriginCloudRegionAttributes {
   /** Zone the mapping belongs to. */
-  zoneId: string;
+  zoneId: string
   /** Canonicalized origin IP the mapping applies to. */
-  originIp: string;
+  originIp: string
   /** Cloud vendor hosting the origin. */
-  vendor: string;
+  vendor: string
   /** Cloud vendor region identifier. */
-  region: string;
+  region: string
   /** When the mapping was last modified, if Cloudflare reports it. */
-  modifiedOn: string | undefined;
+  modifiedOn: string | undefined
 }
 
 export type OriginCloudRegion = Resource<
@@ -68,7 +68,7 @@ export type OriginCloudRegion = Resource<
   OriginCloudRegionAttributes,
   never,
   Providers
->;
+>
 
 /**
  * An origin cloud-region mapping of a Cloudflare zone
@@ -120,13 +120,13 @@ export type OriginCloudRegion = Resource<
  * @product Cache
  * @category Performance & Reliability
  */
-export const OriginCloudRegion = Resource<OriginCloudRegion>(TypeId);
+export const OriginCloudRegion = Resource<OriginCloudRegion>(TypeId)
 
 /**
  * Returns true if the given value is an OriginCloudRegion resource.
  */
 export const isOriginCloudRegion = (value: unknown): value is OriginCloudRegion =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 /**
  * Compare two origin IPs for identity. Cloudflare canonicalizes stored IPs
@@ -134,90 +134,86 @@ export const isOriginCloudRegion = (value: unknown): value is OriginCloudRegion 
  * compare covers the common canonical-vs-uppercase drift without trying to
  * re-implement full RFC 5952 normalization.
  */
-const sameIp = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+const sameIp = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase()
 
 export const OriginCloudRegionProvider = () =>
   Provider.succeed(OriginCloudRegion, {
     stables: ["zoneId", "originIp"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // Mappings live inside a zone (`/zones/{zone_id}/origin/cloud_regions`)
       // with no account-wide list — enumerate every zone, then list its
       // mappings and flatten. A zone may have zero mappings.
-      const allZones = yield* listAllZones(accountId);
+      const allZones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         allZones.map((zone) => zone.id),
         (zoneId) =>
           cache.listOriginCloudRegions.pages({ zoneId }).pipe(
             Stream.runCollect,
             Effect.map((chunk) =>
-              Array.from(chunk).flatMap((page) =>
-                (page.result ?? []).map((mapping) => toAttributes(zoneId, mapping)),
-              ),
+              Array.from(chunk).flatMap((page) => (page.result ?? []).map((mapping) => toAttributes(zoneId, mapping)))
             ),
             // Plan-gated / deleted zones reject the route; skip them.
             Effect.catchTag("InvalidRoute", () => Effect.succeed([])),
           ),
         { concurrency: 10 },
-      );
-      return rows.flat();
+      )
+      return rows.flat()
     }),
 
-    diff: Effect.fn(function* ({ olds, news, output }) {
-      if (!isResolved(news)) return undefined;
+    diff: Effect.fn(function*({ olds, news, output }) {
+      if (!isResolved(news)) return undefined
       // The IP is the mapping's identity — changing it replaces. Prefer the
       // canonicalized IP cached on output; fall back to resolved old props.
-      const oldIp =
-        output?.originIp ?? (olds !== undefined && isResolved(olds) ? olds.ip : undefined);
+      const oldIp = output?.originIp ?? (olds !== undefined && isResolved(olds) ? olds.ip : undefined)
       if (oldIp !== undefined && !sameIp(oldIp, news.ip)) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      const oldZoneId =
-        output?.zoneId ?? (olds !== undefined && isResolved(olds) ? olds.zoneId : undefined);
+      const oldZoneId = output?.zoneId ?? (olds !== undefined && isResolved(olds) ? olds.zoneId : undefined)
       if (oldZoneId !== undefined && oldZoneId !== news.zoneId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined);
-      const ip = output?.originIp ?? olds?.ip;
-      if (!zoneId || !ip) return undefined;
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined)
+      const ip = output?.originIp ?? olds?.ip
+      if (!zoneId || !ip) return undefined
 
-      const observed = yield* getMapping(zoneId, ip);
-      if (observed === undefined) return undefined;
+      const observed = yield* getMapping(zoneId, ip)
+      if (observed === undefined) return undefined
 
       // Owned path: we have persisted attributes for this mapping.
-      if (output?.originIp) return observed;
+      if (output?.originIp) return observed
 
       // Adoption path: a mapping for this IP already exists but carries no
       // ownership markers — brand it `Unowned` so the engine refuses to
       // take over unless `adopt` is set.
-      return Unowned(observed);
+      return Unowned(observed)
     }),
 
-    reconcile: Effect.fn(function* ({ news, output }) {
+    reconcile: Effect.fn(function*({ news, output }) {
       // Inputs have been resolved to concrete strings by Plan.
-      const zoneId = news.zoneId as string;
+      const zoneId = news.zoneId as string
       // `output` caches the canonicalized IP; fall back to the prop.
-      const ip = output?.originIp ?? news.ip;
+      const ip = output?.originIp ?? news.ip
 
       // 1. Observe — cloud state is authoritative; a cached output is only
       //    a hint and the mapping may be gone.
-      const observed = yield* getMapping(zoneId, ip);
+      const observed = yield* getMapping(zoneId, ip)
 
       // 2. Ensure + sync in one step — the endpoint is a true PUT upsert
       //    (`PUT /origin/cloud_regions/{origin_ip}`), so a missing mapping
       //    and a drifted mapping converge through the same call. Skip the
       //    API entirely on a no-op.
       if (
-        observed !== undefined &&
-        observed.vendor === news.vendor &&
-        observed.region === news.region
+        observed !== undefined
+        && observed.vendor === news.vendor
+        && observed.region === news.region
       ) {
-        return observed;
+        return observed
       }
       const upserted = yield* cache.putOriginCloudRegion({
         zoneId,
@@ -227,11 +223,11 @@ export const OriginCloudRegionProvider = () =>
         originIp: ip,
         vendor: news.vendor,
         region: news.region,
-      });
-      return toAttributes(zoneId, upserted);
+      })
+      return toAttributes(zoneId, upserted)
     }),
 
-    delete: Effect.fn(function* ({ output }) {
+    delete: Effect.fn(function*({ output }) {
       // Idempotent — the mapping may already be gone (typed not-found), or
       // the zone itself may have been deleted out-of-band (InvalidRoute).
       yield* cache
@@ -244,9 +240,9 @@ export const OriginCloudRegionProvider = () =>
             OriginCloudRegionNotFound: () => Effect.void,
             InvalidRoute: () => Effect.void,
           }),
-        );
+        )
     }),
-  });
+  })
 
 /**
  * Read a mapping by IP, mapping "gone" (typed `OriginCloudRegionNotFound`,
@@ -254,11 +250,9 @@ export const OriginCloudRegionProvider = () =>
  */
 const getMapping = (zoneId: string, ip: string) =>
   cache.getOriginCloudRegion({ zoneId, originIP: ip }).pipe(
-    Effect.map((response): OriginCloudRegionAttributes | undefined =>
-      toAttributes(zoneId, response),
-    ),
+    Effect.map((response): OriginCloudRegionAttributes | undefined => toAttributes(zoneId, response)),
     Effect.catchTag("OriginCloudRegionNotFound", () => Effect.undefined),
-  );
+  )
 
 const toAttributes = (
   zoneId: string,
@@ -272,4 +266,4 @@ const toAttributes = (
   vendor: response.vendor,
   region: response.region,
   modifiedOn: response.modifiedOn ?? undefined,
-});
+})

@@ -1,16 +1,16 @@
-import * as ssl from "@distilled.cloud/cloudflare/ssl";
-import { isResolved } from "alchemy/Diff";
-import * as Provider from "alchemy/Provider";
-import { Resource } from "alchemy/Resource";
-import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
-import * as Schedule from "effect/Schedule";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "../Zone/lookup.vibe";
+import * as ssl from "@distilled.cloud/cloudflare/ssl"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Predicate from "effect/Predicate"
+import * as Schedule from "effect/Schedule"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { listAllZones } from "../Zone/lookup.vibe"
 
-const TypeId = "Cloudflare.Ssl.UniversalSsl" as const;
-type TypeId = typeof TypeId;
+const TypeId = "Cloudflare.Ssl.UniversalSsl" as const
+type TypeId = typeof TypeId
 
 export type UniversalSslProps = {
   /**
@@ -18,7 +18,7 @@ export type UniversalSslProps = {
    * zone triggers a replacement (the old zone's setting is restored to
    * the value it had before Alchemy managed it).
    */
-  zoneId: string;
+  zoneId: string
   /**
    * Whether Universal SSL certificates are issued for the zone.
    *
@@ -30,21 +30,21 @@ export type UniversalSslProps = {
    *
    * Mutable — patched in place.
    */
-  enabled: boolean;
-};
+  enabled: boolean
+}
 
 export type UniversalSslAttributes = {
   /** Zone the setting belongs to. */
-  zoneId: string;
+  zoneId: string
   /** Whether Universal SSL is currently enabled for the zone. */
-  enabled: boolean;
+  enabled: boolean
   /**
    * The value the setting had before Alchemy first patched it. Restored
    * on destroy, so deleting the resource puts the zone back the way it
    * was found.
    */
-  initialEnabled: boolean;
-};
+  initialEnabled: boolean
+}
 
 export type UniversalSsl = Resource<
   TypeId,
@@ -52,7 +52,7 @@ export type UniversalSsl = Resource<
   UniversalSslAttributes,
   never,
   Providers
->;
+>
 
 /**
  * The Universal SSL setting of a Cloudflare zone
@@ -90,13 +90,13 @@ export type UniversalSsl = Resource<
  * @product SSL/TLS
  * @category SSL/TLS & Certificates
  */
-export const UniversalSsl = Resource<UniversalSsl>(TypeId);
+export const UniversalSsl = Resource<UniversalSsl>(TypeId)
 
 /**
  * Returns true if the given value is a UniversalSsl resource.
  */
 export const isUniversalSsl = (value: unknown): value is UniversalSsl =>
-  Predicate.hasProperty(value, "Type") && value.Type === TypeId;
+  Predicate.hasProperty(value, "Type") && value.Type === TypeId
 
 /**
  * The Universal SSL "edit setting" endpoint enforces its OWN per-zone,
@@ -113,105 +113,104 @@ const patchUniversal = (input: { zoneId: string; enabled: boolean }) =>
       schedule: Schedule.spaced("20 seconds"),
       times: 6,
     }),
-  );
+  )
 
 export const UniversalSslProvider = () =>
   Provider.succeed(UniversalSsl, {
     nuke: { singleton: true },
     stables: ["zoneId", "initialEnabled"],
 
-    list: Effect.fn(function* () {
-      const { accountId } = yield* yield* CloudflareEnvironment;
+    list: Effect.fn(function*() {
+      const { accountId } = yield* yield* CloudflareEnvironment
       // No account-wide API for this zone singleton — enumerate every
       // zone in the account and read its setting (every zone has one).
-      const allZones = yield* listAllZones(accountId);
+      const allZones = yield* listAllZones(accountId)
       const rows = yield* Effect.forEach(
         allZones.map((zone) => zone.id),
         (zoneId) =>
           ssl.getUniversalSetting({ zoneId }).pipe(
             Effect.map((observed) => {
-              const enabled = observedEnabled(observed);
+              const enabled = observedEnabled(observed)
               // Observed value is the pre-management value at adoption.
-              return { zoneId, enabled, initialEnabled: enabled };
+              return { zoneId, enabled, initialEnabled: enabled }
             }),
             // Plan-gated or partial zones reject the route; skip them.
             Effect.catchTag("InvalidRoute", () => Effect.undefined),
           ),
         { concurrency: 10 },
-      );
-      return rows.filter((row): row is UniversalSslAttributes => row !== undefined);
+      )
+      return rows.filter((row): row is UniversalSslAttributes => row !== undefined)
     }),
 
-    diff: Effect.fn(function* ({ olds, news, output }) {
+    diff: Effect.fn(function*({ olds, news, output }) {
       // news is Input<Props> during plan — only compare once resolved.
-      if (!isResolved(news)) return undefined;
+      if (!isResolved(news)) return undefined
       // zoneId is the resource's identity; it is Input<string>, so
       // compare only once both sides are concrete.
-      const oldZoneId =
-        output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined);
+      const oldZoneId = output?.zoneId ?? (typeof olds?.zoneId === "string" ? olds.zoneId : undefined)
       if (oldZoneId !== undefined && typeof news.zoneId === "string" && oldZoneId !== news.zoneId) {
-        return { action: "replace" } as const;
+        return { action: "replace" } as const
       }
-      return undefined;
+      return undefined
     }),
 
-    read: Effect.fn(function* ({ output, olds }) {
-      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined);
-      if (!zoneId) return undefined;
+    read: Effect.fn(function*({ output, olds }) {
+      const zoneId = output?.zoneId ?? (olds?.zoneId as string | undefined)
+      if (!zoneId) return undefined
       const observed = yield* ssl.getUniversalSetting({ zoneId }).pipe(
         // Zone deleted out-of-band — the setting is gone with it.
         Effect.catchTag("InvalidRoute", () => Effect.undefined),
-      );
-      if (observed === undefined) return undefined;
-      const enabled = observedEnabled(observed);
+      )
+      if (observed === undefined) return undefined
+      const enabled = observedEnabled(observed)
       // Universal SSL is a singleton that always exists with a
       // Cloudflare default — there is nothing to "own", so a cold read
       // adopts freely (never `Unowned`). The observed value at adoption
       // time becomes the `initialEnabled` restored on destroy.
-      const initialEnabled = output !== undefined ? output.initialEnabled : enabled;
-      return { zoneId, enabled, initialEnabled };
+      const initialEnabled = output !== undefined ? output.initialEnabled : enabled
+      return { zoneId, enabled, initialEnabled }
     }),
 
-    reconcile: Effect.fn(function* ({ news, output }) {
+    reconcile: Effect.fn(function*({ news, output }) {
       // Inputs have been resolved to concrete strings by Plan.
-      const zoneId = news.zoneId as string;
+      const zoneId = news.zoneId as string
 
       // 1. Observe — the setting always exists; read its live value.
-      const observed = yield* ssl.getUniversalSetting({ zoneId });
-      const enabled = observedEnabled(observed);
+      const observed = yield* ssl.getUniversalSetting({ zoneId })
+      const enabled = observedEnabled(observed)
 
       // 2. Capture — the pre-management value, restored on destroy.
       //    `output` (including an adoption read) already carries it;
       //    otherwise this is our first touch and the observed value is
       //    the zone's original.
-      const initialEnabled = output !== undefined ? output.initialEnabled : enabled;
+      const initialEnabled = output !== undefined ? output.initialEnabled : enabled
 
       // 3. Sync — patch only when the observed value differs.
       if (enabled === news.enabled) {
-        return { zoneId, enabled, initialEnabled };
+        return { zoneId, enabled, initialEnabled }
       }
       const patched = yield* patchUniversal({
         zoneId,
         enabled: news.enabled,
-      });
-      return { zoneId, enabled: observedEnabled(patched), initialEnabled };
+      })
+      return { zoneId, enabled: observedEnabled(patched), initialEnabled }
     }),
 
-    delete: Effect.fn(function* ({ output }) {
-      const { zoneId, initialEnabled } = output;
+    delete: Effect.fn(function*({ output }) {
+      const { zoneId, initialEnabled } = output
       // Observe — if the zone itself is gone, so is the setting.
       const observed = yield* ssl
         .getUniversalSetting({ zoneId })
-        .pipe(Effect.catchTag("InvalidRoute", () => Effect.undefined));
-      if (observed === undefined) return;
+        .pipe(Effect.catchTag("InvalidRoute", () => Effect.undefined))
+      if (observed === undefined) return
       // Restore the pre-management value; skip the call when it already
       // matches (idempotent re-delete after a crashed run).
-      if (observedEnabled(observed) === initialEnabled) return;
+      if (observedEnabled(observed) === initialEnabled) return
       yield* patchUniversal({ zoneId, enabled: initialEnabled }).pipe(
         Effect.catchTag("InvalidRoute", () => Effect.void),
-      );
+      )
     }),
-  });
+  })
 
 /**
  * Normalize the distilled response's `enabled?: boolean | null` to a
@@ -219,4 +218,4 @@ export const UniversalSslProvider = () =>
  */
 const observedEnabled = (
   setting: ssl.GetUniversalSettingResponse | ssl.PatchUniversalSettingResponse,
-): boolean => setting.enabled ?? true;
+): boolean => setting.enabled ?? true

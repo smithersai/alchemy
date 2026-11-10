@@ -1,26 +1,20 @@
-import type * as cf from "@cloudflare/workers-types";
-import {
-  asEffectOrStream,
-  decodeRpcResult,
-  makeRpcErrorReviver,
-  RpcCallError,
-  type RpcErrorClass,
-} from "alchemy/Rpc";
-import { isYieldableEffect } from "alchemy/Util/effect";
-import * as Effect from "effect/Effect";
-import * as HttpClient from "effect/http/HttpClient";
-import * as Layer from "effect/Layer";
-import { RpcClient, RpcSerialization, type Rpc, type RpcGroup } from "effect/rpc";
-import type * as RpcClientError from "effect/rpc/RpcClientError";
-import * as Schedule from "effect/Schedule";
-import { fromCloudflareFetcher } from "../Fetcher.ts";
-import { isPlaceholderReset } from "./Placeholder.ts";
+import type * as cf from "@cloudflare/workers-types"
+import { asEffectOrStream, decodeRpcResult, makeRpcErrorReviver, RpcCallError, type RpcErrorClass } from "alchemy/Rpc"
+import { isYieldableEffect } from "alchemy/Util/effect"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import * as Layer from "effect/Layer"
+import { RpcClient, RpcSerialization, type Rpc, type RpcGroup } from "effect/rpc"
+import type * as RpcClientError from "effect/rpc/RpcClientError"
+import * as Schedule from "effect/Schedule"
+import { fromCloudflareFetcher } from "../Fetcher.ts"
+import { isPlaceholderReset } from "./Placeholder.ts"
 
 // The transport-agnostic RPC wire protocol (envelopes, error types, stream
 // encode/decode, `asEffectOrStream`, and the plain-`fetch` client/server) now
 // lives in `src/Rpc.ts` so non-Cloudflare runtimes (e.g. Containers) can reuse
 // it. Re-export it here so existing `Cloudflare.*` consumers keep working.
-export * from "alchemy/Rpc";
+export * from "alchemy/Rpc"
 
 /**
  * Wrap a Cloudflare service-binding stub (or an `Effect` that resolves
@@ -42,25 +36,25 @@ export const makeRpcStub = <Shape>(
      * results whose `_tag` matches one are reconstructed as real class
      * instances instead of the plain objects RPC serialization produces.
      */
-    readonly errors?: ReadonlyArray<RpcErrorClass> | undefined;
+    readonly errors?: ReadonlyArray<RpcErrorClass> | undefined
   },
 ): Shape => {
-  const isLazy = isYieldableEffect(stubSource);
-  const eagerFetcher = isLazy ? undefined : fromCloudflareFetcher(stubSource as cf.Fetcher);
-  const proxyTarget: object = eagerFetcher ?? {};
-  const revive = makeRpcErrorReviver(options?.errors);
+  const isLazy = isYieldableEffect(stubSource)
+  const eagerFetcher = isLazy ? undefined : fromCloudflareFetcher(stubSource as cf.Fetcher)
+  const proxyTarget: object = eagerFetcher ?? {}
+  const revive = makeRpcErrorReviver(options?.errors)
 
   return new Proxy(proxyTarget, {
     get: (target: any, prop) => {
-      if (!isLazy && prop in target) return target[prop];
+      if (!isLazy && prop in target) return target[prop]
       if (typeof prop !== "string" && typeof prop !== "symbol") {
-        return target[prop];
+        return target[prop]
       }
       return (...args: any[]) =>
         asEffectOrStream(
-          Effect.gen(function* () {
+          Effect.gen(function*() {
             // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- untyped lazy stub source
-            const stub = isLazy ? yield* stubSource as Effect.Effect<any> : stubSource;
+            const stub = isLazy ? yield* stubSource as Effect.Effect<any> : stubSource
             return yield* Effect.tryPromise({
               try: () => (stub as any)[prop](...args),
               catch: (cause) => new RpcCallError({ method: String(prop), cause }),
@@ -78,19 +72,19 @@ export const makeRpcStub = <Shape>(
                 times: 20,
               }),
               Effect.flatMap((value) => decodeRpcResult(value, revive)),
-            );
+            )
           }),
-        );
+        )
     },
-  }) as Shape;
-};
+  }) as Shape
+}
 
 export const bindEffectRpc = <Rpcs extends Rpc.Any>(
   namespace: {
     readonly getByName: (
       id: string,
       options?: cf.DurableObjectNamespaceGetDurableObjectOptions,
-    ) => { readonly fetch: any };
+    ) => { readonly fetch: any }
   },
   group: RpcGroup.RpcGroup<Rpcs>,
   options?: {
@@ -98,7 +92,7 @@ export const bindEffectRpc = <Rpcs extends Rpc.Any>(
      * Override the rpc serialization layer. Defaults to NDJSON, which
      * is required when any rpc in the group is a streaming rpc.
      */
-    readonly serialization?: Layer.Layer<RpcSerialization.RpcSerialization>;
+    readonly serialization?: Layer.Layer<RpcSerialization.RpcSerialization>
   },
 ): {
   readonly getByName: (
@@ -108,30 +102,30 @@ export const bindEffectRpc = <Rpcs extends Rpc.Any>(
     RpcClient.RpcClient<Rpcs, RpcClientError.RpcClientError>,
     never,
     Rpc.MiddlewareClient<Rpcs>
-  >;
+  >
 } => {
-  const serialization = options?.serialization ?? RpcSerialization.layerNdjson;
+  const serialization = options?.serialization ?? RpcSerialization.layerNdjson
 
   return {
     // Wrap the cached `RpcClient` Effect in a chainable Proxy so callers
     // can `yield* counter.getByName(id).method(args)` directly. The proxy
     // records the `.method(args)` ops and replays them against the
     // resolved client when the chain is yielded.
-    getByName: Effect.fn(function* (
+    getByName: Effect.fn(function*(
       id: string,
       options?: cf.DurableObjectNamespaceGetDurableObjectOptions,
     ) {
       const httpClient = HttpClient.layerMergedContext(
         Effect.sync(() => {
-          const stub = namespace.getByName(id, options);
-          return HttpClient.make((request) => stub.fetch(request));
+          const stub = namespace.getByName(id, options)
+          return HttpClient.make((request) => stub.fetch(request))
         }),
-      );
+      )
       const protocol = RpcClient.layerProtocolHttp({ url: "http://alchemy-rpc/" }).pipe(
         Layer.provide(serialization),
         Layer.provide(httpClient),
-      );
-      return yield* RpcClient.make(group).pipe(Effect.provide(protocol));
+      )
+      return yield* RpcClient.make(group).pipe(Effect.provide(protocol))
     }) as any,
-  };
-};
+  }
+}
