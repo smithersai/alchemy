@@ -12,9 +12,9 @@ import * as Stream from "effect/Stream";
 import { CloudflareAuth } from "../Auth/AuthProvider.vibe";
 import * as CloudflareEnvironment from "../CloudflareEnvironment.vibe";
 import * as Credentials from "../Credentials.vibe";
-import { materializeRuntimeBindings } from "./RuntimeBindings.ts";
+import { materializeRuntimeBindings } from "./RuntimeBindings.vibe";
 import { loadSource, SourceProviderError } from "./Source.ts";
-import * as Vite from "./Sources/Vite.ts";
+import * as Vite from "./Sources/Vite.vibe";
 import {
   type ViteChildConfig,
   VITE_CHILD_READY_PREFIX,

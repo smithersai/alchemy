@@ -38,7 +38,7 @@ import type { Providers } from "../Providers.vibe";
 import type { DispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.vibe";
 import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.vibe";
 import type { Reference as ZoneReference } from "../Zone/lookup.vibe";
-import { type Assets, type AssetsConfig, type AssetsProps } from "./Assets.ts";
+import { type Assets, type AssetsConfig, type AssetsProps } from "./Assets.vibe";
 import { Request } from "./Request.vibe";
 import type { ModuleRule } from "./Sources/Prebuilt.vibe";
 import type { WorkerBuildOptions } from "./Sources/Rolldown.ts";

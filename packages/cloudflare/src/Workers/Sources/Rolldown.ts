@@ -12,7 +12,7 @@ import { isDurableObjectExport } from "../DurableObject.ts";
 import type { SourceContext, SourceProvider } from "../Source.ts";
 import type { SqlMigrationSnapshot } from "../SqlMigrationsRuntime.vibe";
 import type { WorkerExport } from "../WorkerRuntimeContext.ts";
-import { bundleSource } from "./shared.ts";
+import { bundleSource } from "./shared.vibe";
 import { workerModulePlugin } from "./WorkerModulePlugin.ts";
 
 /**

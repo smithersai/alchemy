@@ -40,7 +40,7 @@ import {
   readAssets,
   readAssetsConfigFiles,
   uploadAssets,
-} from "./Assets.ts";
+} from "./Assets.vibe";
 import { getCompatibility } from "./Compatibility.ts";
 import { isDurableObjectExport } from "./DurableObject.ts";
 import { LocalWorkerProvider } from "./LocalWorkerProvider.ts";
@@ -48,7 +48,7 @@ import { placeholderResetReason } from "./Placeholder.ts";
 import { routePatternUrl } from "./RoutePattern.ts";
 import { makeSourceContext, resolveSource } from "./Source.ts";
 import { readPrebuiltWorkerBundle } from "./Sources/Prebuilt.vibe";
-import { isPythonMain, readPythonWorkerBundle } from "./Sources/Python.ts";
+import { isPythonMain, readPythonWorkerBundle } from "./Sources/Python.vibe";
 import { WorkerBundle } from "./Sources/Rolldown.ts";
 import { assertCloudflareTelemetryCompatibility } from "./Telemetry.ts";
 import {

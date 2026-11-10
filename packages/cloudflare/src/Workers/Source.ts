@@ -19,11 +19,11 @@ import type { PlatformError } from "effect/PlatformError";
 import type { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import type * as Scope from "effect/Scope";
 import type * as Stream from "effect/Stream";
-import type { AssetReadResult, ValidationError } from "./Assets.ts";
+import type { AssetReadResult, ValidationError } from "./Assets.vibe";
 import { getToolingCompatibility } from "./Compatibility.ts";
-import { makeInlineScriptSource } from "./Sources/InlineScript.ts";
+import { makeInlineScriptSource } from "./Sources/InlineScript.vibe";
 import { makePrebuiltSource } from "./Sources/Prebuilt.vibe";
-import { isPythonMain, makePythonSource } from "./Sources/Python.ts";
+import { isPythonMain, makePythonSource } from "./Sources/Python.vibe";
 import { makeRolldownSource } from "./Sources/Rolldown.ts";
 import type { WorkerAssetsConfig, WorkerProps, WorkerSourceDescriptor } from "./Worker.ts";
 import type { WorkerExport } from "./WorkerRuntimeContext.ts";
@@ -393,7 +393,7 @@ export const resolveSource = (
     // `@alchemy.run/cloudflare-runtime/vite` (~0.5s), which is only
     // needed for vite-based workers — not for every Worker resolution.
     const vite = props.vite;
-    return Effect.promise(() => import("./Sources/Vite.ts")).pipe(
+    return Effect.promise(() => import("./Sources/Vite.vibe")).pipe(
       Effect.map((Vite) => Vite.makeViteSource(vite)),
     );
   }

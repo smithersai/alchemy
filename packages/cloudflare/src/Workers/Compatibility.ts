@@ -3,7 +3,7 @@ import {
   NODEJS_COMPAT_DEFAULT_ON,
   withDefaultFlags,
 } from "@alchemy.run/cloudflare-runtime/core/internal/constants";
-import { isPythonMain } from "./Sources/Python.ts";
+import { isPythonMain } from "./Sources/Python.vibe";
 import type { WorkerProps } from "./Worker.ts";
 
 /**

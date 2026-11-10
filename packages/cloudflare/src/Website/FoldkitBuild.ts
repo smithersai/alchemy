@@ -1,7 +1,7 @@
 import { BundleError } from "alchemy/Bundle/Bundle";
 import * as Schema from "effect/Schema";
 import type { Plugin } from "vite";
-import type { AssetsConfig } from "../Workers/Assets.ts";
+import type { AssetsConfig } from "../Workers/Assets.vibe";
 
 /** The versioned manifest returned by Foldkit's completed-build API. */
 export const FoldkitBuildManifest = Schema.Struct({

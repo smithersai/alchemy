@@ -10,7 +10,7 @@ import * as Path from "effect/Path";
 import { CloudflareEnvironment } from "./CloudflareEnvironment.vibe";
 import type { Consumer } from "./Queues/Consumer.ts";
 import type { Queue } from "./Queues/Queue.vibe";
-import { LocalEdgeLive } from "./Workers/LocalEdge.ts";
+import { LocalEdgeLive } from "./Workers/LocalEdge.vibe";
 
 /**
  * The Cloudflare provider group module ([Local.ts](./Local.ts)) every

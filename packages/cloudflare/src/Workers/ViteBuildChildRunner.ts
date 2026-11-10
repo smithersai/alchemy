@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
-import { viteBuildInProcess } from "./Sources/Vite.ts";
+import { viteBuildInProcess } from "./Sources/Vite.vibe";
 import type { ViteBuildChildConfig, ViteBuildChildResult } from "./ViteChild.shared.ts";
 
 /**

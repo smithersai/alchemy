@@ -1,18 +1,15 @@
-import {
-  Runtime,
-  type RuntimeError,
-  type RuntimeServices,
-} from "@alchemy.run/cloudflare-runtime/core";
-import { Service } from "@alchemy.run/cloudflare-runtime/core/bindings";
-import { DEFAULT_COMPATIBILITY_DATE } from "@alchemy.run/cloudflare-runtime/core/internal/constants";
-import * as WorkerProxy from "@alchemy.run/cloudflare-runtime/core/proxy/WorkerProxy";
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
-import * as Layer from "effect/Layer";
-import * as Scope from "effect/Scope";
-import * as Semaphore from "effect/Semaphore";
-import { routeMatcherSource, routePatternHost, routePatternMatchesHost } from "./RoutePattern.ts";
+import { Runtime, type RuntimeError, type RuntimeServices } from "@alchemy.run/cloudflare-runtime/core"
+import { Service } from "@alchemy.run/cloudflare-runtime/core/bindings"
+import { DEFAULT_COMPATIBILITY_DATE } from "@alchemy.run/cloudflare-runtime/core/internal/constants"
+import * as WorkerProxy from "@alchemy.run/cloudflare-runtime/core/proxy/WorkerProxy"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import * as Scope from "effect/Scope"
+import * as Semaphore from "effect/Semaphore"
+import { randomUUID } from "./LocalEdge.platform.ts"
+import { routeMatcherSource, routePatternHost, routePatternMatchesHost } from "./RoutePattern.ts"
 
 /**
  * A zone route as the local edge sees it: a Cloudflare route pattern and
@@ -20,16 +17,16 @@ import { routeMatcherSource, routePatternHost, routePatternMatchesHost } from ".
  * disabled for matching requests).
  */
 export interface LocalEdgeRoute {
-  readonly pattern: string;
-  readonly script: string | undefined;
+  readonly pattern: string
+  readonly script: string | undefined
 }
 
 /** A custom-domain Worker, served on its own stable dev proxy. */
 export interface LocalEdgeDomain {
-  readonly script: string;
-  readonly proxy: WorkerProxy.WorkerProxyInstance;
+  readonly script: string
+  readonly proxy: WorkerProxy.WorkerProxyInstance
   /** The Worker's current workerd address. */
-  readonly upstream: URL;
+  readonly upstream: URL
 }
 
 /**
@@ -59,8 +56,8 @@ export class LocalEdge extends Context.Service<
     readonly setRoutes: (
       owner: string,
       routes: ReadonlyArray<LocalEdgeRoute>,
-    ) => Effect.Effect<void, RuntimeError>;
-    readonly removeRoutes: (owner: string) => Effect.Effect<void, RuntimeError>;
+    ) => Effect.Effect<void, RuntimeError>
+    readonly removeRoutes: (owner: string) => Effect.Effect<void, RuntimeError>
     /**
      * Expose a custom-domain Worker. Replaces the Worker's own
      * `proxy.set(upstream)`: the edge points the proxy at the Worker or at
@@ -69,19 +66,19 @@ export class LocalEdge extends Context.Service<
     readonly serveDomain: (
       host: string,
       domain: LocalEdgeDomain,
-    ) => Effect.Effect<void, RuntimeError>;
-    readonly removeDomain: (host: string, script: string) => Effect.Effect<void, RuntimeError>;
+    ) => Effect.Effect<void, RuntimeError>
+    readonly removeDomain: (host: string, script: string) => Effect.Effect<void, RuntimeError>
     /** The edge listener serving a routed hostname, if any. */
-    readonly url: (host: string) => Effect.Effect<URL | undefined>;
+    readonly url: (host: string) => Effect.Effect<URL | undefined>
   }
 >()("alchemy/cloudflare/LocalEdge") {}
 
 interface RouterConfig {
   /** Listener port → the hostname it serves. */
-  readonly ports: Record<string, string>;
-  readonly routes: ReadonlyArray<{ pattern: string; binding: string | null }>;
+  readonly ports: Record<string, string>
+  readonly routes: ReadonlyArray<{ pattern: string; binding: string | null }>
   /** Hostname → the binding of its custom-domain Worker. */
-  readonly domains: Record<string, string>;
+  readonly domains: Record<string, string>
 }
 
 /**
@@ -89,7 +86,7 @@ interface RouterConfig {
  * the dev registry — the same budget a Worker's own dev proxy parks
  * requests for while it starts.
  */
-const TARGET_WAIT_MS = 120_000;
+const TARGET_WAIT_MS = 120_000
 
 const routerScript = (config: RouterConfig) => `
 const CONFIG = ${JSON.stringify(config)};
@@ -126,89 +123,85 @@ export default {
     return new Response(message, { status: 404, headers: { "content-type": "text/plain" } });
   },
 };
-`;
+`
 
 export const LocalEdgeLive = Layer.effect(
   LocalEdge,
-  Effect.gen(function* () {
-    const runtime = yield* Runtime;
-    const workerProxy = yield* WorkerProxy.WorkerProxy;
-    const context = yield* Effect.context<RuntimeServices>();
-    const rootScope = yield* Effect.scope;
-    const lock = yield* Semaphore.make(1);
+  Effect.gen(function*() {
+    const runtime = yield* Runtime
+    const workerProxy = yield* WorkerProxy.WorkerProxy
+    const context = yield* Effect.context<RuntimeServices>()
+    const rootScope = yield* Effect.scope
+    const lock = yield* Semaphore.make(1)
     // Unique per edge: the router registers in the machine-wide dev registry.
-    const routerName = `alchemy-edge-${crypto.randomUUID().slice(0, 8)}`;
+    const routerName = `alchemy-edge-${(yield* randomUUID).slice(0, 8)}`
 
-    const routes = new Map<string, ReadonlyArray<LocalEdgeRoute>>();
-    const domains = new Map<string, LocalEdgeDomain>();
+    const routes = new Map<string, ReadonlyArray<LocalEdgeRoute>>()
+    const domains = new Map<string, LocalEdgeDomain>()
     const listeners = new Map<
       string,
       { instance: WorkerProxy.WorkerProxyInstance; scope: Scope.Closeable }
-    >();
-    let router: { url: URL; scope: Scope.Closeable; key: string } | undefined;
+    >()
+    let router: { url: URL; scope: Scope.Closeable; key: string } | undefined
     // Where each domain proxy currently points, so a rebuild only touches
     // proxies whose target moved.
-    const domainTargets = new Map<string, string>();
+    const domainTargets = new Map<string, string>()
 
-    const syncListeners = Effect.fnUntraced(function* (hosts: ReadonlySet<string>) {
+    const syncListeners = Effect.fnUntraced(function*(hosts: ReadonlySet<string>) {
       for (const [host, listener] of listeners) {
         if (!hosts.has(host)) {
-          listeners.delete(host);
-          yield* Scope.close(listener.scope, Exit.void);
+          listeners.delete(host)
+          yield* Scope.close(listener.scope, Exit.void)
         }
       }
       for (const host of hosts) {
-        if (listeners.has(host)) continue;
-        const scope = yield* Scope.fork(rootScope);
-        const instance = yield* workerProxy.serve().pipe(Scope.provide(scope));
-        listeners.set(host, { instance, scope });
-        yield* Effect.log(`[edge] ${host} → ${instance.url.origin}`);
+        if (listeners.has(host)) continue
+        const scope = yield* Scope.fork(rootScope)
+        const instance = yield* workerProxy.serve().pipe(Scope.provide(scope))
+        listeners.set(host, { instance, scope })
+        yield* Effect.log(`[edge] ${host} → ${instance.url.origin}`)
       }
-    });
+    })
 
-    const startRouter = Effect.fnUntraced(function* (scripts: string[], config: RouterConfig) {
-      const scope = yield* Scope.fork(rootScope);
+    const startRouter = Effect.fnUntraced(function*(scripts: string[], config: RouterConfig) {
+      const scope = yield* Scope.fork(rootScope)
       const url = yield* runtime
         .start({
           name: routerName,
           compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
           compatibilityFlags: [],
-          bindings: scripts.map((scriptName, index) =>
-            Service.local({ binding: `WORKER_${index}`, scriptName }),
-          ),
+          bindings: scripts.map((scriptName, index) => Service.local({ binding: `WORKER_${index}`, scriptName })),
           modules: [{ name: "router.js", type: "ESModule", content: routerScript(config) }],
         })
         .pipe(
           Scope.provide(scope),
           Effect.provideContext(context),
-          Effect.onExit((exit) =>
-            exit._tag === "Failure" ? Scope.close(scope, exit) : Effect.void,
-          ),
-        );
-      return { url, scope };
-    });
+          Effect.onExit((exit) => exit._tag === "Failure" ? Scope.close(scope, exit) : Effect.void),
+        )
+      return { url, scope }
+    })
 
-    const rebuild = Effect.gen(function* () {
-      const patterns = [...routes.values()].flat();
+    const rebuild = Effect.gen(function*() {
+      const patterns = [...routes.values()].flat()
       yield* syncListeners(
         new Set(patterns.flatMap((route) => routePatternHost(route.pattern) ?? [])),
-      );
+      )
       // Domains with at least one matching route sit behind the router.
       const routedDomains = [...domains].filter(([host]) =>
-        patterns.some((route) => routePatternMatchesHost(route.pattern, host)),
-      );
+        patterns.some((route) => routePatternMatchesHost(route.pattern, host))
+      )
 
-      const previous = router;
+      const previous = router
       if (patterns.length === 0) {
-        router = undefined;
+        router = undefined
       } else {
         const scripts = [
           ...new Set([
             ...patterns.flatMap((route) => route.script ?? []),
             ...routedDomains.map(([, domain]) => domain.script),
           ]),
-        ].sort();
-        const binding = (script: string) => `WORKER_${scripts.indexOf(script)}`;
+        ].sort()
+        const binding = (script: string) => `WORKER_${scripts.indexOf(script)}`
         const config: RouterConfig = {
           ports: Object.fromEntries([
             ...[...listeners].map(([host, l]) => [l.instance.url.port, host]),
@@ -219,64 +212,61 @@ export const LocalEdgeLive = Layer.effect(
             binding: route.script ? binding(route.script) : null,
           })),
           domains: Object.fromEntries(routedDomains.map(([host, d]) => [host, binding(d.script)])),
-        };
-        const key = JSON.stringify(config);
+        }
+        const key = JSON.stringify(config)
         if (previous?.key !== key) {
-          router = { ...(yield* startRouter(scripts, config)), key };
+          router = { ...(yield* startRouter(scripts, config)), key }
         }
       }
 
       // Make-before-break: point everything at the new router before the
       // previous one closes.
       if (router) {
-        const url = router.url;
-        yield* Effect.forEach(listeners.values(), (l) => l.instance.set(url), { discard: true });
+        const url = router.url
+        yield* Effect.forEach(listeners.values(), (l) => l.instance.set(url), { discard: true })
       }
       for (const [host, domain] of domains) {
-        const routed = router && routedDomains.some(([routedHost]) => routedHost === host);
-        const target = routed ? router!.url : domain.upstream;
+        const routed = router && routedDomains.some(([routedHost]) => routedHost === host)
+        const target = routed ? router!.url : domain.upstream
         if (domainTargets.get(host) !== target.href) {
-          domainTargets.set(host, target.href);
-          yield* domain.proxy.set(target);
+          domainTargets.set(host, target.href)
+          yield* domain.proxy.set(target)
         }
       }
       if (previous && previous !== router) {
-        yield* Scope.close(previous.scope, Exit.void);
+        yield* Scope.close(previous.scope, Exit.void)
       }
-    });
+    })
 
-    const update = (mutate: () => void) =>
-      Effect.sync(mutate).pipe(Effect.andThen(rebuild), lock.withPermits(1));
+    const update = (mutate: () => void) => Effect.sync(mutate).pipe(Effect.andThen(rebuild), lock.withPermits(1))
 
     return LocalEdge.of({
       setRoutes: (owner, next) =>
         Effect.suspend(() =>
           JSON.stringify(routes.get(owner) ?? []) === JSON.stringify(next)
             ? Effect.void
-            : update(() => (next.length ? routes.set(owner, next) : routes.delete(owner))),
+            : update(() => (next.length ? routes.set(owner, next) : routes.delete(owner)))
         ),
       removeRoutes: (owner) =>
-        Effect.suspend(() =>
-          routes.has(owner) ? update(() => routes.delete(owner)) : Effect.void,
-        ),
+        Effect.suspend(() => routes.has(owner) ? update(() => routes.delete(owner)) : Effect.void),
       serveDomain: (host, domain) =>
         update(() => {
-          const key = host.toLowerCase();
-          domains.set(key, domain);
+          const key = host.toLowerCase()
+          domains.set(key, domain)
           // The Worker just (re)served: always re-point its proxy.
-          domainTargets.delete(key);
+          domainTargets.delete(key)
         }),
       removeDomain: (host, script) =>
         Effect.suspend(() => {
-          const key = host.toLowerCase();
+          const key = host.toLowerCase()
           return domains.get(key)?.script === script
             ? update(() => {
-                domains.delete(key);
-                domainTargets.delete(key);
-              })
-            : Effect.void;
+              domains.delete(key)
+              domainTargets.delete(key)
+            })
+            : Effect.void
         }),
       url: (host) => Effect.sync(() => listeners.get(host.toLowerCase())?.instance.url),
-    });
+    })
   }),
-);
+)

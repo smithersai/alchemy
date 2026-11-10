@@ -36,7 +36,7 @@ import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.vibe";
 import type { DispatchNamespace as DispatchNamespaceResource } from "../WorkersForPlatforms/DispatchNamespace.vibe";
 import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.vibe";
 import type { AIBinding } from "./AIBinding.vibe";
-import type { Assets } from "./Assets.ts";
+import type { Assets } from "./Assets.vibe";
 import type * as WorkerOnlyBinding from "./Binding.vibe";
 import type { BrowserBinding } from "./BrowserBinding.vibe";
 import type { DurableObjectLike } from "./DurableObject.ts";
