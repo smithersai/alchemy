@@ -9,7 +9,7 @@ import * as Layer from "effect/Layer";
 import * as Match from "effect/Match";
 import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
-import { CloudflareAuth } from "../Auth/AuthProvider.ts";
+import { CloudflareAuth } from "../Auth/AuthProvider.vibe";
 import * as CloudflareEnvironment from "../CloudflareEnvironment.vibe";
 import * as Credentials from "../Credentials.vibe";
 import { materializeRuntimeBindings } from "./RuntimeBindings.ts";

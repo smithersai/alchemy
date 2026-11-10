@@ -16,7 +16,7 @@ export * from "./QuerySearchLocal.vibe";
 export * from "./QuerySearchNamespace.vibe";
 export * from "./QuerySearchNamespaceBinding.vibe";
 export * from "./QuerySearchNamespaceLocal.vibe";
-export * from "./Search.ts";
+export * from "./Search.vibe";
 export * from "./SearchInstance.vibe";
 export * from "./SearchNamespace.vibe";
 export * from "./SearchToken.vibe";

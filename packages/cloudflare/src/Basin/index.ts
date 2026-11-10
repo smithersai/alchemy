@@ -5,7 +5,7 @@ export * from "./Table.vibe";
 // types are unchanged), re-exported under the product's name.
 export * from "../Pipelines/Pipeline.vibe";
 export * from "../Pipelines/Sink.vibe";
-export * from "../Pipelines/Stream.ts";
+export * from "../Pipelines/Stream.vibe";
 export * from "../Pipelines/StreamSchema.ts";
 export * from "../Pipelines/StreamSink.vibe";
 export * from "../Pipelines/StreamSinkBinding.vibe";

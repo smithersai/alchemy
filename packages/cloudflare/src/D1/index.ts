@@ -1,4 +1,4 @@
-export * from "./Database.ts";
+export * from "./Database.vibe";
 export * from "./QueryDatabase.vibe";
 export * from "./QueryDatabaseBinding.vibe";
-export * from "./QueryDatabaseLocal.ts";
+export * from "./QueryDatabaseLocal.vibe";

@@ -3,7 +3,7 @@ import * as Contributions from "alchemy/Contributions";
 export default Contributions.make({
   name: "cloudflare",
   auth: Contributions.lazy(
-    () => import("./Auth/AuthProvider.ts"),
+    () => import("./Auth/AuthProvider.vibe"),
     (module) => module.CloudflareAuth,
   ),
   stateStores: {

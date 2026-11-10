@@ -27,7 +27,7 @@ import { splitSqliteStatements } from "@alchemy.run/sql/SqlFile";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { gatewayName, localGatewayRuntime } from "../LocalGateway.vibe";
-import type { D1QueryResult, D1SqlExecutor } from "./ApplyMigrations.ts";
+import type { D1QueryResult, D1SqlExecutor } from "./ApplyMigrations.vibe";
 
 export { localGatewayRuntime as localD1GatewayRuntime };
 

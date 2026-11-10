@@ -1,12 +1,12 @@
-import { AlchemyContext } from "alchemy/AlchemyContext";
-import * as Namespace from "alchemy/Namespace";
-import * as Output from "alchemy/Output";
-import { Random } from "alchemy/Random";
-import { WebhookHost } from "alchemy/WebhookHost";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import * as Redacted from "effect/Redacted";
+import { AlchemyContext } from "alchemy/AlchemyContext"
+import * as Namespace from "alchemy/Namespace"
+import * as Output from "alchemy/Output"
+import { Random } from "alchemy/Random"
+import { WebhookHost } from "alchemy/WebhookHost"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Redacted from "effect/Redacted"
 import {
   NotificationEventSource,
   notificationPath,
@@ -15,9 +15,10 @@ import {
   type Notification,
   type NotificationEventSourceService,
   type NotifyingPolicy,
-} from "./NotificationEventSource.vibe";
-import type { AlertType } from "./NotificationPolicy.vibe";
-import { NotificationWebhook } from "./Webhook.vibe";
+} from "./NotificationEventSource.vibe"
+import type { AlertType } from "./NotificationPolicy.vibe"
+import { webResponse } from "./NotificationEventSourceLive.platform.ts"
+import { NotificationWebhook } from "./Webhook.vibe"
 
 /**
  * `Cloudflare.Alerting.consumeNotifications` on any {@link WebhookHost}.
@@ -38,104 +39,101 @@ import { NotificationWebhook } from "./Webhook.vibe";
  */
 export const NotificationEventSourceLive = Layer.effect(
   NotificationEventSource,
-  Effect.gen(function* () {
-    const host = yield* WebhookHost;
-    const createWebhook = yield* NotificationWebhook;
+  Effect.gen(function*() {
+    const host = yield* WebhookHost
+    const createWebhook = yield* NotificationWebhook
 
-    return Effect.fn(function* (
+    return Effect.fn(function*(
       policy: NotifyingPolicy,
       props: ConsumeNotificationsProps,
       process: (notification: Notification) => Effect.Effect<void, never, never>,
     ) {
-      const path = notificationPath(policy, props);
+      const path = notificationPath(policy, props)
 
-      const webhookSecret =
-        props.secret ??
-        (yield* Namespace.push(host.LogicalId, Random(`${policy.LogicalId}NotificationSecret`)))
-          .text;
+      const webhookSecret = props.secret
+        ?? (yield* Namespace.push(host.LogicalId, Random(`${policy.LogicalId}NotificationSecret`)))
+          .text
 
       if (!globalThis.__ALCHEMY_RUNTIME__) {
         yield* Namespace.push(
           host.LogicalId,
-          Effect.gen(function* () {
-            const context = yield* Effect.serviceOption(AlchemyContext);
+          Effect.gen(function*() {
+            const context = yield* Effect.serviceOption(AlchemyContext)
             if (Option.isSome(context) && context.value.dev) {
               yield* Effect.logWarning(
                 `Cloudflare.Alerting.consumeNotifications: no webhook destination for ${path} under alchemy dev; Cloudflare only delivers to public URLs, so deploy to receive notifications.`,
-              );
-              return;
+              )
+              return
             }
             const webhook = yield* createWebhook(`${policy.LogicalId}Notifications`, {
               url: Output.interpolate`${host.url}${path}`,
               secret: webhookSecret,
-            });
+            })
             // A binding, not a prop: the webhook depends on the host's URL,
             // and the policy is declared without it.
             yield* policy.bind(`${host.LogicalId}:${path}`, {
               webhooks: [{ id: webhook.webhookId }],
-            });
+            })
           }),
-        );
+        )
       }
 
       // Registers the secret on the host at deploy, reads it back at runtime.
       const secret = yield* Output.named(
         Output.asOutput(webhookSecret),
         notificationSecretEnvName(policy),
-      );
+      )
 
-      yield* host.route(path, (request) => handleDelivery(request, secret, process));
-    }) as NotificationEventSourceService;
+      yield* host.route(path, (request) => handleDelivery(request, secret, process))
+    }) as NotificationEventSourceService
   }),
-);
+)
 
 const handleDelivery = <Req>(
   request: Request,
   secret: Effect.Effect<Redacted.Redacted<string> | undefined>,
   process: (notification: Notification) => Effect.Effect<void, never, Req>,
 ): Effect.Effect<Response, never, Req> =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     if (request.method !== "POST") {
-      return new Response("method not allowed", { status: 405 });
+      return webResponse("method not allowed", 405)
     }
-    const resolved = yield* secret;
+    const resolved = yield* secret
     if (resolved === undefined) {
-      return new Response("webhook secret missing", { status: 500 });
+      return webResponse("webhook secret missing", 500)
     }
-    const auth = request.headers.get("cf-webhook-auth") ?? "";
+    const auth = request.headers.get("cf-webhook-auth") ?? ""
     if (!timingSafeEqual(auth, Redacted.value(resolved))) {
-      return new Response("invalid secret", { status: 401 });
+      return webResponse("invalid secret", 401)
     }
 
-    const body = yield* Effect.promise(() => request.text());
+    const body = yield* Effect.promise(() => request.text())
     const payload = yield* Effect.try({
       try: (): Record<string, unknown> | undefined => JSON.parse(body),
       catch: () => undefined,
-    }).pipe(Effect.orElseSucceed(() => undefined));
+    }).pipe(Effect.orElseSucceed(() => undefined))
     if (typeof payload !== "object" || payload === null) {
-      return new Response("invalid payload", { status: 400 });
+      return webResponse("invalid payload", 400)
     }
 
     // Cloudflare tests a destination when it is created or updated with a
     // bare `{ text }` message: acknowledge it without running the handler.
     if (payload.alert_type === undefined && payload.data === undefined) {
-      return new Response(null, { status: 200 });
+      return webResponse(null, 200)
     }
 
-    yield* process(toNotification(payload)).pipe(Effect.orDie);
-    return new Response(null, { status: 200 });
-  });
+    yield* process(toNotification(payload)).pipe(Effect.orDie)
+    return webResponse(null, 200)
+  })
 
-const str = (value: unknown): string | undefined =>
-  typeof value === "string" && value.length > 0 ? value : undefined;
+const str = (value: unknown): string | undefined => typeof value === "string" && value.length > 0 ? value : undefined
 
 const toNotification = (payload: Record<string, unknown>): Notification => ({
   name: str(payload.name) ?? "",
   text: str(payload.text) ?? "",
-  data:
-    typeof payload.data === "object" && payload.data !== null
-      ? (payload.data as Record<string, unknown>)
-      : {},
+  data: typeof payload.data === "object" && payload.data !== null
+    ? (payload.data as Record<string, unknown>)
+    : {},
   ts: typeof payload.ts === "number" ? payload.ts : Number(payload.ts ?? 0),
   accountId: str(payload.account_id),
   policyId: str(payload.policy_id),
@@ -143,17 +141,17 @@ const toNotification = (payload: Record<string, unknown>): Notification => ({
   alertType: str(payload.alert_type) as AlertType | undefined,
   alertCorrelationId: str(payload.alert_correlation_id),
   alertEvent: str(payload.alert_event),
-});
+})
 
 /**
  * Constant-time string comparison, so a forged header can't learn the secret
  * byte by byte from response timing.
  */
 const timingSafeEqual = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
+  if (a.length !== b.length) return false
+  let mismatch = 0
   for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
   }
-  return mismatch === 0;
-};
+  return mismatch === 0
+}

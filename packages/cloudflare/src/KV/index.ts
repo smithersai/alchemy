@@ -12,5 +12,5 @@ export * from "./ReadWriteNamespaceHttp.vibe";
 export * from "./ReadWriteNamespaceLocal.vibe";
 export * from "./WriteNamespace.vibe";
 export * from "./WriteNamespaceBinding.vibe";
-export * from "./WriteNamespaceHttp.ts";
+export * from "./WriteNamespaceHttp.vibe";
 export * from "./WriteNamespaceLocal.vibe";

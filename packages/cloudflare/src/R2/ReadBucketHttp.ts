@@ -10,7 +10,7 @@ import {
   toR2Error,
   type HttpMetadata,
   type R2Auth,
-} from "./BucketHttp.ts";
+} from "./BucketHttp.vibe";
 import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.vibe";
 import { ReadBucket, type ReadBucketClient } from "./ReadBucket.vibe";
 

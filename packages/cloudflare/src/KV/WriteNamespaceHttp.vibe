@@ -1,15 +1,16 @@
-import * as kv from "@distilled.cloud/cloudflare/kv";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
+import * as kv from "@distilled.cloud/cloudflare/kv"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import {
   makeHttpKVNamespaceBinding,
   makeKVAuth,
   makeKVHttpScope,
   toKVNamespaceError,
   type KVAuth,
-} from "./NamespaceHttp.vibe";
-import { NamespaceError } from "./NamespaceTypes.vibe";
-import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.vibe";
+} from "./NamespaceHttp.vibe"
+import { NamespaceError } from "./NamespaceTypes.vibe"
+import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.vibe"
+import { blobOf, isBlob, isReadableStream, readArrayBuffer } from "./WriteNamespaceHttp.platform.ts"
 
 /**
  * HTTP-backed implementation of the {@link WriteNamespace} binding.
@@ -23,17 +24,16 @@ export const WriteNamespaceHttp = Layer.effect(
     makeHttpKVNamespaceBinding({
       permissionGroups: ["Workers KV Storage Write"],
       makeClient: (token, namespaceId) => makeWriteKVHttpClient(makeKVAuth(token), namespaceId),
-    }),
+    })
   ),
-);
+)
 
-/** @throws {never} */
 export const makeWriteKVHttpClient = (
   auth: KVAuth,
   namespaceId: Effect.Effect<string>,
 ): WriteNamespaceClient => {
-  const { authorize } = auth;
-  const scope = makeKVHttpScope(auth, namespaceId);
+  const { authorize } = auth
+  const scope = makeKVHttpScope(auth, namespaceId)
 
   return {
     put: ((
@@ -55,9 +55,9 @@ export const makeWriteKVHttpClient = (
                   expirationTtl: options?.expirationTtl,
                   metadata: options?.metadata,
                 }),
-              ),
+              )
             ),
-          ),
+          )
         ),
         Effect.mapError(toKVNamespaceError),
         Effect.asVoid,
@@ -65,31 +65,31 @@ export const makeWriteKVHttpClient = (
     delete: ((key: string) =>
       scope.pipe(
         Effect.flatMap(({ accountId, namespaceId }) =>
-          authorize(kv.deleteNamespaceValue({ accountId, namespaceId, keyName: key })),
+          authorize(kv.deleteNamespaceValue({ accountId, namespaceId, keyName: key }))
         ),
         Effect.mapError(toKVNamespaceError),
         Effect.asVoid,
       )) as any,
-  };
-};
+  }
+}
 
 /** Collect a put value into a body accepted by the KV HTTP API. */
 const toKVBody = (
   value: string | ArrayBuffer | ArrayBufferView | ReadableStream,
 ): Effect.Effect<string | Blob, NamespaceError> =>
-  Effect.gen(function* () {
-    if (typeof value === "string") return value;
-    if (value instanceof Blob) return value;
-    if (value instanceof ArrayBuffer) return new Blob([value]);
-    if (value instanceof ReadableStream) {
+  Effect.gen(function*() {
+    if (typeof value === "string") return value
+    if (isBlob(value)) return value
+    if (value instanceof ArrayBuffer) return blobOf([value])
+    if (isReadableStream(value)) {
       const buffer = yield* Effect.tryPromise({
-        try: () => new Response(value as any).arrayBuffer(),
+        try: () => readArrayBuffer(value as any),
         catch: toKVNamespaceError,
-      });
-      return new Blob([buffer]);
+      })
+      return blobOf([buffer])
     }
-    const view = value as ArrayBufferView;
-    const bytes = new Uint8Array(view.byteLength);
-    bytes.set(new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength));
-    return new Blob([bytes]);
-  });
+    const view = value as ArrayBufferView
+    const bytes = new Uint8Array(view.byteLength)
+    bytes.set(new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength))
+    return blobOf([bytes])
+  })
