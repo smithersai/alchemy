@@ -48,7 +48,7 @@ import {
   Site,
   Staging,
 } from "./src/shared.ts";
-import Worker from "./src/worker.ts";
+import Worker from "./src/worker.vibe";
 
 export default Alchemy.Stack(
   "RailwayService",

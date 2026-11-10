@@ -1,7 +1,7 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Analytics from "./src/Analytics.ts";
+import Analytics from "./src/Analytics.vibe";
 import Email from "./src/Email.ts";
 import Orders from "./src/Orders.ts";
 import {

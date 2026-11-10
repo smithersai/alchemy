@@ -1,9 +1,9 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Api from "./src/Api.ts";
+import Api from "./src/Api.vibe";
 import { Jobs, Results } from "./src/resources.ts";
-import Worker from "./src/Worker.ts";
+import Worker from "./src/Worker.vibe";
 
 export default Alchemy.Stack(
   "GcpPubSubWorkerExample",

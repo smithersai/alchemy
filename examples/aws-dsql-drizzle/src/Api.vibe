@@ -1,0 +1,90 @@
+import * as AWS from "@alchemy.run/aws"
+import { eq, sql } from "drizzle-orm"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Schema from "effect/Schema"
+import { connectDatabase } from "./client.vibe"
+import { Todos } from "./schema.ts"
+
+export default class Api extends AWS.Lambda.Function<Api>()(
+  "Api",
+  {
+    main: import.meta.url,
+    runtime: "nodejs22.x",
+    functionUrl: { authType: "AWS_IAM" },
+    timeout: Duration.seconds(30),
+  },
+  effect {
+    const db = try connectDatabase
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const url = new URL(request.originalUrl)
+        if (request.method === "GET" && url.pathname === "/health") {
+          const query = try Effect.orDie(
+            Effect.try({ try: () => sql`SELECT current_user AS username`, catch: (e) => e }),
+          )
+          const result = try db.execute(query)
+          return try HttpServerResponse.json(result)
+        }
+        if (url.pathname === "/todos" && request.method === "GET") {
+          const query = try Effect.orDie(
+            Effect.try({ try: () => db.select().from(Todos), catch: (e) => e }),
+          )
+          return try HttpServerResponse.json(try query)
+        }
+        if (url.pathname === "/todos" && request.method === "POST") {
+          const input = try request.json.pipe(
+            Effect.flatMap(
+              Schema.decodeUnknownEffect(
+                Schema.Struct({
+                  id: Schema.String.check(Schema.isUUID()),
+                  text: Schema.NonEmptyString,
+                }),
+              ),
+            ),
+          )
+          const query = try Effect.orDie(
+            Effect.try({ try: () => db.insert(Todos).values(input).returning(), catch: (e) => e }),
+          )
+          return try HttpServerResponse.json(try query, {
+            status: 201,
+          })
+        }
+        if (url.pathname.startsWith("/todos/")) {
+          const id = try Schema.decodeUnknownEffect(Schema.String.check(Schema.isUUID()))(
+            url.pathname.slice(7),
+          )
+          if (request.method === "PATCH") {
+            const input = try request.json.pipe(
+              Effect.flatMap(Schema.decodeUnknownEffect(Schema.Struct({ done: Schema.Boolean }))),
+            )
+            const query = try Effect.orDie(
+              Effect.try({
+                try: () => db.update(Todos).set(input).where(eq(Todos.id, id)).returning(),
+                catch: (e) => e,
+              }),
+            )
+            return try HttpServerResponse.json(try query)
+          }
+          if (request.method === "DELETE") {
+            const query = try Effect.orDie(
+              Effect.try({ try: () => db.delete(Todos).where(eq(Todos.id, id)), catch: (e) => e }),
+            )
+            try query
+            return HttpServerResponse.empty({ status: 204 })
+          }
+        }
+        return HttpServerResponse.text("Not found", { status: 404 })
+      }.pipe(
+        Effect.catchTag(
+          "SchemaError",
+          () => Effect.succeed(HttpServerResponse.text("Invalid request", { status: 400 })),
+        ),
+        Effect.orDie,
+      ),
+    }
+  }.pipe(Effect.provide(AWS.DSQL.ConnectHttp)),
+) {}

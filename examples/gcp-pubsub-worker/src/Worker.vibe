@@ -1,0 +1,55 @@
+import * as GCP from "@alchemy.run/gcp"
+import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
+import * as Stream from "effect/Stream"
+import { Jobs, Results, resultPath } from "./resources.ts"
+import { decode, runJob } from "./Worker.platform.ts"
+
+/**
+ * The consumer. A Cloud Run worker pool has no inbound URL — it runs a
+ * long-lived container that pulls from Pub/Sub, which suits queue workers
+ * that should keep running regardless of HTTP traffic.
+ *
+ * `GCP.Run.TopicPullEventSource` creates the pull subscription, pulls
+ * batches in the background, and acks a batch only after the handler
+ * succeeds. Writing the result with `set` makes processing idempotent: a
+ * redelivered job overwrites its document with the same values.
+ */
+export default class Worker extends GCP.Run.WorkerPool<Worker>()(
+  "Worker",
+  {
+    main: import.meta.url,
+    scaling: { manualInstanceCount: 1 },
+  },
+  effect {
+    const results = try GCP.Firestore.WriteDatabase(Results)
+
+    try GCP.PubSub.consumeTopicMessages(
+      Jobs,
+      { maxMessages: 10, ackDeadlineSeconds: 60 },
+      (messages) =>
+        messages.pipe(
+          Stream.runForEach(({ message }) =>
+            effect {
+              const decoded = try Effect.result(decode(message.data))
+              // A message that can never parse would be redelivered
+              // forever; drop it (the batch ack removes it) instead.
+              if (Result.isFailure(decoded)) {
+                try Effect.logWarning(`dropping malformed message ${message.messageId}`)
+                return
+              }
+              const job = decoded.success
+              const result = try runJob(job)
+              try results.set(try Effect.orDie(Effect.try({ try: () => resultPath(job.id), catch: (e) => e })), {
+                ...result,
+              })
+              try Effect.log(`job ${job.id}: ${result.words} word(s)`)
+            }
+          ),
+          // A failure dies the batch, leaving it unacked so Pub/Sub
+          // redelivers it after the ack deadline.
+          Effect.orDie,
+        ),
+    )
+  }.pipe(Effect.provide([GCP.Run.TopicPullEventSource, GCP.Firestore.WriteDatabaseHttp])),
+) {}

@@ -1,0 +1,129 @@
+import * as GCP from "@alchemy.run/gcp"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { fromBase64, toBase64 } from "./Api.platform.ts"
+import { ApiKey, DataKey } from "./resources.ts"
+
+/** Constant-time comparison so response timing does not leak the key. */
+const sameKey = (expected: string, given: string | undefined) => {
+  if (given === undefined || given.length !== expected.length) return false
+  let diff = 0
+  for (let index = 0; index < expected.length; index++) {
+    diff |= expected.charCodeAt(index) ^ given.charCodeAt(index)
+  }
+  return diff === 0
+}
+
+const error = (status: number, message: string) => HttpServerResponse.json({ error: message }, { status })
+
+/**
+ * Encryption as a service on Cloud Run.
+ *
+ * Callers never hold key material: `/encrypt` hands plaintext to Cloud KMS
+ * and returns the ciphertext, `/decrypt` does the reverse. Both routes are
+ * gated by an API key the service reads from Secret Manager per request,
+ * so rotating the key is `gcloud secrets versions add` — no redeploy.
+ *
+ * - `POST /encrypt` — `{ plaintext }` → `{ ciphertext }` (base64).
+ * - `POST /decrypt` — `{ ciphertext }` → `{ plaintext }`.
+ *
+ * Each binding grants one role on the service's runtime service account,
+ * scoped to the one resource it was bound to.
+ */
+export default class Api extends GCP.Function<Api>()(
+  "Api",
+  {
+    main: import.meta.url,
+    invokerIamDisabled: true,
+  },
+  effect {
+    const dataKey = try DataKey
+    const apiKey = try ApiKey
+
+    // roles/cloudkms.cryptoKeyEncrypter / cryptoKeyDecrypter on DataKey.
+    const encrypt = try GCP.KMS.Encrypt(dataKey)
+    const decrypt = try GCP.KMS.Decrypt(dataKey)
+    // roles/secretmanager.secretAccessor on ApiKey.
+    const apiKeySecret = try GCP.SecretManager.ReadSecret(apiKey)
+
+    /**
+     * Read the `latest` version on every call so a rotated key takes
+     * effect immediately. With no version yet the API refuses everyone
+     * instead of failing open.
+     */
+    const authorize = (request: HttpServerRequest) =>
+      apiKeySecret.access().pipe(
+        Effect.map((expected) =>
+          expected === undefined
+            ? ("unconfigured" as const)
+            : sameKey(expected, request.headers["x-api-key"])
+            ? ("ok" as const)
+            : ("denied" as const)
+        ),
+        Effect.orDie,
+      )
+
+    const readField = (request: HttpServerRequest, field: string) =>
+      request.json.pipe(
+        Effect.map((body) => {
+          const value = (body as Record<string, unknown> | null)?.[field]
+          return typeof value === "string" && value.length > 0 ? value : undefined
+        }),
+        Effect.catch(() => Effect.succeed(undefined)),
+      )
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const { pathname } = new URL(request.originalUrl)
+
+        if (request.method === "GET" && pathname === "/") {
+          return HttpServerResponse.text("ok")
+        }
+
+        const route = request.method === "POST" && (pathname === "/encrypt" || pathname === "/decrypt")
+          ? pathname
+          : undefined
+        if (route === undefined) return try error(404, "not found")
+
+        const auth = try authorize(request)
+        if (auth === "unconfigured") {
+          return try error(503, "no api key version has been added to the secret")
+        }
+        if (auth === "denied") return try error(401, "invalid api key")
+
+        if (route === "/encrypt") {
+          const plaintext = try readField(request, "plaintext")
+          if (plaintext === undefined) {
+            return try error(400, "plaintext is required")
+          }
+          const { ciphertext } = try encrypt({
+            body: { plaintext: try toBase64(plaintext) },
+          }).pipe(Effect.orDie)
+          return try HttpServerResponse.json({ ciphertext })
+        }
+
+        const ciphertext = try readField(request, "ciphertext")
+        if (ciphertext === undefined) {
+          return try error(400, "ciphertext is required")
+        }
+        // KMS rejects ciphertext it did not produce (or that was tampered
+        // with) as a bad request; that is the caller's fault, not ours.
+        const decrypted = try decrypt({ body: { ciphertext } }).pipe(
+          Effect.map((response) => response.plaintext),
+          Effect.catchTag("BadRequest", () => Effect.succeed(null)),
+          Effect.orDie,
+        )
+        if (decrypted === null) {
+          return try error(400, "ciphertext could not be decrypted")
+        }
+        return try HttpServerResponse.json({
+          plaintext: try fromBase64(decrypted ?? ""),
+        })
+      },
+    }
+  }.pipe(
+    Effect.provide([GCP.KMS.EncryptHttp, GCP.KMS.DecryptHttp, GCP.SecretManager.ReadSecretHttp]),
+  ),
+) {}

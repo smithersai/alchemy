@@ -1,7 +1,7 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Gateway from "./src/Gateway.ts";
+import Gateway from "./src/Gateway.vibe";
 import Quotes from "./src/Quotes.vibe";
 
 export default Alchemy.Stack(

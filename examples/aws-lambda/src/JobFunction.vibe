@@ -1,0 +1,86 @@
+import * as AWS from "@alchemy.run/aws"
+import { Stack } from "alchemy/Stack"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Layer from "effect/Layer"
+import { randomUUID } from "./JobFunction.platform.ts"
+import { JobNotifications, JobNotificationsSNS, NotifyJobError } from "./JobNotifications.vibe"
+import { GetJobError, JobStorage, JobStorageDynamoDB, PutJobError } from "./JobStorage.vibe"
+
+export default class JobFunction extends AWS.Lambda.Function<JobFunction>()(
+  "JobFunction",
+  Stack.useSync((stack) => ({
+    main: import.meta.url,
+    memorySize: stack.stage === "prod" ? 1024 : 512,
+    functionUrl: true,
+  })),
+  effect {
+    const jobStorage = try JobStorage
+    const notifications = try JobNotifications
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const url = new URL(request.originalUrl)
+
+        if (request.method === "GET" && url.pathname === "/") {
+          const jobId = url.searchParams.get("jobId")
+          if (!jobId) {
+            return HttpServerResponse.text("Job ID is required", { status: 400 })
+          }
+
+          const job = try jobStorage
+            .getJob(jobId)
+            .pipe(Effect.match({ onFailure: (error) => error, onSuccess: (job) => job }))
+
+          if (job instanceof GetJobError) {
+            return HttpServerResponse.text(job.message, { status: 500 })
+          }
+
+          if (!job) {
+            return HttpServerResponse.text("Job not found", { status: 404 })
+          }
+
+          return try HttpServerResponse.json(job)
+        }
+
+        if (request.method === "POST" && url.pathname === "/") {
+          const content = try request.text
+          if (!content) {
+            return HttpServerResponse.text("Job content is required", { status: 400 })
+          }
+
+          const job = try jobStorage
+            .putJob({ id: try randomUUID(), content })
+            .pipe(Effect.match({ onFailure: (error) => error, onSuccess: (job) => job }))
+
+          if (job instanceof PutJobError) {
+            return HttpServerResponse.text(job.message, { status: 500 })
+          }
+
+          const notificationResult = try notifications
+            .notifyJobCreated(job)
+            .pipe(Effect.match({ onFailure: (error) => error, onSuccess: () => undefined }))
+
+          if (notificationResult instanceof NotifyJobError) {
+            return HttpServerResponse.text(notificationResult.message, { status: 500 })
+          }
+
+          return try HttpServerResponse.json({ jobId: job.id }, { status: 201 })
+        }
+
+        return HttpServerResponse.text("Not found", { status: 404 })
+      },
+    }
+  }.pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        // Services go here
+        JobStorageDynamoDB,
+        JobNotificationsSNS,
+        // JobStorageS3,
+      ),
+    ),
+  ),
+) {}

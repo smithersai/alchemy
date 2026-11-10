@@ -3,7 +3,7 @@ import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import Api from "./src/Api.ts";
+import Api from "./src/Api.vibe";
 import { database } from "./src/database.vibe";
 import { storePassword } from "./src/password.ts";
 

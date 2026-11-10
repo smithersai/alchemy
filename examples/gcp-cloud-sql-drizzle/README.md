@@ -32,7 +32,7 @@ Invalid bodies and ids get `400`.
   when [`src/schema.ts`](./src/schema.ts) changes.
 - `Alchemy.Action` `StorePassword` ([`src/password.ts`](./src/password.ts)) —
   at deploy time, writes the password as the secret's latest version.
-- `GCP.Function` `Api` ([`src/Api.ts`](./src/Api.ts)) — public Cloud Run
+- `GCP.Function` `Api` ([`src/Api.vibe`](./src/Api.vibe)) — public Cloud Run
   service (`invokerIamDisabled: true`) running Drizzle over
   `/cloudsql/{connectionName}`. It binds the database, so it only rolls
   out once the migrations are applied.
