@@ -9,7 +9,7 @@ export {
   type ResourceAnnotated,
   type ResourceStatusChanged,
 } from "../Events.ts";
-export { layer, type Services } from "./Runtime.ts";
+export { layer, type Services } from "./Runtime.vibe";
 export {
   apply,
   hasChanges,

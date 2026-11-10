@@ -57,6 +57,7 @@ export class ArtifactStore extends Context.Service<ArtifactStore, Map<string, Ar
 
 /**
  * Create a fresh root store for one deploy/test run.
+ * @throws {never}
  */
 export const createArtifactStore = (): ArtifactStore["Service"] => new Map<string, ArtifactBag>();
 

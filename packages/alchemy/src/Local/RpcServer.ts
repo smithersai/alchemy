@@ -91,7 +91,7 @@ export type ProviderGroupLoader = (group: string) => Effect.Effect<ProviderLayer
 
 const serverPlatformLayer = platformLayer({
   bun: async () => {
-    const { RpcServerBun } = await import("./RpcServerBun.ts");
+    const { RpcServerBun } = await import("./RpcServerBun.vibe");
     return RpcServerBun;
   },
   node: async () => {
