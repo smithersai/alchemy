@@ -24,7 +24,7 @@ import * as Output from "./Output.ts";
 import { ALCHEMY_PHASE } from "./Phase.ts";
 import type { Provider, ProviderCollectionLike } from "./Provider.ts";
 import { Resource, type ResourceLike } from "./Resource.ts";
-import type { Rpc } from "./Rpc.ts";
+import type { Rpc } from "./Rpc.vibe";
 import { ServerHost, type ProcessContext } from "./Runtime/Process.ts";
 import {
   CurrentRuntimeContext,

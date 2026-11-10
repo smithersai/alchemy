@@ -33,7 +33,7 @@ export * as Secrets from "./Secrets/index.ts";
 export { Stack, type SecretProviders, type StackSecrets } from "./Stack.ts";
 export * from "./Stage.ts";
 export { inMemoryState, localState } from "./State/index.ts";
-export * as Drift from "./Drift.ts";
+export * as Drift from "./Drift.vibe";
 export * as Telemetry from "./Telemetry.ts";
 
 // Re-export internal types so they can be portably named in
@@ -47,7 +47,7 @@ export type { Named } from "./Named.ts";
 export type * from "./Platform.ts";
 export { Platform } from "./Platform.ts";
 export type { ProviderCollectionLike } from "./Provider.ts";
-export type * from "./Rpc.ts";
+export type * from "./Rpc.vibe";
 export {
   RuntimeContext,
   type BaseRuntimeContext,
