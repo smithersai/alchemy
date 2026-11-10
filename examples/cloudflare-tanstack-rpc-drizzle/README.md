@@ -16,7 +16,7 @@ missing-todo failures retain their tag and fields across the JSON transport.
 Browser (React)
   │  useAtomValue / useAtomSet
   ▼
-AtomRpc client (TodoRpcs)        src/rpc-client.ts
+AtomRpc client (TodoRpcs)        src/rpc-client.vibe
   │  HTTP POST /rpc (JSON)
   ▼
 TanStack Start worker            src/routes/rpc.ts  (server route)
@@ -41,7 +41,7 @@ needed (that one targets Effect 3). The only extra dependency is
 `useAtomSet`, `RegistryProvider`) and is versioned in lockstep with `effect`.
 
 ```ts
-// src/rpc-client.ts
+// src/rpc-client.vibe
 export class TodoClient extends AtomRpc.Service<TodoClient>()("TodoClient", {
   group: TodoRpcs,
   protocol: RpcClient.layerProtocolHttp({ url: "/rpc" }).pipe(
