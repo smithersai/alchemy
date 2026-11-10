@@ -4,7 +4,7 @@ export * from "./Collaborator.vibe";
 export * from "./Comment.vibe";
 export { Credentials, fromEnv, fromToken } from "./Credentials.vibe";
 export * from "./Env.vibe";
-export * from "./Environment.ts";
+export * from "./Environment.vibe";
 export * from "./Label.vibe";
 export * from "./Providers.vibe";
 export * from "./PullRequest.vibe";
