@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Auth } from "./Auth.ts";
 import { CurrentUser } from "./CurrentUser.context.vibe";
-import { Session, Unauthorized } from "./Session.middleware.ts";
+import { Session, Unauthorized } from "./Session.middleware.vibe";
 import { UserId } from "./User.id.vibe";
 
 /** The {@link Session} middleware: the user better-auth signed in, or Unauthorized. */
