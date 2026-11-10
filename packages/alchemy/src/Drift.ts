@@ -29,7 +29,7 @@ import {
   type ResourceState,
   type UpdatedResourceState,
 } from "./State/index.ts";
-import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.ts";
+import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.vibe";
 import { findCycleMembers } from "./Util/scc.ts";
 
 /**

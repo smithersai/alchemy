@@ -13,7 +13,7 @@ import type { ProviderService } from "../Provider.ts";
 import type { ResourceLike } from "../Resource.ts";
 import { childJsonLogLayer, LOG_FORMAT_ENV, LogProcess } from "../Util/LogRecord.ts";
 import { platformLayer, PlatformServices, runMain } from "../Util/PlatformServices.ts";
-import { logShutdown } from "../Util/Shutdown.ts";
+import { logShutdown } from "../Util/Shutdown.vibe";
 import { processTrace, withTraceParent } from "../Util/TraceParent.ts";
 import * as RpcSerialization from "./RpcSerialization.ts";
 import * as RpcServerEnvironment from "./RpcServerEnvironment.ts";

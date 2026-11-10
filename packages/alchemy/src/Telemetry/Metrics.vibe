@@ -1,7 +1,8 @@
-import * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
-import * as Metric from "effect/Metric";
+import { monotonicNanoseconds } from "./Metrics.platform.ts"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Metric from "effect/Metric"
 
 /**
  * Counter for resource lifecycle operations. Tagged per call with
@@ -11,14 +12,14 @@ import * as Metric from "effect/Metric";
 export const resourceCounter = Metric.counter("alchemy.resource.operations", {
   description: "Number of resource lifecycle operations dispatched by alchemy apply.",
   incremental: true,
-});
+})
 
 /**
  * Histogram of how long each lifecycle operation takes.
  */
 export const resourceDuration = Metric.timer("alchemy.resource.duration", {
   description: "Wall-clock duration of resource lifecycle operations dispatched by alchemy apply.",
-});
+})
 
 /**
  * Counter for CLI command invocations.
@@ -26,7 +27,7 @@ export const resourceDuration = Metric.timer("alchemy.resource.duration", {
 export const cliCounter = Metric.counter("alchemy.cli.invocations", {
   description: "Number of alchemy CLI command invocations.",
   incremental: true,
-});
+})
 
 /**
  * Counter for Cloudflare State Store bootstrap/deploy operations.
@@ -36,12 +37,11 @@ export const cliCounter = Metric.counter("alchemy.cli.invocations", {
  * resource lifecycle ops.
  */
 export const stateStoreCounter = Metric.counter("alchemy.state_store.operations", {
-  description:
-    "Number of Cloudflare State Store deploy/bootstrap operations dispatched by alchemy.",
+  description: "Number of Cloudflare State Store deploy/bootstrap operations dispatched by alchemy.",
   incremental: true,
-});
+})
 
-export type StateStoreOp = "deploy";
+export type StateStoreOp = "deploy"
 
 /**
  * Counter for State store layer construction. Tagged with `id` (the
@@ -53,7 +53,7 @@ export type StateStoreOp = "deploy";
 export const stateStoreInitCounter = Metric.counter("alchemy.state_store.inits", {
   description: "Number of times a State store layer is constructed.",
   incremental: true,
-});
+})
 
 /**
  * Wraps a resource lifecycle Effect to record a counter + timer entry,
@@ -65,36 +65,37 @@ export const stateStoreInitCounter = Metric.counter("alchemy.state_store.inits",
  * ```
  */
 export const recordResourceOp =
-  (resourceType: string, op: ResourceOp) =>
-  <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
-    Effect.suspend(() => {
-      const startNs = process.hrtime.bigint();
-      const baseAttrs = { resource_type: resourceType, op } as const;
-      return self.pipe(
+  (resourceType: string, op: ResourceOp) => <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+    effect {
+      const startNs = try monotonicNanoseconds
+      const baseAttrs = { resource_type: resourceType, op } as const
+      return try self.pipe(
         Effect.onExit((exit) =>
-          recordOutcome(baseAttrs, Exit.isSuccess(exit) ? "success" : "error", elapsed(startNs)),
+          Effect.flatMap(
+            monotonicNanoseconds,
+            (now) =>
+              recordOutcome(baseAttrs, Exit.isSuccess(exit) ? "success" : "error", Duration.nanos(now - startNs)),
+          )
         ),
-      );
-    });
+      )
+    }
 
 /**
  * Wraps a CLI command Effect to bump {@link cliCounter} with the
  * outcome (`success`/`error`).
  */
-export const recordCli =
-  (command: string) =>
-  <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
-    self.pipe(
-      Effect.onExit((exit) =>
-        Metric.update(
-          Metric.withAttributes(cliCounter, {
-            command,
-            status: Exit.isSuccess(exit) ? "success" : "error",
-          }),
-          1,
-        ),
-      ),
-    );
+export const recordCli = (command: string) => <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  self.pipe(
+    Effect.onExit((exit) =>
+      Metric.update(
+        Metric.withAttributes(cliCounter, {
+          command,
+          status: Exit.isSuccess(exit) ? "success" : "error",
+        }),
+        1,
+      )
+    ),
+  )
 
 /**
  * Wraps a Cloudflare State Store deploy/bootstrap Effect to bump
@@ -102,8 +103,7 @@ export const recordCli =
  * tagged with the given `op`.
  */
 export const recordStateStoreOp =
-  (op: StateStoreOp) =>
-  <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  (op: StateStoreOp) => <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
     self.pipe(
       Effect.onExit((exit) =>
         Metric.update(
@@ -112,9 +112,9 @@ export const recordStateStoreOp =
             status: Exit.isSuccess(exit) ? "success" : "error",
           }),
           1,
-        ),
+        )
       ),
-    );
+    )
 
 /**
  * Wraps a State store construction Effect to:
@@ -146,27 +146,24 @@ export const recordStateStoreInit = <A extends { readonly id: string }, E, R>(
           Effect.annotateCurrentSpan("alchemy.state_store.id", service.id),
         ],
         { discard: true },
-      ),
+      )
     ),
     Effect.withSpan("state_store.init"),
-  );
+  )
 
-export type ResourceOp = "observe" | "precreate" | "create" | "update" | "delete" | "read";
-
-const elapsed = (startNs: bigint): Duration.Duration =>
-  Duration.nanos(process.hrtime.bigint() - startNs);
+export type ResourceOp = "observe" | "precreate" | "create" | "update" | "delete" | "read"
 
 const recordOutcome = (
   baseAttrs: { resource_type: string; op: ResourceOp },
   status: "success" | "error",
   duration: Duration.Duration,
 ): Effect.Effect<void> => {
-  const attrs = { ...baseAttrs, status };
+  const attrs = { ...baseAttrs, status }
   return Effect.all(
     [
       Metric.update(Metric.withAttributes(resourceCounter, attrs), 1),
       Metric.update(Metric.withAttributes(resourceDuration, attrs), duration),
     ],
     { discard: true },
-  );
-};
+  )
+}

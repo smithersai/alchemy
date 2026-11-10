@@ -26,7 +26,7 @@ import { TelemetryLive } from "../Telemetry/Layer.vibe";
 import { LogProcess, parentLogLayer } from "../Util/LogRecord.ts";
 import { initialCwd } from "../Util/Node.ts";
 import { PlatformServices } from "../Util/PlatformServices.ts";
-import { logShutdown } from "../Util/Shutdown.ts";
+import { logShutdown } from "../Util/Shutdown.vibe";
 import { processTrace, withTraceParent } from "../Util/TraceParent.ts";
 import { handleCliErrors, installShutdownFeedback } from "./commands/errors.ts";
 import { renderPlanning } from "./commands/render.vibe";

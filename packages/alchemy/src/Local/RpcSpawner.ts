@@ -25,7 +25,7 @@ import * as Stream from "effect/Stream";
 import { LOG_FORMAT_ENV, logChildLine } from "../Util/LogRecord.ts";
 import { nodeLoaderArgs } from "../Util/Node.ts";
 import { httpServer } from "../Util/PlatformServices.ts";
-import { timedShutdownStep } from "../Util/Shutdown.ts";
+import { timedShutdownStep } from "../Util/Shutdown.vibe";
 import { pipedColorEnv } from "../Util/Terminal.ts";
 import { traceParentEnv } from "../Util/TraceParent.ts";
 import { SPAWNER_URL_ENV_KEY } from "./RpcProviderProxy.ts";

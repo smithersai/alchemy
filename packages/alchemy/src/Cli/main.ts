@@ -22,7 +22,7 @@ import * as Path from "effect/Path";
 import * as Scope from "effect/Scope";
 import packageJson from "../../package.json" with { type: "json" };
 import * as Interaction from "../Interaction.ts";
-import { logShutdown } from "../Util/Shutdown.ts";
+import { logShutdown } from "../Util/Shutdown.vibe";
 import { checkLatestVersion } from "./checkVersion.vibe";
 import {
   compatibilityCommand,

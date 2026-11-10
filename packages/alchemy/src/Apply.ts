@@ -70,7 +70,7 @@ import {
   State,
   StateStoreError,
 } from "./State/index.ts";
-import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.ts";
+import { type ResourceOp, recordResourceOp } from "./Telemetry/Metrics.vibe";
 import { LogAnnotation } from "./Util/LogAnnotation.ts";
 import { hashInput } from "./Util/sha256.ts";
 
