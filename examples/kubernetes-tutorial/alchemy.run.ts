@@ -3,7 +3,7 @@ import * as Alchemy from "alchemy";
 import { Stage } from "alchemy";
 import * as Effect from "effect/Effect";
 import HealthCheck from "./src/HealthCheck.vibe";
-import { Cluster, Web } from "./src/infra.ts";
+import { Cluster, Web } from "./src/infra.vibe";
 import SmokeTest from "./src/SmokeTest.vibe";
 
 export default Alchemy.Stack(

@@ -1,9 +1,10 @@
-import * as GCP from "@alchemy.run/gcp";
-import * as Kubernetes from "@alchemy.run/kubernetes";
-import * as Effect from "effect/Effect";
-import { HttpServerRequest } from "effect/http/HttpServerRequest";
-import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.vibe";
+import * as GCP from "@alchemy.run/gcp"
+import * as Kubernetes from "@alchemy.run/kubernetes"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { shortRandomUUID } from "./Api.platform.ts"
+import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.vibe"
 
 /**
  * The guestbook API: a `Kubernetes.Deployment` in the TAGGED form — the class
@@ -35,16 +36,16 @@ import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from
  *   keys, no Google service account.
  *
  * `podTemplate` is the Kubernetes escape hatch: a literal deep-partial Pod
- * template merged into the synthesized one (objects merge recursively;
+ * template merged into the synthesized one (objects merge recursively
  * arrays and primitives replace).
  */
 export class Api extends Kubernetes.Deployment<Api>()("Api") {}
 
 export default Api.make(
   // Props are themselves an Effect so they can reference shared resources.
-  Effect.gen(function* () {
-    const cluster = yield* GuestbookCluster;
-    const ns = yield* GuestbookNamespace;
+  effect {
+    const cluster = try GuestbookCluster
+    const ns = try GuestbookNamespace
     return {
       cluster,
       main: import.meta.url,
@@ -70,59 +71,59 @@ export default Api.make(
         },
         spec: { terminationGracePeriodSeconds: 30 },
       },
-    };
-  }),
-  Effect.gen(function* () {
-    const db = yield* GCP.Firestore.ReadWriteDatabase(EntriesDatabase);
+    }
+  },
+  effect {
+    const db = try GCP.Firestore.ReadWriteDatabase(EntriesDatabase)
 
     return {
-      fetch: Effect.gen(function* () {
-        const request = yield* HttpServerRequest;
-        const url = new URL(request.url, "http://guestbook");
+      fetch: effect {
+        const request = try HttpServerRequest
+        const url = new URL(request.url, "http://guestbook")
 
         // GET /entries — list every entry.
         if (request.method === "GET" && url.pathname === "/entries") {
-          const page = yield* db.list("entries", { pageSize: 300 });
+          const page = try db.list("entries", { pageSize: 300 })
           const entries = page.documents.map((document) => ({
             id: document.name.split("/").pop(),
             author: document.fields.author,
             message: document.fields.message,
-          }));
-          return yield* HttpServerResponse.json({
+          }))
+          return try HttpServerResponse.json({
             count: entries.length,
             entries,
-          });
+          })
         }
 
         // GET /entries/<id> — read one entry.
-        const match = url.pathname.match(/^\/entries\/([^/]+)$/);
+        const match = url.pathname.match(/^\/entries\/([^/]+)$/)
         if (request.method === "GET" && match) {
-          const document = yield* db.get(entryPath(match[1]!));
+          const document = try db.get(entryPath(match[1]!))
           if (document === undefined) {
-            return yield* HttpServerResponse.json({ error: "not found" }, { status: 404 });
+            return try HttpServerResponse.json({ error: "not found" }, { status: 404 })
           }
-          return yield* HttpServerResponse.json({
+          return try HttpServerResponse.json({
             id: match[1],
             author: document.fields.author,
             message: document.fields.message,
-          });
+          })
         }
 
         // POST /entries?author=ada&message=hi — sign the guestbook.
         if (request.method === "POST" && url.pathname === "/entries") {
-          const author = url.searchParams.get("author") ?? "anonymous";
-          const message = url.searchParams.get("message") ?? "";
-          const id = yield* Effect.sync(() => crypto.randomUUID().slice(0, 8));
-          yield* db.set(entryPath(id), { author, message });
-          return yield* HttpServerResponse.json({ id, author, message });
+          const author = url.searchParams.get("author") ?? "anonymous"
+          const message = url.searchParams.get("message") ?? ""
+          const id = try shortRandomUUID()
+          try db.set(entryPath(id), { author, message })
+          return try HttpServerResponse.json({ id, author, message })
         }
 
         // Everything else — including "/" health probes.
-        return yield* HttpServerResponse.json({
+        return try HttpServerResponse.json({
           ok: true,
           service: "guestbook-api",
-        });
-      }).pipe(Effect.orDie),
-    };
-  }).pipe(Effect.provide(GCP.Firestore.ReadWriteDatabaseHttp)),
-);
+        })
+      }.pipe(Effect.orDie),
+    }
+  }.pipe(Effect.provide(GCP.Firestore.ReadWriteDatabaseHttp)),
+)

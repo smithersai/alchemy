@@ -19,7 +19,7 @@ import * as Kubernetes from "@alchemy.run/kubernetes";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import ApiLive, { Api } from "./src/Api.ts";
+import ApiLive, { Api } from "./src/Api.vibe";
 import { EntriesDatabase, GuestbookCluster, GuestbookNamespace } from "./src/infra.vibe";
 import SeedJob from "./src/SeedJob.ts";
 
