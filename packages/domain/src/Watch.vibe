@@ -190,119 +190,122 @@ const where = (subscription: Subscription): Filter<unknown> | undefined =>
   subscription.where as Filter<unknown> | undefined
 
 /** What a view key's subscriber receives after a commit (or when it connects). */
-export const viewPush = (kernel: Kernel, view: View.Any): infer _ =>
-effect (
-  key: string,
-  subscription: Subscription,
-  snapshot: ViewSnapshot,
-  entries: ReadonlyArray<ViewEntry>,
-): Push!! => {
-  const ref = try Effect.orDie(Effect.try({ try: () => refFor(view.definition.key, key), catch: (e) => e }))
-  if (subscription.mode === "watch") {
-    if (snapshot.version <= subscription.cursor) {
-      return { messages: [], subscription, done: false }
+export const viewPush =
+  (kernel: Kernel, view: View.Any): infer _ =>
+  effect (
+    key: string,
+    subscription: Subscription,
+    snapshot: ViewSnapshot,
+    entries: ReadonlyArray<ViewEntry>,
+  ): Push!! => {
+    const ref = try Effect.orDie(Effect.try({ try: () => refFor(view.definition.key, key), catch: (e) => e }))
+    if (subscription.mode === "watch") {
+      if (snapshot.version <= subscription.cursor) {
+        return { messages: [], subscription, done: false }
+      }
+      const state = snapshot.state === null
+        ? null
+        : try Effect.orDie(Effect.try({ try: () => decodeViewState(kernel, view, snapshot.state), catch: (e) => e }))
+      const visible = state !== null && matches(where(subscription), state) ? state : null
+      return try encode(
+        view,
+        subscription,
+        ref,
+        [{ state, value: Option.some({ state: visible, cursor: snapshot.seq }) }],
+        snapshot.version,
+      )
     }
-    const state = snapshot.state === null
-      ? null
-      : try Effect.orDie(Effect.try({ try: () => decodeViewState(kernel, view, snapshot.state), catch: (e) => e }))
-    const visible = state !== null && matches(where(subscription), state) ? state : null
-    return try encode(
-      view,
-      subscription,
-      ref,
-      [{ state, value: Option.some({ state: visible, cursor: snapshot.seq }) }],
-      snapshot.version,
-    )
+    const fresh = entries.filter((entry) => entry.seq > subscription.cursor)
+    const items = fresh.map((stored): Item => {
+      const decoded = kernel.decodeViewEntry(view, stored)
+      return {
+        state: decoded.state,
+        value: matches(where(subscription), decoded.event) ? Option.some(decoded) : Option.none(),
+      }
+    })
+    const cursor = fresh.length > 0 ? fresh[fresh.length - 1]!.seq : subscription.cursor
+    const marked = markCaughtUp(subscription, items, cursor)
+    return try encode(view, marked.subscription, ref, marked.items, cursor)
   }
-  const fresh = entries.filter((entry) => entry.seq > subscription.cursor)
-  const items = fresh.map((stored): Item => {
-    const decoded = kernel.decodeViewEntry(view, stored)
-    return {
-      state: decoded.state,
-      value: matches(where(subscription), decoded.event) ? Option.some(decoded) : Option.none(),
-    }
-  })
-  const cursor = fresh.length > 0 ? fresh[fresh.length - 1]!.seq : subscription.cursor
-  const marked = markCaughtUp(subscription, items, cursor)
-  return try encode(view, marked.subscription, ref, marked.items, cursor)
-}
 
 /** What an aggregate instance's subscriber receives after a commit (or when it connects). */
-export const aggregatePush = (kernel: Kernel, aggregate: Aggregate.Any): infer _ =>
-effect (
-  id: string,
-  subscription: Subscription,
-  current: { readonly state: Json; readonly version: number },
-  events: ReadonlyArray<StoredEvent>,
-): Push!! => {
-  const ref = {
-    aggregate: try Effect.orDie(Effect.try({ try: () => nameFor(aggregate), catch: (e) => e })),
-    id,
-  } as Aggregate.Ref
-  const state = try Effect.orDie(
-    Effect.try({ try: () => decodeState(kernel, aggregate, current.state), catch: (e) => e }),
-  )
-  if (subscription.mode === "watch") {
-    if (current.version <= subscription.cursor) {
-      return { messages: [], subscription, done: false }
-    }
-    return try encode(
-      aggregate,
-      subscription,
-      ref,
-      [{ state, value: Option.some({ state, cursor: current.version }) }],
-      current.version,
+export const aggregatePush =
+  (kernel: Kernel, aggregate: Aggregate.Any): infer _ =>
+  effect (
+    id: string,
+    subscription: Subscription,
+    current: { readonly state: Json; readonly version: number },
+    events: ReadonlyArray<StoredEvent>,
+  ): Push!! => {
+    const ref = {
+      aggregate: try Effect.orDie(Effect.try({ try: () => nameFor(aggregate), catch: (e) => e })),
+      id,
+    } as Aggregate.Ref
+    const state = try Effect.orDie(
+      Effect.try({ try: () => decodeState(kernel, aggregate, current.state), catch: (e) => e }),
     )
+    if (subscription.mode === "watch") {
+      if (current.version <= subscription.cursor) {
+        return { messages: [], subscription, done: false }
+      }
+      return try encode(
+        aggregate,
+        subscription,
+        ref,
+        [{ state, value: Option.some({ state, cursor: current.version }) }],
+        current.version,
+      )
+    }
+    const fresh = events.filter((stored) => stored.envelope.seq > subscription.cursor)
+    // Judged against the instance's state now, since events carry no state.
+    const items = fresh.map((stored): Item => ({
+      state,
+      value: Option.some({
+        event: kernel.decodeEvent(stored.event),
+        envelope: decodeEnvelope(stored.envelope),
+      }),
+    }))
+    const cursor = fresh.length > 0 ? fresh[fresh.length - 1]!.envelope.seq : subscription.cursor
+    const marked = markCaughtUp(subscription, items, cursor)
+    return try encode(aggregate, marked.subscription, ref, marked.items, cursor)
   }
-  const fresh = events.filter((stored) => stored.envelope.seq > subscription.cursor)
-  // Judged against the instance's state now, since events carry no state.
-  const items = fresh.map((stored): Item => ({
-    state,
-    value: Option.some({
-      event: kernel.decodeEvent(stored.event),
-      envelope: decodeEnvelope(stored.envelope),
-    }),
-  }))
-  const cursor = fresh.length > 0 ? fresh[fresh.length - 1]!.envelope.seq : subscription.cursor
-  const marked = markCaughtUp(subscription, items, cursor)
-  return try encode(aggregate, marked.subscription, ref, marked.items, cursor)
-}
 
 /** What a stream key's subscriber receives after an append (or when it connects). */
-export const streamPush = (kernel: Kernel, stream: DomainStream.Any): infer _ =>
-effect (
-  key: string,
-  subscription: Subscription,
-  meta: StreamMeta,
-  entries: ReadonlyArray<StreamEntry>,
-  latest: StreamEntry | undefined,
-): Push!! => {
-  const ref = try Effect.orDie(Effect.try({ try: () => refFor(stream.definition.key, key), catch: (e) => e }))
-  if (subscription.mode === "watch") {
-    if (meta.seq <= subscription.cursor) {
-      return { messages: [], subscription, done: false }
+export const streamPush =
+  (kernel: Kernel, stream: DomainStream.Any): infer _ =>
+  effect (
+    key: string,
+    subscription: Subscription,
+    meta: StreamMeta,
+    entries: ReadonlyArray<StreamEntry>,
+    latest: StreamEntry | undefined,
+  ): Push!! => {
+    const ref = try Effect.orDie(Effect.try({ try: () => refFor(stream.definition.key, key), catch: (e) => e }))
+    if (subscription.mode === "watch") {
+      if (meta.seq <= subscription.cursor) {
+        return { messages: [], subscription, done: false }
+      }
+      const decoded = latest
+        ? try Effect.orDie(Effect.try({ try: () => decodeLatest(kernel, latest), catch: (e) => e }))
+        : null
+      return try encode(
+        stream,
+        subscription,
+        ref,
+        [{ state: decoded, value: Option.some({ state: decoded, cursor: meta.seq }) }],
+        meta.seq,
+      )
     }
-    const decoded = latest
-      ? try Effect.orDie(Effect.try({ try: () => decodeLatest(kernel, latest), catch: (e) => e }))
-      : null
-    return try encode(
-      stream,
-      subscription,
-      ref,
-      [{ state: decoded, value: Option.some({ state: decoded, cursor: meta.seq }) }],
-      meta.seq,
-    )
+    const fresh = entries.filter((entry) => entry.seq > subscription.cursor)
+    // Each entry is judged as the key's latest entry at that point.
+    const items = fresh.map((stored): Item => {
+      const decoded = kernel.decodeStreamEntry(stored)
+      return {
+        state: decoded,
+        value: matches(where(subscription), decoded.event) ? Option.some(decoded) : Option.none(),
+      }
+    })
+    const cursor = fresh.length > 0 ? fresh[fresh.length - 1]!.seq : subscription.cursor
+    const marked = markCaughtUp(subscription, items, cursor)
+    return try encode(stream, marked.subscription, ref, marked.items, cursor)
   }
-  const fresh = entries.filter((entry) => entry.seq > subscription.cursor)
-  // Each entry is judged as the key's latest entry at that point.
-  const items = fresh.map((stored): Item => {
-    const decoded = kernel.decodeStreamEntry(stored)
-    return {
-      state: decoded,
-      value: matches(where(subscription), decoded.event) ? Option.some(decoded) : Option.none(),
-    }
-  })
-  const cursor = fresh.length > 0 ? fresh[fresh.length - 1]!.seq : subscription.cursor
-  const marked = markCaughtUp(subscription, items, cursor)
-  return try encode(stream, marked.subscription, ref, marked.items, cursor)
-}

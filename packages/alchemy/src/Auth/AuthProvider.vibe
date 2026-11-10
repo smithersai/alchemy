@@ -342,157 +342,158 @@ export interface AuthProvider<
   decodeConfig(profileName: string, config: unknown): Effect.Effect<Config, AuthError>
 }
 
-export const AuthProvider = <Config extends { method: string }, Credentials>() =>
-<R = never, ImplReq = never>(
-  name: string,
-  impl:
-    | AuthProviderImpl<Config, Credentials, R>
-    | Effect.Effect<AuthProviderImpl<Config, Credentials, R>, never, ImplReq>,
-) =>
-  effect {
-    // FileSystem/Path back the cross-process credentials lock that wraps
-    // `logout`/`read`/`details` below, so capture them with the impl's own services.
-    //
-    // `Effect.context()` snapshots the ENTIRE fiber context (the type
-    // parameter only narrows the type), and `Effect.provideContext` makes
-    // the provided side win — so an Interaction that happens to be
-    // ambient at REGISTRATION would silently shadow whatever the caller
-    // provides at call time, making the interactive methods' declared
-    // `Interaction` requirement a dead letter. Omit it from the snapshot:
-    // interactive flows resolve Interaction from the caller, exactly as
-    // their signatures promise (a scripted test Interaction, a
-    // browser-driven Alchemist login).
-    // SAFETY: the assertion restores the pre-omit type — tsc cannot reduce
-    // `Exclude<R, … Exclude<R, Interaction>>` over the generic R. It only
-    // over-promises Interaction, which every registered method signature
-    // re-declares as a requirement anyway, so no call site can rely on the
-    // capture satisfying it.
-    const ctx = Context.omit(Interaction)(
-      try Effect.context<FileSystem.FileSystem | Path.Path | R | ImplReq>(),
-    ) as Context.Context<FileSystem.FileSystem | Path.Path | R | ImplReq>
-    // `read` and `readEnvironment` resolve credentials for a caller that
-    // has already chosen its ConfigProvider (`resolveProviderConfig`
-    // checks `presentEnvironment` under it), so they read through that
-    // one, not the one ambient at REGISTRATION. The profile-command
-    // methods keep the snapshot: they run under the process environment,
-    // and `--env-file` reaches them only through it.
-    // SAFETY: as above, the assertion only restores the pre-omit type.
-    const resolveCtx = Context.omit(ConfigProvider.ConfigProvider)(ctx) as typeof ctx
-    const providers = try AuthProviders
-    const service = try (Effect.isEffect(impl) ? impl : Effect.succeed(impl))
-    // Validate the declared environment contract at registration so a
-    // malformed declaration fails at layer build (programmer error), not
-    // when a CI run tries to render it.
-    const environment = service.environment === undefined
-      ? []
-      : try Schema.decodeEffect(EnvironmentVariables)(service.environment).pipe(
-        Effect.orDie,
-      )
-    if (service.readEnvironment !== undefined && environment.length === 0) {
-      return try Effect.die(
-        `AuthProvider '${name}' implements readEnvironment but does not `
-          + "declare its `environment` variables. Declare every variable "
-          + "readEnvironment consumes so CI requirements are discoverable.",
-      )
-    }
-    if (
-      service.configureWith !== undefined
-      && (service.configureMethods === undefined || service.configureMethods.length === 0)
-    ) {
-      return try Effect.die(
-        `AuthProvider '${name}' implements configureWith but does not `
-          + "declare `configureMethods`. Declare each accepted --method and "
-          + "its --set fields so the CLI can validate and document them.",
-      )
-    }
+export const AuthProvider =
+  <Config extends { method: string }, Credentials>() =>
+  <R = never, ImplReq = never>(
+    name: string,
+    impl:
+      | AuthProviderImpl<Config, Credentials, R>
+      | Effect.Effect<AuthProviderImpl<Config, Credentials, R>, never, ImplReq>,
+  ) =>
+    effect {
+      // FileSystem/Path back the cross-process credentials lock that wraps
+      // `logout`/`read`/`details` below, so capture them with the impl's own services.
+      //
+      // `Effect.context()` snapshots the ENTIRE fiber context (the type
+      // parameter only narrows the type), and `Effect.provideContext` makes
+      // the provided side win — so an Interaction that happens to be
+      // ambient at REGISTRATION would silently shadow whatever the caller
+      // provides at call time, making the interactive methods' declared
+      // `Interaction` requirement a dead letter. Omit it from the snapshot:
+      // interactive flows resolve Interaction from the caller, exactly as
+      // their signatures promise (a scripted test Interaction, a
+      // browser-driven Alchemist login).
+      // SAFETY: the assertion restores the pre-omit type — tsc cannot reduce
+      // `Exclude<R, … Exclude<R, Interaction>>` over the generic R. It only
+      // over-promises Interaction, which every registered method signature
+      // re-declares as a requirement anyway, so no call site can rely on the
+      // capture satisfying it.
+      const ctx = Context.omit(Interaction)(
+        try Effect.context<FileSystem.FileSystem | Path.Path | R | ImplReq>(),
+      ) as Context.Context<FileSystem.FileSystem | Path.Path | R | ImplReq>
+      // `read` and `readEnvironment` resolve credentials for a caller that
+      // has already chosen its ConfigProvider (`resolveProviderConfig`
+      // checks `presentEnvironment` under it), so they read through that
+      // one, not the one ambient at REGISTRATION. The profile-command
+      // methods keep the snapshot: they run under the process environment,
+      // and `--env-file` reaches them only through it.
+      // SAFETY: as above, the assertion only restores the pre-omit type.
+      const resolveCtx = Context.omit(ConfigProvider.ConfigProvider)(ctx) as typeof ctx
+      const providers = try AuthProviders
+      const service = try (Effect.isEffect(impl) ? impl : Effect.succeed(impl))
+      // Validate the declared environment contract at registration so a
+      // malformed declaration fails at layer build (programmer error), not
+      // when a CI run tries to render it.
+      const environment = service.environment === undefined
+        ? []
+        : try Schema.decodeEffect(EnvironmentVariables)(service.environment).pipe(
+          Effect.orDie,
+        )
+      if (service.readEnvironment !== undefined && environment.length === 0) {
+        return try Effect.die(
+          `AuthProvider '${name}' implements readEnvironment but does not `
+            + "declare its `environment` variables. Declare every variable "
+            + "readEnvironment consumes so CI requirements are discoverable.",
+        )
+      }
+      if (
+        service.configureWith !== undefined
+        && (service.configureMethods === undefined || service.configureMethods.length === 0)
+      ) {
+        return try Effect.die(
+          `AuthProvider '${name}' implements configureWith but does not `
+            + "declare `configureMethods`. Declare each accepted --method and "
+            + "its --set fields so the CLI can validate and document them.",
+        )
+      }
 
-    // Auth and credentials are account-level: every method's logs go to
-    // the global run log, not the project's.
-    const provider: AuthProvider<Config, Credentials> = {
-      logEnvironmentCredentials: try cachedFunction(
-        (used: ReadonlyArray<string>) => Effect.logInfo(`${name}: using environment variables (${used.join(", ")}).`),
-        { key: ([used]) => JSON.stringify(used.toSorted()) },
-      ),
-      kind: "AuthProvider",
-      name,
-      // configure/login can wait minutes on a browser grant, so they hold
-      // only the process-level interactive mutex — never the per-profile
-      // credentials lock, which would starve every concurrent `read` (its
-      // waiters time out at ~120s). Providers whose login path performs a
-      // rotate-on-use silent refresh wrap that read-refresh-persist
-      // section (and only it) in `withProfileCredentialsLock` themselves;
-      // a post-browser persist is a benign whole-file swap where the last
-      // grant wins.
-      configure: (profileName, currentConfig) =>
-        Semaphore.withPermits(
-          interactiveMutex,
-          1,
-        )(
-          service
-            .configure(profileName, currentConfig)
-            .pipe(Effect.provideContext(ctx), globalLogs),
+      // Auth and credentials are account-level: every method's logs go to
+      // the global run log, not the project's.
+      const provider: AuthProvider<Config, Credentials> = {
+        logEnvironmentCredentials: try cachedFunction(
+          (used: ReadonlyArray<string>) => Effect.logInfo(`${name}: using environment variables (${used.join(", ")}).`),
+          { key: ([used]) => JSON.stringify(used.toSorted()) },
         ),
-      login: (profileName, config, updateConfig, reload) =>
-        Semaphore.withPermits(
-          interactiveMutex,
-          1,
-        )(
-          service
-            .login(profileName, config, updateConfig, reload)
-            .pipe(Effect.provideContext(ctx), globalLogs),
-        ),
-      logout: (profileName, config) =>
-        withProfileCredentialsLock(profileName, service.logout(profileName, config)).pipe(
-          Effect.provideContext(ctx),
+        kind: "AuthProvider",
+        name,
+        // configure/login can wait minutes on a browser grant, so they hold
+        // only the process-level interactive mutex — never the per-profile
+        // credentials lock, which would starve every concurrent `read` (its
+        // waiters time out at ~120s). Providers whose login path performs a
+        // rotate-on-use silent refresh wrap that read-refresh-persist
+        // section (and only it) in `withProfileCredentialsLock` themselves;
+        // a post-browser persist is a benign whole-file swap where the last
+        // grant wins.
+        configure: (profileName, currentConfig) =>
+          Semaphore.withPermits(
+            interactiveMutex,
+            1,
+          )(
+            service
+              .configure(profileName, currentConfig)
+              .pipe(Effect.provideContext(ctx), globalLogs),
+          ),
+        login: (profileName, config, updateConfig, reload) =>
+          Semaphore.withPermits(
+            interactiveMutex,
+            1,
+          )(
+            service
+              .login(profileName, config, updateConfig, reload)
+              .pipe(Effect.provideContext(ctx), globalLogs),
+          ),
+        logout: (profileName, config) =>
+          withProfileCredentialsLock(profileName, service.logout(profileName, config)).pipe(
+            Effect.provideContext(ctx),
+            globalLogs,
+          ),
+        details: (profileName, loadConfig, updateConfig) =>
+          withProfileCredentialsLock(
+            profileName,
+            Effect.flatMap(loadConfig, (config) => service.details(profileName, config, updateConfig)),
+          ).pipe(Effect.provideContext(ctx), globalLogs),
+        ...(service.configureWith === undefined
+          ? {}
+          : {
+            configureWith: (
+              profileName: string,
+              input: {
+                readonly method: string
+                readonly values: Record<string, string>
+              },
+            ) =>
+              service.configureWith!(profileName, input).pipe(
+                Effect.provideContext(ctx),
+                globalLogs,
+              ),
+            configureMethods: service.configureMethods,
+          }),
+        read: (profileName, loadConfig, updateConfig) =>
+          withProfileCredentialsLock(
+            profileName,
+            Effect.flatMap(loadConfig, (config) => service.read(profileName, config, updateConfig)),
+          ).pipe(Effect.provideContext(resolveCtx), globalLogs),
+        readEnvironment: service.readEnvironment?.pipe(
+          Effect.provideContext(resolveCtx),
           globalLogs,
         ),
-      details: (profileName, loadConfig, updateConfig) =>
-        withProfileCredentialsLock(
-          profileName,
-          Effect.flatMap(loadConfig, (config) => service.details(profileName, config, updateConfig)),
-        ).pipe(Effect.provideContext(ctx), globalLogs),
-      ...(service.configureWith === undefined
-        ? {}
-        : {
-          configureWith: (
-            profileName: string,
-            input: {
-              readonly method: string
-              readonly values: Record<string, string>
-            },
-          ) =>
-            service.configureWith!(profileName, input).pipe(
-              Effect.provideContext(ctx),
-              globalLogs,
+        environment,
+        configSchema: service.configSchema,
+        decodeConfig: (profileName, config) =>
+          Schema.decodeUnknownEffect(service.configSchema)(config).pipe(
+            Effect.mapError((cause) =>
+              AuthError.make({
+                message: `Stored ${name} configuration in profile '${profileName}' is not valid `
+                  + `for this version of alchemy. `
+                  + `${reconfigureHint(name, profileName)}`,
+                cause,
+              })
             ),
-          configureMethods: service.configureMethods,
-        }),
-      read: (profileName, loadConfig, updateConfig) =>
-        withProfileCredentialsLock(
-          profileName,
-          Effect.flatMap(loadConfig, (config) => service.read(profileName, config, updateConfig)),
-        ).pipe(Effect.provideContext(resolveCtx), globalLogs),
-      readEnvironment: service.readEnvironment?.pipe(
-        Effect.provideContext(resolveCtx),
-        globalLogs,
-      ),
-      environment,
-      configSchema: service.configSchema,
-      decodeConfig: (profileName, config) =>
-        Schema.decodeUnknownEffect(service.configSchema)(config).pipe(
-          Effect.mapError((cause) =>
-            AuthError.make({
-              message: `Stored ${name} configuration in profile '${profileName}' is not valid `
-                + `for this version of alchemy. `
-                + `${reconfigureHint(name, profileName)}`,
-              cause,
-            })
           ),
-        ),
-    }
+      }
 
-    providers[name] = provider
-  }
+      providers[name] = provider
+    }
 
 /**
  * Build a Layer that registers an AuthProvider into the {@link AuthProviders}
@@ -500,13 +501,14 @@ export const AuthProvider = <Config extends { method: string }, Credentials>() =
  * top-level `providers()` Layer so that the alchemy CLI can discover the
  * provider via the registry without forcing credential resolution.
  */
-export const AuthProviderLayer = <Config extends { method: string }, Credentials>() =>
-<R = never, ImplReq = never>(
-  name: string,
-  impl:
-    | AuthProviderImpl<Config, Credentials, R>
-    | Effect.Effect<AuthProviderImpl<Config, Credentials, R>, never, ImplReq>,
-) => Layer.effectDiscard(AuthProvider<Config, Credentials>()<R, ImplReq>(name, impl))
+export const AuthProviderLayer =
+  <Config extends { method: string }, Credentials>() =>
+  <R = never, ImplReq = never>(
+    name: string,
+    impl:
+      | AuthProviderImpl<Config, Credentials, R>
+      | Effect.Effect<AuthProviderImpl<Config, Credentials, R>, never, ImplReq>,
+  ) => Layer.effectDiscard(AuthProvider<Config, Credentials>()<R, ImplReq>(name, impl))
 
 /**
  * Look up a registered {@link AuthProvider} by name. Fails with

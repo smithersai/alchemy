@@ -742,718 +742,721 @@ const refClass_impl = (void trusted, (ref: Aggregate.Ref): unknown => Aggregate.
     return refClass_impl.apply(void 0, args)
   }
 
-const make = <
-  Name extends string,
-  Provided,
-  Policies,
-  LE = never,
-  LR = never,
-  Systems extends ExternalSystem.Any = never,
->(
-  domain: Model.ModelClass<Name, Provided, Policies>,
-  ...[options = {}]: [Policies] extends [never] ? [options?: StoryOptions<Policies, LE, LR, Systems>]
-    : [options: StoryOptions<Policies, LE, LR, Systems> & { readonly layer: unknown }]
-): infer _ =>
-<const S extends ReadonlyArray<Step>>(
-  ...steps: S & Checked<S>
-): void!(StoryFailure | LE)!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine> =>
-  effect {
-    const clockState = { now: Date.parse("2026-01-01T00:00:00.000Z") }
-    const platform = try Effect.orDie(
-      Effect.try({ try: () => makePlatform({ manual: true, now: (): number => clockState.now }), catch: (e) => e }),
-    )
-    const calls: Array<PendingCall> = []
-    const observed: Array<ObservedCall> = []
-    const stubbed = new Set((options.stub ?? []).map((system) => system.systemName))
-    const recorder: ExternalSystem.CallRecorder = {
-      record: effect (system, op, args, call) => {
-        const entry: ObservedCall = {
-          system,
-          op,
-          args,
-          exit: undefined,
-          done: try Deferred.make<void>(),
-          tag: undefined,
-          expected: false,
-        }
-        observed.push(entry)
-        return try Effect.onExit(call, effect (exit) => {
-          entry.exit = exit
-          try Deferred.succeed(entry.done, undefined)
-        })
-      },
-    }
-    const systemLayers = (options.stub ?? []).map((system) =>
-      Layer.effect(
-        system as Context.Key<unknown, unknown>,
-        Effect.map(
-          ExternalSystem.compileChecks(system.systemName, system.ops),
-          (checks) =>
-            ExternalSystem.observeOps(
-              system.systemName,
-              // The story's answers are checked like an adapter's.
-              ExternalSystem.validateOps(
-                checks,
-                Object.fromEntries(
-                  Object.keys(system.ops).map((op) => [
-                    op,
-                    effect (args: unknown) =>
-                      try platform.control.suspended(
-                        effect {
-                          const deferred = try Deferred.make<unknown, unknown>()
-                          calls.push({
-                            system: system.systemName,
-                            op,
-                            args,
-                            deferred,
-                            tag: undefined,
-                            expected: false,
-                          })
-                          return try Deferred.await(deferred)
-                        },
-                      ),
-                  ]),
-                ),
-              ),
-            ) as never,
-        ),
+const make =
+  <
+    Name extends string,
+    Provided,
+    Policies,
+    LE = never,
+    LR = never,
+    Systems extends ExternalSystem.Any = never,
+  >(
+    domain: Model.ModelClass<Name, Provided, Policies>,
+    ...[options = {}]: [Policies] extends [never] ? [options?: StoryOptions<Policies, LE, LR, Systems>]
+      : [options: StoryOptions<Policies, LE, LR, Systems> & { readonly layer: unknown }]
+  ): infer _ =>
+  <const S extends ReadonlyArray<Step>>(
+    ...steps: S & Checked<S>
+  ): void!(StoryFailure | LE)!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine> =>
+    effect {
+      const clockState = { now: Date.parse("2026-01-01T00:00:00.000Z") }
+      const platform = try Effect.orDie(
+        Effect.try({ try: () => makePlatform({ manual: true, now: (): number => clockState.now }), catch: (e) => e }),
       )
-    )
-    const systems = Layer.mergeAll(Layer.empty, ...systemLayers)
-    const policies = (
-      options.layer ?? (Layer.empty as unknown as Layer.Layer<Policies, LE, LR>)
-    ).pipe(Layer.provide(systems))
-    const hostedBy_impl = (void trusted, (layer: typeof policies): infer _ => domain.layer(layer)),
-      hostedBy: typeof hostedBy_impl = function(...args) {
-        return hostedBy_impl.apply(void 0, args)
-      }
-    const hosted = Layer.provide(
-      try Effect.orDie(Effect.try({ try: () => hostedBy(policies), catch: (e) => e })),
-      Layer.mergeAll(platform.layer, systems),
-    )
-
-    // The aggregates the story touched, for the report's "events so far".
-    const touched = new Map<string, Aggregate.Ref>()
-
-    const run = effect {
-      const internals = try Model.Internals
-      const cursors = new Map<string, number>()
-      // The step that committed each event, by `Aggregate/id#index`.
-      const committedAt = new Map<string, number>()
-      const attribute = effect (step: number) => {
-        for (const { aggregate, id, index } of platform.control.commits.slice(committedAt.size)) {
-          committedAt.set(`${aggregate}/${id}#${index}`, step)
-        }
-      }
-      let last:
-        | { readonly _tag: "Accepted"; readonly receipt: Aggregate.Receipt }
-        | { readonly _tag: "Rejected"; readonly rejection: { readonly _tag: string } }
-        | undefined
-      let unassertedRejection:
-        | { readonly step: number; readonly rejection: { readonly _tag: string } }
-        | undefined
-      let provided = Context.empty() as Context.Context<unknown>
-      const assertedDeaths = new Set<string>()
-
-      const storeOf = (ref: Aggregate.Ref): infer _ => internals.aggregates.get(ref.aggregate)!
-      const committed = effect (ref: Aggregate.Ref) => {
-        const store = storeOf(ref)
-        return store.events ? try store.events(ref.id as string) : []
-      }
-
-      const settle = effect (step: number) => {
-        for (let i = 0; i < 10_000; i++) {
-          // Real calls take real time: wait for them instead of spinning.
-          for (const call of observed) {
-            if (call.exit === undefined) try Deferred.await(call.done)
+      const calls: Array<PendingCall> = []
+      const observed: Array<ObservedCall> = []
+      const stubbed = new Set((options.stub ?? []).map((system) => system.systemName))
+      const recorder: ExternalSystem.CallRecorder = {
+        record: effect (system, op, args, call) => {
+          const entry: ObservedCall = {
+            system,
+            op,
+            args,
+            exit: undefined,
+            done: try Deferred.make<void>(),
+            tag: undefined,
+            expected: false,
           }
-          try platform.control.drain
-          try Effect.yieldNow
-          if (try platform.control.idle) {
-            try Effect.yieldNow
+          observed.push(entry)
+          return try Effect.onExit(call, effect (exit) => {
+            entry.exit = exit
+            try Deferred.succeed(entry.done, undefined)
+          })
+        },
+      }
+      const systemLayers = (options.stub ?? []).map((system) =>
+        Layer.effect(
+          system as Context.Key<unknown, unknown>,
+          Effect.map(
+            ExternalSystem.compileChecks(system.systemName, system.ops),
+            (checks) =>
+              ExternalSystem.observeOps(
+                system.systemName,
+                // The story's answers are checked like an adapter's.
+                ExternalSystem.validateOps(
+                  checks,
+                  Object.fromEntries(
+                    Object.keys(system.ops).map((op) => [
+                      op,
+                      effect (args: unknown) =>
+                        try platform.control.suspended(
+                          effect {
+                            const deferred = try Deferred.make<unknown, unknown>()
+                            calls.push({
+                              system: system.systemName,
+                              op,
+                              args,
+                              deferred,
+                              tag: undefined,
+                              expected: false,
+                            })
+                            return try Deferred.await(deferred)
+                          },
+                        ),
+                    ]),
+                  ),
+                ),
+              ) as never,
+          ),
+        )
+      )
+      const systems = Layer.mergeAll(Layer.empty, ...systemLayers)
+      const policies = (
+        options.layer ?? (Layer.empty as unknown as Layer.Layer<Policies, LE, LR>)
+      ).pipe(Layer.provide(systems))
+      const hostedBy_impl = (void trusted, (layer: typeof policies): infer _ => domain.layer(layer)),
+        hostedBy: typeof hostedBy_impl = function(...args) {
+          return hostedBy_impl.apply(void 0, args)
+        }
+      const hosted = Layer.provide(
+        try Effect.orDie(Effect.try({ try: () => hostedBy(policies), catch: (e) => e })),
+        Layer.mergeAll(platform.layer, systems),
+      )
+
+      // The aggregates the story touched, for the report's "events so far".
+      const touched = new Map<string, Aggregate.Ref>()
+
+      const run = effect {
+        const internals = try Model.Internals
+        const cursors = new Map<string, number>()
+        // The step that committed each event, by `Aggregate/id#index`.
+        const committedAt = new Map<string, number>()
+        const attribute = effect (step: number) => {
+          for (const { aggregate, id, index } of platform.control.commits.slice(committedAt.size)) {
+            committedAt.set(`${aggregate}/${id}#${index}`, step)
+          }
+        }
+        let last:
+          | { readonly _tag: "Accepted"; readonly receipt: Aggregate.Receipt }
+          | { readonly _tag: "Rejected"; readonly rejection: { readonly _tag: string } }
+          | undefined
+        let unassertedRejection:
+          | { readonly step: number; readonly rejection: { readonly _tag: string } }
+          | undefined
+        let provided = Context.empty() as Context.Context<unknown>
+        const assertedDeaths = new Set<string>()
+
+        const storeOf = (ref: Aggregate.Ref): infer _ => internals.aggregates.get(ref.aggregate)!
+        const committed = effect (ref: Aggregate.Ref) => {
+          const store = storeOf(ref)
+          return store.events ? try store.events(ref.id as string) : []
+        }
+
+        const settle = effect (step: number) => {
+          for (let i = 0; i < 10_000; i++) {
+            // Real calls take real time: wait for them instead of spinning.
+            for (const call of observed) {
+              if (call.exit === undefined) try Deferred.await(call.done)
+            }
             try platform.control.drain
+            try Effect.yieldNow
             if (try platform.control.idle) {
-              if (platform.control.failures.length > 0) {
-                throw new StepFailed({
-                  step,
-                  message: `a policy or projection failed: ${String(platform.control.failures[0])}`,
+              try Effect.yieldNow
+              try platform.control.drain
+              if (try platform.control.idle) {
+                if (platform.control.failures.length > 0) {
+                  throw new StepFailed({
+                    step,
+                    message: `a policy or projection failed: ${String(platform.control.failures[0])}`,
+                  })
+                }
+                return
+              }
+            }
+          }
+          throw new StepFailed({
+            step,
+            message: "the domain did not settle (a policy or projection is looping?)",
+          })
+        }
+
+        const rejectionNotAsserted = (rejected: NonNullable<typeof unassertedRejection>): infer _ =>
+          new StepFailed({
+            step: rejected.step,
+            message: `the command was rejected with ${rejected.rejection._tag}, which no step asserts`,
+            detail: `rejected ${summarize(rejected.rejection)}`,
+          })
+
+        for (const [index, s] of steps.entries()) {
+          const step = index + 1
+          try attribute(index)
+          const fail = (
+            message: string,
+            compared?: {
+              readonly expected: string
+              readonly actual: string
+              readonly label?: string
+            },
+          ): infer _ => new StepFailed({ step, message: `${s._tag}: ${message}`, ...compared })
+          if (unassertedRejection && s._tag !== "Rejected") {
+            throw rejectionNotAsserted(unassertedRejection)
+          }
+          if ("ref" in s) touched.set(refName(s.ref), s.ref)
+          switch (s._tag) {
+            case "Clock": {
+              const at = clockMillis(s.at)
+              if (Number.isNaN(at)) throw fail(`${String(s.at)} is not a time`)
+              // Once a step has run at the current time, the clock only moves forward.
+              const started = steps.slice(0, index).some((earlier) => earlier._tag !== "Provide")
+              if (started && at < clockState.now) {
+                const now = new Date(clockState.now).toISOString()
+                throw fail(
+                  `the clock cannot move back, from ${now} to ${new Date(at).toISOString()}`,
+                  { expected: `${now} or later`, actual: new Date(at).toISOString() },
+                )
+              }
+              clockState.now = at
+              // Scheduled commands that are now due fire, and their policies run.
+              try settle(step)
+              break
+            }
+            case "Advance": {
+              const by = advanceDuration(s.by)
+              if (by === undefined) {
+                throw fail(`${showDurationInput(s.by)} is not a duration`)
+              }
+              if (Duration.isNegative(by)) {
+                throw fail(`the clock only moves forward, not by ${Duration.format(by)}`)
+              }
+              clockState.now += Duration.toMillis(by)
+              try settle(step)
+              break
+            }
+            case "Provide": {
+              provided = Context.add(provided, s.service, s.value)
+              break
+            }
+            case "Given": {
+              const store = storeOf(s.ref)
+              if (!store.seed) throw fail("the platform cannot seed events")
+              try store.seed(
+                s.ref.id as string,
+                s.events.map((e) => internals.kernel.encodeEvent(e)),
+              )
+              cursors.set(`${s.ref.aggregate}/${s.ref.id}`, (try committed(s.ref)).length)
+              try settle(step)
+              break
+            }
+            case "When": {
+              const client = try ((try Effect.orDie(Effect.try({
+                try: () => refClass(s.ref),
+                catch: (e) => e,
+              }))) as unknown as Context.Key<
+                never,
+                Aggregate.ClientImpl
+              >)
+              const sent = effect () => {
+                provide provided {
+                  return try client.send(s.ref, s.command, { commandId: s.commandId ?? `story:${step}` })
+                }
+              }
+              const result = try Effect.result(sent())
+              if (result._tag === "Success") {
+                last = { _tag: "Accepted", receipt: result.success }
+              } else {
+                last = { _tag: "Rejected", rejection: result.failure as { readonly _tag: string } }
+                unassertedRejection = { step, rejection: last.rejection }
+              }
+              try settle(step)
+              break
+            }
+            case "Then": {
+              const stream = `${s.ref.aggregate}/${s.ref.id}`
+              const events = try committed(s.ref)
+              const from = cursors.get(stream) ?? 0
+              const actual = try Effect.orDie(Effect.try({
+                try: () =>
+                  events
+                    .slice(from, from + Math.max(s.events.length, 1))
+                    .map((e) => e.event),
+                catch: (e) => e,
+              }))
+              const expected = s.events.map(encodeInstance)
+              // Decoded, so redacted fields stay redacted in the message.
+              const got = try Effect.orDie(
+                Effect.try({
+                  try: () => events.slice(from).map((e) => internals.kernel.decodeEvent(e.event)),
+                  catch: (e) => e,
+                }),
+              )
+              const compared = {
+                label: stream,
+                expected: summarizeAll(s.events),
+                actual: summarizeAll(got),
+              }
+              if (s.events.length === 0) {
+                if (events.length > from) {
+                  throw fail(
+                    `expected no new events on ${stream}, got ${show(got)}`,
+                    compared,
+                  )
+                }
+                break
+              }
+              if (
+                !equal(
+                  try Effect.orDie(Effect.try({ try: () => actual.slice(0, expected.length), catch: (e) => e })),
+                  expected,
+                )
+              ) {
+                throw fail(
+                  `on ${stream}\n  expected ${show(s.events)}\n  actual   ${show(got)}`,
+                  compared,
+                )
+              }
+              cursors.set(stream, from + expected.length)
+              break
+            }
+            case "Rejected": {
+              if (last?._tag !== "Rejected") {
+                throw fail(
+                  `expected a rejection, the command was ${last ? "accepted" : "never sent"}`,
+                  {
+                    expected: summarize(s.rejection),
+                    actual: last ? `accepted ${summarize(last.receipt.reply)}` : "never sent",
+                  },
+                )
+              }
+              const expected = encodeInstance(s.rejection)
+              const actual = encodeInstance(last.rejection)
+              if (!equal(expected, actual)) {
+                throw fail(`expected ${show(s.rejection)}, got ${show(last.rejection)}`, {
+                  expected: summarize(s.rejection),
+                  actual: summarize(last.rejection),
                 })
               }
-              return
+              unassertedRejection = undefined
+              break
             }
-          }
-        }
-        throw new StepFailed({
-          step,
-          message: "the domain did not settle (a policy or projection is looping?)",
-        })
-      }
-
-      const rejectionNotAsserted = (rejected: NonNullable<typeof unassertedRejection>): infer _ =>
-        new StepFailed({
-          step: rejected.step,
-          message: `the command was rejected with ${rejected.rejection._tag}, which no step asserts`,
-          detail: `rejected ${summarize(rejected.rejection)}`,
-        })
-
-      for (const [index, s] of steps.entries()) {
-        const step = index + 1
-        try attribute(index)
-        const fail = (
-          message: string,
-          compared?: {
-            readonly expected: string
-            readonly actual: string
-            readonly label?: string
-          },
-        ): infer _ => new StepFailed({ step, message: `${s._tag}: ${message}`, ...compared })
-        if (unassertedRejection && s._tag !== "Rejected") {
-          throw rejectionNotAsserted(unassertedRejection)
-        }
-        if ("ref" in s) touched.set(refName(s.ref), s.ref)
-        switch (s._tag) {
-          case "Clock": {
-            const at = clockMillis(s.at)
-            if (Number.isNaN(at)) throw fail(`${String(s.at)} is not a time`)
-            // Once a step has run at the current time, the clock only moves forward.
-            const started = steps.slice(0, index).some((earlier) => earlier._tag !== "Provide")
-            if (started && at < clockState.now) {
-              const now = new Date(clockState.now).toISOString()
-              throw fail(
-                `the clock cannot move back, from ${now} to ${new Date(at).toISOString()}`,
-                { expected: `${now} or later`, actual: new Date(at).toISOString() },
-              )
-            }
-            clockState.now = at
-            // Scheduled commands that are now due fire, and their policies run.
-            try settle(step)
-            break
-          }
-          case "Advance": {
-            const by = advanceDuration(s.by)
-            if (by === undefined) {
-              throw fail(`${showDurationInput(s.by)} is not a duration`)
-            }
-            if (Duration.isNegative(by)) {
-              throw fail(`the clock only moves forward, not by ${Duration.format(by)}`)
-            }
-            clockState.now += Duration.toMillis(by)
-            try settle(step)
-            break
-          }
-          case "Provide": {
-            provided = Context.add(provided, s.service, s.value)
-            break
-          }
-          case "Given": {
-            const store = storeOf(s.ref)
-            if (!store.seed) throw fail("the platform cannot seed events")
-            try store.seed(
-              s.ref.id as string,
-              s.events.map((e) => internals.kernel.encodeEvent(e)),
-            )
-            cursors.set(`${s.ref.aggregate}/${s.ref.id}`, (try committed(s.ref)).length)
-            try settle(step)
-            break
-          }
-          case "When": {
-            const client = try ((try Effect.orDie(Effect.try({
-              try: () => refClass(s.ref),
-              catch: (e) => e,
-            }))) as unknown as Context.Key<
-              never,
-              Aggregate.ClientImpl
-            >)
-            const sent = effect () => {
-              provide provided {
-                return try client.send(s.ref, s.command, { commandId: s.commandId ?? `story:${step}` })
+            case "Replied": {
+              if (last?._tag !== "Accepted") {
+                throw fail("the last command was not accepted")
               }
+              if (!equal(last.receipt.reply, s.reply)) {
+                throw fail(`expected ${show(s.reply)}, got ${show(last.receipt.reply)}`, {
+                  expected: summarize(s.reply),
+                  actual: summarize(last.receipt.reply),
+                })
+              }
+              break
             }
-            const result = try Effect.result(sent())
-            if (result._tag === "Success") {
-              last = { _tag: "Accepted", receipt: result.success }
-            } else {
-              last = { _tag: "Rejected", rejection: result.failure as { readonly _tag: string } }
-              unassertedRejection = { step, rejection: last.rejection }
-            }
-            try settle(step)
-            break
-          }
-          case "Then": {
-            const stream = `${s.ref.aggregate}/${s.ref.id}`
-            const events = try committed(s.ref)
-            const from = cursors.get(stream) ?? 0
-            const actual = try Effect.orDie(Effect.try({
-              try: () =>
-                events
-                  .slice(from, from + Math.max(s.events.length, 1))
-                  .map((e) => e.event),
-              catch: (e) => e,
-            }))
-            const expected = s.events.map(encodeInstance)
-            // Decoded, so redacted fields stay redacted in the message.
-            const got = try Effect.orDie(
-              Effect.try({
-                try: () => events.slice(from).map((e) => internals.kernel.decodeEvent(e.event)),
+            case "State": {
+              const client = try ((try Effect.orDie(Effect.try({
+                try: () => refClass(s.ref),
                 catch: (e) => e,
-              }),
-            )
-            const compared = {
-              label: stream,
-              expected: summarizeAll(s.events),
-              actual: summarizeAll(got),
-            }
-            if (s.events.length === 0) {
-              if (events.length > from) {
+              }))) as unknown as Context.Key<
+                never,
+                Aggregate.ClientImpl
+              >)
+              const current = try client.state(s.ref)
+              if (typeof s.expected === "function") {
+                const assert = s.expected as (state: unknown) => void
+                try Effect.try({ try: () => assert(current), catch: (e) => fail(String(e)) })
+              } else if (!partial(s.expected, current)) {
+                const label = refName(s.ref)
                 throw fail(
-                  `expected no new events on ${stream}, got ${show(got)}`,
-                  compared,
+                  `${label}\n  expected ${show(s.expected)}\n  actual   ${show(current)}`,
+                  { label, expected: summarize(s.expected), actual: summarize(current) },
                 )
               }
               break
             }
-            if (
-              !equal(
-                try Effect.orDie(Effect.try({ try: () => actual.slice(0, expected.length), catch: (e) => e })),
-                expected,
+            case "View": {
+              const host = try (s.view as unknown as Context.Key<
+                never,
+                View.Host<unknown, Key.Any, unknown>
+              >)
+              const current = try Effect.orDie(
+                try Effect.orDie(Effect.try({ try: () => host.query(s.key), catch: (e) => e })),
               )
-            ) {
-              throw fail(
-                `on ${stream}\n  expected ${show(s.events)}\n  actual   ${show(got)}`,
-                compared,
-              )
-            }
-            cursors.set(stream, from + expected.length)
-            break
-          }
-          case "Rejected": {
-            if (last?._tag !== "Rejected") {
-              throw fail(
-                `expected a rejection, the command was ${last ? "accepted" : "never sent"}`,
-                {
-                  expected: summarize(s.rejection),
-                  actual: last ? `accepted ${summarize(last.receipt.reply)}` : "never sent",
-                },
-              )
-            }
-            const expected = encodeInstance(s.rejection)
-            const actual = encodeInstance(last.rejection)
-            if (!equal(expected, actual)) {
-              throw fail(`expected ${show(s.rejection)}, got ${show(last.rejection)}`, {
-                expected: summarize(s.rejection),
-                actual: summarize(last.rejection),
-              })
-            }
-            unassertedRejection = undefined
-            break
-          }
-          case "Replied": {
-            if (last?._tag !== "Accepted") {
-              throw fail("the last command was not accepted")
-            }
-            if (!equal(last.receipt.reply, s.reply)) {
-              throw fail(`expected ${show(s.reply)}, got ${show(last.receipt.reply)}`, {
-                expected: summarize(s.reply),
-                actual: summarize(last.receipt.reply),
-              })
-            }
-            break
-          }
-          case "State": {
-            const client = try ((try Effect.orDie(Effect.try({
-              try: () => refClass(s.ref),
-              catch: (e) => e,
-            }))) as unknown as Context.Key<
-              never,
-              Aggregate.ClientImpl
-            >)
-            const current = try client.state(s.ref)
-            if (typeof s.expected === "function") {
-              const assert = s.expected as (state: unknown) => void
-              try Effect.try({ try: () => assert(current), catch: (e) => fail(String(e)) })
-            } else if (!partial(s.expected, current)) {
-              const label = refName(s.ref)
-              throw fail(
-                `${label}\n  expected ${show(s.expected)}\n  actual   ${show(current)}`,
-                { label, expected: summarize(s.expected), actual: summarize(current) },
-              )
-            }
-            break
-          }
-          case "View": {
-            const host = try (s.view as unknown as Context.Key<
-              never,
-              View.Host<unknown, Key.Any, unknown>
-            >)
-            const current = try Effect.orDie(
-              try Effect.orDie(Effect.try({ try: () => host.query(s.key), catch: (e) => e })),
-            )
-            if (s.expected === none) {
-              if (Option.isSome(current)) {
+              if (s.expected === none) {
+                if (Option.isSome(current)) {
+                  throw fail(
+                    `expected ${s.view.viewName}(${Aggregate.targetId(s.key)}) to not exist, got ${
+                      show(current.value)
+                    }`,
+                    {
+                      label: `${s.view.viewName}(${Aggregate.targetId(s.key)})`,
+                      expected: "none",
+                      actual: summarize(current.value),
+                    },
+                  )
+                }
+                break
+              }
+              const viewLabel = `${s.view.viewName}(${Aggregate.targetId(s.key)})`
+              if (Option.isNone(current)) {
+                throw fail(`${viewLabel} does not exist`, {
+                  label: viewLabel,
+                  expected: typeof s.expected === "function" ? "a state" : summarize(s.expected),
+                  actual: "none",
+                })
+              }
+              if (typeof s.expected === "function") {
+                const assert = s.expected as (state: unknown) => void
+                try Effect.try({
+                  try: () => assert(current.value),
+                  catch: (e) => fail(String(e)),
+                })
+              } else if (!partial(s.expected, current.value)) {
                 throw fail(
-                  `expected ${s.view.viewName}(${Aggregate.targetId(s.key)}) to not exist, got ${show(current.value)}`,
+                  `${viewLabel}\n  expected ${show(s.expected)}\n  actual   ${show(current.value)}`,
                   {
-                    label: `${s.view.viewName}(${Aggregate.targetId(s.key)})`,
-                    expected: "none",
+                    label: viewLabel,
+                    expected: summarize(s.expected),
                     actual: summarize(current.value),
                   },
                 )
               }
               break
             }
-            const viewLabel = `${s.view.viewName}(${Aggregate.targetId(s.key)})`
-            if (Option.isNone(current)) {
-              throw fail(`${viewLabel} does not exist`, {
-                label: viewLabel,
-                expected: typeof s.expected === "function" ? "a state" : summarize(s.expected),
-                actual: "none",
-              })
+            case "Emitted": {
+              const host = try (s.view as unknown as Context.Key<
+                never,
+                View.Host<unknown, Key.Any, unknown>
+              >)
+              const { entries } = try host.list(s.key)
+              if (typeof s.expected === "function") {
+                const assert = s.expected as (entries: ReadonlyArray<unknown>) => void
+                try Effect.try({ try: () => assert(entries), catch: (e) => fail(String(e)) })
+              } else {
+                const expected = s.expected as ReadonlyArray<unknown>
+                const events = try Effect.orDie(
+                  Effect.try({ try: () => entries.map((entry) => entry.event), catch: (e) => e }),
+                )
+                const ok = expected.length === events.length
+                  && expected.every((e, i) => partial(e, events[i]))
+                if (!ok) {
+                  throw fail(
+                    `${s.view.viewName}(${Aggregate.targetId(s.key)})\n  expected ${show(expected)}\n  actual   ${
+                      show(events)
+                    }`,
+                  )
+                }
+              }
+              break
             }
-            if (typeof s.expected === "function") {
-              const assert = s.expected as (state: unknown) => void
-              try Effect.try({
-                try: () => assert(current.value),
-                catch: (e) => fail(String(e)),
-              })
-            } else if (!partial(s.expected, current.value)) {
-              throw fail(
-                `${viewLabel}\n  expected ${show(s.expected)}\n  actual   ${show(current.value)}`,
-                {
-                  label: viewLabel,
-                  expected: summarize(s.expected),
-                  actual: summarize(current.value),
-                },
+            case "Streamed": {
+              const store = (try Effect.orDie(Effect.try({
+                try: () => internals.streams.get(s.stream.streamName),
+                catch: (e) => e,
+              })))!
+              const key = Aggregate.targetId(s.key)
+              const id = `${s.stream.streamName}/${key}`
+              const entries = try store.list(key)
+              const from = cursors.get(id) ?? 0
+              const actual = try Effect.orDie(
+                Effect.try({ try: () => entries.slice(from).map((e) => e.event), catch: (e) => e }),
               )
-            }
-            break
-          }
-          case "Emitted": {
-            const host = try (s.view as unknown as Context.Key<
-              never,
-              View.Host<unknown, Key.Any, unknown>
-            >)
-            const { entries } = try host.list(s.key)
-            if (typeof s.expected === "function") {
-              const assert = s.expected as (entries: ReadonlyArray<unknown>) => void
-              try Effect.try({ try: () => assert(entries), catch: (e) => fail(String(e)) })
-            } else {
-              const expected = s.expected as ReadonlyArray<unknown>
-              const events = try Effect.orDie(
-                Effect.try({ try: () => entries.map((entry) => entry.event), catch: (e) => e }),
-              )
-              const ok = expected.length === events.length
-                && expected.every((e, i) => partial(e, events[i]))
-              if (!ok) {
+              const expected = s.events.map(encodeInstance)
+              if (s.events.length === 0) {
+                if (actual.length > 0) {
+                  throw fail(`expected nothing new on ${id}, got ${show(actual)}`)
+                }
+                break
+              }
+              if (
+                !equal(
+                  try Effect.orDie(Effect.try({ try: () => actual.slice(0, expected.length), catch: (e) => e })),
+                  expected,
+                )
+              ) {
                 throw fail(
-                  `${s.view.viewName}(${Aggregate.targetId(s.key)})\n  expected ${show(expected)}\n  actual   ${
-                    show(events)
+                  `on ${id}\n  expected ${show(expected)}\n  actual   ${show(actual)}`,
+                )
+              }
+              cursors.set(id, from + expected.length)
+              break
+            }
+            case "Call": {
+              const name = `${s.op.system}.${s.op.op}`
+              if (s.tag !== undefined && observed.some((c) => c.tag === s.tag)) {
+                throw fail(`"${s.tag}" already names a call`)
+              }
+              if (!stubbed.has(s.op.system)) {
+                const made = observed.filter((c) => c.system === s.op.system && c.op === s.op.op)
+                // Each real call is matched once, in the order calls were made.
+                const match = made.find((c) => !c.expected && partial(s.args, c.args))
+                if (!match) {
+                  throw fail(
+                    `no unmatched call to ${name} matches ${show(s.args)}; made: ${show(made.map((c) => c.args))}`,
+                  )
+                }
+                match.expected = true
+                match.tag = s.tag
+                break
+              }
+              const pending = calls.filter((c) => c.system === s.op.system && c.op === s.op.op)
+              // Calls are kept in the order they were made: each is matched once, earliest first.
+              const match = pending.find((c) => !c.expected && partial(s.args, c.args))
+              if (!match) {
+                throw fail(
+                  `no unmatched pending call to ${name} matches ${show(s.args)}; pending: ${
+                    show(pending.map((c) => c.args))
                   }`,
                 )
               }
-            }
-            break
-          }
-          case "Streamed": {
-            const store = (try Effect.orDie(Effect.try({
-              try: () => internals.streams.get(s.stream.streamName),
-              catch: (e) => e,
-            })))!
-            const key = Aggregate.targetId(s.key)
-            const id = `${s.stream.streamName}/${key}`
-            const entries = try store.list(key)
-            const from = cursors.get(id) ?? 0
-            const actual = try Effect.orDie(
-              Effect.try({ try: () => entries.slice(from).map((e) => e.event), catch: (e) => e }),
-            )
-            const expected = s.events.map(encodeInstance)
-            if (s.events.length === 0) {
-              if (actual.length > 0) {
-                throw fail(`expected nothing new on ${id}, got ${show(actual)}`)
-              }
-              break
-            }
-            if (
-              !equal(
-                try Effect.orDie(Effect.try({ try: () => actual.slice(0, expected.length), catch: (e) => e })),
-                expected,
-              )
-            ) {
-              throw fail(
-                `on ${id}\n  expected ${show(expected)}\n  actual   ${show(actual)}`,
-              )
-            }
-            cursors.set(id, from + expected.length)
-            break
-          }
-          case "Call": {
-            const name = `${s.op.system}.${s.op.op}`
-            if (s.tag !== undefined && observed.some((c) => c.tag === s.tag)) {
-              throw fail(`"${s.tag}" already names a call`)
-            }
-            if (!stubbed.has(s.op.system)) {
-              const made = observed.filter((c) => c.system === s.op.system && c.op === s.op.op)
-              // Each real call is matched once, in the order calls were made.
-              const match = made.find((c) => !c.expected && partial(s.args, c.args))
-              if (!match) {
-                throw fail(
-                  `no unmatched call to ${name} matches ${show(s.args)}; made: ${show(made.map((c) => c.args))}`,
-                )
+              if (s.tag !== undefined) {
+                if (calls.some((c) => c.tag === s.tag)) {
+                  throw fail(`"${s.tag}" already names a pending call`)
+                }
+                match.tag = s.tag
               }
               match.expected = true
-              match.tag = s.tag
               break
             }
-            const pending = calls.filter((c) => c.system === s.op.system && c.op === s.op.op)
-            // Calls are kept in the order they were made: each is matched once, earliest first.
-            const match = pending.find((c) => !c.expected && partial(s.args, c.args))
-            if (!match) {
-              throw fail(
-                `no unmatched pending call to ${name} matches ${show(s.args)}; pending: ${
-                  show(pending.map((c) => c.args))
-                }`,
-              )
+            case "Signal": {
+              const client = try (s.saga as unknown as Context.Key<
+                never,
+                Saga.Client<unknown, unknown, unknown, unknown>
+              >)
+              try client.get(s.key).signal(s.deferred as never, s.value)
+              try settle(step)
+              break
             }
-            if (s.tag !== undefined) {
-              if (calls.some((c) => c.tag === s.tag)) {
-                throw fail(`"${s.tag}" already names a pending call`)
-              }
-              match.tag = s.tag
-            }
-            match.expected = true
-            break
-          }
-          case "Signal": {
-            const client = try (s.saga as unknown as Context.Key<
-              never,
-              Saga.Client<unknown, unknown, unknown, unknown>
-            >)
-            try client.get(s.key).signal(s.deferred as never, s.value)
-            try settle(step)
-            break
-          }
-          case "Saga": {
-            const client = try (s.saga as unknown as Context.Key<
-              never,
-              Saga.Client<unknown, unknown, unknown, unknown>
-            >)
-            const run = try Effect.orDie(Effect.try({ try: () => client.get(s.key), catch: (e) => e }))
-            const actual = try run.status
-            // `{ _tag: "Died" }` matches any defect.
-            const compared = actual._tag === "Died" && !("defect" in s.expected)
-              ? { _tag: "Died" as const }
-              : actual
-            if (!equal(statusJson(compared), statusJson(s.expected))) {
-              throw fail(
-                `${s.saga.sagaName}\n  expected ${show(statusJson(s.expected))}\n  actual   ${
-                  show(statusJson(actual))
-                }`,
-              )
-            }
-            if (actual._tag === "Died") {
-              assertedDeaths.add(`${s.saga.sagaName}/${run.executionId}`)
-            }
-            break
-          }
-          case "Answer": {
-            const name = `${s.op.system}.${s.op.op}`
-            if (!stubbed.has(s.op.system)) {
-              throw fail(
-                `${s.op.system} is not stubbed, so its calls run for real; assert how one ended with returned, failed or died`,
-              )
-            }
-            let call: PendingCall | undefined
-            if (s.tag !== undefined) {
-              call = calls.find((c) => c.tag === s.tag)
-              if (!call) {
-                const tags = calls.flatMap((c) => (c.tag === undefined ? [] : [`"${c.tag}"`]))
+            case "Saga": {
+              const client = try (s.saga as unknown as Context.Key<
+                never,
+                Saga.Client<unknown, unknown, unknown, unknown>
+              >)
+              const run = try Effect.orDie(Effect.try({ try: () => client.get(s.key), catch: (e) => e }))
+              const actual = try run.status
+              // `{ _tag: "Died" }` matches any defect.
+              const compared = actual._tag === "Died" && !("defect" in s.expected)
+                ? { _tag: "Died" as const }
+                : actual
+              if (!equal(statusJson(compared), statusJson(s.expected))) {
                 throw fail(
-                  `no pending call is named "${s.tag}"; named: ${tags.length > 0 ? tags.join(", ") : "none"}`,
+                  `${s.saga.sagaName}\n  expected ${show(statusJson(s.expected))}\n  actual   ${
+                    show(statusJson(actual))
+                  }`,
                 )
               }
-              if (call.system !== s.op.system || call.op !== s.op.op) {
+              if (actual._tag === "Died") {
+                assertedDeaths.add(`${s.saga.sagaName}/${run.executionId}`)
+              }
+              break
+            }
+            case "Answer": {
+              const name = `${s.op.system}.${s.op.op}`
+              if (!stubbed.has(s.op.system)) {
                 throw fail(
-                  `"${s.tag}" names a call to ${call.system}.${call.op}, not ${name}`,
+                  `${s.op.system} is not stubbed, so its calls run for real; assert how one ended with returned, failed or died`,
                 )
               }
-            } else {
-              const pending = calls.filter((c) => c.system === s.op.system && c.op === s.op.op)
-              if (pending.length === 0) throw fail(`no pending call to ${name}`)
-              if (pending.length > 1) {
+              let call: PendingCall | undefined
+              if (s.tag !== undefined) {
+                call = calls.find((c) => c.tag === s.tag)
+                if (!call) {
+                  const tags = calls.flatMap((c) => (c.tag === undefined ? [] : [`"${c.tag}"`]))
+                  throw fail(
+                    `no pending call is named "${s.tag}"; named: ${tags.length > 0 ? tags.join(", ") : "none"}`,
+                  )
+                }
+                if (call.system !== s.op.system || call.op !== s.op.op) {
+                  throw fail(
+                    `"${s.tag}" names a call to ${call.system}.${call.op}, not ${name}`,
+                  )
+                }
+              } else {
+                const pending = calls.filter((c) => c.system === s.op.system && c.op === s.op.op)
+                if (pending.length === 0) throw fail(`no pending call to ${name}`)
+                if (pending.length > 1) {
+                  throw fail(
+                    `${pending.length} pending calls to ${name}; name each with call("<tag>", ...) and answer it by tag`,
+                  )
+                }
+                call = pending[0]
+              }
+              if (!call!.expected) {
                 throw fail(
-                  `${pending.length} pending calls to ${name}; name each with call("<tag>", ...) and answer it by tag`,
+                  `${name}(${show(call!.args)}) is answered before a call step checks its arguments`,
                 )
               }
-              call = pending[0]
+              calls.splice(calls.indexOf(call!), 1)
+              try Deferred.done(call!.deferred, s.exit)
+              try settle(step)
+              break
             }
-            if (!call!.expected) {
-              throw fail(
-                `${name}(${show(call!.args)}) is answered before a call step checks its arguments`,
-              )
-            }
-            calls.splice(calls.indexOf(call!), 1)
-            try Deferred.done(call!.deferred, s.exit)
-            try settle(step)
-            break
-          }
-          case "Returned": {
-            const name = `${s.op.system}.${s.op.op}`
-            if (stubbed.has(s.op.system)) {
-              throw fail(
-                `${s.op.system} is stubbed; answer its calls with succeed, fail or die`,
-              )
-            }
-            let call: ObservedCall | undefined
-            if (s.tag !== undefined) {
-              call = observed.find((c) => c.tag === s.tag)
-              if (!call) throw fail(`no call is named "${s.tag}"`)
-              if (call.system !== s.op.system || call.op !== s.op.op) {
+            case "Returned": {
+              const name = `${s.op.system}.${s.op.op}`
+              if (stubbed.has(s.op.system)) {
                 throw fail(
-                  `"${s.tag}" names a call to ${call.system}.${call.op}, not ${name}`,
+                  `${s.op.system} is stubbed; answer its calls with succeed, fail or die`,
                 )
               }
-            } else {
-              const made = observed.filter((c) => c.system === s.op.system && c.op === s.op.op)
-              if (made.length === 0) throw fail(`no unasserted call to ${name}`)
-              if (made.length > 1) {
+              let call: ObservedCall | undefined
+              if (s.tag !== undefined) {
+                call = observed.find((c) => c.tag === s.tag)
+                if (!call) throw fail(`no call is named "${s.tag}"`)
+                if (call.system !== s.op.system || call.op !== s.op.op) {
+                  throw fail(
+                    `"${s.tag}" names a call to ${call.system}.${call.op}, not ${name}`,
+                  )
+                }
+              } else {
+                const made = observed.filter((c) => c.system === s.op.system && c.op === s.op.op)
+                if (made.length === 0) throw fail(`no unasserted call to ${name}`)
+                if (made.length > 1) {
+                  throw fail(
+                    `${made.length} unasserted calls to ${name}; name each with call("<tag>", ...) and assert it by tag`,
+                  )
+                }
+                call = made[0]!
+              }
+              if (!call.expected) {
                 throw fail(
-                  `${made.length} unasserted calls to ${name}; name each with call("<tag>", ...) and assert it by tag`,
+                  `${name}(${show(call.args)}) is asserted before a call step checks its arguments`,
                 )
               }
-              call = made[0]!
+              const actual = exitJson(call.exit!)
+              const expected = s.expected._tag === "Success"
+                ? { _tag: "Success", value: normalize(s.expected.value) }
+                : s.expected._tag === "Failure"
+                ? { _tag: "Failure", error: errorJson(s.expected.error) }
+                : { _tag: "Died" }
+              const compared = actual._tag === "Died" ? { _tag: "Died" } : actual
+              if (!equal(expected, compared)) {
+                throw fail(
+                  `${name}(${show(call.args)})\n  expected ${show(expected)}\n  actual   ${show(actual)}`,
+                )
+              }
+              observed.splice(observed.indexOf(call), 1)
+              break
             }
-            if (!call.expected) {
-              throw fail(
-                `${name}(${show(call.args)}) is asserted before a call step checks its arguments`,
-              )
-            }
-            const actual = exitJson(call.exit!)
-            const expected = s.expected._tag === "Success"
-              ? { _tag: "Success", value: normalize(s.expected.value) }
-              : s.expected._tag === "Failure"
-              ? { _tag: "Failure", error: errorJson(s.expected.error) }
-              : { _tag: "Died" }
-            const compared = actual._tag === "Died" ? { _tag: "Died" } : actual
-            if (!equal(expected, compared)) {
-              throw fail(
-                `${name}(${show(call.args)})\n  expected ${show(expected)}\n  actual   ${show(actual)}`,
-              )
-            }
-            observed.splice(observed.indexOf(call), 1)
-            break
           }
         }
+        if (unassertedRejection) throw rejectionNotAsserted(unassertedRejection)
+        const death = platform.control.deaths.find(
+          ({ saga, executionId }) => !assertedDeaths.has(`${saga}/${executionId}`),
+        )
+        if (death) {
+          throw new StepFailed({
+            step: steps.length,
+            atEnd: true,
+            message: `saga ${death.saga} run ${death.executionId} died with ${
+              String(death.defect)
+            }, which no step asserts`,
+          })
+        }
+        if (observed.length > 0) {
+          throw new StepFailed({
+            step: steps.length,
+            atEnd: true,
+            message: `real external system calls no step asserts (use returned, failed or died): ${
+              show(observed.map((c) => `${c.system}.${c.op}(${show(c.args)})`))
+            }`,
+          })
+        }
+        if (calls.length > 0) {
+          throw new StepFailed({
+            step: steps.length,
+            atEnd: true,
+            message: `unanswered external system calls at the end of the story: ${
+              show(calls.map((c) => `${c.system}.${c.op}(${show(c.args)})`))
+            }`,
+          })
+        }
+        try attribute(steps.length)
+        // Every committed event past its stream's cursor is one no `then` asserts.
+        const unasserted: Array<string> = []
+        const streams = new Map<string, Aggregate.Ref>()
+        for (const { aggregate, id } of platform.control.commits) {
+          streams.set(`${aggregate}/${id}`, { aggregate, id } as Aggregate.Ref)
+        }
+        for (const [stream, ref] of streams) {
+          const events = try committed(ref)
+          const from = cursors.get(stream) ?? 0
+          if (events.length <= from) continue
+          touched.set(stream, ref)
+          // Decoded, so redacted fields stay redacted in the message.
+          const rest = try Effect.orDie(
+            Effect.try({
+              try: () => events.slice(from).map((e) => internals.kernel.decodeEvent(e.event)),
+              catch: (e) => e,
+            }),
+          )
+          const first = committedAt.get(`${stream}#${from}`)
+          unasserted.push(
+            `${stream}: ${summarizeAll(rest)}${first === undefined ? "" : ` (from step ${first})`}`,
+          )
+        }
+        if (unasserted.length > 0) {
+          throw new StepFailed({
+            step: steps.length,
+            atEnd: true,
+            message: `committed events no step asserts (assert them with then): ${unasserted.join("; ")}`,
+            detail: unasserted.join("\n"),
+          })
+        }
       }
-      if (unassertedRejection) throw rejectionNotAsserted(unassertedRejection)
-      const death = platform.control.deaths.find(
-        ({ saga, executionId }) => !assertedDeaths.has(`${saga}/${executionId}`),
-      )
-      if (death) {
-        throw new StepFailed({
-          step: steps.length,
-          atEnd: true,
-          message: `saga ${death.saga} run ${death.executionId} died with ${
-            String(death.defect)
-          }, which no step asserts`,
-        })
-      }
-      if (observed.length > 0) {
-        throw new StepFailed({
-          step: steps.length,
-          atEnd: true,
-          message: `real external system calls no step asserts (use returned, failed or died): ${
-            show(observed.map((c) => `${c.system}.${c.op}(${show(c.args)})`))
-          }`,
-        })
-      }
-      if (calls.length > 0) {
-        throw new StepFailed({
-          step: steps.length,
-          atEnd: true,
-          message: `unanswered external system calls at the end of the story: ${
-            show(calls.map((c) => `${c.system}.${c.op}(${show(c.args)})`))
-          }`,
-        })
-      }
-      try attribute(steps.length)
-      // Every committed event past its stream's cursor is one no `then` asserts.
-      const unasserted: Array<string> = []
-      const streams = new Map<string, Aggregate.Ref>()
-      for (const { aggregate, id } of platform.control.commits) {
-        streams.set(`${aggregate}/${id}`, { aggregate, id } as Aggregate.Ref)
-      }
-      for (const [stream, ref] of streams) {
-        const events = try committed(ref)
-        const from = cursors.get(stream) ?? 0
-        if (events.length <= from) continue
-        touched.set(stream, ref)
-        // Decoded, so redacted fields stay redacted in the message.
-        const rest = try Effect.orDie(
-          Effect.try({
-            try: () => events.slice(from).map((e) => internals.kernel.decodeEvent(e.event)),
+
+      // Turn a failed step into a failure that shows the whole story.
+      const report = effect (failure: StepFailed) => {
+        const internals = try Model.Internals
+        const events: Record<string, ReadonlyArray<string>> = {}
+        for (const [name, ref] of touched) {
+          const store = (try Effect.orDie(Effect.try({
+            try: () => internals.aggregates.get(ref.aggregate),
             catch: (e) => e,
-          }),
-        )
-        const first = committedAt.get(`${stream}#${from}`)
-        unasserted.push(
-          `${stream}: ${summarizeAll(rest)}${first === undefined ? "" : ` (from step ${first})`}`,
-        )
-      }
-      if (unasserted.length > 0) {
-        throw new StepFailed({
-          step: steps.length,
-          atEnd: true,
-          message: `committed events no step asserts (assert them with then): ${unasserted.join("; ")}`,
-          detail: unasserted.join("\n"),
+          })))!
+          const stored = store.events ? try store.events(ref.id as string) : []
+          events[name] = try Effect.orDie(Effect.try({
+            try: () =>
+              stored.map(
+                (e) => (e.event as { readonly _tag: string })._tag,
+              ),
+            catch: (e) => e,
+          }))
+        }
+        const reports = steps.map((s, index): StepReport => ({
+          step: index + 1,
+          kind: s._tag,
+          status: index + 1 < failure.step || (failure.atEnd && index + 1 === failure.step)
+            ? "passed"
+            : index + 1 === failure.step
+            ? "failed"
+            : "not-run",
+          summary: describeStep(s),
+        }))
+        throw new StoryFailure({
+          step: failure.step,
+          reason: failure.message,
+          message: `${failure.message}\n\n${renderReport(failure, reports, events)}`,
+          steps: reports,
+          events,
         })
       }
-    }
 
-    // Turn a failed step into a failure that shows the whole story.
-    const report = effect (failure: StepFailed) => {
-      const internals = try Model.Internals
-      const events: Record<string, ReadonlyArray<string>> = {}
-      for (const [name, ref] of touched) {
-        const store = (try Effect.orDie(Effect.try({
-          try: () => internals.aggregates.get(ref.aggregate),
-          catch: (e) => e,
-        })))!
-        const stored = store.events ? try store.events(ref.id as string) : []
-        events[name] = try Effect.orDie(Effect.try({
-          try: () =>
-            stored.map(
-              (e) => (e.event as { readonly _tag: string })._tag,
-            ),
-          catch: (e) => e,
-        }))
+      // `hosted` satisfies the Domain, the platform and the stubbed external systems; what
+      // remains is whatever the policy Layers need from outside (`LR`'s rest).
+      provide hosted, ExternalSystem.CallRecorder = recorder {
+        return run catch effect (failure) => match (failure) {
+          when StepFailed: try report(failure);
+          default: throw failure;
+        }
       }
-      const reports = steps.map((s, index): StepReport => ({
-        step: index + 1,
-        kind: s._tag,
-        status: index + 1 < failure.step || (failure.atEnd && index + 1 === failure.step)
-          ? "passed"
-          : index + 1 === failure.step
-          ? "failed"
-          : "not-run",
-        summary: describeStep(s),
-      }))
-      throw new StoryFailure({
-        step: failure.step,
-        reason: failure.message,
-        message: `${failure.message}\n\n${renderReport(failure, reports, events)}`,
-        steps: reports,
-        events,
-      })
-    }
-
-    // `hosted` satisfies the Domain, the platform and the stubbed external systems; what
-    // remains is whatever the policy Layers need from outside (`LR`'s rest).
-    provide hosted, ExternalSystem.CallRecorder = recorder {
-      return run catch effect (failure) => match (failure) {
-        when StepFailed: try report(failure);
-        default: throw failure;
-      }
-    }
-  } as void!(StoryFailure | LE)!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine>
+    } as void!(StoryFailure | LE)!Exclude<LR, Provided | ExternalSystem.Identifier<Systems> | WorkflowEngine.WorkflowEngine>
 
 /**
  * Given / when / then specifications of a domain model, run against the real

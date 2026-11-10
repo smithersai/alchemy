@@ -64,66 +64,67 @@ const authorizeS3 = <A, E>(
     }
   } as A!E!RuntimeContext
 
-export const makeTigrisS3Binding = effect <I extends { Bucket?: string }, A, E>(options: {
-  tag: string
-  operation: (input: I) => A!E!(Credentials | HttpClient.HttpClient)
-}) =>
-effect (bucket: Bucket) => {
-  if (!globalThis.__ALCHEMY_RUNTIME__) {
-    const host = try Binding.Host
-    if (isFlyHost(host)) {
-      // Pass the Bucket resource itself so waitForDeps waits for it
-      // and apply evaluates to attributes (including create-only
-      // Tigris credentials). PropExprs of `name` alone can resolve
-      // from the deterministic physical name without waiting.
-      try host.bind`${bucket}`({
-        bucket: bucket as unknown as { name: string; id?: string },
-      })
+export const makeTigrisS3Binding =
+  effect <I extends { Bucket?: string }, A, E>(options: {
+    tag: string
+    operation: (input: I) => A!E!(Credentials | HttpClient.HttpClient)
+  }) =>
+  effect (bucket: Bucket) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const host = try Binding.Host
+      if (isFlyHost(host)) {
+        // Pass the Bucket resource itself so waitForDeps waits for it
+        // and apply evaluates to attributes (including create-only
+        // Tigris credentials). PropExprs of `name` alone can resolve
+        // from the deterministic physical name without waiting.
+        try host.bind`${bucket}`({
+          bucket: bucket as unknown as { name: string; id?: string },
+        })
+      }
     }
+
+    const bucketName = try bucket.bucketName.asEffect()
+    const name = try bucket.name.asEffect()
+    const accessKeyId = try bucket.accessKeyId.asEffect()
+    const secretAccessKey = try bucket.secretAccessKey.asEffect()
+    const endpoint = try bucket.endpoint.asEffect()
+    const region = try bucket.region.asEffect()
+
+    return effect (
+      request?: Omit<I, "Bucket"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const resolvedName = asPlain(try bucketName) ?? asPlain(try name)
+          const resolvedKey = asPlain(try accessKeyId)
+          const resolvedSecret = asPlain(try secretAccessKey)
+          const resolvedEndpoint = asPlain(try endpoint)
+          const resolvedRegion = asPlain(try region) ?? "auto"
+          if (
+            resolvedName === undefined
+            || resolvedKey === undefined
+            || resolvedSecret === undefined
+            || resolvedEndpoint === undefined
+          ) {
+            throw new TigrisCredentialsMissing({
+              resourceName: resolvedName ?? bucket.LogicalId,
+            })
+          }
+          const scope = {
+            bucketName: resolvedName,
+            accessKeyId: resolvedKey,
+            secretAccessKey: resolvedSecret,
+            endpoint: resolvedEndpoint,
+            region: resolvedRegion as RegionName,
+          } satisfies TigrisS3Scope
+          return try authorizeS3(
+            scope,
+            options.operation({
+              ...request,
+              Bucket: scope.bucketName,
+            } as I),
+          )
+        },
+        `${options.tag}(${bucket.LogicalId})`,
+      )
   }
-
-  const bucketName = try bucket.bucketName.asEffect()
-  const name = try bucket.name.asEffect()
-  const accessKeyId = try bucket.accessKeyId.asEffect()
-  const secretAccessKey = try bucket.secretAccessKey.asEffect()
-  const endpoint = try bucket.endpoint.asEffect()
-  const region = try bucket.region.asEffect()
-
-  return effect (
-    request?: Omit<I, "Bucket"> | undefined,
-  ) =>
-    try withSpan(
-      effect {
-        const resolvedName = asPlain(try bucketName) ?? asPlain(try name)
-        const resolvedKey = asPlain(try accessKeyId)
-        const resolvedSecret = asPlain(try secretAccessKey)
-        const resolvedEndpoint = asPlain(try endpoint)
-        const resolvedRegion = asPlain(try region) ?? "auto"
-        if (
-          resolvedName === undefined
-          || resolvedKey === undefined
-          || resolvedSecret === undefined
-          || resolvedEndpoint === undefined
-        ) {
-          throw new TigrisCredentialsMissing({
-            resourceName: resolvedName ?? bucket.LogicalId,
-          })
-        }
-        const scope = {
-          bucketName: resolvedName,
-          accessKeyId: resolvedKey,
-          secretAccessKey: resolvedSecret,
-          endpoint: resolvedEndpoint,
-          region: resolvedRegion as RegionName,
-        } satisfies TigrisS3Scope
-        return try authorizeS3(
-          scope,
-          options.operation({
-            ...request,
-            Bucket: scope.bucketName,
-          } as I),
-        )
-      },
-      `${options.tag}(${bucket.LogicalId})`,
-    )
-}
