@@ -48,51 +48,53 @@ export default class Chat extends GCP.Function<Chat>()(
           return {
             fetch: effect {
               return try (effect {
-                return (effect { return (try effect {
-                  const request = try Effect.service(HttpServerRequest)
-                  const url = new URL(request.originalUrl)
+                return (effect {
+                  return (try effect {
+                    const request = try Effect.service(HttpServerRequest)
+                    const url = new URL(request.originalUrl)
 
-                  if (request.method === "GET" && url.pathname === "/") {
-                    return HttpServerResponse.text("ok")
-                  }
+                    if (request.method === "GET" && url.pathname === "/") {
+                      return HttpServerResponse.text("ok")
+                    }
 
-                  if (request.method !== "POST" || url.pathname !== "/chat") {
-                    return try HttpServerResponse.json({ error: "not found" }, { status: 404 })
-                  }
+                    if (request.method !== "POST" || url.pathname !== "/chat") {
+                      return try HttpServerResponse.json({ error: "not found" }, { status: 404 })
+                    }
 
-                  const body = (try request.json) as ChatRequest
-                  if (!body.prompt) {
-                    return try HttpServerResponse.json({ error: "prompt is required" }, { status: 400 })
-                  }
+                    const body = (try request.json) as ChatRequest
+                    if (!body.prompt) {
+                      return try HttpServerResponse.json({ error: "prompt is required" }, { status: 400 })
+                    }
 
-                  // Model access is bound at deploy time; generation settings are a
-                  // per-request decision.
-                  const response = try gemini.generate({
-                    contents: [{ role: "user", parts: [{ text: body.prompt }] }],
-                    ...(body.system ? { systemInstruction: { parts: [{ text: body.system }] } } : {}),
-                    generationConfig: {
-                      ...(body.temperature !== undefined ? { temperature: body.temperature } : {}),
-                      ...(body.maxOutputTokens !== undefined
-                        ? { maxOutputTokens: body.maxOutputTokens }
-                        : {}),
-                    },
+                    // Model access is bound at deploy time; generation settings are a
+                    // per-request decision.
+                    const response = try gemini.generate({
+                      contents: [{ role: "user", parts: [{ text: body.prompt }] }],
+                      ...(body.system ? { systemInstruction: { parts: [{ text: body.system }] } } : {}),
+                      generationConfig: {
+                        ...(body.temperature !== undefined ? { temperature: body.temperature } : {}),
+                        ...(body.maxOutputTokens !== undefined
+                          ? { maxOutputTokens: body.maxOutputTokens }
+                          : {}),
+                      },
+                    })
+
+                    const candidate = response.candidates?.[0]
+                    return try HttpServerResponse.json({
+                      // Gemini 2.5 may return "thought" parts; answer with the rest.
+                      text: (candidate?.content?.parts ?? [])
+                        .filter((part) => !part.thought)
+                        .map((part) => part.text ?? "")
+                        .join(""),
+                      finishReason: candidate?.finishReason,
+                      modelVersion: response.modelVersion,
+                      usage: {
+                        inputTokens: response.usageMetadata?.promptTokenCount,
+                        outputTokens: response.usageMetadata?.candidatesTokenCount,
+                      },
+                    })
                   })
-
-                  const candidate = response.candidates?.[0]
-                  return try HttpServerResponse.json({
-                    // Gemini 2.5 may return "thought" parts; answer with the rest.
-                    text: (candidate?.content?.parts ?? [])
-                      .filter((part) => !part.thought)
-                      .map((part) => part.text ?? "")
-                      .join(""),
-                    finishReason: candidate?.finishReason,
-                    modelVersion: response.modelVersion,
-                    usage: {
-                      inputTokens: response.usageMetadata?.promptTokenCount,
-                      outputTokens: response.usageMetadata?.candidatesTokenCount,
-                    },
-                  })
-                }) }) catch effect (error) => match (error) {
+                }) catch effect (error) => match (error) {
                   when { _tag: "BadRequest" }: try HttpServerResponse.json({ error: error.message }, { status: 400 });
                   default: throw error;
                 }
