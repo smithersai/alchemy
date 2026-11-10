@@ -467,6 +467,7 @@ export type FilterTuple<Outs extends (Output | Expr)[], Values extends any[] = [
     : FilterTuple<Tail, Values>
   : Output<Values>;
 
+/** @throws {never} */
 export const interpolate = <Args extends any[]>(
   template: TemplateStringsArray,
   ...args: Args

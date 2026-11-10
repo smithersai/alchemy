@@ -44,6 +44,8 @@ export interface ScheduleEvent {
 /**
  * Narrow an arbitrary Lambda invocation payload to a schedule event produced
  * by `consumeSchedule`.
+ *
+ * @throws {never}
  */
 export const isScheduleEvent = (event: any): event is ScheduleEvent =>
   event?.source === "alchemy.scheduler" && typeof event?.scheduleId === "string";

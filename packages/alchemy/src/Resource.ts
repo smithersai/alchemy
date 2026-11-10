@@ -200,6 +200,7 @@ export type Resource<
 > = Pipeable &
   ResourceLike<Type, Props, Attributes, Binding, Providers> & {
     bind(sid: Input<string>, binding: Input<Binding>): Effect.Effect<void>;
+    /** @throws {never} */
     bind(
       template: TemplateStringsArray,
       ...args: any[]

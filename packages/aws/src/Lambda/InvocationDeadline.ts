@@ -232,6 +232,8 @@ export const lambdaTimeoutOf = (props: {
  * `http.server` span so the timeout ends it; the durable listener's, which
  * turns interruption off) takes the deadline over from the outer one (the
  * dispatcher's), so the deadline is enforced once, by the innermost guard.
+ *
+ * @throws {never}
  */
 export const withInvocationDeadline: {
   (options?: {
