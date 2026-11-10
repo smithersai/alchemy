@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Backend, { Bucket } from "./src/backend.ts";
+import Backend, { Bucket } from "./src/backend.vibe";
 
 export class Website extends Cloudflare.Website.Vite<Website>()("Website", {
   env: {

@@ -5,8 +5,8 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import type { Counter, QueueMessages } from "./src/AsyncWorker.ts";
 import EffectWorker from "./src/EffectWorker.ts";
-import HyperdriveWorker from "./src/HyperdriveWorker.ts";
-import { SandboxLive } from "./src/SandboxContainer.ts";
+import HyperdriveWorker from "./src/HyperdriveWorker.vibe";
+import { SandboxLive } from "./src/SandboxContainer.vibe";
 
 export type AsyncWorkerEnv = Cloudflare.InferEnv<ReturnType<typeof AsyncWorker>>;
 

@@ -1,0 +1,81 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import * as HttpClientRequest from "effect/http/HttpClientRequest"
+import { Sandbox } from "./Sandbox.ts"
+
+export default class Agent extends Cloudflare.DurableObject<Agent>()(
+  "Agents",
+  effect {
+    const container = try Sandbox
+    const state = try Cloudflare.DurableObjectState
+
+    return effect {
+      // Starting is idempotent: a no-op once the container is running.
+      const start = container.start({ enableInternet: true })
+      const sessions = new Map<string, Cloudflare.WebSocket>()
+
+      for (const socket of try state.getWebSockets()) {
+        const session = try Effect.orDie(
+          Effect.try({ try: () => socket.deserializeAttachment<{ id: string }>(), catch: (e) => e }),
+        )
+        if (session) {
+          sessions.set(session.id, socket)
+        }
+      }
+
+      return {
+        exec: (command: string) => start.pipe(Effect.andThen(container.shell(command)), Effect.orDie),
+        hello: () =>
+          effect {
+            try start
+            const { fetch } = try container.getTcpPort(3000)
+            const response = try fetch(HttpClientRequest.get("http://container/"))
+            return try response.text
+          }.pipe(Effect.orDie),
+        increment: () =>
+          effect {
+            try start
+            const { fetch } = try container.getTcpPort(3000)
+            const response = try fetch(HttpClientRequest.post("http://container/increment"))
+            return try response.text
+          }.pipe(Effect.orDie),
+        fetch: effect {
+          const [response, socket] = try Cloudflare.upgrade()
+          const id = "TODO"
+          try Effect.orDie(Effect.try({ try: () => socket.serializeAttachment({ id }), catch: (e) => e }))
+          sessions.set(id, socket)
+          return response
+        }.pipe(Effect.orDie),
+        webSocketMessage: effect (
+          socket: Cloudflare.WebSocket,
+          message: string | Uint8Array,
+        ) => {
+          const session = try Effect.orDie(
+            Effect.try({ try: () => socket.deserializeAttachment<{ id: string }>(), catch: (e) => e }),
+          )
+          if (!session) return
+          const text = typeof message === "string"
+            ? message
+            : try Effect.orDie(Effect.try({ try: () => new TextDecoder().decode(message), catch: (e) => e }))
+          for (const peer of sessions.values()) {
+            try peer.send(`[${session.id}] ${text}`)
+          }
+        },
+        webSocketClose: effect (
+          ws: Cloudflare.WebSocket,
+          code: number,
+          reason: string,
+          _wasClean: boolean,
+        ) => {
+          const session = try Effect.orDie(
+            Effect.try({ try: () => ws.deserializeAttachment<{ id: string }>(), catch: (e) => e }),
+          )
+          if (session) {
+            sessions.delete(session.id)
+          }
+          try ws.close(code, reason)
+        },
+      }
+    }
+  },
+) {}
