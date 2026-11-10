@@ -38,7 +38,7 @@ export * from "./Mongo.vibe";
 export { ConnectMongo, MongoUrlMissing, type ConnectMongoClient } from "./ConnectMongo.vibe";
 export * from "./ConnectMongoHttp.vibe";
 export * from "./ref.ts";
-export * from "./Project.ts";
+export * from "./Project.vibe";
 export * from "./ProjectEnvironment.vibe";
 export * from "./Providers.vibe";
 export * from "./ReadRedis.vibe";
