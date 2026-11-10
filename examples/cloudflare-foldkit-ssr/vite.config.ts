@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     foldkit({
       ssr: {
-        serverEntry: "/src/entry.server.ts",
+        serverEntry: "/src/entry.server.vibe",
         clientEntry: "/src/entry.ts",
         build: true,
       },
