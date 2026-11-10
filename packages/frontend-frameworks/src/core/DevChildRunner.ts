@@ -25,7 +25,7 @@ import type * as FileSystem from "effect/FileSystem";
 import type * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { devChildUrlMarker, type DevChildPayload } from "./DevChild.ts";
-import type { FrameworkDevServer } from "./Framework.ts";
+import type { FrameworkDevServer } from "./Framework.vibe";
 
 /** The structural slice of a framework-integration module the runner drives. */
 interface FrameworkModule {

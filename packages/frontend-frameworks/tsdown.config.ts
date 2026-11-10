@@ -30,7 +30,7 @@ export default defineConfig([
       "astro/entrypoints/aws-server": "src/astro/entrypoints/aws-server.ts",
       "astro/entrypoints/node-server": "src/astro/entrypoints/node-server.ts",
       "astro/cache": "src/astro/cache.ts",
-      "astro/config": "src/astro/config.ts",
+      "astro/config": "src/astro/config.vibe",
       "astro/source": "src/astro/source.ts",
       "astro/runtime/entrypoints/server": "src/astro/runtime/entrypoints/server.ts",
       "astro/runtime/entrypoints/image-passthrough-endpoint":
@@ -78,7 +78,7 @@ export default defineConfig([
       "vinext/cache/redis-runtime": "src/vinext/cache/redis-runtime.ts",
       "vinext/cache/s3": "src/vinext/cache/s3.ts",
       "vinext/cache/s3-runtime": "src/vinext/cache/s3-runtime.ts",
-      "vite/index": "src/vite/index.ts",
+      "vite/index": "src/vite/index.vibe",
       "vite/aws": "src/vite/aws.ts",
       "vite/node": "src/vite/node.ts",
       "sveltekit/aws": "src/sveltekit/aws.ts",

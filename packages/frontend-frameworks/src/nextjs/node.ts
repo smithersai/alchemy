@@ -12,8 +12,8 @@ import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { runBuildChild } from "../core/BuildChild.ts";
-import { makeChildOutput } from "../core/ChildOutput.ts";
-import { logChildOutput } from "../core/ChildOutput.ts";
+import { makeChildOutput } from "../core/ChildOutput.vibe";
+import { logChildOutput } from "../core/ChildOutput.vibe";
 /**
  * `@alchemy.run/frontend-frameworks/nextjs/node` — Next.js on a Node
  * container (`next build` + a custom `next({ dev: false })` server).

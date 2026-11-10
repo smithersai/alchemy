@@ -36,8 +36,8 @@ import * as Effect from "effect/Effect";
 import type * as Scope from "effect/Scope";
 import * as SemVer from "effect/SemVer";
 import * as SemVerRange from "effect/SemVerRange";
-import { makeChildOutput } from "./ChildOutput.ts";
-import { FrameworkError, type FrameworkDevServer } from "./Framework.ts";
+import { makeChildOutput } from "./ChildOutput.vibe";
+import { FrameworkError, type FrameworkDevServer } from "./Framework.vibe";
 
 /**
  * Set on the spawned runner (and inherited by its descendants) so a

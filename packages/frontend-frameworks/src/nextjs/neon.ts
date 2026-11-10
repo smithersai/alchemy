@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import { toOutputFile } from "../core/BuildOutput.ts";
 import { DeployTargetError } from "../core/DeployTarget.ts";
-import type { FrameworkBuildOptions } from "../core/Framework.ts";
+import type { FrameworkBuildOptions } from "../core/Framework.vibe";
 import { finishNeonOutput, makeNeonServeEntrySource, makeNeonTarget } from "../core/NeonServe.ts";
 import { pinNodeServeModule } from "../core/NodeServe.ts";
 import {

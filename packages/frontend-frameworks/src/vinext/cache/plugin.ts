@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import type { Plugin, PluginOption } from "vite";
 import { loadProjectModule } from "../../core/Loader.ts";
-import { loadVinextModule } from "../Modules.ts";
+import { loadVinextModule } from "../Modules.vibe";
 
 export type VinextCacheKind = "redis" | "s3" | "kv";
 

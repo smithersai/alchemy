@@ -10,8 +10,8 @@ import type { PlatformError } from "effect/PlatformError";
 import * as ChildProcess from "effect/process/ChildProcess";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { makeChildOutput } from "../core/ChildOutput.ts";
-import { logChildOutput } from "../core/ChildOutput.ts";
+import { makeChildOutput } from "../core/ChildOutput.vibe";
+import { logChildOutput } from "../core/ChildOutput.vibe";
 /**
  * `@alchemy.run/frontend-frameworks/nextjs/aws` — Next.js on AWS Lambda via
  * `@opennextjs/aws`.
@@ -47,7 +47,7 @@ import { logChildOutput } from "../core/ChildOutput.ts";
  * - `dynamodb-provider/` — the tag-cache table seed function
  */
 import * as FrameworkCore from "../core/index.ts";
-import { buildStandalone } from "./standalone.ts";
+import { buildStandalone } from "./standalone.vibe";
 
 const fail = (message: string) => (cause: unknown) =>
   new FrameworkCore.FrameworkError({ framework: "nextjs", message, cause });

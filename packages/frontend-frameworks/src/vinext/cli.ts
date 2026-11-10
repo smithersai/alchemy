@@ -7,7 +7,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import type { Plugin, PluginOption } from "vite";
-import { makeChildOutput } from "../core/ChildOutput.ts";
+import { makeChildOutput } from "../core/ChildOutput.vibe";
 import { findEphemeralPort } from "../core/DevPort.ts";
 /**
  * Shared programmatic Vinext builds and native development CLI helpers.
@@ -17,10 +17,10 @@ import { findEphemeralPort } from "../core/DevPort.ts";
 import * as FrameworkCore from "../core/index.ts";
 import { toOutputFile, type BuildOutput } from "../core/index.ts";
 import { loadProjectModule, resolveProjectPackageDirectory } from "../core/Loader.ts";
-import { loadVinextBuildConfig, type VinextRouteRootConfig } from "./BuildConfig.ts";
+import { loadVinextBuildConfig, type VinextRouteRootConfig } from "./BuildConfig.vibe";
 import { makeVinextCachePlugin, type VinextCacheKind } from "./cache/plugin.ts";
-import { loadVinextModule } from "./Modules.ts";
-import { runVinextPrerenderIfConfigured } from "./Prerender.ts";
+import { loadVinextModule } from "./Modules.vibe";
+import { runVinextPrerenderIfConfigured } from "./Prerender.vibe";
 
 export const failFramework = (message: string) => (cause: unknown) =>
   new FrameworkCore.FrameworkError({ framework: "vinext", message, cause });

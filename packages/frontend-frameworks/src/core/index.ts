@@ -68,12 +68,12 @@ export {
   finishNeonOutput,
   makeNeonTarget,
 } from "./NeonServe.ts";
-export { Framework, FrameworkError } from "./Framework.ts";
+export { Framework, FrameworkError } from "./Framework.vibe";
 export type {
   FrameworkBuildOptions,
   FrameworkDevOptions,
   FrameworkDevServer,
-} from "./Framework.ts";
+} from "./Framework.vibe";
 export {
   loadProjectModule,
   ModuleLoadError,
