@@ -19,7 +19,7 @@ import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import * as FrameworkCore from "../core/index.ts";
 import * as Bundle from "./Bundle.ts";
-import * as DevServer from "./DevServer.ts";
+import * as DevServer from "./DevServer.vibe";
 import * as Runner from "./Runner.ts";
 
 /**

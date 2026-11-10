@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { toOutputFile, type BuildOutput } from "./BuildOutput.ts";
-import { DeployTargetError, type DeployTarget } from "./DeployTarget.ts";
+import { DeployTargetError, type DeployTarget } from "./DeployTarget.vibe";
 import {
   pinNodeServeModule,
   staticAssetPathSource,

@@ -1,6 +1,3 @@
-import * as NodeCrypto from "node:crypto";
-import * as NodePath from "node:path";
-import { fileURLToPath } from "node:url";
 /**
  * `@alchemy.run/frontend-frameworks/nuxt/source` — alchemy Worker source provider for Nuxt
  * projects.
@@ -32,19 +29,28 @@ import { fileURLToPath } from "node:url";
  *   values are laid over the proxied bindings; resource bindings round-trip
  *   to the proxy's workerd instance, so dev state is live and shared.
  */
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import type * as Path from "effect/Path";
-import type { PlatformError } from "effect/PlatformError";
-import * as Redacted from "effect/Redacted";
-import type * as Scope from "effect/Scope";
-import { glob } from "tinyglobby";
-import { resolveBuildEnv, runBuildChild } from "../core/BuildChild.ts";
-import { makeCloudflareTarget } from "./cloudflare.ts";
-import { make as makeNuxt, type NuxtOptions } from "./Nuxt.ts";
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import type * as Path from "effect/Path"
+import type { PlatformError } from "effect/PlatformError"
+import * as Redacted from "effect/Redacted"
+import type * as Scope from "effect/Scope"
+import { glob } from "tinyglobby"
+import { resolveBuildEnv, runBuildChild } from "../core/BuildChild.ts"
+import { makeCloudflareTarget } from "./cloudflare.ts"
+import { make as makeNuxt, type NuxtOptions } from "./Nuxt.ts"
+import {
+  currentDirectory,
+  dirnamePath,
+  joinPath,
+  packageJsonPath,
+  relativePath,
+  resolvePath,
+  sha256HexSync,
+} from "./source.platform.ts"
 
-const PROVIDER = "@alchemy.run/frontend-frameworks/nuxt/source";
+const PROVIDER = "@alchemy.run/frontend-frameworks/nuxt/source"
 
 // ─────────────────────────────────────────────────────────────────────
 // Structural mirror of alchemy's Worker source contract
@@ -54,52 +60,52 @@ const PROVIDER = "@alchemy.run/frontend-frameworks/nuxt/source";
 
 /** Mirror of alchemy's `SourceHash`. */
 export interface SourceHash {
-  readonly bundle: string | undefined;
-  readonly assets: string | undefined;
-  readonly input: string | undefined;
-  readonly additionalWorkspaces: Array<string> | undefined;
+  readonly bundle: string | undefined
+  readonly assets: string | undefined
+  readonly input: string | undefined
+  readonly additionalWorkspaces: Array<string> | undefined
 }
 
 /** Mirror of alchemy's `Bundle.BundleFile` / `Bundle.BundleOutput`. */
 export interface SourceBundleFile {
-  readonly path: string;
-  readonly content: string | Uint8Array;
-  readonly hash: string;
+  readonly path: string
+  readonly content: string | Uint8Array
+  readonly hash: string
 }
 
 export interface SourceBundleOutput {
-  readonly files: [SourceBundleFile, ...Array<SourceBundleFile>];
-  readonly hash: string;
+  readonly files: [SourceBundleFile, ...Array<SourceBundleFile>]
+  readonly hash: string
 }
 
 /** Mirror of alchemy's `AssetReadResult` (`Workers/Assets.ts`). */
 export interface SourceAssetReadResult {
-  directory: string;
-  config: Record<string, unknown> | undefined;
-  manifest: Record<string, { hash: string; size: number }>;
-  _headers: string | undefined;
-  _redirects: string | undefined;
-  hash: string;
+  directory: string
+  config: Record<string, unknown> | undefined
+  manifest: Record<string, { hash: string; size: number }>
+  _headers: string | undefined
+  _redirects: string | undefined
+  hash: string
 }
 
 /** Mirror of alchemy's `SourceBuildOutput`. */
 export interface SourceBuildOutput {
-  readonly bundle: SourceBundleOutput | undefined;
-  readonly assets: SourceAssetReadResult | undefined;
-  readonly hash: SourceHash;
+  readonly bundle: SourceBundleOutput | undefined
+  readonly assets: SourceAssetReadResult | undefined
+  readonly hash: SourceHash
 }
 
 /** Mirror of alchemy's `SourceContext` (the subset this source reads). */
 export interface SourceContext {
-  readonly id: string;
-  readonly workerName: string;
+  readonly id: string
+  readonly workerName: string
   readonly compatibility: {
-    readonly date: string;
-    readonly flags: Array<string>;
-  };
-  readonly stack: { readonly name: string; readonly stage: string };
-  readonly env: Record<string, unknown> | undefined;
-  readonly assets: Record<string, unknown> | string | undefined;
+    readonly date: string
+    readonly flags: Array<string>
+  }
+  readonly stack: { readonly name: string; readonly stage: string }
+  readonly env: Record<string, unknown> | undefined
+  readonly assets: Record<string, unknown> | string | undefined
 }
 
 /** Mirror of alchemy's `DevContext` (the subset this source reads). */
@@ -110,22 +116,22 @@ export interface SourceDevContext extends SourceContext {
    * module free of an alchemy/cloudflare-runtime type dependency.
    */
   readonly worker: {
-    readonly name: string;
-    readonly bindings: ReadonlyArray<unknown>;
-  };
+    readonly name: string
+    readonly bindings: ReadonlyArray<unknown>
+  }
   /**
    * The host's pre-built `Context<RuntimeServices>` (opaque here). Handed
    * to the dev platform proxy so remote()-lowered bindings resolve against
    * the host's runtime stack.
    */
-  readonly runtimeContext: unknown;
+  readonly runtimeContext: unknown
 }
 
 /** Mirror of alchemy's server-mode `SourceDevHandle`. */
 export interface SourceDevHandle {
-  readonly mode: "server";
-  readonly url: URL;
-  readonly serviceBinding?: "http";
+  readonly mode: "server"
+  readonly url: URL
+  readonly serviceBinding?: "http"
 }
 
 /**
@@ -136,29 +142,29 @@ export interface SourceDevHandle {
 export class SourceProviderError extends Data.TaggedError(
   "Cloudflare.Workers.SourceProviderError",
 )<{
-  readonly provider: string;
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly provider: string
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
-export type SourceError = SourceProviderError | PlatformError;
+export type SourceError = SourceProviderError | PlatformError
 
-type SourceServices = FileSystem.FileSystem | Path.Path;
+type SourceServices = FileSystem.FileSystem | Path.Path
 
 /** Mirror of alchemy's `SourceProvider` (structural). */
 export interface SourceProvider {
-  readonly ownsAssets: boolean;
-  readonly devAssetsBinding?: boolean;
+  readonly ownsAssets: boolean
+  readonly devAssetsBinding?: boolean
   readonly build: (
     ctx: SourceContext,
-  ) => Effect.Effect<SourceBuildOutput, SourceError, SourceServices>;
+  ) => Effect.Effect<SourceBuildOutput, SourceError, SourceServices>
   readonly hash: (
     ctx: SourceContext,
     previous: SourceHash | undefined,
-  ) => Effect.Effect<Partial<SourceHash>, SourceError, SourceServices>;
+  ) => Effect.Effect<Partial<SourceHash>, SourceError, SourceServices>
   readonly dev: (
     ctx: SourceDevContext,
-  ) => Effect.Effect<SourceDevHandle, SourceError, SourceServices | Scope.Scope>;
+  ) => Effect.Effect<SourceDevHandle, SourceError, SourceServices | Scope.Scope>
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -168,14 +174,14 @@ export interface SourceProvider {
 
 export interface NuxtMemoOptions {
   /** Glob patterns of files to hash, relative to `rootDir`. @default all non-gitignored files */
-  readonly include?: Array<string> | undefined;
+  readonly include?: Array<string> | undefined
   /** Glob patterns to exclude. @default gitignore rules from `rootDir` up to the repo root */
-  readonly exclude?: Array<string> | undefined;
+  readonly exclude?: Array<string> | undefined
   /**
    * Include the nearest package-manager lockfile in the hash.
    * @default true when both `include` and `exclude` are unset
    */
-  readonly lockfile?: boolean | undefined;
+  readonly lockfile?: boolean | undefined
 }
 
 export interface NuxtSourceOptions {
@@ -183,20 +189,20 @@ export interface NuxtSourceOptions {
    * Nuxt project root (the directory containing `nuxt.config.ts`). Relative
    * paths resolve from the process working directory. @default process.cwd()
    */
-  readonly rootDir?: string | undefined;
+  readonly rootDir?: string | undefined
   /** Narrows the rebuild-detection input hash. */
-  readonly memo?: NuxtMemoOptions | undefined;
+  readonly memo?: NuxtMemoOptions | undefined
   /**
    * Nuxt config overrides merged over the project's own `nuxt.config.ts`
    * (integration wins). Must be JSON-serializable — it persists in state.
    */
-  readonly nuxt?: Record<string, unknown> | undefined;
+  readonly nuxt?: Record<string, unknown> | undefined
   /**
    * The USER's worker entry (the custom-entry carriage): a module that wraps
    * nitro's emitted handler and adds its own exports (Durable Object
    * classes, ...). Relative paths resolve against `rootDir`.
    */
-  readonly main?: string | undefined;
+  readonly main?: string | undefined
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -204,13 +210,12 @@ export interface NuxtSourceOptions {
 // machine-independent — only relative paths and file bytes are hashed)
 // ─────────────────────────────────────────────────────────────────────
 
-const sha256Hex = (input: string | Uint8Array): Effect.Effect<string> =>
-  Effect.sync(() => NodeCrypto.createHash("sha256").update(input).digest("hex"));
+const sha256Hex = (input: string | Uint8Array): Effect.Effect<string> => Effect.sync(() => sha256HexSync(input))
 
 /** Recursively sort object keys so JSON.stringify is order-stable. */
 const stableValue = (value: unknown): unknown => {
   if (Array.isArray(value)) {
-    return value.map(stableValue);
+    return value.map(stableValue)
   }
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
@@ -218,101 +223,104 @@ const stableValue = (value: unknown): unknown => {
         .filter(([, v]) => v !== undefined)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([k, v]) => [k, stableValue(v)]),
-    );
+    )
   }
-  return value;
-};
+  return value
+}
 
-const sha256Stable = (input: unknown): Effect.Effect<string> =>
-  sha256Hex(JSON.stringify(stableValue(input) ?? null));
+const sha256Stable = (input: unknown): Effect.Effect<string> => sha256Hex(JSON.stringify(stableValue(input) ?? null))
 
 /**
  * Convert gitignore-style rules into glob `ignore` patterns — a copy of
  * alchemy's `Util/gitignore-rules-to-globs.ts` (common cases only).
  */
 const gitignoreRulesToGlobs = (rules: ReadonlyArray<string>): Array<string> => {
-  const out: Array<string> = [];
+  const out: Array<string> = []
   for (const raw of rules) {
-    const line = raw.trim();
+    const line = raw.trim()
     if (line.length === 0 || line.startsWith("#") || line.startsWith("!")) {
-      continue;
+      continue
     }
-    let rest = line;
-    const dirOnly = rest.endsWith("/");
+    let rest = line
+    const dirOnly = rest.endsWith("/")
     if (dirOnly) {
-      rest = rest.slice(0, -1);
+      rest = rest.slice(0, -1)
     }
-    rest = rest.replace(/\\/g, "/");
-    if (rest.length === 0) continue;
-    const anchored = rest.startsWith("/");
+    rest = rest.replace(/\\/g, "/")
+    if (rest.length === 0) continue
+    const anchored = rest.startsWith("/")
     if (anchored) {
-      rest = rest.slice(1);
+      rest = rest.slice(1)
     }
-    if (rest.length === 0) continue;
-    const hasSlash = rest.includes("/");
+    if (rest.length === 0) continue
+    const hasSlash = rest.includes("/")
     if (dirOnly) {
-      out.push(anchored || hasSlash ? `${rest}/**` : `**/${rest}/**`);
+      out.push(anchored || hasSlash ? `${rest}/**` : `**/${rest}/**`)
     } else if (anchored || hasSlash) {
-      out.push(rest, `${rest}/**`);
+      out.push(rest, `${rest}/**`)
     } else {
-      out.push(`**/${rest}`, `**/${rest}/**`);
+      out.push(`**/${rest}`, `**/${rest}/**`)
     }
   }
-  return out;
-};
+  return out
+}
 
-const findUp = Effect.fnUntraced(function* (
-  fs: FileSystem.FileSystem,
-  cwd: string,
-  filenames: Array<string>,
-) {
-  let dir = cwd;
+const findUp = effect (fs: FileSystem.FileSystem, cwd: string, filenames: Array<string>) => {
+  let dir = cwd
   for (;;) {
     for (const filename of filenames) {
-      const file = NodePath.join(dir, filename);
-      if (yield* fs.exists(file)) {
-        return file;
+      const file = try Effect.orDie(Effect.try({ try: () => joinPath(dir, filename), catch: (e) => e }))
+      if (try fs.exists(file)) {
+        return file
       }
     }
-    const parent = NodePath.dirname(dir);
+    const parent = try Effect.orDie(Effect.try({ try: () => dirnamePath(dir), catch: (e) => e }))
     if (parent === dir) {
-      return undefined;
+      return undefined
     }
-    dir = parent;
+    dir = parent
   }
-});
+}
 
 /** Collect `.gitignore` rules from `cwd` up to the repo root (parents first). */
 const readGitIgnoreRules = (
   fs: FileSystem.FileSystem,
   cwd: string,
 ): Effect.Effect<Array<string>, PlatformError> =>
-  Effect.gen(function* () {
-    const rules = yield* fs.readFileString(NodePath.join(cwd, ".gitignore")).pipe(
+  effect {
+    const gitignore = try Effect.orDie(Effect.try({ try: () => joinPath(cwd, ".gitignore"), catch: (e) => e }))
+    const rules = try fs.readFileString(gitignore).pipe(
       Effect.map((file) => file.split("\n")),
       Effect.catchTag("PlatformError", () => Effect.succeed([] as Array<string>)),
-    );
-    const parent = NodePath.dirname(cwd);
-    if (parent === cwd || (yield* fs.exists(NodePath.join(cwd, ".git")))) {
-      return rules;
+    )
+    const parent = try Effect.orDie(Effect.try({ try: () => dirnamePath(cwd), catch: (e) => e }))
+    if (
+      parent === cwd || (try fs.exists(
+        try Effect.orDie(Effect.try({
+          try: () => joinPath(cwd, ".git"),
+          catch: (e) => e,
+        })),
+      ))
+    ) {
+      return rules
     }
-    const parentRules = yield* readGitIgnoreRules(fs, parent);
-    return [...parentRules, ...rules];
-  });
+    const parentRules = try readGitIgnoreRules(fs, parent)
+    return [...parentRules, ...rules]
+  }
 
 /**
  * Deterministic content hash of the files in `cwd` matched by `memo` —
  * mirror of alchemy's `hashDirectory` (`Command/Memo.ts`).
  */
-const hashDirectory = Effect.fnUntraced(function* (cwd: string, memo: NuxtMemoOptions | undefined) {
-  const fs = yield* FileSystem.FileSystem;
-  const include = memo?.include ?? ["**/*"];
+const hashDirectory = effect (cwd: string, memo: NuxtMemoOptions | undefined) => {
+  const fs = try FileSystem.FileSystem
+  const include = memo?.include ?? ["**/*"]
   const exclude = memo?.exclude ?? [
     "**/.git/**",
-    ...gitignoreRulesToGlobs(yield* readGitIgnoreRules(fs, cwd)),
-  ];
-  const lockfile = memo?.lockfile ?? !(memo?.include || memo?.exclude);
-  const [files, lockfilePath] = yield* Effect.all(
+    ...gitignoreRulesToGlobs(try readGitIgnoreRules(fs, cwd)),
+  ]
+  const lockfile = memo?.lockfile ?? !(memo?.include || memo?.exclude)
+  const [files, lockfilePath] = try Effect.all(
     [
       Effect.promise(() =>
         glob(include, {
@@ -321,45 +329,50 @@ const hashDirectory = Effect.fnUntraced(function* (cwd: string, memo: NuxtMemoOp
           onlyFiles: true,
           expandDirectories: false,
           dot: true,
-        }),
+        })
       ),
       lockfile
         ? Effect.map(
-            findUp(fs, cwd, [
-              "bun.lock",
-              "bun.lockb",
-              "package-lock.json",
-              "pnpm-lock.yaml",
-              "yarn.lock",
-            ]),
-            (file) => (file ? NodePath.relative(cwd, file) : undefined),
-          )
+          findUp(fs, cwd, [
+            "bun.lock",
+            "bun.lockb",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "yarn.lock",
+          ]),
+          (file) => (file ? relativePath(cwd, file) : undefined),
+        )
         : Effect.undefined,
     ],
     { concurrency: "unbounded" },
-  );
+  )
   if (lockfilePath && !files.includes(lockfilePath)) {
-    files.push(lockfilePath);
+    files.push(lockfilePath)
   }
-  const hashes = yield* Effect.forEach(
+  const hashes = try Effect.forEach(
     files.sort(),
-    (file) =>
-      fs.readFile(NodePath.join(cwd, file)).pipe(
-        Effect.flatMap(sha256Hex),
-        Effect.map((hash) => `${file}:${hash}`),
-      ),
+    effect (file) => {
+      const content = try fs.readFile(
+        try Effect.orDie(Effect.try({ try: () => joinPath(cwd, file), catch: (e) => e })),
+      )
+      const hash = try sha256Hex(content)
+      return `${file}:${hash}`
+    },
     { concurrency: 16 },
-  );
-  return yield* sha256Stable(hashes);
-});
+  )
+  return try sha256Stable(hashes)
+}
 
 /** This package's version — part of the `input` hash so an integration upgrade busts the memo. */
-const packageVersion = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const dir = NodePath.dirname(fileURLToPath(import.meta.url));
-  const content = yield* fs.readFileString(NodePath.join(dir, "../../package.json"));
-  return (JSON.parse(content) as { version: string }).version;
-});
+const packageVersion = effect {
+  const fs = try FileSystem.FileSystem
+  const content = try fs.readFileString(
+    try Effect.orDie(Effect.try({ try: () => packageJsonPath(), catch: (e) => e })),
+  )
+  return try Effect.orDie(
+    Effect.try({ try: () => (JSON.parse(content) as { version: string }).version, catch: (e) => e }),
+  )
+}
 
 /**
  * The rebuild-free `input` hash: project tree + external workspaces +
@@ -367,21 +380,26 @@ const packageVersion = Effect.gen(function* () {
  * `hashViteInput` semantics (`Workers/Sources/Vite.ts`) — never hashes
  * absolute paths, so relocating an identical tree is a no-op.
  */
-const hashNuxtInput = Effect.fnUntraced(function* (
+const hashNuxtInput = effect (
   rootDir: string,
   options: NuxtSourceOptions,
   workspaces: Iterable<string>,
-) {
-  const version = yield* packageVersion;
-  const hashWorkspace = (cwd: string, memo?: NuxtMemoOptions) =>
-    hashDirectory(NodePath.resolve(rootDir, cwd), memo).pipe(
-      Effect.map((hash) => `${NodePath.relative(rootDir, NodePath.resolve(rootDir, cwd))}:${hash}`),
-    );
-  const [root, ...workspaceHashes] = yield* Effect.all(
+) => {
+  const version = try packageVersion
+  const hashWorkspace = effect (cwd: string, memo?: NuxtMemoOptions) => {
+    const hash = try hashDirectory(
+      try Effect.orDie(Effect.try({ try: () => resolvePath(rootDir, cwd), catch: (e) => e })),
+      memo,
+    )
+    return `${try Effect.orDie(
+      Effect.try({ try: () => relativePath(rootDir, resolvePath(rootDir, cwd)), catch: (e) => e }),
+    )}:${hash}`
+  }
+  const [root, ...workspaceHashes] = try Effect.all(
     [hashWorkspace(rootDir, options.memo), ...Array.from(workspaces, (cwd) => hashWorkspace(cwd))],
     { concurrency: "unbounded" },
-  );
-  const hash = yield* sha256Stable({
+  )
+  const hash = try sha256Stable({
     version,
     options: {
       memo: options.memo,
@@ -389,14 +407,12 @@ const hashNuxtInput = Effect.fnUntraced(function* (
       main: options.main,
     },
     tree: [root, ...workspaceHashes.sort()],
-  });
+  })
   return {
     hash,
-    workspaces: Array.from(workspaces, (cwd) =>
-      NodePath.relative(rootDir, NodePath.resolve(rootDir, cwd)),
-    ),
-  };
-});
+    workspaces: Array.from(workspaces, (cwd) => relativePath(rootDir, resolvePath(rootDir, cwd))),
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Assets (mirror of alchemy's `readAssets` in `Workers/Assets.ts`:
@@ -405,29 +421,31 @@ const hashNuxtInput = Effect.fnUntraced(function* (
 // path so identical bytes hash identically across machines)
 // ─────────────────────────────────────────────────────────────────────
 
-const MAX_ASSET_SIZE = 1024 * 1024 * 25; // 25MB (Cloudflare limit)
-const MAX_ASSET_COUNT = 20_000;
+const MAX_ASSET_SIZE = 1024 * 1024 * 25 // 25MB (Cloudflare limit)
+const MAX_ASSET_COUNT = 20_000
 
 const maybeReadString = (fs: FileSystem.FileSystem, file: string) =>
   fs
     .readFileString(file)
     .pipe(
       Effect.catchTag("PlatformError", (error) =>
-        error.reason._tag === "NotFound" ? Effect.undefined : Effect.fail(error),
-      ),
-    );
+        error.reason._tag === "NotFound" ? Effect.undefined : Effect.fail(error)),
+    )
 
-const readAssetsDirectory = Effect.fnUntraced(function* (
+const readAssetsDirectory = effect (
   directory: string,
   config: Record<string, unknown> | undefined,
-) {
-  const fs = yield* FileSystem.FileSystem;
-  const [ignore, _headers, _redirects] = yield* Effect.all([
-    maybeReadString(fs, NodePath.join(directory, ".assetsignore")),
-    maybeReadString(fs, NodePath.join(directory, "_headers")),
-    maybeReadString(fs, NodePath.join(directory, "_redirects")),
-  ]);
-  const files = yield* Effect.promise(() =>
+) => {
+  const fs = try FileSystem.FileSystem
+  const ignorePath = try Effect.orDie(Effect.try({ try: () => joinPath(directory, ".assetsignore"), catch: (e) => e }))
+  const headersPath = try Effect.orDie(Effect.try({ try: () => joinPath(directory, "_headers"), catch: (e) => e }))
+  const redirectsPath = try Effect.orDie(Effect.try({ try: () => joinPath(directory, "_redirects"), catch: (e) => e }))
+  const [ignore, _headers, _redirects] = try Effect.all([
+    maybeReadString(fs, ignorePath),
+    maybeReadString(fs, headersPath),
+    maybeReadString(fs, redirectsPath),
+  ])
+  const files = try Effect.promise(() =>
     glob(["**/*"], {
       cwd: directory,
       ignore: [
@@ -439,32 +457,32 @@ const readAssetsDirectory = Effect.fnUntraced(function* (
       onlyFiles: true,
       expandDirectories: false,
       dot: true,
-    }),
-  );
+    })
+  )
   if (files.length > MAX_ASSET_COUNT) {
-    return yield* new SourceProviderError({
+    return try new SourceProviderError({
       provider: PROVIDER,
       message: `Too many assets in ${directory} (maximum is ${MAX_ASSET_COUNT}, found ${files.length})`,
-    });
+    })
   }
-  const entries = yield* Effect.forEach(
+  const entries = try Effect.forEach(
     files.sort(),
-    Effect.fnUntraced(function* (name) {
-      const file = NodePath.join(directory, name);
-      const content = yield* fs.readFile(file);
+    effect (name) => {
+      const file = try Effect.orDie(Effect.try({ try: () => joinPath(directory, name), catch: (e) => e }))
+      const content = try fs.readFile(file)
       if (content.byteLength > MAX_ASSET_SIZE) {
-        return yield* new SourceProviderError({
+        return try new SourceProviderError({
           provider: PROVIDER,
           message: `Asset ${name} is too large (the maximum size is 25 MB)`,
-        });
+        })
       }
-      const hash = (yield* sha256Hex(content)).slice(0, 32);
-      return [`/${name.replaceAll("\\", "/")}`, { hash, size: content.byteLength }] as const;
-    }),
+      const hash = (try sha256Hex(content)).slice(0, 32)
+      return [`/${name.replaceAll("\\", "/")}`, { hash, size: content.byteLength }] as const
+    },
     { concurrency: 16 },
-  );
-  const manifest = Object.fromEntries([...entries].sort((a, b) => a[0].localeCompare(b[0])));
-  const hash = yield* sha256Stable({ config, manifest, _headers, _redirects });
+  )
+  const manifest = Object.fromEntries([...entries].sort((a, b) => a[0].localeCompare(b[0])))
+  const hash = try sha256Stable({ config, manifest, _headers, _redirects })
   return {
     directory,
     config,
@@ -472,8 +490,8 @@ const readAssetsDirectory = Effect.fnUntraced(function* (
     _headers,
     _redirects,
     hash,
-  } satisfies SourceAssetReadResult;
-});
+  } satisfies SourceAssetReadResult
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // The provider
@@ -484,15 +502,15 @@ const wrapFrameworkError = (error: { readonly message: string; readonly cause?: 
     provider: PROVIDER,
     message: error.message,
     cause: error.cause ?? error,
-  });
+  })
 
 const assetsConfig = (assets: SourceContext["assets"]): Record<string, unknown> | undefined => {
   if (assets === undefined || typeof assets === "string") {
-    return undefined;
+    return undefined
   }
-  const { directory: _directory, hash: _hash, ...config } = assets;
-  return Object.keys(config).length > 0 ? config : undefined;
-};
+  const { directory: _directory, hash: _hash, ...config } = assets
+  return Object.keys(config).length > 0 ? config : undefined
+}
 
 /**
  * Resolve the Worker's literal env values as dev env overrides: strings
@@ -504,16 +522,16 @@ const assetsConfig = (assets: SourceContext["assets"]): Record<string, unknown> 
 const resolveDevEnvOverrides = (
   env: Record<string, unknown> | undefined,
 ): Record<string, unknown> => {
-  const out: Record<string, unknown> = {};
+  const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(env ?? {})) {
     if (typeof value === "string") {
-      out[key] = value;
+      out[key] = value
     } else if (Redacted.isRedacted(value) && typeof Redacted.value(value) === "string") {
-      out[key] = Redacted.value(value);
+      out[key] = Redacted.value(value)
     }
   }
-  return out;
-};
+  return out
+}
 
 /**
  * The production build runs in a disposable child process with
@@ -525,51 +543,52 @@ const resolveDevEnvOverrides = (
  * {@link buildInChild}.
  */
 export interface NuxtBuildChildConfig {
-  readonly rootDir: string;
-  readonly compatibilityDate: string;
-  readonly compatibilityFlags: Array<string>;
-  readonly main: string | undefined;
-  readonly nuxt: Record<string, unknown> | undefined;
+  readonly rootDir: string
+  readonly compatibilityDate: string
+  readonly compatibilityFlags: Array<string>
+  readonly main: string | undefined
+  readonly nuxt: Record<string, unknown> | undefined
 }
 
 export const buildInChild = (config: NuxtBuildChildConfig) =>
-  Effect.gen(function* () {
-    const framework = yield* makeNuxt({
+  effect {
+    const framework = try makeNuxt({
       root: config.rootDir,
-      target: makeCloudflareTarget,
+      target: (config) => makeCloudflareTarget(config),
       compatibilityDate: config.compatibilityDate,
       compatibilityFlags: config.compatibilityFlags,
       main: config.main,
       nuxt: config.nuxt,
-    });
-    return yield* framework.build({ root: config.rootDir });
-  });
+    })
+    return try framework.build({ root: config.rootDir })
+  }
 
 export const makeNuxtSource = (options: NuxtSourceOptions): SourceProvider => {
-  const rootDir = NodePath.resolve(options.rootDir ?? process.cwd());
+  const rootDir = resolvePath(options.rootDir ?? currentDirectory())
   const frameworkOptions = (ctx: SourceContext, dev?: NuxtOptions["dev"]): NuxtOptions => ({
     root: rootDir,
     // This module is Cloudflare-specific by contract (it implements alchemy's
     // Cloudflare Worker source), so it passes the target factory directly
     // instead of relying on specifier resolution from the project's
     // node_modules.
-    target: makeCloudflareTarget,
+    target: (config) => makeCloudflareTarget(config),
     compatibilityDate: ctx.compatibility.date,
     compatibilityFlags: ctx.compatibility.flags,
     main: options.main,
     nuxt: options.nuxt,
     dev,
-  });
+  })
   return {
     ownsAssets: true,
     // The dev platform proxy serves the public directory to `ASSETS`.
     devAssetsBinding: true,
-    build: Effect.fnUntraced(function* (ctx) {
-      const output = yield* runBuildChild({
+    build: effect (ctx) => {
+      const env = try Effect.orDie(Effect.try({ try: () => resolveBuildEnv(ctx.env), catch: (e) => e }))
+      const output = try runBuildChild({
         module: import.meta.url,
         rootDir,
         framework: "nuxt",
-        env: resolveBuildEnv(ctx.env),
+        env,
         config: {
           rootDir,
           compatibilityDate: ctx.compatibility.date,
@@ -577,35 +596,36 @@ export const makeNuxtSource = (options: NuxtSourceOptions): SourceProvider => {
           main: options.main,
           nuxt: options.nuxt,
         } satisfies NuxtBuildChildConfig,
-      }).pipe(Effect.mapError(wrapFrameworkError));
+      }).pipe(Effect.mapError(wrapFrameworkError))
       if (output.serverModules === undefined || output.serverModules.length === 0) {
-        return yield* new SourceProviderError({
+        return try new SourceProviderError({
           provider: PROVIDER,
           message: "The Nuxt build produced no server modules",
-        });
+        })
       }
       if (output.clientDirectory === undefined) {
-        return yield* new SourceProviderError({
+        return try new SourceProviderError({
           provider: PROVIDER,
           message: "The Nuxt build produced no client directory",
-        });
+        })
       }
+      const clientDirectory = output.clientDirectory
       const files = output.serverModules.map((module): SourceBundleFile => ({
         path: module.name,
         content: module.content,
         hash: module.hash,
-      })) as [SourceBundleFile, ...Array<SourceBundleFile>];
-      const [bundleHash, assets, input] = yield* Effect.all(
+      })) as [SourceBundleFile, ...Array<SourceBundleFile>]
+      const assetsDirectory = try Effect.orDie(
+        Effect.try({ try: () => resolvePath(rootDir, clientDirectory), catch: (e) => e }),
+      )
+      const [bundleHash, assets, input] = try Effect.all(
         [
           sha256Stable(files.map((file) => `${file.path}:${file.hash}`)),
-          readAssetsDirectory(
-            NodePath.resolve(rootDir, output.clientDirectory),
-            assetsConfig(ctx.assets),
-          ),
+          readAssetsDirectory(assetsDirectory, assetsConfig(ctx.assets)),
           hashNuxtInput(rootDir, options, output.externalWorkspaces),
         ],
         { concurrency: "unbounded" },
-      );
+      )
       return {
         bundle: { files, hash: bundleHash },
         assets,
@@ -615,18 +635,18 @@ export const makeNuxtSource = (options: NuxtSourceOptions): SourceProvider => {
           input: input.hash,
           additionalWorkspaces: input.workspaces,
         },
-      } satisfies SourceBuildOutput;
-    }),
-    hash: Effect.fnUntraced(function* (_ctx, previous) {
-      const { hash, workspaces } = yield* hashNuxtInput(
+      } satisfies SourceBuildOutput
+    },
+    hash: effect (_ctx, previous) => {
+      const { hash, workspaces } = try hashNuxtInput(
         rootDir,
         options,
         previous?.additionalWorkspaces ?? [],
-      );
-      return { input: hash, additionalWorkspaces: workspaces };
-    }),
-    dev: Effect.fnUntraced(function* (ctx: SourceDevContext) {
-      const framework = yield* makeNuxt(
+      )
+      return { input: hash, additionalWorkspaces: workspaces }
+    },
+    dev: effect (ctx: SourceDevContext) => {
+      const framework = try makeNuxt(
         frameworkOptions(ctx, {
           env: resolveDevEnvOverrides(ctx.env),
           bindings: ctx.worker.bindings,
@@ -636,18 +656,18 @@ export const makeNuxtSource = (options: NuxtSourceOptions): SourceProvider => {
           // resolve in dev.
           services: ctx.runtimeContext,
         }),
-      );
-      const server = yield* framework
+      )
+      const server = try framework
         .dev({ root: rootDir, port: 0 })
-        .pipe(Effect.mapError(wrapFrameworkError));
+        .pipe(Effect.mapError(wrapFrameworkError))
       return {
         mode: "server",
         url: new URL(server.url),
         serviceBinding: "http",
-      } satisfies SourceDevHandle;
-    }),
-  };
-};
+      } satisfies SourceDevHandle
+    },
+  }
+}
 
 /**
  * The `WorkerSourceModule` contract: alchemy dynamically imports this module
@@ -656,6 +676,6 @@ export const makeNuxtSource = (options: NuxtSourceOptions): SourceProvider => {
 const sourceModule = {
   make: (options: unknown): Effect.Effect<SourceProvider, SourceProviderError> =>
     Effect.succeed(makeNuxtSource((options ?? {}) as NuxtSourceOptions)),
-};
+}
 
-export default sourceModule;
+export default sourceModule

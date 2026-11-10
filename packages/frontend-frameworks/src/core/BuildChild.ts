@@ -167,12 +167,12 @@ export const runBuildChild = (
       const errorPath = path.join(outputDir, "error.txt");
 
       // The runner entry lives beside this module's core/ directory in both
-      // layouts (src/{fw}/source.ts → src/core/BuildChildRunner.ts,
+      // layouts (src/{fw}/source.ts or source.vibe → src/core/BuildChildRunner.ts,
       // dist/{fw}/source.js → dist/core/BuildChildRunner.js), so it resolves
       // relative to the FRAMEWORK module's own stable URL.
       const entry = fileURLToPath(
         new URL(
-          options.module.endsWith(".ts")
+          options.module.endsWith(".ts") || options.module.endsWith(".vibe")
             ? "../core/BuildChildRunner.ts"
             : "../core/BuildChildRunner.js",
           options.module,

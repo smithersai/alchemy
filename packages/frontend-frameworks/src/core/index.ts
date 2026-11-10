@@ -15,14 +15,14 @@ export {
   readServerModulesFromDisk,
   selectEntryByFacade,
   WORKER_ENTRY_PREFIX,
-} from "./Collector.ts";
+} from "./Collector.vibe";
 export type {
   BuildOutputCollector,
   CollectOptions,
   CollectorOptions,
   ReadServerModulesOptions,
   ServerEntryChunk,
-} from "./Collector.ts";
+} from "./Collector.vibe";
 export {
   applyDeployTargetFinish,
   DeployTargetError,
@@ -30,7 +30,7 @@ export {
   makeDeployTarget,
   resolveDeployTarget,
   resolveDeployTargetEntry,
-} from "./DeployTarget.ts";
+} from "./DeployTarget.vibe";
 export type {
   DeployTarget,
   DeployTargetBuildContext,
@@ -42,9 +42,9 @@ export type {
   DeployTargetServeContext,
   DeployTargetServer,
   DeployTargetServices,
-} from "./DeployTarget.ts";
-export { isInsideDevChild, isJsonSerializable, runDevChild } from "./DevChild.ts";
-export type { DevChildOptions, DevChildPayload } from "./DevChild.ts";
+} from "./DeployTarget.vibe";
+export { isInsideDevChild, isJsonSerializable, runDevChild } from "./DevChild.vibe";
+export type { DevChildOptions, DevChildPayload } from "./DevChild.vibe";
 export { findEphemeralPort, resolveViteDevPort } from "./DevPort.ts";
 export {
   NODE_BUNDLE_CONDITIONS,

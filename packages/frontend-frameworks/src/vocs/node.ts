@@ -14,7 +14,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { runBuildChild } from "../core/BuildChild.ts";
-import { isInsideDevChild, runDevChild } from "../core/DevChild.ts";
+import { isInsideDevChild, runDevChild } from "../core/DevChild.vibe";
 import {
   DeployTargetError,
   Framework,

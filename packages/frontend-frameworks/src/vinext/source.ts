@@ -35,7 +35,7 @@ import * as Redacted from "effect/Redacted";
 import type * as Scope from "effect/Scope";
 import { resolveBuildEnv, runBuildChild } from "../core/BuildChild.ts";
 import { toOutputFile, type BuildOutput } from "../core/BuildOutput.ts";
-import { WORKER_ENTRY_PREFIX } from "../core/Collector.ts";
+import { WORKER_ENTRY_PREFIX } from "../core/Collector.vibe";
 import { resolveViteDevPort } from "../core/DevPort.ts";
 import { ModuleLoadError } from "../core/Loader.ts";
 import { kvHttpNamespaceFromEnv, kvHttpSink } from "./cache/kv-http.ts";

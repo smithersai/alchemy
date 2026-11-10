@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 /**
  * `@alchemy.run/frontend-frameworks/waku/aws` — the AWS Lambda deploy target for
  * the Waku integration.
@@ -27,24 +26,20 @@ import { fileURLToPath } from "node:url";
  *   (the Lambda Node.js runtime ships SDK v3) for callers that post-process
  *   server code.
  */
-import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import * as Path from "effect/Path";
-import type { Config as WakuConfig } from "waku/config";
-import { runBuildChild } from "../core/BuildChild.ts";
-import {
-  DeployTargetError,
-  makeDeployTarget,
-  toOutputFile,
-  type BuildOutput,
-} from "../core/index.ts";
-import { AWS_LAMBDA_HANDLE_GLOBAL } from "./aws-shared.ts";
-import { make, type WakuTarget, type WakuTargetBuildContext } from "./Waku.ts";
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import type { Config as WakuConfig } from "waku/config"
+import { runBuildChild } from "../core/BuildChild.ts"
+import { DeployTargetError, makeDeployTarget, toOutputFile, type BuildOutput } from "../core/index.ts"
+import { AWS_LAMBDA_HANDLE_GLOBAL } from "./aws-shared.ts"
+import { awsAdapterPath } from "./aws.platform.ts"
+import { make, type WakuTarget, type WakuTargetBuildContext } from "./Waku.ts"
 
-export type { WakuTarget, WakuTargetContext } from "./Waku.ts";
+export type { WakuTarget, WakuTargetContext } from "./Waku.ts"
 
 /** The serve entry the finishing pass writes into `dist/server`. */
-export const SERVE_ENTRY_NAME = "serve-aws-lambda.mjs";
+export const SERVE_ENTRY_NAME = "serve-aws-lambda.mjs"
 
 /** Configuration accepted by the AWS deploy target. */
 export interface WakuAwsTargetConfig {
@@ -54,7 +49,7 @@ export interface WakuAwsTargetConfig {
    * `virtual:waku/server-entry`) and re-exports extras. Absolute, or
    * relative to the project root.
    */
-  readonly main?: string | undefined;
+  readonly main?: string | undefined
   /**
    * Whether the emitted Lambda handler streams its response
    * (`awslambda.streamifyResponse`, requires a Function URL with
@@ -62,7 +57,7 @@ export interface WakuAwsTargetConfig {
    * payload-v2 handler (`invokeMode: BUFFERED` / API Gateway HTTP APIs).
    * @default true
    */
-  readonly streaming?: boolean | undefined;
+  readonly streaming?: boolean | undefined
 }
 
 /**
@@ -86,7 +81,7 @@ export const handler = handle(
   (req, ...args) => INTERNAL_runFetch(process.env, req, ...args),
   { streaming: ${streaming} },
 );
-`;
+`
 
 /**
  * The adapter-driven target — the shape the framework's regular
@@ -107,43 +102,41 @@ const makeAwsAdapterTarget = (
     },
     adapter: () =>
       Effect.try({
-        try: () =>
-          fileURLToPath(import.meta.resolve("@alchemy.run/frontend-frameworks/waku/aws-adapter")),
+        try: () => awsAdapterPath(),
         catch: (cause) =>
           new DeployTargetError({
             platform: "aws",
-            message:
-              "Failed to resolve the @alchemy.run/frontend-frameworks/waku AWS adapter module",
+            message: "Failed to resolve the @alchemy.run/frontend-frameworks/waku AWS adapter module",
             cause,
           }),
       }),
     vitePlugins: () => Effect.sync(() => []),
     finish: (output, _context) =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
+      effect {
+        const fs = try FileSystem.FileSystem
+        const path = try Path.Path
         const fail = (message: string) => (cause?: unknown) =>
-          new DeployTargetError({ platform: "aws", message, cause });
+          new DeployTargetError({ platform: "aws", message, cause })
 
         if (output.distDirectory === undefined) {
-          return yield* fail("The waku build produced no dist directory")(undefined);
+          return try fail("The waku build produced no dist directory")(undefined)
         }
-        const serverDir = path.join(output.distDirectory, "server");
-        const serverIndex = path.join(serverDir, "index.js");
-        const hasServerIndex = yield* fs
+        const serverDir = path.join(output.distDirectory, "server")
+        const serverIndex = path.join(serverDir, "index.js")
+        const hasServerIndex = try fs
           .exists(serverIndex)
-          .pipe(Effect.mapError(fail("Failed to probe the built server entry")));
+          .pipe(Effect.mapError(fail("Failed to probe the built server entry")))
         if (!hasServerIndex) {
-          return yield* fail(`The waku build produced no server entry at ${serverIndex}`)(
+          return try fail(`The waku build produced no server entry at ${serverIndex}`)(
             undefined,
-          );
+          )
         }
 
-        const serveSource = makeServeEntrySource(config?.streaming ?? true);
+        const serveSource = makeServeEntrySource(config?.streaming ?? true)
         // `dist/server` ships to Lambda as-is (no project package.json in the
         // archive), so the directory must carry its own ESM marker for
         // `./index.js` to parse as a module.
-        yield* Effect.all(
+        try Effect.all(
           [
             fs.writeFileString(path.join(serverDir, SERVE_ENTRY_NAME), serveSource),
             fs.writeFileString(
@@ -152,18 +145,18 @@ const makeAwsAdapterTarget = (
             ),
           ],
           { concurrency: "unbounded" },
-        ).pipe(Effect.mapError(fail("Failed to write the Lambda serve entry")));
+        ).pipe(Effect.mapError(fail("Failed to write the Lambda serve entry")))
 
-        const serveModule = yield* toOutputFile(`server/${SERVE_ENTRY_NAME}`, serveSource);
+        const serveModule = try toOutputFile(`server/${SERVE_ENTRY_NAME}`, serveSource)
         // The serve entry becomes `serverModules[0]` — the module alchemy's
         // Server resource deploys as the Lambda `main`.
         const serverModules = [
           serveModule,
           ...(output.serverModules ?? []).filter((module_) => module_.name !== serveModule.name),
-        ];
-        return { ...output, serverModules } satisfies BuildOutput;
-      }),
-  });
+        ]
+        return { ...output, serverModules } satisfies BuildOutput
+      },
+  })
 
 /**
  * Waku assumes `process.cwd()` is the project root in several places (the
@@ -177,28 +170,28 @@ const makeAwsAdapterTarget = (
  * this module in the child and calls the exported {@link buildInChild}.
  */
 export interface WakuAwsBuildChildConfig {
-  readonly rootDir: string;
+  readonly rootDir: string
   /** The (JSON-serializable) target config the parent was created with. */
-  readonly config: WakuAwsTargetConfig | undefined;
+  readonly config: WakuAwsTargetConfig | undefined
   /**
    * The inline waku options the framework was constructed with
    * (`WakuFrameworkOptions.waku`, carried through the build context). Only
    * JSON-serializable fields cross the process boundary.
    */
-  readonly waku: WakuConfig | undefined;
+  readonly waku: WakuConfig | undefined
 }
 
 export const buildInChild = (config: WakuAwsBuildChildConfig) =>
-  Effect.gen(function* () {
-    const framework = yield* make({
+  effect {
+    const framework = try make({
       root: config.rootDir,
       // The adapter-only target: no wholesale `build` hook, so the child
       // runs the regular waku build + finish pipeline (no recursion).
       target: makeAwsAdapterTarget(config.config),
       waku: config.waku,
-    });
-    return yield* framework.build({ root: config.rootDir });
-  });
+    })
+    return try framework.build({ root: config.rootDir })
+  }
 
 /**
  * Build the AWS Lambda {@link WakuTarget}. See the module doc for the seams.
@@ -229,12 +222,12 @@ export const makeWakuAwsTarget = (
           }),
       ),
     ),
-});
+})
 
 /**
  * The deploy-target module contract (`resolveDeployTarget` accepts the
  * default export — or the named `target` export — as a value or factory).
  */
-export const target = makeWakuAwsTarget;
+export const target = makeWakuAwsTarget
 
-export default makeWakuAwsTarget;
+export default makeWakuAwsTarget
