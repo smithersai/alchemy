@@ -2,10 +2,10 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { BunObject } from "./bun-object.ts";
-import { EffectfulObject } from "./effectful-object.ts";
-import { OpencodeObject } from "./opencode-object.ts";
-import { RemoteObject } from "./remote-object.ts";
+import { BunObject } from "./bun-object.vibe";
+import { EffectfulObject } from "./effectful-object.vibe";
+import { OpencodeObject } from "./opencode-object.vibe";
+import { RemoteObject } from "./remote-object.vibe";
 
 /**
  * Cloudflare Worker host for the container cold-start benchmark. Each request

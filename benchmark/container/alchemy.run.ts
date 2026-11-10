@@ -6,13 +6,13 @@ import * as Layer from "effect/Layer";
 import BunMicrovmLive from "./src/bun-image.vibe";
 import ContainerWorker from "./src/container-worker.ts";
 import EffectfulBunLive from "./src/effectful-bun.ts";
-import EffectfulContainerLive from "./src/effectful-container.ts";
+import EffectfulContainerLive from "./src/effectful-container.vibe";
 import EffectfulNodeLive from "./src/effectful-node.ts";
 import ExternalMicrovmLive from "./src/external-image.vibe";
-import MicrovmWorker from "./src/microvm-worker.ts";
+import MicrovmWorker from "./src/microvm-worker.vibe";
 import NodeMicrovmLive from "./src/node-image.vibe";
 import OpencodeMicrovmLive from "./src/opencode-image.vibe";
-import Orchestrator from "./src/orchestrator.ts";
+import Orchestrator from "./src/orchestrator.vibe";
 
 /**
  * MicroVM is a gated AWS Lambda preview. The container benchmark runs against
