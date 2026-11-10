@@ -31,7 +31,7 @@ export * from "./ListObjectsV2Http.vibe";
 export * from "./ListSecrets.vibe";
 export * from "./ListSecretsHttp.vibe";
 export * from "./Machine.vibe";
-export * from "./Metadata.ts";
+export * from "./Metadata.vibe";
 export * from "./MountVolume.vibe";
 export { ServicePortConflict } from "./ports.vibe";
 export * from "./Postgres.vibe";

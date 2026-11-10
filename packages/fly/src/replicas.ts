@@ -32,7 +32,7 @@ import {
   isAlchemyOwnedMetadata,
   sanitizeFlyAppName,
   type FlyAlchemyType,
-} from "./Metadata.ts";
+} from "./Metadata.vibe";
 import type { DiskSpec, MountedDisk } from "./MountVolume.vibe";
 import { regionOfReplica } from "./Region.ts";
 import { deleteVolume, ensureVolumeGroup, getVolumeById, volumeGroupName } from "./Volume.vibe";
