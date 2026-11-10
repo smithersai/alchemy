@@ -1,7 +1,7 @@
 import * as AWS from "@alchemy.run/aws";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { LinkNotFound, Links, LinkStoreError, newCode, type Link } from "./Links.ts";
+import { LinkNotFound, Links, LinkStoreError, newCode, type Link } from "./Links.vibe";
 
 /** `Links` stored in a DynamoDB table that this Layer owns. Reads are strongly consistent. */
 export const LinksDynamo = Layer.effect(
