@@ -21,7 +21,7 @@ export * from "./ReadDnsHttp.vibe";
 export * from "./ReadWriteDns.vibe";
 export * from "./ReadWriteDnsHttp.vibe";
 export * from "./RecordSet.vibe";
-export * from "./Server.ts";
+export * from "./Server.vibe";
 export * from "./Service.vibe";
 export * from "./Ssh.vibe";
 export * from "./SshKey.vibe";

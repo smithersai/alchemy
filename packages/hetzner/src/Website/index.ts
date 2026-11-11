@@ -1,6 +1,6 @@
 export * from "./Astro.vibe";
 export * from "./Foldkit.ts";
-export * from "./FrameworkSite.ts";
+export * from "./FrameworkSite.vibe";
 export * from "./Nextjs.ts";
 export * from "./Nuxt.ts";
 export * from "./Octane.ts";
