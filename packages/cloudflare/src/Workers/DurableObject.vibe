@@ -1,92 +1,237 @@
-import type * as cf from "@cloudflare/workers-types";
-import type { Dependencies } from "alchemy/Dependencies";
-import type { HttpEffect } from "alchemy/Http";
-import type { Input } from "alchemy/Input";
-import * as Output from "alchemy/Output";
-import { ALCHEMY_PHASE } from "alchemy/Phase";
-import type { MainRpc, PlatformServices } from "alchemy/Platform";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
-import { effectClass, taggedFunction } from "alchemy/Util/effect";
-import { asEffect } from "alchemy/Util/types";
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
-import type { HttpServerError } from "effect/http/HttpServerError";
-import * as HttpServerRequest from "effect/http/HttpServerRequest";
-import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import * as Layer from "effect/Layer";
-import * as Predicate from "effect/Predicate";
-import type { Scope } from "effect/Scope";
-import type { Container } from "../Containers/Container.vibe";
-import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.vibe";
-import { makeRpcStub, type RpcErrorClass } from "./Rpc.vibe";
-import { type WebSocket } from "./WebSocket.vibe";
-import { isWorker, Worker, WorkerEnvironment, type WorkerServices } from "./Worker.ts";
+import type * as cf from "@cloudflare/workers-types"
+import type { Dependencies } from "alchemy/Dependencies"
+import type { HttpEffect } from "alchemy/Http"
+import type { Input } from "alchemy/Input"
+import * as Output from "alchemy/Output"
+import { ALCHEMY_PHASE } from "alchemy/Phase"
+import type { MainRpc, PlatformServices } from "alchemy/Platform"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import { effectClass, taggedFunction } from "alchemy/Util/effect"
+import { asEffect } from "alchemy/Util/types"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import type { HttpServerError } from "effect/http/HttpServerError"
+import * as HttpServerRequest from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Layer from "effect/Layer"
+import type { Scope } from "effect/Scope"
+import type { Container } from "../Containers/Container.vibe"
+import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.vibe"
+import { type RpcErrorClass } from "./Rpc.vibe"
+import { type WebSocket } from "./WebSocket.vibe"
+import { Worker, WorkerEnvironment, type WorkerServices } from "./Worker.vibe"
+
+// Transfer-source normalization and jurisdiction restriction throw by
+// design (an invalid `transferredFrom` entry; workerd's own errors), and a
+// throwing function is TypeScript, so they and the namespace handle that
+// calls them live in this module body.
+module namespaces {
+  import type * as cf from "@cloudflare/workers-types"
+  import type { Input } from "alchemy/Input"
+  import * as Output from "alchemy/Output"
+  import * as Predicate from "effect/Predicate"
+  import type {
+    DurableObject,
+    DurableObjectGetDurableObjectOptions,
+    DurableObjectId,
+    DurableObjectJurisdiction,
+    DurableObjectTransferSource,
+  } from "./DurableObject.vibe"
+  import { makeRpcStub, type RpcErrorClass } from "./Rpc.vibe"
+  import { isWorker } from "./Worker.vibe"
+
+  const TypeId = "Cloudflare.DurableObject"
+
+  /** @throws {Error} */
+  const resolveTransferSourceRef = (
+    source: DurableObjectTransferSource,
+    depth = 0,
+  ): Input<string> => {
+    if (typeof source === "string") {
+      return source
+    }
+    // A Worker resource — contribute its logical id.
+    if (isWorker(source)) {
+      return source.LogicalId
+    }
+    // A Worker platform class — carries its logical id statically. (On an
+    // Output proxy this property access yields another Output, never a
+    // string, so the check cannot misfire there.)
+    const logicalId = (source as { LogicalId?: unknown }).LogicalId
+    if (typeof logicalId === "string") {
+      return logicalId
+    }
+    // A same-stack Output on a Worker (e.g. `b.workerName`): take the
+    // identity from its provenance, not the value.
+    if (Output.isPropExpr(source)) {
+      const expr = (source as Output.PropExpr<any, any>).expr
+      if (Output.isResourceExpr(expr) && isWorker(expr.src)) {
+        return expr.src.LogicalId
+      }
+    }
+    if (Output.isResourceExpr(source) && isWorker(source.src)) {
+      return source.src.LogicalId
+    }
+    if (Output.isOutput(source)) {
+      // No local resource to take identity from (e.g. a cross-stack
+      // `stackRef`) — the engine resolves the string at deploy time.
+      return source as Input<string>
+    }
+    if (typeof source === "function" && depth < 8) {
+      return resolveTransferSourceRef((source as () => DurableObjectTransferSource)(), depth + 1)
+    }
+    throw new Error(
+      "Invalid transferredFrom entry: pass the former host's logical id or script name, its Worker class or resource, a thunk of one of those, or a string Output.",
+    )
+  }
+
+  /**
+   * Normalize a `transferredFrom` declaration to plain host identifiers at
+   * plan time. See {@link DurableObjectTransferSource} for the accepted forms
+   * and why Worker references reduce to logical ids instead of Outputs.
+   *
+   * @internal
+   */
+  export const normalizeTransferredFrom = (
+    value: DurableObjectTransferSource | readonly DurableObjectTransferSource[] | undefined,
+  ): Input<string>[] | undefined =>
+    value === undefined
+      ? undefined
+      : (Array.isArray(value)
+        ? (value as readonly DurableObjectTransferSource[])
+        : [value as DurableObjectTransferSource]).map((source) => resolveTransferSourceRef(source))
+
+  /**
+   * `ns` restricted to `jurisdiction`. Local workerd (`alchemy dev`) does not
+   * implement jurisdictions and throws on `jurisdiction()`, so there the
+   * unrestricted namespace is used, the same way a D1 database, R2 bucket or
+   * Queue declared with a jurisdiction runs unrestricted on the local simulator.
+   *
+   * @throws {unknown}
+   */
+  export const restrictToJurisdiction = (
+    ns: cf.DurableObjectNamespace | undefined,
+    jurisdiction: DurableObjectJurisdiction,
+  ): cf.DurableObjectNamespace | undefined => {
+    try {
+      return ns?.jurisdiction(jurisdiction)
+    } catch (error) {
+      // workerd's message; a deployed Worker never throws it.
+      if (
+        Predicate.hasProperty(error, "message")
+        && String(error.message).includes("Jurisdiction restrictions are not implemented")
+      ) {
+        return ns
+      }
+      throw error
+    }
+  }
+
+  /** The fields of a namespace handle besides its native namespace. */
+  export interface NamespaceHandleFields {
+    readonly namespace: string
+    readonly scriptName: Input<string> | undefined
+    readonly transferredFrom: DurableObjectTransferSource | DurableObjectTransferSource[] | undefined
+    readonly errors: ReadonlyArray<RpcErrorClass> | undefined
+    /** The handle's `namespaceId`, built for each handle. */
+    readonly namespaceId: () => DurableObject<any>["namespaceId"]
+  }
+
+  // A function because `jurisdiction` wraps the sub-namespace it returns.
+  // The return annotation checks the value against the interface, so a
+  // method missing here is a compile error.
+  export const makeNamespace = (
+    fields: NamespaceHandleFields,
+    ns: cf.DurableObjectNamespace | undefined,
+  ): DurableObject<any> => ({
+    // `kind` + `scriptName`/`transferredFrom` let a namespace passed in
+    // a Worker's `env` bind as the `durable_object_namespace` it is.
+    kind: TypeId,
+    scriptName: fields.scriptName,
+    transferredFrom: fields.transferredFrom,
+    Type: TypeId,
+    LogicalId: fields.namespace,
+    name: fields.namespace,
+    namespaceId: fields.namespaceId(),
+    getByName: (name: string, options?: DurableObjectGetDurableObjectOptions) =>
+      makeRpcStub(ns!.getByName(name, options), { errors: fields.errors }),
+    newUniqueId: () => ns!.newUniqueId(),
+    idFromName: (name: string) => ns!.idFromName(name),
+    idFromString: (id: string) => ns!.idFromString(id),
+    get: (id: DurableObjectId, options?: DurableObjectGetDurableObjectOptions) =>
+      makeRpcStub(ns!.get(id, options), { errors: fields.errors }),
+    jurisdiction: (jurisdiction: DurableObjectJurisdiction) =>
+      makeNamespace(fields, restrictToJurisdiction(ns, jurisdiction)),
+  })
+}
+
+import { makeNamespace, type NamespaceHandleFields, normalizeTransferredFrom } from namespaces
 
 export interface DurableObjectExport {
-  readonly kind: "durableObject";
+  readonly kind: "durableObject"
   readonly constructor: Effect.Effect<
     Effect.Effect<DurableObjectShape, never, RuntimeContext>,
     never,
     DurableObjectState
-  >;
-  readonly services: Context.Context<never>;
+  >
+  readonly services: Context.Context<never>
 }
 
 export const isDurableObjectExport = (value: unknown): value is DurableObjectExport =>
-  typeof value === "object" && (value as any)?.kind === "durableObject";
+  typeof value === "object" && (value as any)?.kind === "durableObject"
 
-export type DurableObjectId = cf.DurableObjectId;
-export type DurableObjectJurisdiction = cf.DurableObjectJurisdiction;
-export type DurableObjectGetDurableObjectOptions = cf.DurableObjectNamespaceGetDurableObjectOptions;
+export type DurableObjectId = cf.DurableObjectId
+export type DurableObjectJurisdiction = cf.DurableObjectJurisdiction
+export type DurableObjectGetDurableObjectOptions = cf.DurableObjectNamespaceGetDurableObjectOptions
 /**
  * The regions a Durable Object can be *hinted* toward at creation —
  * `"wnam"`, `"enam"`, `"sam"`, `"weur"`, `"eeur"`, `"apac"`, `"oc"`, … See
  * the "Placing a Durable Object in a Region" section on {@link DurableObject}.
  */
-export type DurableObjectLocationHint = cf.DurableObjectLocationHint;
+export type DurableObjectLocationHint = cf.DurableObjectLocationHint
 
-export type AlarmInvocationInfo = cf.AlarmInvocationInfo;
+export type AlarmInvocationInfo = cf.AlarmInvocationInfo
 
-type TypeId = "Cloudflare.DurableObject";
-const TypeId = "Cloudflare.DurableObject";
+type TypeId = "Cloudflare.DurableObject"
+const TypeId = "Cloudflare.DurableObject"
 
 export const isDurableObjectLike = (value: unknown): value is DurableObjectLike =>
-  typeof value === "object" && (value as any)?.kind === TypeId;
+  typeof value === "object" && (value as any)?.kind === TypeId
 
 export interface DurableObjectLike<Shape = any> {
-  kind: TypeId;
-  name: string;
+  kind: TypeId
+  name: string
   /** @internal phantom */
-  className?: string;
+  className?: string
   /** @internal phantom */
-  scriptName?: Input<string>;
+  scriptName?: Input<string>
   /** @internal phantom */
-  transferredFrom?: DurableObjectTransferSource | DurableObjectTransferSource[];
+  transferredFrom?: DurableObjectTransferSource | DurableObjectTransferSource[]
   /** @internal phantom */
-  storage?: "sqlite" | "legacy-kv";
+  storage?: "sqlite" | "legacy-kv"
   /** @internal Durable Object-managed Containers attached to the class. */
-  containers?: ReadonlyArray<Container.Decl.Any>;
+  containers?: ReadonlyArray<Container.Decl.Any>
   /** @internal phantom */
-  Shape?: Shape;
+  Shape?: Shape
 }
 
 export interface DurableObject<Shape = unknown> extends DurableObjectLike<Shape> {
-  Type: TypeId;
+  Type: TypeId
   /** The namespace's logical id. */
-  LogicalId: string;
-  name: string;
-  namespaceId: Output.Output<string>;
+  LogicalId: string
+  name: string
+  namespaceId: Output.Output<string>
   getByName: (
     name: string,
     options?: DurableObjectGetDurableObjectOptions,
-  ) => DurableObjectStub<Shape>;
-  newUniqueId: () => DurableObjectId;
-  idFromName: (name: string) => DurableObjectId;
-  idFromString: (id: string) => DurableObjectId;
+  ) => DurableObjectStub<Shape>
+  newUniqueId: () => DurableObjectId
+  idFromName: (name: string) => DurableObjectId
+  idFromString: (id: string) => DurableObjectId
   get: (
     id: DurableObjectId,
     options?: DurableObjectGetDurableObjectOptions,
-  ) => DurableObjectStub<Shape>;
+  ) => DurableObjectStub<Shape>
   /**
    * A view of this namespace whose objects are created and stored only inside
    * the given jurisdiction (e.g. `"eu"`). The same name addresses a different
@@ -101,24 +246,24 @@ export interface DurableObject<Shape = unknown> extends DurableObjectLike<Shape>
    * const room = rooms.jurisdiction("eu").getByName(roomId);
    * ```
    */
-  jurisdiction: (jurisdiction: DurableObjectJurisdiction) => DurableObject<Shape>;
+  jurisdiction: (jurisdiction: DurableObjectJurisdiction) => DurableObject<Shape>
 }
 
 export interface DurableObjectShape {
-  fetch?: HttpEffect<DurableObjectState | RuntimeContext>;
-  alarm?: (alarmInfo?: AlarmInvocationInfo) => Effect.Effect<void, never, RuntimeContext>;
-  webSocketMessage?: (socket: WebSocket, message: string | ArrayBuffer) => Effect.Effect<void>;
+  fetch?: HttpEffect<DurableObjectState | RuntimeContext>
+  alarm?: (alarmInfo?: AlarmInvocationInfo) => Effect.Effect<void, never, RuntimeContext>
+  webSocketMessage?: (socket: WebSocket, message: string | ArrayBuffer) => Effect.Effect<void>
   webSocketClose?: (
     socket: WebSocket,
     code: number,
     reason: string,
     wasClean: boolean,
-  ) => Effect.Effect<void>;
+  ) => Effect.Effect<void>
   /**
    * Called when a hibernatable WebSocket errors. The runtime closes the
    * socket after this handler; use it to drop the peer's session state.
    */
-  webSocketError?: (socket: WebSocket, error: unknown) => Effect.Effect<void>;
+  webSocketError?: (socket: WebSocket, error: unknown) => Effect.Effect<void>
 }
 
 export type DurableObjectServices =
@@ -127,7 +272,7 @@ export type DurableObjectServices =
   | DurableObjectScope
   | WorkerServices
   | WorkerEnvironment
-  | PlatformServices;
+  | PlatformServices
 
 /**
  * A reference to the Worker that previously hosted a Durable Object class,
@@ -154,90 +299,9 @@ export type DurableObjectTransferSource =
   | Input<string>
   | Worker
   | Effect.Effect<Worker, any, any>
-  | (() => DurableObjectTransferSource);
+  | (() => DurableObjectTransferSource)
 
-const resolveTransferSourceRef = (
-  source: DurableObjectTransferSource,
-  depth = 0,
-): Input<string> => {
-  if (typeof source === "string") {
-    return source;
-  }
-  // A Worker resource — contribute its logical id.
-  if (isWorker(source)) {
-    return source.LogicalId;
-  }
-  // A Worker platform class — carries its logical id statically. (On an
-  // Output proxy this property access yields another Output, never a
-  // string, so the check cannot misfire there.)
-  const logicalId = (source as { LogicalId?: unknown }).LogicalId;
-  if (typeof logicalId === "string") {
-    return logicalId;
-  }
-  // A same-stack Output on a Worker (e.g. `b.workerName`): take the
-  // identity from its provenance, not the value.
-  if (Output.isPropExpr(source)) {
-    const expr = (source as Output.PropExpr<any, any>).expr;
-    if (Output.isResourceExpr(expr) && isWorker(expr.src)) {
-      return expr.src.LogicalId;
-    }
-  }
-  if (Output.isResourceExpr(source) && isWorker(source.src)) {
-    return source.src.LogicalId;
-  }
-  if (Output.isOutput(source)) {
-    // No local resource to take identity from (e.g. a cross-stack
-    // `stackRef`) — the engine resolves the string at deploy time.
-    return source as Input<string>;
-  }
-  if (typeof source === "function" && depth < 8) {
-    return resolveTransferSourceRef((source as () => DurableObjectTransferSource)(), depth + 1);
-  }
-  throw new Error(
-    "Invalid transferredFrom entry: pass the former host's logical id or script name, its Worker class or resource, a thunk of one of those, or a string Output.",
-  );
-};
-
-/**
- * Normalize a `transferredFrom` declaration to plain host identifiers at
- * plan time. See {@link DurableObjectTransferSource} for the accepted forms
- * and why Worker references reduce to logical ids instead of Outputs.
- *
- * @internal
- */
-export const normalizeTransferredFrom = (
-  value: DurableObjectTransferSource | readonly DurableObjectTransferSource[] | undefined,
-): Input<string>[] | undefined =>
-  value === undefined
-    ? undefined
-    : (Array.isArray(value)
-        ? (value as readonly DurableObjectTransferSource[])
-        : [value as DurableObjectTransferSource]
-      ).map((source) => resolveTransferSourceRef(source));
-
-/**
- * `ns` restricted to `jurisdiction`. Local workerd (`alchemy dev`) does not
- * implement jurisdictions and throws on `jurisdiction()`, so there the
- * unrestricted namespace is used, the same way a D1 database, R2 bucket or
- * Queue declared with a jurisdiction runs unrestricted on the local simulator.
- */
-const restrictToJurisdiction = (
-  ns: cf.DurableObjectNamespace | undefined,
-  jurisdiction: DurableObjectJurisdiction,
-): cf.DurableObjectNamespace | undefined => {
-  try {
-    return ns?.jurisdiction(jurisdiction);
-  } catch (error) {
-    // workerd's message; a deployed Worker never throws it.
-    if (
-      Predicate.hasProperty(error, "message") &&
-      String(error.message).includes("Jurisdiction restrictions are not implemented")
-    ) {
-      return ns;
-    }
-    throw error;
-  }
-};
+export { normalizeTransferredFrom } from namespaces
 
 export interface DurableObjectProps {
   /**
@@ -245,12 +309,12 @@ export interface DurableObjectProps {
    *
    * @default name
    */
-  className?: string;
+  className?: string
   /**
    * Worker script that hosts the Durable Object class. Omit this when the
    * namespace is hosted by the Worker that declares the binding.
    */
-  scriptName?: Input<string> | undefined;
+  scriptName?: Input<string> | undefined
   /**
    * The Worker(s) that previously hosted this Durable Object class. When one
    * of them still holds the namespace, the deploy transfers it — including
@@ -273,7 +337,7 @@ export interface DurableObjectProps {
    * created fresh (or left as-is), so it is safe to leave in place
    * indefinitely.
    */
-  transferredFrom?: DurableObjectTransferSource | DurableObjectTransferSource[] | undefined;
+  transferredFrom?: DurableObjectTransferSource | DurableObjectTransferSource[] | undefined
   /**
    * Storage backend of the class, as Wrangler's `storage` declares it.
    * `"legacy-kv"` describes a class created before SQLite-backed Durable
@@ -283,7 +347,7 @@ export interface DurableObjectProps {
    *
    * @default "sqlite"
    */
-  storage?: "sqlite" | "legacy-kv" | undefined;
+  storage?: "sqlite" | "legacy-kv" | undefined
   /**
    * Tagged-error classes this Durable Object's RPC methods can fail with.
    *
@@ -301,7 +365,7 @@ export interface DurableObjectProps {
    * ) {}
    * ```
    */
-  errors?: ReadonlyArray<RpcErrorClass> | undefined;
+  errors?: ReadonlyArray<RpcErrorClass> | undefined
   // environment?: string | undefined;
   // sqlite?: boolean | undefined;
   // namespaceId?: string | undefined;
@@ -328,7 +392,7 @@ export interface DurableObjectBindingProps extends DurableObjectProps {
    * }
    * ```
    */
-  containers?: ReadonlyArray<Container.Decl.Any> | undefined;
+  containers?: ReadonlyArray<Container.Decl.Any> | undefined
 }
 
 export interface DurableObjectClass extends Effect.Effect<DurableObject, never, DurableObject> {
@@ -337,14 +401,14 @@ export interface DurableObjectClass extends Effect.Effect<DurableObject, never, 
       name: Name,
       props?: Pick<DurableObjectProps, "transferredFrom" | "errors">,
     ): Effect.Effect<DurableObject<Self>, never, Worker | Self> & {
-      new (_: never): Shape & {
+      new(_: never): Shape & {
         /** @internal */
-        "~alchemy/name": Name;
-      };
-      from(scriptName: Input<string>): Effect.Effect<DurableObject<Self>, never, Worker>;
+        "~alchemy/name": Name
+      }
+      from(scriptName: Input<string>): Effect.Effect<DurableObject<Self>, never, Worker>
       from<Req = never>(
         worker: Dependencies<Self> | Effect.Effect<Dependencies<Self>, never, Req>,
-      ): Effect.Effect<DurableObject<Self>, never, Worker | Req>;
+      ): Effect.Effect<DurableObject<Self>, never, Worker | Req>
       make<Req = never>(
         impl: Effect.Effect<
           Effect.Effect<Shape, never, RuntimeContext | DurableObjectState | Scope>,
@@ -355,9 +419,9 @@ export interface DurableObjectClass extends Effect.Effect<DurableObject, never, 
         // so ambient DO services resolved in the outer init effect never
         // leak into the host Worker's requirements — mirrors Worker.make's
         // `Exclude<InitReq, Self | WorkerServices>`.
-      ): Layer.Layer<Self, never, Worker | Exclude<Req, DurableObjectServices>>;
-    };
-  };
+      ): Layer.Layer<Self, never, Worker | Exclude<Req, DurableObjectServices>>
+    }
+  }
   <Self>(): {
     <
       Shape extends MainRpc<DurableObjectState>,
@@ -369,19 +433,21 @@ export interface DurableObjectClass extends Effect.Effect<DurableObject, never, 
         never,
         Req
       >,
-    ): Effect.Effect<
-      DurableObject<Self>,
-      never,
-      Worker | Extract<Req, Container.Application<any>>
-    > & {
-      new (_: never): Shape;
-    };
-  };
-  <Shape>(name: string, props?: DurableObjectBindingProps): DurableObjectLike<Shape>;
+    ):
+      & Effect.Effect<
+        DurableObject<Self>,
+        never,
+        Worker | Extract<Req, Container.Application<any>>
+      >
+      & {
+        new(_: never): Shape
+      }
+  }
+  <Shape>(name: string, props?: DurableObjectBindingProps): DurableObjectLike<Shape>
   <Shape, InitReq = never>(
     name: string,
     impl: Effect.Effect<Shape, never, DurableObjectServices | InitReq>,
-  ): Effect.Effect<DurableObject<Shape>, never, Worker | Exclude<InitReq, DurableObjectServices>>;
+  ): Effect.Effect<DurableObject<Shape>, never, Worker | Exclude<InitReq, DurableObjectServices>>
 }
 
 export class DurableObjectScope extends Context.Service<DurableObjectScope, DurableObject>()(
@@ -1357,122 +1423,111 @@ export class DurableObjectScope extends Context.Service<DurableObjectScope, Dura
  */
 export const DurableObject: DurableObjectClass = taggedFunction(
   DurableObjectScope,
-  function (
+  function(
     ...args:
       | []
       | [
-          name: string,
-          props?: DurableObjectProps,
-          // phantom argument
-          isClassForm?: true,
-        ]
+        name: string,
+        props?: DurableObjectProps,
+        // phantom argument
+        isClassForm?: true,
+      ]
       | [
-          name: string,
-          impl: Effect.Effect<Effect.Effect<DurableObject<any>, never, DurableObjectState>>,
-          // phantom argument
-          isClassForm?: true,
-        ]
+        name: string,
+        impl: Effect.Effect<Effect.Effect<DurableObject<any>, never, DurableObjectState>>,
+        // phantom argument
+        isClassForm?: true,
+      ]
   ) {
     if (args.length === 0) {
       return (name: string, propsOrImpl?: any) =>
         // @ts-expect-error
-        DurableObject(name, propsOrImpl, true);
+        DurableObject(name, propsOrImpl, true)
     }
-    const namespace = args[0];
-    const isClassForm = args[2] === true;
-    const propsOrImpl = args[1];
-    const tag = Context.Service(namespace);
+    const namespace = args[0]
+    const isClassForm = args[2] === true
+    const propsOrImpl = args[1]
+    const tag = Context.Service(namespace)
 
     const binding = (
       scriptName?: Input<string>,
       transferredFrom?: DurableObjectTransferSource | DurableObjectTransferSource[],
       errors?: ReadonlyArray<RpcErrorClass>,
     ) =>
-      Effect.gen(function* () {
-        const worker = yield* Worker;
+      effect {
+        const worker = try Worker
 
-        yield* worker.bind`${namespace}`({
+        // Normalizing throws on an invalid entry: a defect, as it was.
+        const normalizedTransferredFrom = try Effect.orDie(
+          Effect.try({ try: () => normalizeTransferredFrom(transferredFrom), catch: (e) => e }),
+        )
+        try worker.bind`${namespace}`({
           bindings: [
             {
               type: "durable_object_namespace",
               name: namespace,
               className: namespace,
               scriptName,
-              transferredFrom: normalizeTransferredFrom(transferredFrom),
+              transferredFrom: normalizedTransferredFrom,
             },
           ],
-        });
+        })
 
-        const binding = yield* Effect.all([WorkerEnvironment, ALCHEMY_PHASE]).pipe(
+        const binding = try Effect.all([WorkerEnvironment, ALCHEMY_PHASE]).pipe(
           Effect.flatMap(([env, phase]) => {
             if (env === undefined || phase === "plan") {
               // should be fine to return undefined here (it is only undefined at plantime)
-              return Effect.undefined;
+              return Effect.undefined
             }
-            const ns = env[namespace];
+            const ns = env[namespace]
             if (!ns) {
-              return Effect.die(new Error(`DurableObject '${namespace}' not found`));
+              return Effect.die(new Error(`DurableObject '${namespace}' not found`))
             } else if (typeof ns.getByName === "function") {
-              return Effect.succeed(ns);
+              return Effect.succeed(ns)
             } else {
-              return Effect.die(new Error(`DurableObject '${namespace}' is not a DurableObject`));
+              return Effect.die(new Error(`DurableObject '${namespace}' is not a DurableObject`))
             }
           }),
-        );
+        )
 
         // `undefined` at plan time; every method is only called at runtime.
-        // A function because `jurisdiction` wraps the sub-namespace it returns.
-        // The return annotation checks the value against the interface, so a
-        // method missing here is a compile error.
-        const makeNamespace = (ns: cf.DurableObjectNamespace | undefined): DurableObject<any> => ({
-          // `kind` + `scriptName`/`transferredFrom` let a namespace passed in
-          // a Worker's `env` bind as the `durable_object_namespace` it is.
-          kind: TypeId,
+        // `makeNamespace` (in the module body above) builds the handle.
+        const handleFields: NamespaceHandleFields = {
+          namespace,
           scriptName,
           transferredFrom,
-          Type: TypeId,
-          LogicalId: namespace,
-          name: namespace,
-          namespaceId: worker.durableObjectNamespaces.pipe(
-            Output.map((durableObjectNamespaces) => durableObjectNamespaces?.[namespace]),
-          ),
-          getByName: (name: string, options?: DurableObjectGetDurableObjectOptions) =>
-            makeRpcStub(ns!.getByName(name, options), { errors }),
-          newUniqueId: () => ns!.newUniqueId(),
-          idFromName: (name: string) => ns!.idFromName(name),
-          idFromString: (id: string) => ns!.idFromString(id),
-          get: (id: DurableObjectId, options?: DurableObjectGetDurableObjectOptions) =>
-            makeRpcStub(ns!.get(id, options), { errors }),
-          jurisdiction: (jurisdiction: DurableObjectJurisdiction) =>
-            makeNamespace(restrictToJurisdiction(ns, jurisdiction)),
-        });
+          errors,
+          namespaceId: () =>
+            worker.durableObjectNamespaces.pipe(
+              Output.map((durableObjectNamespaces) => durableObjectNamespaces?.[namespace]),
+            ),
+        }
 
-        return makeNamespace(binding);
-      });
+        return try Effect.orDie(Effect.try({ try: () => makeNamespace(handleFields, binding), catch: (e) => e }))
+      }
 
     // Class-form declarations (`DurableObject<Self>()("Name", props?)`) can
     // carry `transferredFrom` so the host's local binding drives a
     // data-preserving transfer migration.
-    const classProps =
-      isClassForm && !Effect.isEffect(propsOrImpl)
-        ? (propsOrImpl as Pick<DurableObjectProps, "transferredFrom" | "errors"> | undefined)
-        : undefined;
+    const classProps = isClassForm && !Effect.isEffect(propsOrImpl)
+      ? (propsOrImpl as Pick<DurableObjectProps, "transferredFrom" | "errors"> | undefined)
+      : undefined
 
-    const make = Effect.fn(function* (
+    const make = effect (
       impl: Effect.Effect<Effect.Effect<DurableObjectShape>, never, DurableObjectState>,
-    ) {
+    ) => {
       // Register the local DO binding (no `scriptName`) and obtain the
       // namespace handle. We provide this same handle as
       // `DurableObjectScope` to the user's constructor effect
       // and also return it so a `Layer.effect(tag, make(impl))` Layer
       // resolves the tag to a concrete namespace value.
-      const self = yield* binding(undefined, classProps?.transferredFrom, classProps?.errors);
-      const phase = yield* ALCHEMY_PHASE;
-      const constructor = impl.pipe(Effect.provideService(DurableObjectScope, self as any));
+      const self = try binding(undefined, classProps?.transferredFrom, classProps?.errors)
+      const phase = try ALCHEMY_PHASE
+      const constructor = impl.pipe(Effect.provideService(DurableObjectScope, self as any))
       if (phase === "plan") {
         // during plan time, we evaluate the constructor with a mock DurableObjectState
         // to trigger discovery of bindings
-        yield* constructor.pipe(
+        try constructor.pipe(
           Effect.provide(
             Layer.succeed(
               DurableObjectState,
@@ -1481,17 +1536,20 @@ export const DurableObject: DurableObjectClass = taggedFunction(
             ),
           ),
           Effect.asVoid,
-        );
+        )
       }
-      yield* (yield* Worker).export(namespace, {
-        kind: "durableObject",
-        // initialize the object's constructor (apply infra dependencies)
-        constructor,
-        // grab the object's infra dependencies so we can apply them when calling the instance's methods
-        services: yield* Effect.context<Effect.Services<typeof impl>>(),
-      } satisfies DurableObjectExport);
-      return self;
-    });
+      try (try Worker).export(
+        namespace,
+        {
+          kind: "durableObject",
+          // initialize the object's constructor (apply infra dependencies)
+          constructor,
+          // grab the object's infra dependencies so we can apply them when calling the instance's methods
+          services: try Effect.context<Effect.Services<typeof impl>>(),
+        } satisfies DurableObjectExport,
+      )
+      return self
+    }
 
     if (!isClassForm && !Effect.isEffect(args[1])) {
       // this is an in-line, async only DO (no implementation, props only)
@@ -1503,7 +1561,7 @@ export const DurableObject: DurableObjectClass = taggedFunction(
         transferredFrom: (args[1] as DurableObjectProps)?.transferredFrom,
         storage: (args[1] as DurableObjectProps)?.storage,
         containers: (args[1] as DurableObjectBindingProps)?.containers,
-      };
+      }
     } else if (Effect.isEffect(propsOrImpl)) {
       // inline Effect DO
       return effectClass(
@@ -1518,9 +1576,8 @@ export const DurableObject: DurableObjectClass = taggedFunction(
                 } as any,
               ),
             ),
-          ),
-        ),
-      );
+          )),
+      )
     } else {
       // Tagged Effect DO. Yielding the class resolves the `tag`, which
       // forces the `CounterLive` Layer (built by `Counter.make(impl)`) to
@@ -1531,7 +1588,7 @@ export const DurableObject: DurableObjectClass = taggedFunction(
       return class extends effectClass(tag as Effect.Effect<any, never, any>) {
         static make = <Req = never>(
           impl: Effect.Effect<Effect.Effect<DurableObjectShape, never, DurableObjectState | Req>>,
-        ) => Layer.effect(tag, make(impl as any));
+        ) => Layer.effect(tag, make(impl as any))
 
         static from = (worker: string | Worker | Effect.Effect<Worker, any, any>) => {
           // Resolve `worker` to an Effect that yields the actual Worker
@@ -1548,25 +1605,26 @@ export const DurableObject: DurableObjectClass = taggedFunction(
           //      Worker.ts can detect it and skip emitting class
           //      migrations for the foreign class.
           // Plain Effects and string literals are passed through as-is.
-          const resolved: Effect.Effect<Worker | string, any, any> =
-            typeof worker === "string" ? Effect.succeed(worker) : asEffect(worker);
+          const resolved: Effect.Effect<Worker | string, any, any> = typeof worker === "string"
+            ? Effect.succeed(worker)
+            : asEffect(worker)
 
           return resolved.pipe(
-            Effect.flatMap((w) =>
-              binding(typeof w === "string" ? w : w.workerName, undefined, classProps?.errors),
-            ),
-          );
-        };
-      };
+            Effect.flatMap((w) => binding(typeof w === "string" ? w : w.workerName, undefined, classProps?.errors)),
+          )
+        }
+      }
     }
   },
-) as any;
+) as any
 
-export type DurableObjectStub<Shape> = {
-  // TODO(sam): do we need to transform? hopefully not
-  [key in keyof Shape]: Shape[key];
-} & {
-  fetch: (
-    request: HttpServerRequest.HttpServerRequest,
-  ) => Effect.Effect<HttpServerResponse.HttpServerResponse, HttpServerError, never>;
-};
+export type DurableObjectStub<Shape> =
+  & {
+    // TODO(sam): do we need to transform? hopefully not
+    [key in keyof Shape]: Shape[key]
+  }
+  & {
+    fetch: (
+      request: HttpServerRequest.HttpServerRequest,
+    ) => Effect.Effect<HttpServerResponse.HttpServerResponse, HttpServerError, never>
+  }

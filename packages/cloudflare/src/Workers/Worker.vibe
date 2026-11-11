@@ -1,10 +1,10 @@
-import * as workers from "@distilled.cloud/cloudflare/workers";
-import { type MemoOptions } from "alchemy/Command/Memo";
-import type { Dependencies } from "alchemy/Dependencies";
-import type { DnsConfig } from "alchemy/DNS/Adapter";
-import type { InputProps } from "alchemy/Input";
-import type { Named, Tag } from "alchemy/Named";
-import type * as Output from "alchemy/Output";
+import * as workers from "@distilled.cloud/cloudflare/workers"
+import { type MemoOptions } from "alchemy/Command/Memo"
+import type { Dependencies } from "alchemy/Dependencies"
+import type { DnsConfig } from "alchemy/DNS/Adapter"
+import type { InputProps } from "alchemy/Input"
+import type { Named, Tag } from "alchemy/Named"
+import type * as Output from "alchemy/Output"
 import {
   Platform,
   type Main,
@@ -13,50 +13,75 @@ import {
   type PlatformIdentity,
   type PlatformProps,
   type PlatformServices,
-} from "alchemy/Platform";
-import {
-  isResourceOfType,
-  Resource,
-  type ResourceClass,
-  type ResourceClassLike,
-} from "alchemy/Resource";
-import type { Rpc } from "alchemy/Rpc";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
-import type { Self as SelfService } from "alchemy/Self";
-import { isPathWithin } from "alchemy/Util/isPathWithin";
-import type { WebhookHost } from "alchemy/WebhookHost";
-import type { ConfigError } from "effect/Config";
-import * as Effect from "effect/Effect";
-import type * as Layer from "effect/Layer";
-import * as Redacted from "effect/Redacted";
-import path from "pathe";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Container } from "../Containers/Container.vibe";
-import type { DevContainerImage } from "../Containers/ContainerApplication.vibe";
-import type { DevOrigin } from "../Hyperdrive/Connection.vibe";
-import type { Providers } from "../Providers.vibe";
-import type { DispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.vibe";
-import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.vibe";
-import type { Reference as ZoneReference } from "../Zone/lookup.vibe";
-import { type Assets, type AssetsConfig, type AssetsProps } from "./Assets.vibe";
-import { Request } from "./Request.vibe";
-import type { ModuleRule } from "./Sources/Prebuilt.vibe";
-import type { WorkerBuildOptions } from "./Sources/Rolldown.ts";
-import type { WorkerAccessConfig, WorkerAccessIdentity } from "./WorkerAccess.vibe";
-import { bindWorkerAsyncBindings } from "./WorkerAsyncBindings.vibe";
-import type { WorkerBinding, WorkerBindingResource } from "./WorkerBinding.vibe";
-import { transformWorkerDomainProps } from "./WorkerDomainDns.vibe";
-import { WorkerEnvironment, WorkerTypeId } from "./WorkerRuntime.ts";
-import {
-  makeWorkerRuntimeContext,
-  type WorkerExport,
-  type WorkerRuntimeContext,
-} from "./WorkerRuntimeContext.ts";
+} from "alchemy/Platform"
+import { isResourceOfType, Resource, type ResourceClass, type ResourceClassLike } from "alchemy/Resource"
+import type { Rpc } from "alchemy/Rpc"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import type { Self as SelfService } from "alchemy/Self"
+import type { WebhookHost } from "alchemy/WebhookHost"
+import type { ConfigError } from "effect/Config"
+import * as Effect from "effect/Effect"
+import type * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Container } from "../Containers/Container.vibe"
+import type { DevContainerImage } from "../Containers/ContainerApplication.vibe"
+import type { DevOrigin } from "../Hyperdrive/Connection.vibe"
+import type { Providers } from "../Providers.vibe"
+import type { DispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.vibe"
+import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.vibe"
+import type { Reference as ZoneReference } from "../Zone/lookup.vibe"
+import { type Assets, type AssetsConfig, type AssetsProps } from "./Assets.vibe"
+import { Request } from "./Request.vibe"
+import type { ModuleRule } from "./Sources/Prebuilt.vibe"
+import type { WorkerBuildOptions } from "./Sources/Rolldown.ts"
+import type { WorkerAccessConfig, WorkerAccessIdentity } from "./WorkerAccess.vibe"
+import { bindWorkerAsyncBindings } from "./WorkerAsyncBindings.vibe"
+import type { WorkerBinding, WorkerBindingResource } from "./WorkerBinding.vibe"
+import { WorkerEnvironment, WorkerTypeId } from "./WorkerRuntime.vibe"
+import { makeWorkerRuntimeContext, type WorkerExport, type WorkerRuntimeContext } from "./WorkerRuntimeContext.vibe"
 
-export * from "./WorkerRuntime.ts";
-export { WorkerDomainDnsError } from "./WorkerDomainDns.vibe";
+export * from "./WorkerRuntime.vibe"
+export { WorkerDomainDnsError } from "./WorkerDomainDns.vibe"
 
-export const isWorker = <T>(value: T): value is T & Worker => isResourceOfType(value, WorkerTypeId);
+// Reading the working directory is a platform read, and decoding a `file:`
+// URL throws on a malformed one, so `main` normalization is TypeScript, in
+// this module body.
+module main_path {
+  import { isPathWithin } from "alchemy/Util/isPathWithin"
+  import path from "pathe"
+  import { transformWorkerDomainProps } from "./WorkerDomainDns.vibe"
+
+  /**
+   * `main` as a path relative to `cwd` when it points inside `cwd`. State keeps
+   * the Worker's props and `alchemy drift` rebuilds the bundle from them, so an
+   * absolute `main` (such as `import.meta.url`) fails once the checkout that
+   * deployed it moves or is removed. Paths outside `cwd` are kept as given.
+   *
+   * @internal exported for unit testing.
+   * @throws {TypeError | URIError}
+   */
+  export const relativeWorkerMain = (main: string, cwd: string): string => {
+    const file = main.startsWith("file:")
+      ? decodeURIComponent(new globalThis.URL(main).pathname)
+      : main
+    return path.isAbsolute(file) && isPathWithin(cwd, file, cwd) ? path.relative(cwd, file) : main
+  }
+
+  /** The Worker platform's `transformProps` hook. */
+  export const transformWorkerProps = (id: string, props: any) =>
+    transformWorkerDomainProps(
+      id,
+      globalThis.__ALCHEMY_RUNTIME__ || typeof props?.main !== "string"
+        ? props
+        : { ...props, main: relativeWorkerMain(props.main, process.cwd()) },
+    )
+}
+
+import { transformWorkerProps } from main_path
+export { relativeWorkerMain } from main_path
+
+export const isWorker = <T>(value: T): value is T & Worker => isResourceOfType(value, WorkerTypeId)
 
 /**
  * Assets configuration that includes a pre-computed hash.
@@ -68,23 +93,29 @@ export interface AssetsWithHash extends AssetsProps {
    * Pre-computed hash of the assets. When provided, this hash is used for diffing
    * to determine if the worker needs to be redeployed.
    */
-  hash: string;
+  hash: string
 }
 
-export interface WorkerObservability extends Exclude<
-  workers.PutScriptRequest["metadata"]["observability"],
-  undefined
-> {}
+export interface WorkerObservability extends
+  Exclude<
+    workers.PutScriptRequest["metadata"]["observability"],
+    undefined
+  >
+{}
 
-export interface WorkerLimits extends Exclude<
-  workers.PutScriptRequest["metadata"]["limits"],
-  undefined
-> {}
+export interface WorkerLimits extends
+  Exclude<
+    workers.PutScriptRequest["metadata"]["limits"],
+    undefined
+  >
+{}
 
-export interface WorkerCache extends Exclude<
-  workers.PutScriptRequest["metadata"]["cacheOptions"],
-  undefined
-> {}
+export interface WorkerCache extends
+  Exclude<
+    workers.PutScriptRequest["metadata"]["cacheOptions"],
+    undefined
+  >
+{}
 
 /**
  * Per-entrypoint settings for one of a Worker's exports, keyed in
@@ -98,11 +129,11 @@ export interface WorkerEntrypointSettings {
    */
   cache?: {
     /** Whether Workers Cache is checked before invoking this entrypoint. */
-    enabled: boolean;
-  };
+    enabled: boolean
+  }
 }
 
-export type WorkerPlacement = Exclude<workers.PutScriptRequest["metadata"]["placement"], undefined>;
+export type WorkerPlacement = Exclude<workers.PutScriptRequest["metadata"]["placement"], undefined>
 
 export type WorkerServices =
   | Worker
@@ -111,9 +142,9 @@ export type WorkerServices =
   | WorkerEnvironment
   | CloudflareEnvironment
   | Container.Application<any>
-  | SelfService;
+  | SelfService
 
-export type WorkerShape<Req = never> = Main<WorkerServices | Req> & MainRpc<WorkerServices | Req>;
+export type WorkerShape<Req = never> = Main<WorkerServices | Req> & MainRpc<WorkerServices | Req>
 
 export type WorkerEnv = Record<
   string,
@@ -124,23 +155,23 @@ export type WorkerEnv = Record<
   | readonly unknown[]
   | { readonly [key: string]: unknown }
   | Redacted.Redacted<string>
->;
+>
 
 export type WorkerBindingProps = {
-  [bindingName in string]: WorkerBindingResource | Effect.Effect<WorkerBindingResource, any, any>;
-};
+  [bindingName in string]: WorkerBindingResource | Effect.Effect<WorkerBindingResource, any, any>
+}
 
 export type NormalizedBindings<
   Bindings extends WorkerBindingProps = {},
   AssetsConfig extends WorkerAssetsConfig | undefined = undefined,
-> = {
-  // Containers are declarations and Outputs stay deferred at declaration time.
-  [B in keyof Bindings]: Bindings[B] extends Container.Decl.Any | Output.Output<any, any>
-    ? Bindings[B]
-    : Bindings[B] extends Effect.Effect<infer T extends WorkerBindingResource, any, any>
-      ? T
-      : Extract<Bindings[B], WorkerBindingResource>;
-} & (undefined extends AssetsConfig ? {} : { ASSETS: Assets });
+> =
+  & {
+    // Containers are declarations and Outputs stay deferred at declaration time.
+    [B in keyof Bindings]: Bindings[B] extends Container.Decl.Any | Output.Output<any, any> ? Bindings[B]
+      : Bindings[B] extends Effect.Effect<infer T extends WorkerBindingResource, any, any> ? T
+      : Extract<Bindings[B], WorkerBindingResource>
+  }
+  & (undefined extends AssetsConfig ? {} : { ASSETS: Assets })
 
 /**
  * An external Worker's declared `env` as exposed on its declaration
@@ -150,16 +181,15 @@ export type NormalizedBindings<
  * `Output` of the current deploy.
  */
 export type WorkerEnvBindings<Bindings> = {
-  readonly [B in keyof Bindings]: Bindings[B] extends WorkflowLike<infer Params>
-    ? WorkflowBinding<Params>
-    : Bindings[B];
-};
+  readonly [B in keyof Bindings]: Bindings[B] extends WorkflowLike<infer Params> ? WorkflowBinding<Params>
+    : Bindings[B]
+}
 
 export type WorkerAssetsConfig =
   | string
   | (AssetsConfig & { directory?: never })
   | AssetsProps
-  | AssetsWithHash;
+  | AssetsWithHash
 
 /**
  * Fine-grained control over the Worker's `workers.dev` surface. The two
@@ -171,7 +201,7 @@ export interface WorkersDevConfig {
    * (`https://<worker-name>.<account-subdomain>.workers.dev`).
    * @default true
    */
-  enabled?: boolean;
+  enabled?: boolean
   /**
    * Enable version preview URLs — a distinct
    * `https://<version-prefix>-<worker-name>.<account-subdomain>.workers.dev`
@@ -182,7 +212,7 @@ export interface WorkersDevConfig {
    * version's preview URL becomes the Worker's primary `url` output.
    * @default true
    */
-  previewsEnabled?: boolean;
+  previewsEnabled?: boolean
 }
 
 /**
@@ -200,13 +230,13 @@ export interface WorkerDomainConfig {
    *
    * When set, `https://<name>` is the Worker's primary `url` output.
    */
-  name: string;
+  name: string
   /**
    * Additional hostnames that serve the Worker (e.g. `"www.example.com"`,
    * `"api.example.com"`). Each is attached as its own custom domain.
    * Order matters: aliases follow `name` in the `urls` output.
    */
-  aliases?: string[];
+  aliases?: string[]
   /**
    * Hostnames that permanently redirect (HTTP 301, path and query
    * preserved) to {@link name} — e.g. `"old.example.com"`. Each is
@@ -216,24 +246,24 @@ export interface WorkerDomainConfig {
    * serve no content, so they appear in the `domain` output but never in
    * `urls`.
    */
-  redirects?: string[];
+  redirects?: string[]
   /**
    * Cloudflare zone ID for every hostname in this config. Equivalent to
    * Wrangler's `zone_id`. Wins over {@link zone} / {@link zoneName}.
    * When omitted, each hostname's zone is looked up by name
    * (`GET /zones?name=`), not by listing the account's first page of zones.
    */
-  zoneId?: string;
+  zoneId?: string
   /**
    * Cloudflare zone name, e.g. `"example.com"`. Equivalent to Wrangler's
    * `zone_name`.
    */
-  zoneName?: string;
+  zoneName?: string
   /**
    * Zone reference — a zone ID, zone name, or `{ zoneId, name? }` object.
    * Alternative to {@link zoneId} / {@link zoneName}.
    */
-  zone?: ZoneReference;
+  zone?: ZoneReference
   /**
    * Opt into custom-domain Worker Previews (private beta). When `true`,
    * Previews of this Worker are served at `<preview-name>.<name>` (and a
@@ -249,7 +279,7 @@ export interface WorkerDomainConfig {
    *
    * @default false
    */
-  previews?: boolean;
+  previews?: boolean
   /**
    * The DNS host that publishes this domain's records. Omit it (or pass
    * `Cloudflare.DNS.Adapter()`) for hostnames in a Cloudflare zone of the
@@ -272,14 +302,14 @@ export interface WorkerDomainConfig {
    *
    * See [DNS Adapters](/infrastructure-as-code/dns-adapters).
    */
-  dns?: DnsConfig;
+  dns?: DnsConfig
   /**
    * Hostname in the SaaS zone that custom hostnames CNAME to, typically
    * the zone's fallback origin (`FallbackOrigin`'s `origin`). Required
    * when {@link dns} names a DNS host other than Cloudflare; unused
    * otherwise.
    */
-  cnameTarget?: string;
+  cnameTarget?: string
 }
 
 export interface WorkerRouteConfig {
@@ -287,21 +317,21 @@ export interface WorkerRouteConfig {
    * URL pattern to match incoming requests against, e.g.
    * `"subdomain.example.com/*"` or `"example.com/api/*"`.
    */
-  pattern: string;
+  pattern: string
   /**
    * Cloudflare zone ID. Equivalent to Wrangler's `zone_id`.
    */
-  zoneId?: string;
+  zoneId?: string
   /**
    * Cloudflare zone name, e.g. `"example.com"`. Equivalent to Wrangler's
    * `zone_name`.
    */
-  zoneName?: string;
+  zoneName?: string
   /**
    * Zone reference — a zone ID, zone name, or `{ zoneId, name? }` object.
    * Alternative to `zoneId` / `zoneName`.
    */
-  zone?: ZoneReference;
+  zone?: ZoneReference
 }
 
 /**
@@ -339,21 +369,21 @@ export interface WorkerVersionAffinity {
    * without the cookie fall back to {@link ip} when set, otherwise they
    * route independently by percentage.
    */
-  cookie?: string;
+  cookie?: string
   /**
    * Pin by the value of this request header (e.g. a tenant or user id
    * your edge already stamps, or a stable auth claim forwarded as a
    * header). Requests without the header fall back to {@link ip} when
    * set, otherwise they route independently by percentage.
    */
-  header?: string;
+  header?: string
   /**
    * Pin by client IP. On its own (`{ ip: true }`) every request is keyed
    * by `ip.src`; combined with {@link cookie} or {@link header} it is the
    * fallback for requests missing the primary source (e.g. sticky by
    * session cookie, falling back to sticky IP before the cookie is set).
    */
-  ip?: boolean;
+  ip?: boolean
   /**
    * Escape hatch: a raw [Rules-language](https://developers.cloudflare.com/ruleset-engine/rules-language/)
    * expression that computes the version key — e.g. a JWT claim via API
@@ -361,7 +391,7 @@ export interface WorkerVersionAffinity {
    * fields. Applied to every request on the Worker's hostnames; cannot be
    * combined with the other sources.
    */
-  key?: string;
+  key?: string
 }
 
 /**
@@ -408,7 +438,7 @@ export interface WorkerVersionOptions {
    * Changing the parent replaces the resource (a version belongs to
    * exactly one script).
    */
-  parent?: string | Worker;
+  parent?: string | Worker
   /**
    * Percentage of traffic (0–100) the newly uploaded version receives; the
    * currently-live version keeps the remainder. Cloudflare deployments
@@ -435,7 +465,7 @@ export interface WorkerVersionOptions {
    * itself, at the default 100) resets traffic to 100% of its own new
    * version.
    */
-  traffic?: number;
+  traffic?: number
   /**
    * Preview-URL alias for the uploaded version. Aliased preview URLs
    * (`<alias>-<name>.<subdomain>.workers.dev`) are stable — each upload
@@ -450,7 +480,7 @@ export interface WorkerVersionOptions {
    * letters, digits, and dashes, and `<alias>-<worker-name>` must fit in
    * 63 characters (a DNS label).
    */
-  alias?: string;
+  alias?: string
   /**
    * Keep each user on one version for the duration of the rollout by
    * pinning them to a stable request property — a session cookie, a
@@ -471,17 +501,17 @@ export interface WorkerVersionOptions {
    * parent's zones, pinning users across the canary split. See
    * {@link WorkerVersionAffinity}.
    */
-  affinity?: WorkerVersionAffinity;
+  affinity?: WorkerVersionAffinity
   /**
    * Human-readable annotation attached to the uploaded version, shown in
    * the Cloudflare dashboard and `wrangler versions list`.
    */
-  message?: string;
+  message?: string
   /**
    * Machine-readable tag annotation attached to the uploaded version
    * (e.g. a git commit SHA or PR number).
    */
-  tag?: string;
+  tag?: string
 }
 
 /**
@@ -515,7 +545,7 @@ export interface WorkerPreviewOptions {
    * Changing the parent replaces the resource (a Preview belongs to
    * exactly one script).
    */
-  of: string | Worker;
+  of: string | Worker
   /**
    * Preview name. Defaults to a DNS-safe form of the stack stage
    * (`pr-123`, `feat-login`). Appears in Preview URLs:
@@ -527,17 +557,17 @@ export interface WorkerPreviewOptions {
    * digits, and dashes, and `<name>-<worker-name>` must fit in 63
    * characters (a DNS label).
    */
-  name?: string;
+  name?: string
   /**
    * Human-readable annotation attached to the Preview deployment,
    * shown in the Cloudflare dashboard.
    */
-  message?: string;
+  message?: string
   /**
    * Machine-readable tag annotation attached to the Preview deployment
    * (e.g. a git commit SHA or PR number).
    */
-  tag?: string;
+  tag?: string
 }
 
 export interface WorkerProps<
@@ -551,7 +581,7 @@ export interface WorkerProps<
    * Worker name override. If omitted, Alchemy derives a deterministic physical
    * name from the stack, stage, and logical ID.
    */
-  name?: string;
+  name?: string
   /**
    * Deploy this Worker into a Workers for Platforms dispatch namespace as a
    * "user worker" — a customer Worker that a platform Worker dispatches to at
@@ -572,7 +602,7 @@ export interface WorkerProps<
    *
    * @see https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/
    */
-  namespace?: string | DispatchNamespace;
+  namespace?: string | DispatchNamespace
   /**
    * Worker versions & gradual deployments. Set `version.parent` to upload
    * this Worker as a canary *version* of another Worker's script
@@ -581,7 +611,7 @@ export interface WorkerProps<
    * and pull-request testing, use {@link preview} instead. See
    * {@link WorkerVersionOptions}.
    */
-  version?: WorkerVersionOptions;
+  version?: WorkerVersionOptions
   /**
    * Opt into Cloudflare's [Worker Previews](https://developers.cloudflare.com/workers/previews/)
    * (private beta). Unset, this Worker deploys as a normal script and none
@@ -591,7 +621,7 @@ export interface WorkerProps<
    * untouched. Mutually exclusive with {@link version.parent}. See
    * {@link WorkerPreviewOptions}.
    */
-  preview?: WorkerPreviewOptions;
+  preview?: WorkerPreviewOptions
   /**
    * Controls the Worker's `workers.dev` surface.
    *
@@ -604,7 +634,7 @@ export interface WorkerProps<
    *
    * @default true
    */
-  workersDev?: boolean | WorkersDevConfig;
+  workersDev?: boolean | WorkersDevConfig
   /**
    * Protect this Worker with Cloudflare Access. Two forms:
    *
@@ -638,7 +668,7 @@ export interface WorkerProps<
    * framework. See the
    * [Protect a Worker with Access](/cloudflare/security/access) guide.
    */
-  access?: WorkerAccessConfig;
+  access?: WorkerAccessConfig
   /**
    * Static assets to serve. Can be:
    * - A string path to the assets directory
@@ -662,9 +692,9 @@ export interface WorkerProps<
    * asset layer serves every request, applying `htmlHandling` /
    * `notFoundHandling` (including single-page-application fallback) itself.
    */
-  assets?: Assets;
+  assets?: Assets
   /** @internal used by Cloudflare.Website.Vite resource */
-  vite?: ViteOptions;
+  vite?: ViteOptions
   /**
    * An external source provider for this Worker — a package that builds
    * the assets and server bundle (and serves local dev) in place of the
@@ -680,8 +710,8 @@ export interface WorkerProps<
    * {@link main} — a source is self-contained; a provider that needs a
    * custom entry takes it in its own `options`.
    */
-  source?: WorkerSourceDescriptor;
-  logpush?: boolean;
+  source?: WorkerSourceDescriptor
+  logpush?: boolean
   /**
    * Cloudflare Workers Observability settings. Controls Workers Logs
    * (`logs`) and Workers Traces (`traces`), each with their own
@@ -696,7 +726,7 @@ export interface WorkerProps<
    * disables Issues on the next full deployment. Version-only uploads and
    * gradual rollouts keep the parent's live observability settings.
    */
-  observability?: WorkerObservability;
+  observability?: WorkerObservability
   /**
    * Workers Cache settings. When `enabled` is `true`, Cloudflare checks a
    * regionally tiered cache in front of the Worker on every HTTP request —
@@ -716,7 +746,7 @@ export interface WorkerProps<
    *
    * @see https://blog.cloudflare.com/workers-cache/
    */
-  cache?: WorkerCache;
+  cache?: WorkerCache
   /**
    * Per-entrypoint settings, keyed by export name: `default` for the
    * default export, or the class name of a named `WorkerEntrypoint`.
@@ -734,8 +764,8 @@ export interface WorkerProps<
    * rollout may differ. `alchemy dev` does not emulate Workers Cache:
    * locally, every entrypoint runs on every request.
    */
-  entrypoints?: Record<string, WorkerEntrypointSettings>;
-  tags?: string[];
+  entrypoints?: Record<string, WorkerEntrypointSettings>
+  tags?: string[]
   /**
    * Path to the Worker's entry module. Bundled with rolldown before
    * upload. Mutually exclusive with {@link script} — provide at most one.
@@ -747,7 +777,7 @@ export interface WorkerProps<
    * `pyproject.toml` (or a prebuilt `python_modules/` directory) are
    * vendored alongside. See the Python Workers section above.
    */
-  main?: string;
+  main?: string
   /**
    * Raw module source for the Worker. When provided, bundling is bypassed
    * entirely and this string is uploaded as a single ESM module
@@ -755,9 +785,9 @@ export interface WorkerProps<
    * one-offs) and any case where you've already produced the final
    * bundle elsewhere. Mutually exclusive with {@link main}.
    */
-  script?: string;
+  script?: string
   compatibility?: {
-    date?: string;
+    date?: string
     /**
      * Cloudflare runtime compatibility flags.
      *
@@ -787,17 +817,17 @@ export interface WorkerProps<
       | "no_handle_cross_request_promise_resolution"
       | "python_workers"
       | (string & {})
-    )[];
-  };
-  limits?: WorkerLimits;
-  placement?: WorkerPlacement;
+    )[]
+  }
+  limits?: WorkerLimits
+  placement?: WorkerPlacement
   /**
    * Tracks Durable Object and Workflow exports and captured SQL migrations
    * for Effect-native Workers only.
    * Populated automatically from bindings; do not set manually.
    * @internal
    */
-  exports?: Record<string, WorkerExport>;
+  exports?: Record<string, WorkerExport>
   /**
    * Environment variables and native Cloudflare Bindings to bind to
    * the Worker. Accepts:
@@ -827,7 +857,7 @@ export interface WorkerProps<
    * `ALCHEMY_STAGE` and `ALCHEMY_CLOUDFLARE_ACCOUNT_ID`. They appear in
    * `env` and, when `process.env` is populated, in `process.env`.
    */
-  env?: Bindings;
+  env?: Bindings
   /**
    * Cron expressions that trigger the Worker's scheduled handler.
    *
@@ -840,7 +870,7 @@ export interface WorkerProps<
    *
    * Pass an empty array to remove all Cron Triggers.
    */
-  crons?: string[];
+  crons?: string[]
   /**
    * Tail Workers that consume this Worker's execution traces. Each entry is
    * another {@link Worker} (or a literal script name) that exports a `tail()`
@@ -857,7 +887,7 @@ export interface WorkerProps<
    *
    * @see https://developers.cloudflare.com/workers/observability/logs/tail-workers/
    */
-  tailConsumers?: (string | Worker)[];
+  tailConsumers?: (string | Worker)[]
   /**
    * Streaming Tail Workers that consume this Worker's execution events as
    * they happen. Each entry is another {@link Worker} (or a literal script
@@ -888,7 +918,7 @@ export interface WorkerProps<
    *
    * @see https://developers.cloudflare.com/workers/observability/logs/tail-workers/
    */
-  streamingTailConsumers?: (string | Worker)[];
+  streamingTailConsumers?: (string | Worker)[]
   /**
    * The Worker's custom domain: one canonical hostname, plus optional
    * `aliases` that also serve the Worker and `redirects` that 301 to the
@@ -904,7 +934,7 @@ export interface WorkerProps<
    * outside Alchemy are preserved. Pass `null` to explicitly detach every
    * custom domain (and remove their redirect rules).
    */
-  domain?: string | WorkerDomainConfig | null;
+  domain?: string | WorkerDomainConfig | null
   /**
    * Zone routes that map URL patterns to this Worker. Equivalent to Wrangler's
    * `routes` array — provide `zoneName` or `zoneId` (or `zone`) alongside each
@@ -916,7 +946,7 @@ export interface WorkerProps<
    * dev URL, and each route's `url` attribute is a local listener for its
    * hostname.
    */
-  routes?: WorkerRouteConfig[];
+  routes?: WorkerRouteConfig[]
   /**
    * Extra bundler options applied on top of the standard rolldown
    * input/output options used to build this Worker. Includes the generic
@@ -926,7 +956,7 @@ export interface WorkerProps<
    * shims. The entry remains {@link main}. Ignored when {@link bundle} is
    * `false`. See {@link WorkerBuildOptions}.
    */
-  build?: WorkerBuildOptions;
+  build?: WorkerBuildOptions
   /**
    * Whether to bundle {@link main} with rolldown before upload.
    *
@@ -948,7 +978,7 @@ export interface WorkerProps<
    *
    * @default true
    */
-  bundle?: boolean;
+  bundle?: boolean
   /**
    * Module rules selecting which files in the directory containing
    * {@link main} are uploaded as additional modules when {@link bundle}
@@ -959,7 +989,7 @@ export interface WorkerProps<
    *
    * @default defaultModuleRules — ESModule (`**\/*.js`, `**\/*.mjs`), CompiledWasm (`**\/*.wasm`), Text (`**\/*.txt`, `**\/*.html`, `**\/*.sql`), Data (`**\/*.bin`)
    */
-  rules?: ModuleRule[];
+  rules?: ModuleRule[]
   /**
    * Options for the local dev server that runs this Worker under `alchemy dev`.
    * Each Worker is served on its own port.
@@ -970,80 +1000,80 @@ export interface WorkerProps<
    */
   dev?:
     | {
+      /**
+       * Run this Worker in `workerd` locally (the default).
+       * @default "worker"
+       */
+      mode?: "worker"
+      /**
+       * Host the local dev server binds to.
+       * @default "localhost"
+       */
+      host?: string
+      /**
+       * Port the local dev server listens on. If the port is unavailable,
+       * the next free port is used unless {@link strictPort} is `true`.
+       * @default 1337
+       */
+      port?: number
+      /**
+       * When `true`, fail instead of falling back to another port if
+       * {@link port} is already in use.
+       * @default false
+       */
+      strictPort?: boolean
+      /**
+       * Whether the local runtime's Cache API simulator
+       * (`caches.default` / `caches.open()`) stores responses. Set
+       * `false` to make every cache operation a no-op — matching
+       * production behaviour on `workers.dev` subdomains, where the
+       * Cache API silently does nothing.
+       * @default true
+       */
+      cache?: boolean
+      /**
+       * Override the `request.cf` blob served to this Worker locally.
+       * Defaults to a static placeholder (Miniflare's Austin/DFW blob);
+       * pass e.g. `{ colo: "LHR", country: "GB" }` to simulate a
+       * different edge location.
+       */
+      cf?: Record<string, unknown>
+      /**
+       * Stub the authenticated Access state in local dev. In production,
+       * `ctx.access` is populated by Cloudflare's edge after a request
+       * passes the Access login wall — locally there is no edge and no
+       * login, so without this stub `ctx.access` is always `undefined`
+       * and identity-dependent code paths can't run. When set, every
+       * request served by `alchemy dev` behaves as if this one user had
+       * logged in: `ctx.access` carries the given audience and
+       * `getIdentity()` resolves the given identity. Omit to simulate
+       * unauthenticated requests. Inert on deploy — the deployed Worker
+       * always gets the real edge-populated `ctx.access`.
+       */
+      access?: {
         /**
-         * Run this Worker in `workerd` locally (the default).
-         * @default "worker"
+         * Simulated Access application audience (AUD) tag.
+         * @default "dev"
          */
-        mode?: "worker";
+        aud?: string
         /**
-         * Host the local dev server binds to.
-         * @default "localhost"
+         * Simulated identity returned by `ctx.access.getIdentity()`,
+         * e.g. `{ email: "dev@example.com" }`.
          */
-        host?: string;
-        /**
-         * Port the local dev server listens on. If the port is unavailable,
-         * the next free port is used unless {@link strictPort} is `true`.
-         * @default 1337
-         */
-        port?: number;
-        /**
-         * When `true`, fail instead of falling back to another port if
-         * {@link port} is already in use.
-         * @default false
-         */
-        strictPort?: boolean;
-        /**
-         * Whether the local runtime's Cache API simulator
-         * (`caches.default` / `caches.open()`) stores responses. Set
-         * `false` to make every cache operation a no-op — matching
-         * production behaviour on `workers.dev` subdomains, where the
-         * Cache API silently does nothing.
-         * @default true
-         */
-        cache?: boolean;
-        /**
-         * Override the `request.cf` blob served to this Worker locally.
-         * Defaults to a static placeholder (Miniflare's Austin/DFW blob);
-         * pass e.g. `{ colo: "LHR", country: "GB" }` to simulate a
-         * different edge location.
-         */
-        cf?: Record<string, unknown>;
-        /**
-         * Stub the authenticated Access state in local dev. In production,
-         * `ctx.access` is populated by Cloudflare's edge after a request
-         * passes the Access login wall — locally there is no edge and no
-         * login, so without this stub `ctx.access` is always `undefined`
-         * and identity-dependent code paths can't run. When set, every
-         * request served by `alchemy dev` behaves as if this one user had
-         * logged in: `ctx.access` carries the given audience and
-         * `getIdentity()` resolves the given identity. Omit to simulate
-         * unauthenticated requests. Inert on deploy — the deployed Worker
-         * always gets the real edge-populated `ctx.access`.
-         */
-        access?: {
-          /**
-           * Simulated Access application audience (AUD) tag.
-           * @default "dev"
-           */
-          aud?: string;
-          /**
-           * Simulated identity returned by `ctx.access.getIdentity()`,
-           * e.g. `{ email: "dev@example.com" }`.
-           */
-          identity?: WorkerAccessIdentity;
-        };
+        identity?: WorkerAccessIdentity
       }
+    }
     | {
-        /**
-         * Don't start a local Worker; an external dev server is running instead.
-         */
-        mode: "external";
-        /**
-         * URL the external dev server is reachable at, if applicable.
-         * This will be returned as the `url` attribute of the Worker resource.
-         */
-        url?: string;
-      };
+      /**
+       * Don't start a local Worker; an external dev server is running instead.
+       */
+      mode: "external"
+      /**
+       * URL the external dev server is reachable at, if applicable.
+       * This will be returned as the `url` attribute of the Worker resource.
+       */
+      url?: string
+    }
 }
 
 /**
@@ -1058,13 +1088,13 @@ export interface WorkerSourceDescriptor {
    * `"@alchemy.run/cloudflare-next"`. The module's default export must
    * satisfy the `WorkerSourceModule` contract.
    */
-  readonly provider: string;
+  readonly provider: string
   /**
    * How the source serves local development. Server-mode sources run in an
    * isolated child process; bundle-mode sources stream rebuilds back to the
    * local Worker host.
    */
-  readonly devMode: "server" | "bundle";
+  readonly devMode: "server" | "bundle"
   /**
    * The framework project root. Server-mode dev children are spawned with
    * this directory as their working directory — some framework dev servers
@@ -1073,7 +1103,7 @@ export interface WorkerSourceDescriptor {
    * resolve against the engine's working directory. Defaults to the
    * engine's working directory.
    */
-  readonly rootDir?: string;
+  readonly rootDir?: string
   /**
    * The JS runtime the server-mode dev child must run under. Some framework
    * dev servers are runtime-sensitive — `next dev` (Turbopack) silently 404s
@@ -1081,14 +1111,14 @@ export interface WorkerSourceDescriptor {
    * child to `"node"`. When the requested runtime is not installed, the
    * engine falls back to its own runtime. Defaults to the engine's runtime.
    */
-  readonly runtime?: "node";
+  readonly runtime?: "node"
   /**
    * Provider-specific options (rootDir, memo, framework config, ...).
    * Must be JSON-serializable AND JSON-stable: the descriptor persists
    * in state and participates in the metadata hash, so non-deterministic
    * values here cause perpetual redeploys.
    */
-  readonly options?: unknown;
+  readonly options?: unknown
 }
 
 export interface ViteOptions {
@@ -1097,7 +1127,7 @@ export interface ViteOptions {
    * Set by `Website.Foldkit` to derive asset routing from its manifest.
    * @internal
    */
-  framework?: "foldkit";
+  framework?: "foldkit"
 
   /**
    * Overrides the module that becomes the deployed Worker entry, forwarded
@@ -1117,12 +1147,12 @@ export interface ViteOptions {
    * vite: { main: "worker/index.ts" }
    * ```
    */
-  main?: string;
+  main?: string
   /**
    * Root directory passed to Vite's `root` option.
    * Defaults to the current working directory (`process.cwd()`).
    */
-  rootDir?: string;
+  rootDir?: string
   /**
    * Controls which files are hashed to decide whether a rebuild is needed.
    * By default every non-gitignored file in `cwd` is hashed, plus the nearest
@@ -1140,14 +1170,14 @@ export interface ViteOptions {
     workspaces?:
       | "auto"
       | Array<
-          MemoOptions & {
-            /**
-             * The working directory to hash, relative to the Vite root.
-             */
-            cwd: string;
-          }
-        >;
-  };
+        MemoOptions & {
+          /**
+           * The working directory to hash, relative to the Vite root.
+           */
+          cwd: string
+        }
+      >
+  }
   /**
    * Selects which Vite environments make up the deployed Worker, for
    * frameworks that build more than one (e.g. React Server Components).
@@ -1166,9 +1196,9 @@ export interface ViteOptions {
    * @default { entry: "ssr", children: [] }
    */
   viteEnvironments?: {
-    entry?: string;
-    children?: string[];
-  };
+    entry?: string
+    children?: string[]
+  }
 }
 
 // PERF: deliberately NOT `Bindings extends WorkerBindings`. The constraint
@@ -1193,15 +1223,15 @@ export type Worker<Bindings = any> = Resource<
      * ID instead (switching between dev and deploy replaces the resource,
      * so the two identities never mix).
      */
-    workerId: string;
+    workerId: string
     /** The script name, e.g. `"api"` — the classic API's identifier. */
-    workerName: string;
+    workerName: string
     /**
      * The Workers for Platforms dispatch namespace this Worker was deployed
      * into, or `undefined` for a regular account-level Worker.
      */
-    namespace: string | undefined;
-    logpush: boolean | undefined;
+    namespace: string | undefined
+    logpush: boolean | undefined
     /**
      * The most significant URL the Worker is reachable at — always
      * `urls[0]`, or `undefined` when the Worker is not reachable at any
@@ -1210,7 +1240,7 @@ export type Worker<Bindings = any> = Resource<
      * version worker's `url` is its aliased preview URL; under
      * `alchemy dev` it is the local dev server's URL.
      */
-    url: string | undefined;
+    url: string | undefined
     /**
      * Every URL that serves this Worker, most significant first —
      * `[https://<domain.name>?, ...aliases, <workers.dev URL>?,
@@ -1219,7 +1249,7 @@ export type Worker<Bindings = any> = Resource<
      * never appear (they don't serve the Worker). Useful wholesale, e.g.
      * as a CORS allow-list.
      */
-    urls: string[];
+    urls: string[]
     /**
      * The Worker's resolved custom-domain configuration — canonical
      * `name`, `aliases`, and `redirects` as deployed — or `undefined`
@@ -1227,30 +1257,30 @@ export type Worker<Bindings = any> = Resource<
      */
     domain:
       | {
-          name: string;
-          aliases: string[];
-          redirects: string[];
-          zone?: ZoneReference;
-          previews?: boolean;
-        }
-      | undefined;
-    tags: string[] | undefined;
-    durableObjectNamespaces: Record<string, string>;
-    accountId: string;
+        name: string
+        aliases: string[]
+        redirects: string[]
+        zone?: ZoneReference
+        previews?: boolean
+      }
+      | undefined
+    tags: string[] | undefined
+    durableObjectNamespaces: Record<string, string>
+    accountId: string
     /**
      * The zone routes attached to this Worker. `url` is the origin serving
      * the route's hostname — `https://<host>` when deployed, the local edge
      * listener under `alchemy dev` — and `undefined` for a wildcard host.
      */
-    routes: { id: string; pattern: string; zoneId: string; url?: string }[];
-    crons: string[];
+    routes: { id: string; pattern: string; zoneId: string; url?: string }[]
+    crons: string[]
     /**
      * The tail consumers attached to this Worker's script — each entry the
      * consuming Worker's script name — or `undefined` when none are
      * attached. Local emulation (`RuntimeWorker.tails`) lowers this same
      * list into workerd tail-service designators.
      */
-    tailConsumers?: { service: string }[] | undefined;
+    tailConsumers?: { service: string }[] | undefined
     /**
      * The streaming tail consumers attached to this Worker's script — each
      * entry the consuming Worker's script name — or `undefined` when none
@@ -1260,7 +1290,7 @@ export type Worker<Bindings = any> = Resource<
      * (`RuntimeWorker.streamingTails`) lowers this same list into workerd
      * streaming-tail service designators.
      */
-    streamingTailConsumers?: { service: string }[] | undefined;
+    streamingTailConsumers?: { service: string }[] | undefined
     /**
      * The parent script name this Worker uploads versions to, when this
      * resource is a version worker (`version.parent` set). `undefined` for
@@ -1268,35 +1298,35 @@ export type Worker<Bindings = any> = Resource<
      * gradual rollout. This is the discriminator `read`/`delete` use to
      * avoid treating the parent's script as this resource's own.
      */
-    versionOf?: string | undefined;
+    versionOf?: string | undefined
     /**
      * The parent script name this Worker is a Preview of, when this
      * resource is a Preview Worker (`preview.of` set). `undefined` for
      * a Worker that owns its own script. Discriminator `read`/`delete`
      * use so they never treat the parent's script as this resource's own.
      */
-    previewOf?: string | undefined;
+    previewOf?: string | undefined
     /**
      * Cloudflare's immutable Preview id. Set when this resource is a
      * Preview Worker (`preview.of`).
      */
-    previewId?: string | undefined;
+    previewId?: string | undefined
     /**
      * The Preview name as created — the user-provided `preview.name`, or
      * the auto-derived name from the stack stage.
      */
-    previewName?: string | undefined;
+    previewName?: string | undefined
     /**
      * DNS-safe slug Cloudflare assigned to this Preview. Used in Preview
      * URLs (`<slug>-<worker>.<subdomain>.workers.dev` and
      * `<slug>.<domain>` when the parent has custom-domain Previews).
      */
-    previewSlug?: string | undefined;
+    previewSlug?: string | undefined
     /**
      * Same-Worker Durable Object class names hosted on the last Preview
      * deploy — the baseline for the next Preview's class migrations.
      */
-    previewDoClasses?: string[] | undefined;
+    previewDoClasses?: string[] | undefined
     /**
      * The id of the version uploaded by the most recent deploy. Set for
      * every Worker outside a dispatch namespace: a full deploy records the
@@ -1304,7 +1334,7 @@ export type Worker<Bindings = any> = Resource<
      * (`version.traffic` < 100) and a version worker (`version.parent`)
      * record the version they uploaded.
      */
-    versionId?: string | undefined;
+    versionId?: string | undefined
     /**
      * The preview-URL alias attached to the uploaded version — the
      * user-provided `version.alias`, or the auto-derived stable alias for
@@ -1312,7 +1342,7 @@ export type Worker<Bindings = any> = Resource<
      * (`<alias>-<name>.<subdomain>.workers.dev`) is stable across
      * deploys and is the version worker's primary `url`.
      */
-    versionAlias?: string | undefined;
+    versionAlias?: string | undefined
     /**
      * The id of the deployment created by the most recent deploy. A full
      * deploy records the active deployment; a version with `traffic > 0`
@@ -1320,7 +1350,7 @@ export type Worker<Bindings = any> = Resource<
      * Preview-only versions (`traffic: 0`) and Workers in a dispatch
      * namespace have no deployment.
      */
-    deploymentId?: string | undefined;
+    deploymentId?: string | undefined
     /**
      * The zone ids currently holding this resource's version-affinity
      * Transform Rules (`version.affinity`) — the cleanup list consulted
@@ -1328,7 +1358,7 @@ export type Worker<Bindings = any> = Resource<
      * worker these are the *parent's* zones. `undefined` when no affinity
      * rules are deployed.
      */
-    affinityZoneIds?: string[] | undefined;
+    affinityZoneIds?: string[] | undefined
     /**
      * The sorted names of the `secret_text` and `secret_key` bindings this
      * Worker's deploys uploaded and have not yet deleted. Cloudflare keeps a
@@ -1336,35 +1366,35 @@ export type Worker<Bindings = any> = Resource<
      * names listed here that it no longer uploads. Secrets set outside
      * Alchemy are never listed, and never deleted.
      */
-    secretNames?: string[] | undefined;
+    secretNames?: string[] | undefined
     hash?: {
-      assets: string | undefined;
-      bundle: string | undefined;
-      input: string | undefined;
-      additionalWorkspaces: string[] | undefined;
+      assets: string | undefined
+      bundle: string | undefined
+      input: string | undefined
+      additionalWorkspaces: string[] | undefined
       // Hash of the deploy-time metadata surface (compatibility, env,
       // bindings, asset config, limits, observability, ...) so metadata-only
       // edits trigger an update (#745). Optional: state written before this
       // field existed has no `metadata`, which reads as a one-time update on
       // the first diff after upgrading (the apply backfills it).
-      metadata?: string | undefined;
-    };
+      metadata?: string | undefined
+    }
   },
   {
-    bindings?: WorkerBinding[];
+    bindings?: WorkerBinding[]
     /**
      * Extra env vars merged into the Worker at reconcile. `Redacted`
      * values deploy as `secret_text`. Used by later resources (e.g. a
      * Stripe webhook signing secret) to attach env without the Worker
      * init depending on that resource.
      */
-    env?: Record<string, any>;
+    env?: Record<string, any>
     /**
      * Workers Cache settings contributed by `yield* Cloudflare.cache()`.
      * Merged into the upload metadata's `cache_options`; an explicit
      * `WorkerProps.cache` takes precedence.
      */
-    cache?: WorkerCache;
+    cache?: WorkerCache
     /**
      * Workers Observability traces settings contributed by
      * `Cloudflare.Telemetry()`. Deep-merged into upload metadata: bound
@@ -1372,27 +1402,27 @@ export type Worker<Bindings = any> = Resource<
      * and never clobber the default logs config. An explicit
      * `observability.traces` object wins.
      */
-    observability?: Pick<WorkerObservability, "traces">;
+    observability?: Pick<WorkerObservability, "traces">
     containers?: {
-      className: string;
+      className: string
       /** Set when an async `Cloudflare.DurableObject(name, { containers })` binding contributed the row. */
-      attachedBy?: "binding";
+      attachedBy?: "binding"
       /** Application name and prepared images for the native container API. */
-      name?: string;
-      images?: Record<string, string>;
+      name?: string
+      images?: Record<string, string>
       /** Named image sources for local workerd. An empty map enables managed images. */
-      devImages?: Record<string, DevContainerImage>;
-      dev: DevContainerImage | undefined;
+      devImages?: Record<string, DevContainerImage>
+      dev: DevContainerImage | undefined
       /**
        * Content hash of the image (bundle/Dockerfile/context). Part of the
        * local worker's restart config: `dev` only carries stable PATHS, so
        * without the hash an image content change would never restart the
        * instance and the running container would serve stale code.
        */
-      hash: string | undefined;
-    }[];
-    crons?: string[];
-    hyperdrives?: Record<string, Required<DevOrigin>>;
+      hash: string | undefined
+    }[]
+    crons?: string[]
+    hyperdrives?: Record<string, Required<DevOrigin>>
     /**
      * Dev-only channel (like `hyperdrives`): binding name → opt-out of local
      * emulation in `alchemy dev` (the binding was piped through `Alchemy.remote()`
@@ -1403,10 +1433,10 @@ export type Worker<Bindings = any> = Resource<
      * / `send_email` bindings to their local or remote runtime hooks. The
      * live provider ignores it.
      */
-    devRemote?: Record<string, boolean>;
+    devRemote?: Record<string, boolean>
   },
   Providers
->;
+>
 
 /** An external/async Worker declared without an Effect implementation. */
 export type ExternalWorker<Bindings = {}> = Worker<Bindings> & {
@@ -1425,11 +1455,11 @@ export type ExternalWorker<Bindings = {}> = Worker<Bindings> & {
    * }
    * ```
    */
-  readonly env: WorkerEnvBindings<Bindings>;
-};
+  readonly env: WorkerEnvBindings<Bindings>
+}
 
 /** The env key the resolved URL is injected under when `yield*`-ed. */
-const SELF_URL_BINDING_NAME = "WORKER_URL";
+const SELF_URL_BINDING_NAME = "WORKER_URL"
 
 /**
  * Effect-native accessor for the Worker's own URL. The value is injected as an
@@ -1437,7 +1467,7 @@ const SELF_URL_BINDING_NAME = "WORKER_URL";
  * reading it is deferred behind an Effect that requires {@link RuntimeContext}.
  * Yield it inside a handler to obtain the URL string.
  */
-export type URLAccessor = Effect.Effect<string, never, RuntimeContext>;
+export type URLAccessor = Effect.Effect<string, never, RuntimeContext>
 
 /**
  * The type of {@link URL} (`Worker.URL`).
@@ -1454,7 +1484,7 @@ export type URLAccessor = Effect.Effect<string, never, RuntimeContext>;
  * into a startup crash.
  */
 export interface URLEffect extends Effect.Effect<URLAccessor, never, WorkerEnvironment | Worker> {
-  "~alchemy/Kind": "Cloudflare.Workers.URL";
+  "~alchemy/Kind": "Cloudflare.Workers.URL"
 }
 
 /**
@@ -1474,24 +1504,24 @@ export interface URLEffect extends Effect.Effect<URLAccessor, never, WorkerEnvir
  * public URL.
  */
 export const URL: URLEffect = Object.assign(
-  Effect.gen(function* () {
+  effect {
     // Deploy-time only: register the binding on the host Worker. The provider
     // lowers the `self_url` sentinel into a plain-text binding holding the
     // resolved URL just before upload.
     if (!globalThis.__ALCHEMY_RUNTIME__) {
-      yield* (yield* Worker).bind`${SELF_URL_BINDING_NAME}`({
+      try (try Worker).bind`${SELF_URL_BINDING_NAME}`({
         bindings: [{ type: "self_url", name: SELF_URL_BINDING_NAME }],
-      });
+      })
     }
     // Captured at init; the deferred read only runs at exec phase (the
     // accessor is colored with RuntimeContext), where env is populated.
-    const env = yield* WorkerEnvironment;
+    const env = try WorkerEnvironment
     return Effect.sync(
       () => (env as Record<string, string>)[SELF_URL_BINDING_NAME]!,
-    ) as URLAccessor;
-  }),
+    ) as URLAccessor
+  },
   { "~alchemy/Kind": "Cloudflare.Workers.URL" as const },
-);
+)
 
 /**
  * Returns true when the value is the `Worker.URL` binding (keyed on the
@@ -1499,10 +1529,10 @@ export const URL: URLEffect = Object.assign(
  * env-resolution site must check this before `Effect.isEffect`).
  */
 export const isSelfUrl = (value: unknown): value is URLEffect =>
-  typeof value === "object" &&
-  value !== null &&
-  "~alchemy/Kind" in value &&
-  (value as URLEffect)["~alchemy/Kind"] === "Cloudflare.Workers.URL";
+  typeof value === "object"
+  && value !== null
+  && "~alchemy/Kind" in value
+  && (value as URLEffect)["~alchemy/Kind"] === "Cloudflare.Workers.URL"
 
 /**
  * A service binding that points at this Worker ITSELF. Declare it on `env`
@@ -1528,22 +1558,22 @@ export const isSelfUrl = (value: unknown): value is URLEffect =>
  */
 export const Self = {
   "~alchemy/Kind": "Cloudflare.Workers.Self",
-} as const;
-export type Self = typeof Self;
+} as const
+export type Self = typeof Self
 
 /** Returns true when the value is the {@link Self} marker. */
 export const isSelf = (value: unknown): value is Self =>
-  typeof value === "object" &&
-  value !== null &&
-  "~alchemy/Kind" in value &&
-  (value as Self)["~alchemy/Kind"] === "Cloudflare.Workers.Self";
+  typeof value === "object"
+  && value !== null
+  && "~alchemy/Kind" in value
+  && (value as Self)["~alchemy/Kind"] === "Cloudflare.Workers.Self"
 
 /** Options for {@link WorkerRef}. */
 export interface WorkerRefOptions {
   /** Stage of the referenced Worker. Defaults to the current stage. */
-  stage?: string;
+  stage?: string
   /** Stack of the referenced Worker. Defaults to the current stack. */
-  stack?: string;
+  stack?: string
 }
 
 /**
@@ -1554,8 +1584,8 @@ export interface WorkerRef {
   <W extends Worker>(
     worker: Effect.Effect<W, any, any> & PlatformIdentity,
     options?: WorkerRefOptions,
-  ): Effect.Effect<W>;
-  (id: string, options?: WorkerRefOptions): Effect.Effect<Worker>;
+  ): Effect.Effect<W>
+  (id: string, options?: WorkerRefOptions): Effect.Effect<Worker>
 }
 
 /**
@@ -1564,12 +1594,12 @@ export interface WorkerRef {
  * adds no dependency on (and does not deploy) the referenced Worker.
  */
 const withDeclarationRef = <P extends Pick<ResourceClass<Worker>, "ref">>(platform: P): P => {
-  const ref = platform.ref;
+  const ref = platform.ref
   return Object.assign(platform, {
     ref: (worker: string | PlatformIdentity, options?: WorkerRefOptions) =>
       ref(typeof worker === "string" ? worker : worker.LogicalId, options),
-  });
-};
+  })
+}
 
 /**
  * A Cloudflare Worker host with deploy-time binding support and runtime export
@@ -2726,27 +2756,33 @@ const withDeclarationRef = <P extends Pick<ResourceClass<Worker>, "ref">>(platfo
  * @product Workers
  * @category Workers & Compute
  */
-export const Worker: ResourceClassLike<Worker> & {
-  /**
-   * Reference a deployed Worker — in the current stack/stage by default, or
-   * in another via `options`. Pass the Worker's declaration instead of its
-   * logical id to keep its type, including its RPC methods, for service
-   * bindings from another stack.
-   */
-  ref: WorkerRef;
-} & Effect.Effect<Worker & WorkerRuntimeContext & RuntimeContext, never, Worker> & {
+export const Worker:
+  & ResourceClassLike<Worker>
+  & {
+    /**
+     * Reference a deployed Worker — in the current stack/stage by default, or
+     * in another via `options`. Pass the Worker's declaration instead of its
+     * logical id to keep its type, including its RPC methods, for service
+     * bindings from another stack.
+     */
+    ref: WorkerRef
+  }
+  & Effect.Effect<Worker & WorkerRuntimeContext & RuntimeContext, never, Worker>
+  & {
     <Self, Shape extends WorkerShape, Deps = never>(): {
       <const Id extends string>(
         id: Id,
-      ): Effect.Effect<
-        Worker & Rpc<Self> & Dependencies<Deps>,
-        never,
-        Self | Extract<Deps, Container.Application<any>> | Providers
-      > &
-        Named<Id> &
-        PlatformIdentity<Id> & {
-          new (_: never): MakeShape<Shape, WorkerShape> & Named<Id> & Tag<WorkerTypeId>;
-          of(shape: Shape & WorkerShape): MakeShape<Shape, WorkerShape>;
+      ):
+        & Effect.Effect<
+          Worker & Rpc<Self> & Dependencies<Deps>,
+          never,
+          Self | Extract<Deps, Container.Application<any>> | Providers
+        >
+        & Named<Id>
+        & PlatformIdentity<Id>
+        & {
+          new(_: never): MakeShape<Shape, WorkerShape> & Named<Id> & Tag<WorkerTypeId>
+          of(shape: Shape & WorkerShape): MakeShape<Shape, WorkerShape>
           make<PropsReq = never, InitReq = never>(
             props:
               | InputProps<WorkerProps>
@@ -2758,9 +2794,9 @@ export const Worker: ResourceClassLike<Worker> & {
             | Extract<Deps, Container.Application<any>>
             | Providers
             | Exclude<PropsReq | InitReq, Self | WorkerServices | Tag<WorkerTypeId>>
-          >;
-        };
-    };
+          >
+        }
+    }
     <Self>(): {
       <
         const Id extends string,
@@ -2773,15 +2809,17 @@ export const Worker: ResourceClassLike<Worker> & {
           | InputProps<WorkerProps>
           | Effect.Effect<InputProps<WorkerProps>, ConfigError, PropsReq>,
         impl: Effect.Effect<Shape, ConfigError, Req>,
-      ): Effect.Effect<
-        Worker & Rpc<Self>,
-        never,
-        Extract<Req, Container.Application<any>> | Providers | PropsReq
-      > &
-        Named<Id> &
-        PlatformIdentity<Id> & {
-          new (): MakeShape<Shape, WorkerShape> & Named<Id> & Tag<WorkerTypeId>;
-        };
+      ):
+        & Effect.Effect<
+          Worker & Rpc<Self>,
+          never,
+          Extract<Req, Container.Application<any>> | Providers | PropsReq
+        >
+        & Named<Id>
+        & PlatformIdentity<Id>
+        & {
+          new(): MakeShape<Shape, WorkerShape> & Named<Id> & Tag<WorkerTypeId>
+        }
       /**
        * Class form without an implementation — an external Worker (a plain
        * bundled `main`, a raw `script`, or an assets-only Worker with no
@@ -2803,20 +2841,24 @@ export const Worker: ResourceClassLike<Worker> & {
         props:
           | InputProps<WorkerProps<Bindings, Assets>>
           | Effect.Effect<InputProps<WorkerProps<Bindings, Assets>>, ConfigError, Req>,
-      ): Effect.Effect<
-        ExternalWorker<NormalizedBindings<Bindings, Assets>> & Rpc<{}>,
-        never,
-        Req | Providers
-      > &
-        Named<Id> &
-        PlatformIdentity<Id> & {
-          new (): Named<Id> &
-            Tag<WorkerTypeId> & {
+      ):
+        & Effect.Effect<
+          ExternalWorker<NormalizedBindings<Bindings, Assets>> & Rpc<{}>,
+          never,
+          Req | Providers
+        >
+        & Named<Id>
+        & PlatformIdentity<Id>
+        & {
+          new():
+            & Named<Id>
+            & Tag<WorkerTypeId>
+            & {
               /** @internal phantom */
-              readonly "~alchemy/WorkerEnv": NormalizedBindings<Bindings, Assets>;
-            };
-        };
-    };
+              readonly "~alchemy/WorkerEnv": NormalizedBindings<Bindings, Assets>
+            }
+        }
+    }
     <
       const Bindings extends WorkerBindingProps = {},
       const Assets extends WorkerAssetsConfig | undefined = undefined,
@@ -2827,18 +2869,21 @@ export const Worker: ResourceClassLike<Worker> & {
       props:
         | InputProps<WorkerProps<Bindings, Assets>>
         | Effect.Effect<InputProps<WorkerProps<Bindings, Assets>>, ConfigError, Req>,
-    ): Effect.Effect<
-      ExternalWorker<{
-        [binding in keyof NormalizedBindings<Bindings, Assets>]: NormalizedBindings<
-          Bindings,
-          Assets
-        >[binding];
-      }> &
-        Rpc<{}>,
-      never,
-      Req | Providers
-    > &
-      PlatformIdentity<Id>;
+    ):
+      & Effect.Effect<
+        & ExternalWorker<
+          {
+            [binding in keyof NormalizedBindings<Bindings, Assets>]: NormalizedBindings<
+              Bindings,
+              Assets
+            >[binding]
+          }
+        >
+        & Rpc<{}>,
+        never,
+        Req | Providers
+      >
+      & PlatformIdentity<Id>
     <
       const Id extends string,
       Shape extends WorkerShape,
@@ -2847,54 +2892,35 @@ export const Worker: ResourceClassLike<Worker> & {
       id: Id,
       props: InputProps<WorkerProps> | Effect.Effect<InputProps<WorkerProps>, ConfigError>,
       impl: Effect.Effect<Shape, ConfigError, Req>,
-    ): Effect.Effect<
-      Worker & Rpc<Shape>,
-      never,
-      Extract<Req, Container.Application<any>> | Providers
-    > &
-      Named<Id> &
-      PlatformIdentity<Id>;
+    ):
+      & Effect.Effect<
+        Worker & Rpc<Shape>,
+        never,
+        Extract<Req, Container.Application<any>> | Providers
+      >
+      & Named<Id>
+      & PlatformIdentity<Id>
     /**
      * The Worker's own public URL, injected as a binding on that same Worker.
      * Declare it on `env` (`env: { VITE_PUBLIC_URL: Worker.URL }`) or
      * `yield*` it inside an Effect-native Worker to obtain a deferred
      * accessor. See {@link URLEffect}.
      */
-    readonly URL: URLEffect;
+    readonly URL: URLEffect
   } = withDeclarationRef(
-  Platform(
-    WorkerTypeId,
-    {
-      // WorkerAsyncBindings imports isWorker; defer access until module initialization completes.
-      // `props` is `undefined` for a bare tag whose `.make` Layer has not built yet.
-      onCreate: (resource, props) => bindWorkerAsyncBindings(resource as Worker, props ?? {}),
-      createRuntimeContext: (id) => makeWorkerRuntimeContext(id),
-      // Normalize `main` relative to the cwd, then let `domain.dns` naming a
-      // non-Cloudflare DNS host compose Cloudflare for SaaS custom hostnames +
-      // records and rewrite `domain` into routes.
-      transformProps: (id, props) =>
-        transformWorkerDomainProps(
-          id,
-          globalThis.__ALCHEMY_RUNTIME__ || typeof props?.main !== "string"
-            ? props
-            : { ...props, main: relativeWorkerMain(props.main, process.cwd()) },
-        ),
-    },
-    { URL },
-  ),
-);
-
-/**
- * `main` as a path relative to `cwd` when it points inside `cwd`. State keeps
- * the Worker's props and `alchemy drift` rebuilds the bundle from them, so an
- * absolute `main` (such as `import.meta.url`) fails once the checkout that
- * deployed it moves or is removed. Paths outside `cwd` are kept as given.
- *
- * @internal exported for unit testing.
- */
-export const relativeWorkerMain = (main: string, cwd: string): string => {
-  const file = main.startsWith("file:")
-    ? decodeURIComponent(new globalThis.URL(main).pathname)
-    : main;
-  return path.isAbsolute(file) && isPathWithin(cwd, file, cwd) ? path.relative(cwd, file) : main;
-};
+    Platform(
+      WorkerTypeId,
+      {
+        // WorkerAsyncBindings imports isWorker; defer access until module initialization completes.
+        // `props` is `undefined` for a bare tag whose `.make` Layer has not built yet.
+        onCreate: (resource, props) => bindWorkerAsyncBindings(resource as Worker, props ?? {}),
+        createRuntimeContext: (id) => makeWorkerRuntimeContext(id),
+        // Normalize `main` relative to the cwd, then let `domain.dns` naming a
+        // non-Cloudflare DNS host compose Cloudflare for SaaS custom hostnames +
+        // records and rewrite `domain` into routes.
+        // (`transformWorkerProps` is in the `main_path` module body.)
+        transformProps: transformWorkerProps,
+      },
+      { URL },
+    ),
+  )

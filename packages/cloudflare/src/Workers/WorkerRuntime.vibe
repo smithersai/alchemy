@@ -1,21 +1,47 @@
-import type * as cf from "@cloudflare/workers-types";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
-import * as Context from "effect/Context";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import { fromCloudflareFetcher, type Fetcher } from "../Fetcher.vibe";
-import { resolveAccessContext, type WorkerExecutionContextAccess } from "./WorkerAccess.vibe";
+import type * as cf from "@cloudflare/workers-types"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Context from "effect/Context"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { fromCloudflareFetcher, type Fetcher } from "../Fetcher.vibe"
+import { resolveAccessContext, type WorkerExecutionContextAccess } from "./WorkerAccess.vibe"
 
-export const WorkerTypeId = "Cloudflare.Worker";
-export type WorkerTypeId = typeof WorkerTypeId;
+// `deferredExecutionContext.raw` throws by design outside a request handler,
+// and a throwing accessor is TypeScript, so it lives in this module body.
+module deferred {
+  import type * as cf from "@cloudflare/workers-types"
+
+  /**
+   * `members` behind a leading `raw` getter that throws: workerd's raw
+   * ExecutionContext exists only inside a request handler. Copies each
+   * member's property descriptor, so getters stay lazy.
+   */
+  export const withHandlerOnlyRaw = <T extends object>(
+    members: T,
+  ): T & { readonly raw: cf.ExecutionContext } =>
+    Object.defineProperties(
+      {
+        /** @throws {Error} */
+        get raw(): cf.ExecutionContext {
+          throw new Error("WorkerExecutionContext.raw is only available inside a request handler")
+        },
+      },
+      Object.getOwnPropertyDescriptors(members),
+    ) as T & { readonly raw: cf.ExecutionContext }
+}
+
+import { withHandlerOnlyRaw } from deferred
+
+export const WorkerTypeId = "Cloudflare.Worker"
+export type WorkerTypeId = typeof WorkerTypeId
 
 export class WorkerEnvironment extends Context.Service<WorkerEnvironment, Record<string, any>>()(
   "Cloudflare.Workers.WorkerEnvironment",
 ) {}
 
 export class CachePurgeError extends Data.TaggedError("CachePurgeError")<{
-  message: string;
-  cause?: unknown;
+  message: string
+  cause?: unknown
 }> {}
 
 /**
@@ -29,7 +55,7 @@ export interface WorkerExecutionContextCache {
    */
   purge(
     options: cf.CachePurgeOptions,
-  ): Effect.Effect<cf.CachePurgeResult, CachePurgeError, RuntimeContext>;
+  ): Effect.Effect<cf.CachePurgeResult, CachePurgeError, RuntimeContext>
 }
 
 /**
@@ -39,8 +65,8 @@ export interface WorkerExecutionContextCache {
  * compatibility flag).
  */
 export class EntrypointUnavailableError extends Data.TaggedError("EntrypointUnavailableError")<{
-  message: string;
-  entrypoint: string;
+  message: string
+  entrypoint: string
 }> {}
 
 /**
@@ -53,7 +79,7 @@ export interface EntrypointOptions {
    * `WorkerExecutionContext.props` in an Effect Worker. Must be
    * structured-cloneable.
    */
-  props?: Record<string, unknown>;
+  props?: Record<string, unknown>
 }
 
 /**
@@ -68,27 +94,31 @@ export const getLoopbackEntrypoint = (
   options?: EntrypointOptions,
 ): Effect.Effect<Fetcher, EntrypointUnavailableError> =>
   Effect.suspend(() => {
-    const loopback = (exports as Record<string, unknown> | undefined)?.[name];
+    const loopback = (exports as Record<string, unknown> | undefined)?.[name]
     if (typeof loopback !== "function") {
       return Effect.fail(
         new EntrypointUnavailableError({
           entrypoint: name,
-          message:
-            exports === undefined
-              ? `ctx.exports is not available, so entrypoint "${name}" cannot be ` +
-                "minted — remove the `disable_ctx_exports` compatibility flag."
-              : `"${name}" is not a WorkerEntrypoint exported by this Worker's main module.`,
+          message: exports === undefined
+            ? `ctx.exports is not available, so entrypoint "${name}" cannot be `
+              + "minted — remove the `disable_ctx_exports` compatibility flag."
+            : `"${name}" is not a WorkerEntrypoint exported by this Worker's main module.`,
         }),
-      );
+      )
     }
-    return Effect.succeed(
-      fromCloudflareFetcher(
-        (loopback as (opts: { props?: Record<string, unknown> }) => cf.Fetcher)({
-          props: options?.props ?? {},
-        }),
-      ),
-    );
-  });
+    // A throw while minting the stub is a defect, as it was in the thunk.
+    return Effect.orDie(
+      Effect.try({
+        try: () =>
+          fromCloudflareFetcher(
+            (loopback as (opts: { props?: Record<string, unknown> }) => cf.Fetcher)({
+              props: options?.props ?? {},
+            }),
+          ),
+        catch: (e) => e,
+      }),
+    )
+  })
 
 /**
  * This Worker's own entrypoints, by export name (`default` for the Worker's
@@ -98,8 +128,8 @@ export const getLoopbackEntrypoint = (
 export type EntrypointExports = {
   readonly [name: string]: (
     options?: EntrypointOptions,
-  ) => Effect.Effect<Fetcher, EntrypointUnavailableError, RuntimeContext>;
-};
+  ) => Effect.Effect<Fetcher, EntrypointUnavailableError, RuntimeContext>
+}
 
 /**
  * Build {@link EntrypointExports} over a lookup of workerd's `exports`
@@ -113,9 +143,8 @@ export const makeEntrypointExports = (
   ) => Effect.Effect<Fetcher, EntrypointUnavailableError, RuntimeContext>,
 ): EntrypointExports =>
   new Proxy({} as EntrypointExports, {
-    get: (_, name) =>
-      typeof name === "string" ? (options?: EntrypointOptions) => call(name, options) : undefined,
-  });
+    get: (_, name) => typeof name === "string" ? (options?: EntrypointOptions) => call(name, options) : undefined,
+  })
 
 /**
  * The shape of {@link WorkerExecutionContext}.
@@ -138,29 +167,29 @@ export interface WorkerExecutionContextService {
    */
   waitUntil<A, E, R>(
     effect: Effect.Effect<A, E, R>,
-  ): Effect.Effect<void, never, R | RuntimeContext>;
+  ): Effect.Effect<void, never, R | RuntimeContext>
   /**
    * Forward the request to the origin if the Worker throws an unhandled
    * exception, instead of returning an error page.
    */
-  passThroughOnException(): Effect.Effect<void, never, RuntimeContext>;
+  passThroughOnException(): Effect.Effect<void, never, RuntimeContext>
   /**
    * The Workers Cache runtime API (`ctx.cache`).
    */
-  readonly cache: WorkerExecutionContextCache;
+  readonly cache: WorkerExecutionContextCache
   /**
    * The Cloudflare Access context for the current request (`ctx.access`),
    * or `undefined` when the request did not pass through Access. Under
    * `alchemy dev` the Worker's `dev.access` config simulates it.
    */
-  readonly access: Effect.Effect<WorkerExecutionContextAccess | undefined, never, RuntimeContext>;
+  readonly access: Effect.Effect<WorkerExecutionContextAccess | undefined, never, RuntimeContext>
   /**
    * The properties this invocation was called with (`ctx.props`): the
    * `props` of the service binding or loopback stub the caller went
    * through, e.g. `Cloudflare.WorkerEntrypoint(worker, { props })` or
    * {@link exports}. An empty object for an external request.
    */
-  readonly props: Effect.Effect<Record<string, unknown>, never, RuntimeContext>;
+  readonly props: Effect.Effect<Record<string, unknown>, never, RuntimeContext>
   /**
    * This Worker's own entrypoints (workerd's `ctx.exports`):
    * `yield* ctx.exports.default({ props })` mints a stub to the Worker's
@@ -170,11 +199,11 @@ export interface WorkerExecutionContextService {
    * entrypoint, such as a container's `interceptOutboundHttps` or a
    * dynamic Worker's `globalOutbound`; its `raw` is the native `Fetcher`.
    */
-  readonly exports: EntrypointExports;
+  readonly exports: EntrypointExports
   /**
    * The raw workerd ExecutionContext, for interop with async APIs.
    */
-  readonly raw: cf.ExecutionContext;
+  readonly raw: cf.ExecutionContext
 }
 
 /**
@@ -191,8 +220,8 @@ export interface WorkerExecutionContextService {
 export const WorkerExecutionContext = Context.Reference<WorkerExecutionContextService>(
   "Cloudflare.Workers.WorkerExecutionContext",
   { defaultValue: () => deferredExecutionContext },
-);
-export type WorkerExecutionContext = typeof WorkerExecutionContext;
+)
+export type WorkerExecutionContext = typeof WorkerExecutionContext
 
 export const fromExecutionContext = (
   ctx: cf.ExecutionContext,
@@ -201,38 +230,35 @@ export const fromExecutionContext = (
   raw: ctx,
   access: Effect.sync(() => resolveAccessContext(ctx, env)),
   props: Effect.sync(() => (ctx.props as Record<string, unknown> | undefined) ?? {}),
-  exports: makeEntrypointExports((name, options) =>
-    getLoopbackEntrypoint(ctx.exports, name, options),
-  ),
+  exports: makeEntrypointExports((name, options) => getLoopbackEntrypoint(ctx.exports, name, options)),
   waitUntil: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-    Effect.gen(function* () {
-      const context = yield* Effect.context<R>();
+    effect {
+      const context = try Effect.context<R>()
       // Register the promise with workerd un-awaited — waitUntil extends the
       // invocation's lifetime without blocking the response.
-      yield* Effect.sync(() => ctx.waitUntil(Effect.runPromiseWith(context)(effect)));
-    }),
+      try Effect.sync(() => ctx.waitUntil(Effect.runPromiseWith(context)(effect)))
+    },
   passThroughOnException: () => Effect.sync(() => ctx.passThroughOnException()),
   cache: {
     purge: (options) =>
       ctx.cache
         ? Effect.tryPromise({
-            try: () => ctx.cache!.purge(options),
-            catch: (cause) =>
-              new CachePurgeError({
-                message: cause instanceof Error ? cause.message : "Unknown cache purge error",
-                cause,
-              }),
-          })
-        : Effect.fail(
+          try: () => ctx.cache!.purge(options),
+          catch: (cause) =>
             new CachePurgeError({
-              message:
-                "ctx.cache is not available — enable Workers Cache on this " +
-                "Worker (the `cache` prop or `yield* Cloudflare.cache()`) " +
-                "and note it is not supported in local dev.",
+              message: cause instanceof Error ? cause.message : "Unknown cache purge error",
+              cause,
             }),
-          ),
+        })
+        : Effect.fail(
+          new CachePurgeError({
+            message: "ctx.cache is not available — enable Workers Cache on this "
+              + "Worker (the `cache` prop or `yield* Cloudflare.cache()`) "
+              + "and note it is not supported in local dev.",
+          }),
+        ),
   },
-});
+})
 
 /**
  * A {@link WorkerExecutionContext} whose methods resolve the live per-event
@@ -242,10 +268,9 @@ export const fromExecutionContext = (
  * `RuntimeContext`, so it can only be *run* inside a handler, where the
  * bridge provides the real per-event context that these methods defer to.
  */
-export const deferredExecutionContext: WorkerExecutionContextService = {
-  get raw(): cf.ExecutionContext {
-    throw new Error("WorkerExecutionContext.raw is only available inside a request handler");
-  },
+export const deferredExecutionContext: WorkerExecutionContextService = withHandlerOnlyRaw<
+  Omit<WorkerExecutionContextService, "raw">
+>({
   waitUntil: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
     liveExecutionContext.pipe(Effect.flatMap((live) => live.waitUntil(effect))) as Effect.Effect<
       void,
@@ -273,7 +298,7 @@ export const deferredExecutionContext: WorkerExecutionContextService = {
       Record<string, unknown>,
       never,
       RuntimeContext
-    >;
+    >
   },
   // A getter so this module-level literal doesn't eagerly reference
   // `liveExecutionContext` before its declaration below.
@@ -282,17 +307,17 @@ export const deferredExecutionContext: WorkerExecutionContextService = {
       WorkerExecutionContextAccess | undefined,
       never,
       RuntimeContext
-    >;
+    >
   },
-};
+})
 
 const liveExecutionContext = WorkerExecutionContext.pipe(
   Effect.flatMap((live) =>
     live === deferredExecutionContext
       ? Effect.die(new Error("WorkerExecutionContext can only be used inside a request handler"))
-      : Effect.succeed(live),
+      : Effect.succeed(live)
   ),
-);
+)
 
 /**
  * Run an Effect in the background without blocking the response, keeping the
@@ -310,23 +335,22 @@ const liveExecutionContext = WorkerExecutionContext.pipe(
 export const waitUntil = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<void, never, R | RuntimeContext> =>
-  WorkerExecutionContext.pipe(Effect.flatMap((ctx) => ctx.waitUntil(effect)));
+  WorkerExecutionContext.pipe(Effect.flatMap((ctx) => ctx.waitUntil(effect)))
 
 export type WorkerEvent = Exclude<
   {
     [type in keyof cf.ExportedHandler]: {
-      kind: "Cloudflare.Workers.WorkerEvent";
-      type: type;
-      input: Parameters<Exclude<cf.ExportedHandler[type], undefined>>[0];
-      env: Parameters<Exclude<cf.ExportedHandler[type], undefined>>[1];
-      context: Parameters<Exclude<cf.ExportedHandler[type], undefined>>[2];
-    };
+      kind: "Cloudflare.Workers.WorkerEvent"
+      type: type
+      input: Parameters<Exclude<cf.ExportedHandler[type], undefined>>[0]
+      env: Parameters<Exclude<cf.ExportedHandler[type], undefined>>[1]
+      context: Parameters<Exclude<cf.ExportedHandler[type], undefined>>[2]
+    }
   }[keyof cf.ExportedHandler],
   undefined
->;
+>
 
-export const isWorkerEvent = (value: any): value is WorkerEvent =>
-  value?.kind === "Cloudflare.Workers.WorkerEvent";
+export const isWorkerEvent = (value: any): value is WorkerEvent => value?.kind === "Cloudflare.Workers.WorkerEvent"
 
 export const ExportedHandlerMethods = [
   "fetch",
@@ -337,4 +361,4 @@ export const ExportedHandlerMethods = [
   "test",
   "email",
   "queue",
-] as const satisfies (keyof cf.ExportedHandler)[];
+] as const satisfies (keyof cf.ExportedHandler)[]

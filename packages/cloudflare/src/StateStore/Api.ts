@@ -20,7 +20,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import { ReadSecret } from "../SecretsStore/ReadSecret.vibe";
 import { ReadSecretBinding } from "../SecretsStore/ReadSecretBinding.vibe";
-import { Worker } from "../Workers/Worker.ts";
+import { Worker } from "../Workers/Worker.vibe";
 import Store, { retrySecretRead } from "./Store.vibe";
 import { AuthToken, DEFAULT_STATE_STORE_NAME, StateStoreName } from "./Token.vibe";
 

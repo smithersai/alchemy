@@ -34,14 +34,14 @@ import {
   encodeRpcError,
   toRpcStream,
 } from "./Rpc.vibe";
-import type { Worker } from "./Worker.ts";
+import type { Worker } from "./Worker.vibe";
 import {
   ExportedHandlerMethods,
   WorkerEnvironment,
   WorkerExecutionContext,
   fromExecutionContext,
-} from "./WorkerRuntime.ts";
-import type { WorkerRuntimeContext } from "./WorkerRuntimeContext.ts";
+} from "./WorkerRuntime.vibe";
+import type { WorkerRuntimeContext } from "./WorkerRuntimeContext.vibe";
 
 /**
  * The isolate-lifetime artifacts produced by a single layer build: the built

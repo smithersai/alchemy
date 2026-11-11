@@ -3,7 +3,7 @@
  * resource providers or local development tooling, even through dynamic imports.
  */
 export * from "./Fetcher.vibe";
-export * from "./Workers/InferEnv.ts";
+export * from "./Workers/InferEnv.vibe";
 export * from "./Workers/Rpc.vibe";
 export * from "./Workers/RpcAsync.vibe";
 
@@ -11,4 +11,4 @@ export * from "./Workers/RpcAsync.vibe";
 export { makeDurableObjectBridge } from "./Workers/DurableObjectBridge.vibe";
 export { makeWorkerBridge } from "./Workers/WorkerBridge.ts";
 export { withSqlMigrations } from "./Workers/SqlMigrationsRuntime.vibe";
-export { makeWorkflowBridge } from "./Workflows/WorkflowBridge.ts";
+export { makeWorkflowBridge } from "./Workflows/WorkflowBridge.vibe";
