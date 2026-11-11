@@ -95,7 +95,7 @@ const serverPlatformLayer = platformLayer({
     return RpcServerBun;
   },
   node: async () => {
-    const { RpcServerNode } = await import("./RpcServerNode.ts");
+    const { RpcServerNode } = await import("./RpcServerNode.vibe");
     return RpcServerNode;
   },
 });

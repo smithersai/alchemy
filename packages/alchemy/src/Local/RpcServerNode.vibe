@@ -1,0 +1,85 @@
+import * as Effect from "effect/Effect"
+import * as RpcServer from "./RpcServer.ts"
+
+module platform {
+  import * as Effect from "effect/Effect"
+  import { WebSocketServer, type Server } from "ws"
+  import type * as RpcServer from "./RpcServer.ts"
+  import { SESSION_ENV_PARAM } from "./RpcServerEnvironment.ts"
+
+  type Handlers = Parameters<Parameters<typeof RpcServer.layerServer>[0]>[0]
+
+  /** Create the websocket server that carries the sidecar's RPC sessions and parent link. */
+  export const make = () => Effect.sync(() => new WebSocketServer({ host: "127.0.0.1", port: 0 }))
+
+  /** Route connections to the parent link or an RPC session, and resolve the server's URL once it listens. */
+  export const listen = (
+    server: Server,
+    { parentConnected, parentDisconnected, createRpcSession }: Handlers,
+  ) =>
+    Effect.callback<string>((resume) => {
+      server.on("connection", (ws, req) => {
+        if (req.url?.startsWith("/parent")) {
+          parentConnected()
+          ws.on("close", () => {
+            parentDisconnected()
+          })
+          return
+        }
+        const sessionEnv = new URL(req.url ?? "/", "http://localhost").searchParams.get(SESSION_ENV_PARAM)
+          ?? undefined
+        const session = createRpcSession(ws, sessionEnv)
+        ws.on("message", (data) => {
+          session.dispatch.message(
+            (Array.isArray(data)
+              ? Buffer.concat(data)
+              : Buffer.isBuffer(data)
+              ? data
+              : Buffer.from(data)).toString(),
+          )
+        })
+        ws.on("close", (code, reason) => {
+          session.dispatch.close(code, reason.toString())
+        })
+      })
+      server.on("error", (error) => {
+        resume(Effect.die(error))
+      })
+      server.on("listening", () => {
+        resume(getServerAddress(server))
+      })
+    })
+
+  /** Close the server. */
+  export const close = (server: Server) => Effect.sync(() => server.close())
+
+  function getServerAddress(server: Server): Effect.Effect<string> {
+    const address = server.address()
+    if (
+      typeof address === "object"
+      && address !== null
+      && "address" in address
+      && "port" in address
+    ) {
+      return Effect.succeed(
+        `ws://${address.address === "::" ? "localhost" : address.address}:${address.port}`,
+      )
+    }
+    return Effect.die(
+      new Error(
+        `Server address is not an object with address and port properties: ${JSON.stringify(address)}`,
+      ),
+    )
+  }
+}
+
+import { close, listen, make } from platform
+
+export const RpcServerNode = RpcServer.layerServer(
+  effect (handlers) => {
+    const server = try make()
+    const url = try listen(server, handlers)
+    try Effect.addFinalizer(() => close(server))
+    return { url }
+  },
+)

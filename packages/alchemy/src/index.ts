@@ -16,7 +16,7 @@ export * from "./KeyPair.vibe";
 export * from "./Namespace.vibe";
 export { stackRef } from "./Output.ts";
 export type { Output } from "./Output.ts";
-export { ALCHEMY_DEV, ALCHEMY_PHASE, type AlchemyPhase } from "./Phase.ts";
+export { ALCHEMY_DEV, ALCHEMY_PHASE, type AlchemyPhase } from "./Phase.vibe";
 export * from "./PhysicalName.vibe";
 export * as Plan from "./Plan.ts";
 export { Provider, ProviderCollection } from "./Provider.ts";
