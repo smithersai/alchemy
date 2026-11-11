@@ -13,7 +13,7 @@ import type * as Redacted from "effect/Redacted";
 import type * as Scope from "effect/Scope";
 import type { PoolConfig } from "pg";
 import { Database, type DatabaseService, type DirectDatabase } from "./Database.vibe";
-import { BetterAuthMigrationError } from "./Errors.ts";
+import { BetterAuthMigrationError } from "./Errors.vibe";
 
 export type { ConnectionSource };
 /** Deploy-resolvable connection source usable for migrations. */

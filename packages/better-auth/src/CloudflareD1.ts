@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Scope from "effect/Scope";
 import { Database, type DatabaseService, type DirectDatabase } from "./Database.vibe";
-import type { BetterAuthMigrationError } from "./Errors.ts";
+import type { BetterAuthMigrationError } from "./Errors.vibe";
 
 /**
  * Cloudflare D1 database layer for Better Auth.

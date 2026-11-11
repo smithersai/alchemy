@@ -6,7 +6,7 @@ import { getSchema } from "better-auth/db";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import type { DatabaseService } from "./Database.vibe";
-import { BetterAuthMigrationError } from "./Errors.ts";
+import { BetterAuthMigrationError } from "./Errors.vibe";
 
 /**
  * Deploy-time migration machinery.

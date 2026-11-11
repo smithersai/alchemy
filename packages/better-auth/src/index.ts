@@ -19,7 +19,7 @@ export {
   BetterAuthStorageError,
   isAPIErrorLike,
   mergeAPIErrorHeaders,
-} from "./Errors.ts";
+} from "./Errors.vibe";
 export { Memory } from "./Memory.vibe";
 export { SecondaryStorage, type SecondaryStorageService } from "./SecondaryStorage.vibe";
 // Driver-backed platform layers are deliberately NOT re-exported from the

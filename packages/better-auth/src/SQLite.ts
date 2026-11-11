@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import type * as Scope from "effect/Scope";
 import path from "pathe";
 import { Database } from "./Database.vibe";
-import { BetterAuthMigrationError } from "./Errors.ts";
+import { BetterAuthMigrationError } from "./Errors.vibe";
 
 const open = (path: string): Effect.Effect<BunDatabase, never, Scope.Scope> =>
   Effect.acquireRelease(
