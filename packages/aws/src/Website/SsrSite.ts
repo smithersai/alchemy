@@ -15,7 +15,7 @@ import { OriginAccessControl } from "../CloudFront/OriginAccessControl.vibe";
 import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
 import type { Service } from "../ECS/Service.vibe";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import { Function } from "../Lambda/Function.ts";
+import { Function } from "../Lambda/Function.vibe";
 import { Bucket } from "../S3/Bucket.vibe";
 import type { AssetFileOption } from "./AssetDeployment.vibe";
 import { AssetDeployment } from "./AssetDeployment.vibe";

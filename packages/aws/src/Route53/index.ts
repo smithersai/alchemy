@@ -1,4 +1,4 @@
-export { Adapter, AdapterLive, ROUTE53_DNS, type AdapterOptions } from "./Adapter.ts";
+export { Adapter, AdapterLive, ROUTE53_DNS, type AdapterOptions } from "./Adapter.vibe";
 export {
   ChangeResourceRecordSets,
   type ChangeResourceRecordSetsRequest,

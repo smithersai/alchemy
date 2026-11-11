@@ -34,8 +34,8 @@ import {
   type DurableFunctionImpl,
   type DurableFunctionInitServices,
   type DurableFunctionProps,
-} from "./DurableFunction.ts";
-import { Function } from "./Function.ts";
+} from "./DurableFunction.vibe";
+import { Function } from "./Function.vibe";
 import { qualifierOf } from "./QualifiedArn.ts";
 
 type WorkflowNames<W> = W extends Workflow.Workflow<infer Name, any, any, any> ? Name : never;

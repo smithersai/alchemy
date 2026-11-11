@@ -1,8 +1,3 @@
-import { execFile } from "node:child_process";
-import * as fs from "node:fs/promises";
-import * as net from "node:net";
-import * as os from "node:os";
-import * as path from "node:path";
 /**
  * `@alchemy.run/aws/Local/Floci` — Effect-native manager for the
  * [floci](https://floci.io) local cloud emulator.
@@ -27,12 +22,112 @@ import * as path from "node:path";
  * queues/tables/functions stay warm between runs and the next session
  * reattaches via the health probe in milliseconds.
  */
-import * as Data from "effect/Data";
-import * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Result from "effect/Result";
-import * as Schedule from "effect/Schedule";
-import * as Semaphore from "effect/Semaphore";
+import * as Data from "effect/Data"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Result from "effect/Result"
+import * as Schedule from "effect/Schedule"
+import * as Semaphore from "effect/Semaphore"
+
+module host {
+  import { execFile } from "node:child_process"
+  import * as fs from "node:fs/promises"
+  import * as net from "node:net"
+  import * as os from "node:os"
+  import * as path from "node:path"
+
+  /** Stable host path of the emulator's CA bundle. */
+  export const flociCaPath = path.join(os.homedir(), ".floci", "ca.pem")
+
+  /** Host directory for the emulator's TLS files. */
+  export const flociTlsDir = path.join(os.homedir(), ".floci", "tls")
+
+  /** Reads one variable of the host process environment. */
+  export const readEnv = (key: string): string | undefined => process.env[key]
+
+  /**
+   * Download the emulator's CA bundle to {@link flociCaPath} and point
+   * child processes at it.
+   */
+  export const downloadCaBundle = async (endpoint: string, signal: AbortSignal) => {
+    const res = await fetch(`${endpoint}/_floci/tls/ca`, { signal })
+    if (!res.ok) return
+    const pem = await res.text()
+    if (!pem.includes("BEGIN CERTIFICATE")) return
+    await fs.mkdir(path.dirname(flociCaPath), { recursive: true })
+    await fs.writeFile(flociCaPath, pem)
+    // Point local workerd (and any other child process spawned after this)
+    // at the emulator CA so cross-cloud MicroVM data-plane TLS is trusted
+    // under `alchemy dev` — Node reads NODE_EXTRA_CA_CERTS once at startup,
+    // so setting it here (before local workers spawn during the apply) only
+    // affects children, which is exactly the target. Never clobber a value
+    // the caller set deliberately.
+    if (process.env.NODE_EXTRA_CA_CERTS === undefined) {
+      process.env.NODE_EXTRA_CA_CERTS = flociCaPath
+    }
+  }
+
+  /** `GET` the emulator's health endpoint. */
+  export const fetchHealth = (endpoint: string, signal: AbortSignal): Promise<Response> =>
+    fetch(`${endpoint}/_floci/health`, { signal })
+
+  /** Run the `docker` CLI; returns a function that kills the child. */
+  export const execDocker = (
+    args: ReadonlyArray<string>,
+    done: (error: Error | null, stdout: string, stderr: string) => void,
+  ): (() => boolean) => {
+    const child = execFile(
+      "docker",
+      args as Array<string>,
+      { maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout, stderr) => done(error, stdout, stderr),
+    )
+    return () => child.kill()
+  }
+
+  /**
+   * Probe whether a host TCP port is free (nothing is listening on it);
+   * returns a function that closes the probe server.
+   */
+  export const probeHostPort = (port: number, done: (free: boolean) => void): (() => void) => {
+    const server = net.createServer()
+    server.once("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EACCES") {
+        // Binding low ports (<1024) is privileged for THIS process. Rootful
+        // Docker and Docker Desktop can still publish them, rootless Docker
+        // cannot — fall back to a connect probe (a refused connection means
+        // nothing listens). If Docker then refuses to publish the port, the
+        // run is retried without the optional ports.
+        const socket = net.connect({ port, host: "127.0.0.1" })
+        socket.once("connect", () => {
+          socket.destroy()
+          done(false)
+        })
+        socket.once("error", () => done(true))
+        return
+      }
+      done(false)
+    })
+    server.once("listening", () => server.close(() => done(true)))
+    server.listen(port, "127.0.0.1")
+    return () => {
+      server.close()
+    }
+  }
+
+  /** Create the host TLS directory. */
+  export const makeTlsDir = () => fs.mkdir(flociTlsDir, { recursive: true })
+}
+import {
+  downloadCaBundle,
+  execDocker,
+  fetchHealth,
+  flociCaPath,
+  flociTlsDir,
+  makeTlsDir,
+  probeHostPort,
+  readEnv,
+} from host
 
 /**
  * The pinned floci release alchemy ships: upstream + the alchemy patch
@@ -40,10 +135,10 @@ import * as Semaphore from "effect/Semaphore";
  * workflow. Bumping this pin (with a new `x.y.z-alchemy.N` tag) is how an
  * emulator change reaches users.
  */
-export const DEFAULT_FLOCI_IMAGE = "ghcr.io/alchemy-run/floci:2.1.0-alchemy.3";
+export const DEFAULT_FLOCI_IMAGE = "ghcr.io/alchemy-run/floci:2.1.0-alchemy.3"
 
 /** Default gateway port (LocalStack-compatible). */
-export const DEFAULT_FLOCI_PORT = 4566;
+export const DEFAULT_FLOCI_PORT = 4566
 
 /**
  * ELB listener ports published on the managed container. Floci's ELBv2
@@ -57,7 +152,7 @@ export const DEFAULT_FLOCI_PORT = 4566;
  * opportunistic and a taken privileged port is the common case on a
  * developer machine, not a problem.
  */
-export const DEFAULT_ELB_LISTENER_PORTS = [80, 443];
+export const DEFAULT_ELB_LISTENER_PORTS = [80, 443]
 
 /**
  * Ports published for floci's emulated CloudFront edge. Each emulated
@@ -69,23 +164,23 @@ export const DEFAULT_ELB_LISTENER_PORTS = [80, 443];
  * passed in as `FLOCI_SERVICES_CLOUDFRONT_EDGE_PORTS`. Taken host ports are
  * skipped, exactly like the ELB listener ports above.
  */
-export const DEFAULT_CLOUDFRONT_EDGE_PORTS = Array.from({ length: 20 }, (_, index) => 9500 + index);
+export const DEFAULT_CLOUDFRONT_EDGE_PORTS = Array.from({ length: 20 }, (_, index) => 9500 + index)
 
 /**
  * Label recording the ports the caller asked the managed container to
  * publish (see {@link requestedPortsLabel}).
  */
-const PORTS_LABEL = "run.alchemy.floci.requested-ports";
+const PORTS_LABEL = "run.alchemy.floci.requested-ports"
 
 /**
  * Canonical form of the caller's port request: the configured lists, or
  * `default` for an omitted one.
  */
 const requestedPortsLabel = (config?: FlociConfig) =>
-  `elb=${config?.elbListenerPorts?.join(",") ?? "default"};edge=${config?.cloudfrontEdgePorts?.join(",") ?? "default"}`;
+  `elb=${config?.elbListenerPorts?.join(",") ?? "default"};edge=${config?.cloudfrontEdgePorts?.join(",") ?? "default"}`
 
 /** Default name of the managed container. */
-export const DEFAULT_CONTAINER_NAME = "alchemy-floci";
+export const DEFAULT_CONTAINER_NAME = "alchemy-floci"
 
 /**
  * Stable host path of the emulator's self-signed CA bundle, refreshed by
@@ -96,7 +191,7 @@ export const DEFAULT_CONTAINER_NAME = "alchemy-floci";
  * point TLS trust at it (e.g. `NODE_EXTRA_CA_CERTS`, which the local workerd
  * runtime folds into its outbound `trustedCertificates`).
  */
-export const FLOCI_CA_PATH = path.join(os.homedir(), ".floci", "ca.pem");
+export const FLOCI_CA_PATH = flociCaPath
 
 /**
  * Host directory mounted at the container's TLS dir (`/app/data/tls`) so
@@ -106,7 +201,7 @@ export const FLOCI_CA_PATH = path.join(os.homedir(), ".floci", "ca.pem");
  * and every process that loaded the previous bundle (workerd trust stores
  * read once at spawn) fails TLS against the emulator until restarted.
  */
-export const FLOCI_TLS_DIR = path.join(os.homedir(), ".floci", "tls");
+export const FLOCI_TLS_DIR = flociTlsDir
 
 /**
  * Best-effort download of the emulator's CA bundle to {@link FLOCI_CA_PATH}.
@@ -115,29 +210,13 @@ export const FLOCI_TLS_DIR = path.join(os.homedir(), ".floci", "tls");
  */
 const syncCaBundle = (endpoint: string): Effect.Effect<void> =>
   Effect.tryPromise({
-    try: async (signal) => {
-      const res = await fetch(`${endpoint}/_floci/tls/ca`, { signal });
-      if (!res.ok) return;
-      const pem = await res.text();
-      if (!pem.includes("BEGIN CERTIFICATE")) return;
-      await fs.mkdir(path.dirname(FLOCI_CA_PATH), { recursive: true });
-      await fs.writeFile(FLOCI_CA_PATH, pem);
-      // Point local workerd (and any other child process spawned after this)
-      // at the emulator CA so cross-cloud MicroVM data-plane TLS is trusted
-      // under `alchemy dev` — Node reads NODE_EXTRA_CA_CERTS once at startup,
-      // so setting it here (before local workers spawn during the apply) only
-      // affects children, which is exactly the target. Never clobber a value
-      // the caller set deliberately.
-      if (process.env.NODE_EXTRA_CA_CERTS === undefined) {
-        process.env.NODE_EXTRA_CA_CERTS = FLOCI_CA_PATH;
-      }
-    },
+    try: (signal) => downloadCaBundle(endpoint, signal),
     catch: (cause) => new FlociError({ message: "ca sync failed", cause }),
-  }).pipe(Effect.ignore);
+  }).pipe(Effect.ignore)
 
 export class FlociError extends Data.TaggedError("FlociError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 export interface FlociConfig {
@@ -146,41 +225,41 @@ export interface FlociConfig {
    * When omitted, `ALCHEMY_FLOCI_EXTERNAL=1` enables it for source
    * development; an explicit value overrides the env var.
    */
-  readonly external?: boolean | undefined;
+  readonly external?: boolean | undefined
   /**
    * Image to run when the emulator is not already serving.
    * Resolution order: `ALCHEMY_FLOCI_IMAGE` env var, this field,
    * {@link DEFAULT_FLOCI_IMAGE}.
    */
-  readonly image?: string | undefined;
+  readonly image?: string | undefined
   /**
    * Gateway port on the host.
    * @default 4566
    */
-  readonly port?: number | undefined;
+  readonly port?: number | undefined
   /**
    * Name of the managed container (stable so `docker start` can revive a
    * stopped one).
    * @default "alchemy-floci"
    */
-  readonly containerName?: string | undefined;
+  readonly containerName?: string | undefined
   /**
    * Host directory persisted into the container's data dir. Omit for
    * floci's default in-memory storage (state lives as long as the
    * container).
    */
-  readonly storageDir?: string | undefined;
+  readonly storageDir?: string | undefined
   /**
    * Mount the host Docker socket so floci's container-backed engines
    * (Lambda, ECS, EC2, RDS, ElastiCache) work.
    * @default true
    */
-  readonly dockerSocket?: boolean | undefined;
+  readonly dockerSocket?: boolean | undefined
   /**
    * Extra environment variables for the emulator (e.g.
    * `FLOCI_SERVICES_LAMBDA_HOT_RELOAD_ENABLED`).
    */
-  readonly env?: Record<string, string> | undefined;
+  readonly env?: Record<string, string> | undefined
   /**
    * ELB listener ports to publish on the managed container (floci's ALB
    * data plane serves each listener on the listener's own port). Ports
@@ -190,7 +269,7 @@ export interface FlociConfig {
    * opportunistic.
    * @default [80, 443]
    */
-  readonly elbListenerPorts?: readonly number[] | undefined;
+  readonly elbListenerPorts?: readonly number[] | undefined
   /**
    * Ports to publish for the emulated CloudFront edge (floci serves each
    * distribution on its own port). Ports already taken on the host, or that
@@ -198,52 +277,47 @@ export interface FlociConfig {
    * never binds a port nothing can reach.
    * @default 9500-9519
    */
-  readonly cloudfrontEdgePorts?: readonly number[] | undefined;
+  readonly cloudfrontEdgePorts?: readonly number[] | undefined
   /**
    * How long to wait for the emulator to become healthy after starting it
    * (first run includes the image pull).
    * @default 180 seconds
    */
-  readonly readinessTimeout?: Duration.Input | undefined;
+  readonly readinessTimeout?: Duration.Input | undefined
 }
 
 /** A running (or reused) emulator. */
 export interface FlociInstance {
   /** Gateway endpoint, e.g. `http://localhost:4566`. */
-  readonly endpoint: string;
+  readonly endpoint: string
   /**
    * Whether this manager started the container (`false` when something was
    * already serving on the endpoint — a dev-mode JVM, a hand-run
    * container, or a previous session's container).
    */
-  readonly managed: boolean;
+  readonly managed: boolean
   /** Container name when {@link managed} is true. */
-  readonly containerName?: string | undefined;
+  readonly containerName?: string | undefined
 }
 
 const docker = (args: ReadonlyArray<string>) =>
   Effect.callback<{ stdout: string; stderr: string }, FlociError>((resume) => {
-    const child = execFile(
-      "docker",
-      args as Array<string>,
-      { maxBuffer: 16 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        if (error) {
-          resume(
-            Effect.fail(
-              new FlociError({
-                message: `docker ${args[0]} failed: ${stderr.trim() || error.message}`,
-                cause: error,
-              }),
-            ),
-          );
-        } else {
-          resume(Effect.succeed({ stdout, stderr }));
-        }
-      },
-    );
-    return Effect.sync(() => child.kill());
-  });
+    const kill = execDocker(args, (error, stdout, stderr) => {
+      if (error) {
+        resume(
+          Effect.fail(
+            new FlociError({
+              message: `docker ${args[0]} failed: ${stderr.trim() || error.message}`,
+              cause: error,
+            }),
+          ),
+        )
+      } else {
+        resume(Effect.succeed({ stdout, stderr }))
+      }
+    })
+    return Effect.sync(() => kill())
+  })
 
 /**
  * Whether anything answers HTTP on the endpoint. Any response — even an
@@ -252,19 +326,19 @@ const docker = (args: ReadonlyArray<string>) =>
 export const isServing = (endpoint: string): Effect.Effect<boolean> =>
   Effect.tryPromise({
     try: async (signal) => {
-      await fetch(`${endpoint}/_floci/health`, { signal });
-      return true;
+      await fetchHealth(endpoint, signal)
+      return true
     },
     catch: () => new FlociError({ message: "unreachable" }),
-  }).pipe(Effect.orElseSucceed(() => false));
+  }).pipe(Effect.orElseSucceed(() => false))
 
 /** Fail unless `GET /_floci/health` answers 200. */
 export const checkHealth = (endpoint: string): Effect.Effect<void, FlociError> =>
   Effect.tryPromise({
     try: async (signal) => {
-      const res = await fetch(`${endpoint}/_floci/health`, { signal });
+      const res = await fetchHealth(endpoint, signal)
       if (!res.ok) {
-        throw new Error(`health returned ${res.status}`);
+        throw new Error(`health returned ${res.status}`)
       }
     },
     catch: (cause) =>
@@ -272,7 +346,7 @@ export const checkHealth = (endpoint: string): Effect.Effect<void, FlociError> =
         message: `floci health check failed: ${String(cause)}`,
         cause,
       }),
-  });
+  })
 
 /** Resolve the image to run: env override, config, pinned default. */
 export const resolveImage = (config?: FlociConfig): Effect.Effect<string> =>
@@ -280,34 +354,15 @@ export const resolveImage = (config?: FlociConfig): Effect.Effect<string> =>
     () =>
       // `|| undefined`: an empty env var (`ALCHEMY_FLOCI_IMAGE= cmd`) means
       // "no override", not "run the image named ''" (an unrunnable docker ref).
-      (process.env.ALCHEMY_FLOCI_IMAGE || undefined) ?? config?.image ?? DEFAULT_FLOCI_IMAGE,
-  );
+      (readEnv("ALCHEMY_FLOCI_IMAGE") || undefined) ?? config?.image ?? DEFAULT_FLOCI_IMAGE,
+  )
 
 /** Whether a host TCP port is free (nothing is listening on it). */
 const isHostPortFree = (port: number): Effect.Effect<boolean> =>
   Effect.callback<boolean>((resume) => {
-    const server = net.createServer();
-    server.once("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "EACCES") {
-        // Binding low ports (<1024) is privileged for THIS process. Rootful
-        // Docker and Docker Desktop can still publish them, rootless Docker
-        // cannot — fall back to a connect probe (a refused connection means
-        // nothing listens). If Docker then refuses to publish the port, the
-        // run is retried without the optional ports.
-        const socket = net.connect({ port, host: "127.0.0.1" });
-        socket.once("connect", () => {
-          socket.destroy();
-          resume(Effect.succeed(false));
-        });
-        socket.once("error", () => resume(Effect.succeed(true)));
-        return;
-      }
-      resume(Effect.succeed(false));
-    });
-    server.once("listening", () => server.close(() => resume(Effect.succeed(true))));
-    server.listen(port, "127.0.0.1");
-    return Effect.sync(() => server.close());
-  });
+    const close = probeHostPort(port, (free) => resume(Effect.succeed(free)))
+    return Effect.sync(() => close())
+  })
 
 /**
  * The host ports the named container publishes, or `undefined` when the
@@ -316,25 +371,25 @@ const isHostPortFree = (port: number): Effect.Effect<boolean> =>
 const publishedPorts = (containerName: string): Effect.Effect<Set<number> | undefined> =>
   docker(["inspect", "--format", "{{json .HostConfig.PortBindings}}", containerName]).pipe(
     Effect.map(({ stdout }) => {
-      let bindings: Record<string, Array<{ HostPort?: string }> | null> | null;
+      let bindings: Record<string, Array<{ HostPort?: string }> | null> | null
       try {
-        bindings = JSON.parse(stdout.trim());
+        bindings = JSON.parse(stdout.trim())
       } catch {
         // Racing a concurrent create/remove of the container can produce
         // partial output — treat it as "unknown", not a crash.
-        return undefined;
+        return undefined
       }
-      const ports = new Set<number>();
+      const ports = new Set<number>()
       for (const spec of Object.values(bindings ?? {})) {
         for (const bind of spec ?? []) {
-          const hostPort = Number(bind.HostPort);
-          if (Number.isFinite(hostPort)) ports.add(hostPort);
+          const hostPort = Number(bind.HostPort)
+          if (Number.isFinite(hostPort)) ports.add(hostPort)
         }
       }
-      return ports;
+      return ports
     }),
     Effect.orElseSucceed(() => undefined),
-  );
+  )
 
 /**
  * Whether the named container ACTUALLY has a host binding for its gateway
@@ -348,7 +403,7 @@ const gatewayBound = (containerName: string): Effect.Effect<boolean> =>
   docker(["port", containerName, "4566/tcp"]).pipe(
     Effect.map(({ stdout }) => stdout.trim() !== ""),
     Effect.orElseSucceed(() => false),
-  );
+  )
 
 /**
  * The requested ports the managed container should publish: every port that
@@ -357,21 +412,21 @@ const gatewayBound = (containerName: string): Effect.Effect<boolean> =>
  * them explicitly) so a busy host port never blocks the emulator from
  * starting.
  */
-const resolvePublishablePorts = Effect.fn(function* (
+const resolvePublishablePorts = effect (
   requested: readonly number[],
   published: ReadonlySet<number>,
   onTaken?: (port: number) => Effect.Effect<void>,
-) {
-  const desired: number[] = [];
+) => {
+  const desired: number[] = []
   for (const port of requested) {
-    if (published.has(port) || (yield* isHostPortFree(port))) {
-      desired.push(port);
+    if (published.has(port) || (try isHostPortFree(port))) {
+      desired.push(port)
     } else if (onTaken !== undefined) {
-      yield* onTaken(port);
+      try onTaken(port)
     }
   }
-  return desired;
-});
+  return desired
+}
 
 /**
  * Ensure a floci emulator is serving and healthy, starting the managed
@@ -386,7 +441,7 @@ const resolvePublishablePorts = Effect.fn(function* (
  * already in progress") and then race `docker run` on the name. Under the
  * mutex the second caller observes the container the first one started.
  */
-const ensureMutex = Semaphore.makeUnsafe(1);
+const ensureMutex = Semaphore.makeUnsafe(1)
 
 export const ensureFloci = (config?: FlociConfig): Effect.Effect<FlociInstance, FlociError> =>
   ensureMutex.withPermits(1)(
@@ -402,16 +457,21 @@ export const ensureFloci = (config?: FlociConfig): Effect.Effect<FlociInstance, 
         times: 3,
       }),
     ),
-  );
+  )
 
 const ensureFlociUnsynchronized = (
   config?: FlociConfig,
 ): Effect.Effect<FlociInstance, FlociError> =>
-  Effect.gen(function* () {
-    const port = config?.port ?? DEFAULT_FLOCI_PORT;
-    const endpoint = `http://localhost:${port}`;
-    if (config?.external ?? process.env.ALCHEMY_FLOCI_EXTERNAL === "1") {
-      yield* checkHealth(endpoint).pipe(
+  effect {
+    const port = config?.port ?? DEFAULT_FLOCI_PORT
+    const endpoint = `http://localhost:${port}`
+    if (
+      config?.external
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => readEnv("ALCHEMY_FLOCI_EXTERNAL"), catch: (e) => e }),
+        )) === "1"
+    ) {
+      try checkHealth(endpoint).pipe(
         Effect.timeout("5 seconds"),
         Effect.mapError(
           (cause) =>
@@ -420,13 +480,13 @@ const ensureFlociUnsynchronized = (
               cause,
             }),
         ),
-      );
-      yield* syncCaBundle(endpoint);
-      return { endpoint, managed: false };
+      )
+      try syncCaBundle(endpoint)
+      return { endpoint, managed: false }
     }
-    const containerName = config?.containerName ?? DEFAULT_CONTAINER_NAME;
-    const published = yield* publishedPorts(containerName);
-    const elbPorts = yield* resolvePublishablePorts(
+    const containerName = config?.containerName ?? DEFAULT_CONTAINER_NAME
+    const published = try publishedPorts(containerName)
+    const elbPorts = try resolvePublishablePorts(
       config?.elbListenerPorts ?? DEFAULT_ELB_LISTENER_PORTS,
       published ?? new Set(),
       // Default 80/443 are opportunistic (most stacks have no ELB). A taken
@@ -435,14 +495,14 @@ const ensureFlociUnsynchronized = (
       config?.elbListenerPorts === undefined
         ? undefined
         : (port) =>
-            Effect.logWarning(
-              `floci: host port ${port} is taken — emulated load balancer listeners on ${port} will not be reachable from the host`,
-            ),
-    );
-    const edgePorts = yield* resolvePublishablePorts(
+          Effect.logWarning(
+            `floci: host port ${port} is taken — emulated load balancer listeners on ${port} will not be reachable from the host`,
+          ),
+    )
+    const edgePorts = try resolvePublishablePorts(
       config?.cloudfrontEdgePorts ?? DEFAULT_CLOUDFRONT_EDGE_PORTS,
       published ?? new Set(),
-    );
+    )
 
     // Converge the managed container's EXPLICITLY-requested ports and its
     // image: a container missing ports the caller configured can't serve
@@ -466,80 +526,78 @@ const ensureFlociUnsynchronized = (
     // allow at creation time. A configured port Docker refused stays
     // dropped until the request changes, instead of recreating (and
     // wiping) the container on every ensure.
-    const publishPorts = [...elbPorts, ...edgePorts];
-    const requestedPorts = requestedPortsLabel(config);
-    const image = yield* resolveImage(config);
-    const running =
-      published !== undefined
-        ? yield* docker([
-            "inspect",
-            "--format",
-            `{{.Config.Image}}|{{index .Config.Labels "${PORTS_LABEL}"}}`,
-            containerName,
-          ]).pipe(
-            Effect.map(({ stdout }) => {
-              const [runningImage, label] = stdout.trim().split("|");
-              return {
-                image: runningImage || undefined,
-                requestedPorts: label && label !== "<no value>" ? label : undefined,
-              };
-            }),
-            Effect.orElseSucceed(() => undefined),
-          )
-        : undefined;
-    const runningImage = running?.image;
-    const needsRecreate =
-      published !== undefined &&
-      ((running?.requestedPorts !== undefined
+    const publishPorts = [...elbPorts, ...edgePorts]
+    const requestedPorts = requestedPortsLabel(config)
+    const image = try resolveImage(config)
+    const running = published !== undefined
+      ? try docker([
+        "inspect",
+        "--format",
+        `{{.Config.Image}}|{{index .Config.Labels "${PORTS_LABEL}"}}`,
+        containerName,
+      ]).pipe(
+        Effect.map(({ stdout }) => {
+          const [runningImage, label] = stdout.trim().split("|")
+          return {
+            image: runningImage || undefined,
+            requestedPorts: label && label !== "<no value>" ? label : undefined,
+          }
+        }),
+        Effect.orElseSucceed(() => undefined),
+      )
+      : undefined
+    const runningImage = running?.image
+    const needsRecreate = published !== undefined
+      && ((running?.requestedPorts !== undefined
         ? running.requestedPorts !== requestedPorts
-        : // Containers created before the label: recreate when they miss
-          // a configured port that is publishable now.
-          [
-            ...(config?.elbListenerPorts ?? []).filter((p) => elbPorts.includes(p)),
-            ...(config?.cloudfrontEdgePorts ?? []).filter((p) => edgePorts.includes(p)),
-          ].some((p) => !published.has(p))) ||
-        (runningImage !== undefined && runningImage !== image));
+        // Containers created before the label: recreate when they miss
+        // a configured port that is publishable now.
+        : [
+          ...(config?.elbListenerPorts ?? []).filter((p) => elbPorts.includes(p)),
+          ...(config?.cloudfrontEdgePorts ?? []).filter((p) => edgePorts.includes(p)),
+        ].some((p) => !published.has(p)))
+        || (runningImage !== undefined && runningImage !== image))
 
-    if (yield* isServing(endpoint)) {
+    if (try isServing(endpoint)) {
       if (!needsRecreate) {
         // Something may be serving but still starting — the readiness
         // poll tolerates transient unhealthiness.
-        yield* checkHealth(endpoint).pipe(Effect.catch(() => waitForHealth(endpoint, config)));
-        yield* syncCaBundle(endpoint);
-        return { endpoint, managed: false };
+        try checkHealth(endpoint).pipe(Effect.catch(() => waitForHealth(endpoint, config)))
+        try syncCaBundle(endpoint)
+        return { endpoint, managed: false }
       }
       // Only recreate when the server IS our managed container (otherwise
       // removing the container would not free the endpoint anyway).
-      yield* Effect.logInfo(
+      try Effect.logInfo(
         `floci: recreating ${containerName} (image ${runningImage} -> ${image}, ports [${publishPorts.join(", ")}])`,
-      );
-      yield* docker(["rm", "-f", containerName]);
+      )
+      try docker(["rm", "-f", containerName])
     } else if (needsRecreate) {
-      yield* Effect.logInfo(
+      try Effect.logInfo(
         `floci: recreating ${containerName} (image ${runningImage} -> ${image}, ports [${publishPorts.join(", ")}])`,
-      );
-      yield* docker(["rm", "-f", containerName]);
+      )
+      try docker(["rm", "-f", containerName])
     } else {
       // Revive a stopped container from a previous session, else run fresh.
-      const started = yield* docker(["start", containerName]).pipe(
+      const started = try docker(["start", containerName]).pipe(
         Effect.map(() => true),
         Effect.orElseSucceed(() => false),
-      );
-      if (started && (yield* gatewayBound(containerName))) {
-        yield* waitForHealth(endpoint, config);
-        yield* syncCaBundle(endpoint);
-        return { endpoint, managed: true, containerName };
+      )
+      if (started && (try gatewayBound(containerName))) {
+        try waitForHealth(endpoint, config)
+        try syncCaBundle(endpoint)
+        return { endpoint, managed: true, containerName }
       }
       // Missing, or revived without its gateway published (`docker start`
       // on a container whose port setup failed is a no-op success) —
       // remove whatever is left and run fresh.
-      yield* docker(["rm", "-f", containerName]).pipe(Effect.ignore);
+      try docker(["rm", "-f", containerName]).pipe(Effect.ignore)
     }
 
-    yield* Effect.tryPromise({
-      try: () => fs.mkdir(FLOCI_TLS_DIR, { recursive: true }),
+    try Effect.tryPromise({
+      try: () => makeTlsDir(),
       catch: (cause) => new FlociError({ message: "tls dir", cause }),
-    }).pipe(Effect.ignore);
+    }).pipe(Effect.ignore)
     const runContainer = (elb: readonly number[], edge: readonly number[]) => {
       const args = [
         "run",
@@ -570,13 +628,13 @@ const ensureFlociUnsynchronized = (
           : ["-v", "/var/run/docker.sock:/var/run/docker.sock", "-u", "root"]),
         ...(config?.storageDir !== undefined
           ? ["-v", `${config.storageDir}:/app/data`, "-e", "FLOCI_STORAGE_MODE=hybrid"]
-          : // No full storage mount: still persist the TLS dir so the
-            // self-signed CA is stable across container recreations (floci
-            // reuses existing cert files).
-            ["-v", `${FLOCI_TLS_DIR}:/app/data/tls`]),
+          // No full storage mount: still persist the TLS dir so the
+          // self-signed CA is stable across container recreations (floci
+          // reuses existing cert files).
+          : ["-v", `${FLOCI_TLS_DIR}:/app/data/tls`]),
         ...Object.entries(config?.env ?? {}).flatMap(([key, value]) => ["-e", `${key}=${value}`]),
         image,
-      ];
+      ]
       return docker(args).pipe(
         // A concurrent ensureFloci (e.g. the dev sidecar racing the CLI's
         // exec child on a machine where floci is not yet running) may have
@@ -590,45 +648,48 @@ const ensureFlociUnsynchronized = (
           docker(["inspect", "--format", "{{.Id}}", containerName]).pipe(
             Effect.flatMap(({ stdout }) => (stdout.trim() ? Effect.void : Effect.fail(error))),
             Effect.mapError(() => error),
-          ),
+          )
         ),
-      );
-    };
+      )
+    }
 
     // Docker is the authority on which ports it can publish — the host-side
     // probe can't see rootless Docker's privileged-port limit or a port held
     // by another container on Docker Desktop. Only the gateway is required:
     // if the run fails or leaves the gateway unpublished, run once more
     // without the ELB/CloudFront edge ports.
-    yield* Effect.logInfo(`floci: starting ${containerName} (${image}) on ${endpoint}`);
-    const first = yield* Effect.result(runContainer(elbPorts, edgePorts));
-    if (!(Result.isSuccess(first) && (yield* gatewayBound(containerName)))) {
+    try Effect.logInfo(`floci: starting ${containerName} (${image}) on ${endpoint}`)
+    const first = try Effect.result(runContainer(elbPorts, edgePorts))
+    if (!(Result.isSuccess(first) && (try gatewayBound(containerName)))) {
       const reason = Result.isFailure(first)
         ? first.failure.message
-        : `host port ${port} was not published`;
-      yield* docker(["rm", "-f", containerName]).pipe(Effect.ignore);
+        : `host port ${port} was not published`
+      try docker(["rm", "-f", containerName]).pipe(Effect.ignore)
       if (publishPorts.length === 0) {
-        return yield* new FlociError({
+        return try new FlociError({
           message: `floci: could not start ${containerName}: ${reason}`,
           cause: Result.isFailure(first) ? first.failure : undefined,
-        });
+        })
       }
-      yield* Effect.logWarning(
-        `floci: ${reason} — starting ${containerName} without ports [${publishPorts.join(", ")}]; emulated load balancers and CloudFront distributions on them will not be reachable from the host`,
-      );
-      yield* runContainer([], []);
-      if (!(yield* gatewayBound(containerName))) {
-        yield* docker(["rm", "-f", containerName]).pipe(Effect.ignore);
-        return yield* new FlociError({
-          message: `floci: ${containerName} started but host port ${port} is not published — check \`docker port ${containerName}\` and the Docker daemon logs`,
-        });
+      try Effect.logWarning(
+        `floci: ${reason} — starting ${containerName} without ports [${
+          publishPorts.join(", ")
+        }]; emulated load balancers and CloudFront distributions on them will not be reachable from the host`,
+      )
+      try runContainer([], [])
+      if (!(try gatewayBound(containerName))) {
+        try docker(["rm", "-f", containerName]).pipe(Effect.ignore)
+        return try new FlociError({
+          message:
+            `floci: ${containerName} started but host port ${port} is not published — check \`docker port ${containerName}\` and the Docker daemon logs`,
+        })
       }
     }
 
-    yield* waitForHealth(endpoint, config);
-    yield* syncCaBundle(endpoint);
-    return { endpoint, managed: true, containerName };
-  });
+    try waitForHealth(endpoint, config)
+    try syncCaBundle(endpoint)
+    return { endpoint, managed: true, containerName }
+  }
 
 const waitForHealth = (endpoint: string, config?: FlociConfig) =>
   checkHealth(endpoint).pipe(
@@ -650,25 +711,24 @@ const waitForHealth = (endpoint: string, config?: FlociConfig) =>
     Effect.mapError(
       (error) =>
         new FlociError({
-          message:
-            `floci did not become healthy at ${endpoint}: ${error.message}. ` +
-            "Check `docker logs " +
-            (config?.containerName ?? DEFAULT_CONTAINER_NAME) +
-            "`.",
+          message: `floci did not become healthy at ${endpoint}: ${error.message}. `
+            + "Check `docker logs "
+            + (config?.containerName ?? DEFAULT_CONTAINER_NAME)
+            + "`.",
           cause: error,
         }),
     ),
-  );
+  )
 
 /** Stop (not remove) the managed container. */
 export const stopFloci = (
   containerName: string = DEFAULT_CONTAINER_NAME,
-): Effect.Effect<void, FlociError> => Effect.asVoid(docker(["stop", containerName]));
+): Effect.Effect<void, FlociError> => Effect.asVoid(docker(["stop", containerName]))
 
 /** Remove the managed container (and its in-memory state). */
 export const destroyFloci = (
   containerName: string = DEFAULT_CONTAINER_NAME,
-): Effect.Effect<void, FlociError> => Effect.asVoid(docker(["rm", "-f", containerName]));
+): Effect.Effect<void, FlociError> => Effect.asVoid(docker(["rm", "-f", containerName]))
 
 /** Tail of the managed container's logs. */
 export const flociLogs = (
@@ -678,4 +738,4 @@ export const flociLogs = (
   Effect.map(
     docker(["logs", "--tail", String(lines), containerName]),
     ({ stdout, stderr }) => stdout + stderr,
-  );
+  )

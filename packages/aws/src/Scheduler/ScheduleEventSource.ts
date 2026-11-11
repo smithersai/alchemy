@@ -3,7 +3,7 @@ import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import * as IAM from "../IAM/index.ts";
-import type { Function as LambdaFunction } from "../Lambda/Function.ts";
+import type { Function as LambdaFunction } from "../Lambda/Function.vibe";
 import { qualifiedArnOf } from "../Lambda/QualifiedArn.ts";
 import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.vibe";
 import { Schedule } from "./Schedule.vibe";

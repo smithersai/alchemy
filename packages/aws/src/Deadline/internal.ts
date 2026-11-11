@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as EffectStream from "effect/Stream";
-import { AWSEnvironment } from "../Environment.ts";
+import { AWSEnvironment } from "../Environment.vibe";
 
 /**
  * Unwrap distilled `SensitiveString` values (`string | Redacted<string>`)

@@ -1,7 +1,7 @@
 export * from "./Arn.ts";
 export * from "./Assets.vibe";
 export * from "./AssetsBucket.vibe";
-export * from "./Environment.ts";
+export * from "./Environment.vibe";
 export * as AWSBindings from "./AWSBindings.vibe";
 export * from "./Providers.vibe";
 export * from "./StateStore/index.ts";

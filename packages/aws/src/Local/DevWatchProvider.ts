@@ -45,7 +45,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
-import { flociServices } from "./FlociServices.ts";
+import { flociServices } from "./FlociServices.vibe";
 import { withProviderContext } from "./ProviderContext.vibe";
 
 /**

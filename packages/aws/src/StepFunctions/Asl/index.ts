@@ -65,4 +65,4 @@ export {
   SimulateError,
   type SimulateHandlers,
   type SimulateOptions,
-} from "./simulate.ts";
+} from "./simulate.vibe";

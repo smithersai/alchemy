@@ -1,6 +1,6 @@
 import type { InputProps } from "alchemy/Input";
 import * as Namespace from "alchemy/Namespace";
-import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 import { viteFrameworkOptions, type ViteProps } from "./Vite.ts";
 
 /** The framework-integration package that drives the Foldkit build. */

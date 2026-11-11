@@ -1,6 +1,6 @@
 import type { InputProps } from "alchemy/Input";
 import * as Namespace from "alchemy/Namespace";
-import { makeFrameworkSite, type FrameworkSiteBaseProps } from "./FrameworkSite.ts";
+import { makeFrameworkSite, type FrameworkSiteBaseProps } from "./FrameworkSite.vibe";
 
 /** The framework-integration package that drives the Vite build. */
 export const VITE_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/vite";
