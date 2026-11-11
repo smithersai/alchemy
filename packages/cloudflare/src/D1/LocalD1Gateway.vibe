@@ -1,5 +1,5 @@
-import { D1 } from "@alchemy.run/cloudflare-runtime/core/bindings";
-import { SERVICE_D1 } from "@alchemy.run/cloudflare-runtime/core/bindings/d1/D1Options";
+import { D1 } from "@alchemy.run/cloudflare-runtime/core/bindings"
+import { SERVICE_D1 } from "@alchemy.run/cloudflare-runtime/core/bindings/d1/D1Options"
 /**
  * Node-side query path into the local workerd D1 simulator, built on the
  * runtime's platform proxy (`PlatformProxy.open` — our `getPlatformProxy`).
@@ -21,19 +21,19 @@ import { SERVICE_D1 } from "@alchemy.run/cloudflare-runtime/core/bindings/d1/D1O
  *
  * NOT exported from `index.ts` — provider-internal scaffolding.
  */
-import { open } from "@alchemy.run/cloudflare-runtime/core/platform-proxy";
-import type { BindingHook } from "@alchemy.run/cloudflare-runtime/core/PluginContext";
-import { splitSqliteStatements } from "@alchemy.run/sql/SqlFile";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import { gatewayName, localGatewayRuntime } from "../LocalGateway.vibe";
-import type { D1QueryResult, D1SqlExecutor } from "./ApplyMigrations.vibe";
+import { open } from "@alchemy.run/cloudflare-runtime/core/platform-proxy"
+import type { BindingHook } from "@alchemy.run/cloudflare-runtime/core/PluginContext"
+import { splitSqliteStatements } from "@alchemy.run/sql/SqlFile"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { gatewayName, localGatewayRuntime } from "../LocalGateway.vibe"
+import type { D1QueryResult, D1SqlExecutor } from "./ApplyMigrations.vibe"
 
-export { localGatewayRuntime as localD1GatewayRuntime };
+export { localGatewayRuntime as localD1GatewayRuntime }
 
 export class LocalD1QueryError extends Data.TaggedError("LocalD1QueryError")<{
-  message: string;
-  cause?: unknown;
+  message: string
+  cause?: unknown
 }> {}
 
 /**
@@ -43,13 +43,13 @@ export class LocalD1QueryError extends Data.TaggedError("LocalD1QueryError")<{
  */
 export type D1QueryBody =
   | { sql: string; params?: unknown[] }
-  | { batch: Array<{ sql: string; params?: unknown[] }> };
+  | { batch: Array<{ sql: string; params?: unknown[] }> }
 
 interface D1StatementResponse {
-  success: boolean;
-  results?: unknown;
-  meta?: unknown;
-  error?: string;
+  success: boolean
+  results?: unknown
+  meta?: unknown
+  error?: string
 }
 
 /**
@@ -64,7 +64,7 @@ const rawD1Binding = (databaseId: string): BindingHook =>
       name: SERVICE_D1,
       props: { json: JSON.stringify({ databaseId }) },
     },
-  });
+  })
 
 /**
  * Boot a scoped platform proxy for `databaseId`, hand `use` a query
@@ -78,8 +78,8 @@ export const withLocalD1Query = <A, E, R>(
   ) => Effect.Effect<A, E, R>,
 ) =>
   Effect.scoped(
-    Effect.gen(function* () {
-      const proxy = yield* open({
+    effect {
+      const proxy = try open({
         name: gatewayName("alchemy-d1-gateway", databaseId),
         bindings: [
           // The wrapped binding is unused by the gateway itself, but its
@@ -88,10 +88,10 @@ export const withLocalD1Query = <A, E, R>(
           D1.local({ binding: "DB", id: databaseId }),
           rawD1Binding(databaseId),
         ],
-      });
+      })
       const raw = (proxy.env as Record<string, unknown>).D1_RAW as {
-        fetch: (input: string, init?: RequestInit) => Promise<Response>;
-      };
+        fetch: (input: string, init?: RequestInit) => Promise<globalThis.Response>
+      }
 
       const query = (body: D1QueryBody) =>
         Effect.tryPromise({
@@ -102,8 +102,8 @@ export const withLocalD1Query = <A, E, R>(
               // The DO accepts a single D1Query or an array (one
               // transaction) — a batch maps to the array form.
               body: JSON.stringify("batch" in body ? body.batch : body),
-            });
-            return (await response.json()) as unknown;
+            })
+            return (await response.json()) as unknown
           },
           catch: (cause) =>
             new LocalD1QueryError({
@@ -116,14 +116,14 @@ export const withLocalD1Query = <A, E, R>(
             // single object); successes are one envelope per statement.
             const responses = (
               Array.isArray(responseBody) ? responseBody : [responseBody]
-            ) as D1StatementResponse[];
-            const failed = responses.find((r) => !r.success);
+            ) as D1StatementResponse[]
+            const failed = responses.find((r) => !r.success)
             if (failed) {
               return Effect.fail(
                 new LocalD1QueryError({
                   message: failed.error ?? "Local D1 query failed",
                 }),
-              );
+              )
             }
             return Effect.succeed({
               result: responses.map((r) => ({
@@ -131,13 +131,13 @@ export const withLocalD1Query = <A, E, R>(
                 success: true,
                 meta: r.meta,
               })),
-            } as D1QueryResult);
+            } as D1QueryResult)
           }),
-        );
+        )
 
-      return yield* use(query);
-    }),
-  );
+      return try use(query)
+    },
+  )
 
 /**
  * SQL-only view of {@link withLocalD1Query} matching the migration flow's
@@ -150,10 +150,13 @@ export const withLocalD1Executor = <A, E, R>(
   use: (executor: D1SqlExecutor<LocalD1QueryError>) => Effect.Effect<A, E, R>,
 ) =>
   withLocalD1Query(databaseId, (query) =>
-    use((sql) => {
-      const statements = splitSqliteStatements(sql);
-      return statements.length > 1
-        ? query({ batch: statements.map((statement) => ({ sql: statement })) })
-        : query({ sql });
-    }),
-  );
+    use((sql) =>
+      // A splitter that throws is a defect, as it was.
+      Effect.orDie(Effect.try({ try: () => splitSqliteStatements(sql), catch: (e) => e })).pipe(
+        Effect.flatMap((statements) =>
+          statements.length > 1
+            ? query({ batch: statements.map((statement) => ({ sql: statement })) })
+            : query({ sql })
+        ),
+      )
+    ))

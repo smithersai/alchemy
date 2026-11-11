@@ -1,18 +1,18 @@
-import { Docker } from "@alchemy.run/docker/Docker";
-import { isInlineDockerfile } from "@alchemy.run/docker/Dockerfile";
-import { validateDockerfileBuild } from "@alchemy.run/docker/ImageSource";
-import { AlchemyContext } from "alchemy/AlchemyContext";
-import * as Bundle from "alchemy/Bundle/Bundle";
-import { findCwdForBundle, getStableContextDir, resolveMainPath } from "alchemy/Bundle/TempRoot";
-import * as Output from "alchemy/Output";
-import { createPhysicalName } from "alchemy/PhysicalName";
-import { Stack } from "alchemy/Stack";
-import { sha256Object } from "alchemy/Util/sha256";
-import * as Effect from "effect/Effect";
-import * as Path from "effect/Path";
-import * as Redacted from "effect/Redacted";
-import type * as rolldown from "rolldown";
-import type { AnyContainerApplicationProps } from "./ContainerApplication.vibe";
+import { Docker } from "@alchemy.run/docker/Docker"
+import { isInlineDockerfile, type InlineDockerfile } from "@alchemy.run/docker/Dockerfile"
+import { validateDockerfileBuild } from "@alchemy.run/docker/ImageSource"
+import { AlchemyContext } from "alchemy/AlchemyContext"
+import * as Bundle from "alchemy/Bundle/Bundle"
+import { findCwdForBundle, getStableContextDir, resolveMainPath } from "alchemy/Bundle/TempRoot"
+import * as Output from "alchemy/Output"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import { Stack } from "alchemy/Stack"
+import { sha256Object } from "alchemy/Util/sha256"
+import * as Effect from "effect/Effect"
+import * as Path from "effect/Path"
+import * as Redacted from "effect/Redacted"
+import type * as rolldown from "rolldown"
+import type { AnyContainerApplicationProps } from "./ContainerApplication.vibe"
 
 /**
  * Fold the runtime-context `env` map (populated by `Binding.Service`s and
@@ -48,32 +48,32 @@ export const makeContainerEnv = (
   props: AnyContainerApplicationProps,
   accountId: string,
   bindings: readonly {
-    data?: { env?: Record<string, any> } | undefined;
+    data?: { env?: Record<string, any> } | undefined
   }[] = [],
 ) => {
-  const env: Record<string, string | Redacted.Redacted<string>> = {};
+  const env: Record<string, string | Redacted.Redacted<string>> = {}
   for (const binding of bindings) {
     for (const [name, value] of Object.entries(binding.data?.env ?? {})) {
       if (Output.isOutput(value) || value === undefined) {
-        continue;
+        continue
       }
-      env[name] = value;
+      env[name] = value
     }
   }
   for (const [name, value] of Object.entries(props.env ?? {})) {
     if (Output.isOutput(value) || value === undefined) {
-      continue;
+      continue
     }
-    env[name] = value;
+    env[name] = value
   }
   for (const value of props.environmentVariables ?? []) {
-    env[value.name] = value.value;
+    env[value.name] = value.value
   }
   if (!env.ALCHEMY_CLOUDFLARE_ACCOUNT_ID) {
-    env.ALCHEMY_CLOUDFLARE_ACCOUNT_ID = accountId;
+    env.ALCHEMY_CLOUDFLARE_ACCOUNT_ID = accountId
   }
-  return env;
-};
+  return env
+}
 
 /**
  * Derive the physical name for a container application. Shared between the
@@ -81,12 +81,12 @@ export const makeContainerEnv = (
  */
 export const createContainerApplicationName = (id: string, name: string | undefined) =>
   Effect.suspend(() => {
-    if (name) return Effect.succeed(name);
+    if (name) return Effect.succeed(name)
     return createPhysicalName({
       id,
       lowercase: true,
-    });
-  });
+    })
+  })
 
 /**
  * Validate the image-source composition on container props. Exactly one
@@ -112,60 +112,74 @@ export const validateContainerImageProps = (
       // An empty `main` declares no program, as in `validateImageSources`.
       validateDockerfileBuild(id, { ...props, main: props.main || undefined }),
     ),
-  );
+  )
 
 const validateImageSources = (
   props: Pick<AnyContainerApplicationProps, "main" | "image" | "dockerfile" | "context">,
+): Effect.Effect<void> =>
+  // A Dockerfile check that throws is a defect.
+  Effect.flatMap(
+    Effect.orDie(
+      Effect.try({
+        try: () => props.dockerfile !== undefined && isInlineDockerfile(props.dockerfile),
+        catch: (e) => e,
+      }),
+    ),
+    (hasInline) => checkImageSources(props, hasInline),
+  )
+
+const checkImageSources = (
+  props: Pick<AnyContainerApplicationProps, "main" | "image" | "dockerfile" | "context">,
+  hasInline: boolean,
 ): Effect.Effect<void> => {
-  const df = props.dockerfile;
-  const hasInline = df !== undefined && isInlineDockerfile(df);
+  const df = props.dockerfile
   if (props.main) {
     if (props.image !== undefined && df !== undefined) {
       return Effect.die(
         new Error(
           "`image` and `dockerfile` are mutually exclusive with `main` — both pick the environment for the bundled program; declare one.",
         ),
-      );
+      )
     }
     if (df !== undefined && !hasInline) {
       return Effect.die(
         new Error(
           "A `dockerfile` PATH cannot be combined with `main` on Cloudflare containers — use `Dockerfile.inline` content or `image` to pick the bundled program's environment.",
         ),
-      );
+      )
     }
     if (props.context !== undefined) {
       return Effect.die(
         new Error(
           "`context` cannot be combined with `main` — the build context for a bundled program is generated by Alchemy.",
         ),
-      );
+      )
     }
-    return Effect.void;
+    return Effect.void
   }
   if (props.image !== undefined && df !== undefined) {
     return Effect.die(
       new Error(
         "`image` (pre-built remote image) and `dockerfile` (build your own) are mutually exclusive — declare one.",
       ),
-    );
+    )
   }
   if (props.image !== undefined && props.context !== undefined) {
     return Effect.die(
       new Error(
         "`image` (pre-built remote image) and `context` (Dockerfile build) are mutually exclusive — declare one.",
       ),
-    );
+    )
   }
   if (hasInline && props.context !== undefined) {
     return Effect.die(
       new Error(
         "Inline `dockerfile` content cannot be combined with `context` — inline content has no build context; use a `dockerfile` PATH for context-relative builds.",
       ),
-    );
+    )
   }
-  return Effect.void;
-};
+  return Effect.void
+}
 
 /**
  * Resolve the environment preamble for a generated (Effect-native) container
@@ -178,21 +192,38 @@ const validateImageSources = (
  */
 export const containerEnvPreamble = (
   props: Pick<AnyContainerApplicationProps, "image" | "dockerfile">,
+): Effect.Effect<string | undefined> =>
+  // A Dockerfile check that throws is a defect.
+  Effect.flatMap(
+    Effect.orDie(
+      Effect.try({
+        try: () =>
+          props.dockerfile !== undefined && isInlineDockerfile(props.dockerfile)
+            ? props.dockerfile
+            : undefined,
+        catch: (e) => e,
+      }),
+    ),
+    (inline) => envPreamble(props, inline),
+  )
+
+const envPreamble = (
+  props: Pick<AnyContainerApplicationProps, "image" | "dockerfile">,
+  inline: InlineDockerfile | undefined,
 ): Effect.Effect<string | undefined> => {
-  const df = props.dockerfile;
-  if (df !== undefined && isInlineDockerfile(df)) {
-    const content = df.content;
+  if (inline !== undefined) {
+    const content = inline.content
     if (typeof content !== "string") {
       return Effect.die(
         new Error(
-          "Inline `dockerfile` content is an unresolved Output at image-build time. " +
-            "Outputs in `Dockerfile.inline` resolve during a normal deploy; this container is being built before its dependencies resolved (e.g. during precreate of a circular binding). Break the cycle or inline the resolved value.",
+          "Inline `dockerfile` content is an unresolved Output at image-build time. "
+            + "Outputs in `Dockerfile.inline` resolve during a normal deploy; this container is being built before its dependencies resolved (e.g. during precreate of a circular binding). Break the cycle or inline the resolved value.",
         ),
-      );
+      )
     }
-    return Effect.succeed(content.trimEnd());
+    return Effect.succeed(content.trimEnd())
   }
-  const ref = props.image?.trim();
+  const ref = props.image?.trim()
   if (ref) {
     if (/\s/.test(ref)) {
       // A registry reference never contains whitespace — catch Dockerfile
@@ -200,15 +231,15 @@ export const containerEnvPreamble = (
       // broken build.
       return Effect.die(
         new Error(
-          `\`image\` must be a plain image reference (e.g. "oven/bun:latest"), got: ${JSON.stringify(props.image)}. ` +
-            "For inline Dockerfile content use `dockerfile: Dockerfile.inline`.",
+          `\`image\` must be a plain image reference (e.g. "oven/bun:latest"), got: ${JSON.stringify(props.image)}. `
+            + "For inline Dockerfile content use `dockerfile: Dockerfile.inline`.",
         ),
-      );
+      )
     }
-    return Effect.succeed(`FROM ${ref}`);
+    return Effect.succeed(`FROM ${ref}`)
   }
-  return Effect.undefined;
-};
+  return Effect.undefined
+}
 
 /**
  * Build the final Dockerfile used for a generated (Effect-native) container
@@ -223,11 +254,10 @@ export const buildFinalDockerfile = (
   external: string[] = [],
   autoInstallExternals = true,
 ): string => {
-  const base = envPreamble ?? (runtime === "bun" ? "FROM oven/bun:1" : "FROM node:22-slim");
-  const runtimeBin = runtime === "bun" ? "bun" : "node";
-  const installCmd = runtime === "bun" ? "bun add" : "npm install";
-  const installStep =
-    autoInstallExternals && external.length > 0 ? `RUN ${installCmd} ${external.join(" ")}` : "";
+  const base = envPreamble ?? (runtime === "bun" ? "FROM oven/bun:1" : "FROM node:22-slim")
+  const runtimeBin = runtime === "bun" ? "bun" : "node"
+  const installCmd = runtime === "bun" ? "bun add" : "npm install"
+  const installStep = autoInstallExternals && external.length > 0 ? `RUN ${installCmd} ${external.join(" ")}` : ""
   return [
     base,
     "",
@@ -244,8 +274,8 @@ export const buildFinalDockerfile = (
     "EXPOSE 3000",
     `ENTRYPOINT ["${runtimeBin}", "/app/index.mjs"]`,
     "",
-  ].join("\n");
-};
+  ].join("\n")
+}
 
 /**
  * Materialize resolved inline `dockerfile` content into a stable,
@@ -253,17 +283,17 @@ export const buildFinalDockerfile = (
  * both the live provider and the local dev runtime can `docker build` it.
  * Shared by the live and local providers so they agree on the path.
  */
-export const materializeInlineDockerfileContext = Effect.fn(function* (
+export const materializeInlineDockerfileContext = effect (
   id: string,
   content: string,
-) {
-  const { dotAlchemy } = yield* AlchemyContext;
-  const docker = yield* Docker;
-  const path = yield* Path.Path;
-  const context = yield* getStableContextDir(dotAlchemy, dotAlchemy, `${id}-dockerfile`);
-  yield* docker.materialize({ context, dockerfile: content, files: [] });
-  return { context, dockerfile: path.join(context, "Dockerfile") };
-});
+) => {
+  const { dotAlchemy } = try AlchemyContext
+  const docker = try Docker
+  const path = try Path.Path
+  const context = try getStableContextDir(dotAlchemy, dotAlchemy, `${id}-dockerfile`)
+  try docker.materialize({ context, dockerfile: content, files: [] })
+  return { context, dockerfile: path.join(context, "Dockerfile") }
+}
 
 /**
  * Bundle the container entrypoint program with rolldown. Returns every emitted
@@ -274,7 +304,7 @@ export const materializeInlineDockerfileContext = Effect.fn(function* (
  * and the local provider (which writes the context to disk for the runtime to
  * `docker build`).
  */
-export const bundleContainerProgram = Effect.fn(function* ({
+export const bundleContainerProgram = effect ({
   main,
   runtime,
   handler = "default",
@@ -283,23 +313,23 @@ export const bundleContainerProgram = Effect.fn(function* ({
   outdir,
   build,
 }: {
-  id: string;
-  main: string;
-  runtime: "bun" | "node";
-  handler?: string | undefined;
-  isExternal?: boolean;
-  external?: string[];
-  outdir?: string;
-  build?: Bundle.BundleConfig;
-}) {
-  const stack = yield* Stack;
-  const virtualEntryPlugin = yield* Bundle.virtualEntryPlugin;
+  id: string
+  main: string
+  runtime: "bun" | "node"
+  handler?: string | undefined
+  isExternal?: boolean
+  external?: string[]
+  outdir?: string
+  build?: Bundle.BundleConfig
+}) => {
+  const stack = try Stack
+  const virtualEntryPlugin = try Bundle.virtualEntryPlugin
 
-  const realMain = yield* resolveMainPath(main);
-  const cwd = yield* findCwdForBundle(realMain);
+  const realMain = try resolveMainPath(main)
+  const cwd = try findCwdForBundle(realMain)
 
-  const buildBundle = Effect.fn(function* (entry: string, plugins?: rolldown.RolldownPluginOption) {
-    return yield* Bundle.build(
+  const buildBundle = effect (entry: string, plugins?: rolldown.RolldownPluginOption) => {
+    return try Bundle.build(
       {
         ...build?.input,
         input: entry,
@@ -313,8 +343,7 @@ export const bundleContainerProgram = Effect.fn(function* ({
         ],
         platform: "node",
         resolve: {
-          conditionNames:
-            runtime === "bun" ? [...Bundle.BUN_CONDITION_NAMES] : [...Bundle.NODE_CONDITION_NAMES],
+          conditionNames: runtime === "bun" ? [...Bundle.BUN_CONDITION_NAMES] : [...Bundle.NODE_CONDITION_NAMES],
           ...build?.input?.resolve,
         },
         plugins: [build?.input?.plugins, plugins],
@@ -329,28 +358,32 @@ export const bundleContainerProgram = Effect.fn(function* ({
         entryFileNames: "index.mjs",
       },
       build,
-    );
-  });
+    )
+  }
 
   const bundleOutput = isExternal
-    ? yield* buildBundle(realMain)
-    : yield* buildBundle(
-        realMain,
-        virtualEntryPlugin(
-          (importPath) => `
-import { bootstrap } from ${JSON.stringify(
-            runtime === "bun"
-              ? "@alchemy.run/cloudflare/Bootstrap/ContainerBun"
-              : "@alchemy.run/cloudflare/Bootstrap/ContainerNode",
-          )};
+    ? try buildBundle(realMain)
+    : try buildBundle(
+      realMain,
+      virtualEntryPlugin(
+        (importPath) => `
+import { bootstrap } from ${
+  JSON.stringify(
+    runtime === "bun"
+      ? "@alchemy.run/cloudflare/Bootstrap/ContainerBun"
+      : "@alchemy.run/cloudflare/Bootstrap/ContainerNode",
+  )
+};
 import ${handler === "default" ? "entrypoint" : `{ ${handler} as entrypoint }`} from ${JSON.stringify(importPath)};
 
-await bootstrap(entrypoint, ${JSON.stringify({
-            stack: { name: stack.name, stage: stack.stage },
-          })});
+await bootstrap(entrypoint, ${
+  JSON.stringify({
+    stack: { name: stack.name, stage: stack.stage },
+  })
+});
 `,
-        ),
-      );
+      ),
+    )
 
   // Rolldown can emit multiple chunk files (entry + shared chunks).
   // Return every file so downstream code can materialize all of them
@@ -361,10 +394,10 @@ await bootstrap(entrypoint, ${JSON.stringify({
   const files = bundleOutput.files.map((f) => ({
     path: f.path,
     content: typeof f.content === "string" ? new TextEncoder().encode(f.content) : f.content,
-  }));
+  }))
 
-  return { files, hash: bundleOutput.hash };
-});
+  return { files, hash: bundleOutput.hash }
+}
 
 /**
  * Bundle an Effect-native container `main` and materialize it (plus the
@@ -383,28 +416,28 @@ await bootstrap(entrypoint, ${JSON.stringify({
  * local agree on the path. Callers that want to skip re-bundling on an
  * unchanged resource should wrap this in {@link Artifacts.cached}.
  */
-export const prepareContainerBuildContext = Effect.fn(function* (
+export const prepareContainerBuildContext = effect (
   id: string,
   news: AnyContainerApplicationProps,
-) {
-  const { dotAlchemy } = yield* AlchemyContext;
-  const docker = yield* Docker;
-  const path = yield* Path.Path;
+) => {
+  const { dotAlchemy } = try AlchemyContext
+  const docker = try Docker
+  const path = try Path.Path
 
-  const main = news.main;
+  const main = news.main
   if (!main) {
-    return yield* Effect.die(new Error("Container requires a `main` entrypoint."));
+    return try Effect.die(new Error("Container requires a `main` entrypoint."))
   }
-  yield* validateContainerImageProps(id, news);
-  const runtime = news.runtime ?? "bun";
-  const context = yield* getStableContextDir(process.cwd(), dotAlchemy, `${id}-container`);
+  try validateContainerImageProps(id, news)
+  const runtime = news.runtime ?? "bun"
+  const context = try getStableContextDir(path.resolve(), dotAlchemy, `${id}-container`)
   const dockerfileContent = buildFinalDockerfile(
-    yield* containerEnvPreamble(news),
+    try containerEnvPreamble(news),
     runtime,
     news.external,
     news.autoInstallExternals,
-  );
-  const [bundle] = yield* Effect.all(
+  )
+  const [bundle] = try Effect.all(
     [
       bundleContainerProgram({
         id,
@@ -423,13 +456,13 @@ export const prepareContainerBuildContext = Effect.fn(function* (
       }),
     ],
     { concurrency: "unbounded" },
-  );
+  )
   return {
     context,
     dockerfile: path.join(context, "Dockerfile"),
-    hash: yield* sha256Object({
+    hash: try sha256Object({
       bundle: bundle.hash,
       dockerfileContent,
     }),
-  };
-});
+  }
+}

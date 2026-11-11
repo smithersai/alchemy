@@ -16,7 +16,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Predicate from "effect/Predicate";
 import type { Scope } from "effect/Scope";
-import type { Container } from "../Containers/Container.ts";
+import type { Container } from "../Containers/Container.vibe";
 import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.vibe";
 import { makeRpcStub, type RpcErrorClass } from "./Rpc.vibe";
 import { type WebSocket } from "./WebSocket.vibe";

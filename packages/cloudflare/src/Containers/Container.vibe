@@ -1,32 +1,62 @@
-import type * as cf from "@cloudflare/workers-types";
-import type { InputProps } from "alchemy/Input";
-import type { Named } from "alchemy/Named";
-import type { ResourceClass, ResourceClassLike } from "alchemy/Resource";
-import type { Rpc } from "alchemy/Rpc";
-import { effectClass } from "alchemy/Util/effect";
-import * as Config from "effect/Config";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import type { Providers } from "../Providers.vibe";
-import { type WorkerShape } from "../Workers/Worker.ts";
-import type { ContainerApplication } from "./ContainerApplication.vibe";
-import {
-  makeContainerHandle,
-  type ContainerClient,
-  type ReservedContainerKey,
-} from "./ContainerClient.ts";
-import { ContainerPlatform } from "./ContainerPlatform.ts";
+import type * as cf from "@cloudflare/workers-types"
+import type { InputProps } from "alchemy/Input"
+import type { Named } from "alchemy/Named"
+import type { ResourceClass, ResourceClassLike } from "alchemy/Resource"
+import type { Rpc } from "alchemy/Rpc"
+import { effectClass } from "alchemy/Util/effect"
+import * as Config from "effect/Config"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import type { Providers } from "../Providers.vibe"
+import { type WorkerShape } from "../Workers/Worker.ts"
+import type { ContainerApplication } from "./ContainerApplication.vibe"
+import { makeContainerHandle, type ContainerClient, type ReservedContainerKey } from "./ContainerClient.vibe"
+import { ContainerPlatform } from "./ContainerPlatform.vibe"
 
-export const ContainerTypeId = "Cloudflare.Container";
-export type ContainerTypeId = typeof ContainerTypeId;
+// The `Container<Self>()` class factory calls the Platform's callables, which
+// may throw synchronously, while returning an Effect class: TypeScript.
+module factory {
+  import { effectClass } from "alchemy/Util/effect"
+  import { makeContainerHandle } from "./ContainerClient.vibe"
+  import { ContainerPlatform } from "./ContainerPlatform.vibe"
+
+  /** The declaration returned by `Container<Self>()`. */
+  export const containerClassFactory = (container: (...args: [string, any]) => any) => (...args: any[]) => {
+    if (args.length === 1) {
+      const [id] = args as [string]
+      const tag = ContainerPlatform()(id)
+      // `yield* MyContainer` binds the container to the hosting Durable
+      // Object and returns its handle. It never starts the container.
+      // NOTE: no `~alchemy/Container/ClassName` marker here — an
+      // effectful (`main`) container is not bindable on an async
+      // Worker's `env` (its application is created by the `.make()`
+      // Layer inside an Effect-native Durable Object host), so it must
+      // not be picked up by bindWorkerAsyncBindings' container branch.
+      return Object.assign(effectClass(makeContainerHandle(id, ContainerPlatform.bind(tag))), {
+        "~alchemy/Id": id,
+        make: (props: any, impl: any) => tag.make(props, impl),
+        // yield* MyContainer.Application to get the ContainerApplication Resource Outputs
+        Application: tag,
+        of: (shape: any) => shape,
+      })
+    } else {
+      return container(...(args as [string, any]))
+    }
+  }
+}
+
+import { containerClassFactory } from factory
+
+export const ContainerTypeId = "Cloudflare.Container"
+export type ContainerTypeId = typeof ContainerTypeId
 
 export const isContainer = <T>(value: T): value is T & Container =>
-  typeof value === "object" && value !== null && "Type" in value && value.Type === ContainerTypeId;
+  typeof value === "object" && value !== null && "Type" in value && value.Type === ContainerTypeId
 
 export class ContainerError extends Data.TaggedError("ContainerError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 /**
@@ -36,8 +66,8 @@ export class ContainerError extends Data.TaggedError("ContainerError")<{
  * `NO_CONTAINER_INSTANCE_ERROR` (surfaced as HTTP 503 by native).
  */
 export class NoContainerInstanceError extends Data.TaggedError("NoContainerInstanceError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 /**
@@ -47,8 +77,8 @@ export class NoContainerInstanceError extends Data.TaggedError("NoContainerInsta
  * back off rather than retry tightly.
  */
 export class ContainerRateLimitedError extends Data.TaggedError("ContainerRateLimitedError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 /**
@@ -58,8 +88,8 @@ export class ContainerRateLimitedError extends Data.TaggedError("ContainerRateLi
  * poll the same instance.
  */
 export class ContainerCrashedError extends Data.TaggedError("ContainerCrashedError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 /**
@@ -67,27 +97,22 @@ export class ContainerCrashedError extends Data.TaggedError("ContainerCrashedErr
  * `start()` first.
  */
 export class ContainerNotRunningError extends Data.TaggedError("ContainerNotRunningError")<{
-  readonly message: string;
-  readonly cause?: unknown;
+  readonly message: string
+  readonly cause?: unknown
 }> {}
 
 // Upstream changed ContainerStartupOptions to an intersection with an
 // image/containerSnapshot union, which an interface cannot extend.
-export type ContainerStartupOptions = cf.ContainerStartupOptions;
+export type ContainerStartupOptions = cf.ContainerStartupOptions
 
 import type {
   DurableObjectContainerProps,
   EffectfulContainerProps,
   ExternalContainerProps,
   RemoteContainerProps,
-} from "./ContainerApplication.vibe";
+} from "./ContainerApplication.vibe"
 
-export type {
-  DurableObjectContainerProps,
-  EffectfulContainerProps,
-  ExternalContainerProps,
-  RemoteContainerProps,
-};
+export type { DurableObjectContainerProps, EffectfulContainerProps, ExternalContainerProps, RemoteContainerProps }
 
 /**
  * Props for an image-backed container declaration — either the plain props
@@ -121,23 +146,23 @@ export type ImageContainerProps<Req = never> =
   | InputProps<RemoteContainerProps>
   | InputProps<DurableObjectContainerProps>
   | Effect.Effect<
-      | InputProps<ExternalContainerProps>
-      | InputProps<RemoteContainerProps>
-      | InputProps<DurableObjectContainerProps>,
-      Config.ConfigError,
-      Req
-    >;
+    | InputProps<ExternalContainerProps>
+    | InputProps<RemoteContainerProps>
+    | InputProps<DurableObjectContainerProps>,
+    Config.ConfigError,
+    Req
+  >
 
 /**
  * The handle `yield* MyContainer` returns inside a Durable Object. See
  * {@link ContainerClient}.
  */
-export type Container<Id extends string = string> = Named<Id> & ContainerClient;
+export type Container<Id extends string = string> = Named<Id> & ContainerClient
 
 /** An RPC shape may not redeclare the container handle's own methods. */
 type ContainerShape<Shape> = {
-  [K in keyof Shape]: K extends ReservedContainerKey ? never : Shape[K];
-};
+  [K in keyof Shape]: K extends ReservedContainerKey ? never : Shape[K]
+}
 
 /**
  * A Cloudflare Container that runs a long-lived process alongside a
@@ -845,82 +870,63 @@ type ContainerShape<Shape> = {
  * @product Containers
  * @category Workers & Compute
  */
-export const Container: ResourceClassLike<ContainerApplication> &
-  Pick<ResourceClass<ContainerApplication>, "ref"> & {
+export const Container:
+  & ResourceClassLike<ContainerApplication>
+  & Pick<ResourceClass<ContainerApplication>, "ref">
+  & {
     <DOShape = unknown, const Id extends string = string, PropsReq = never>(
       id: Id,
       props: ImageContainerProps<PropsReq>,
-    ): Container.Decl<Container<Id>, {}, Id, PropsReq, DOShape>;
+    ): Container.Decl<Container<Id>, {}, Id, PropsReq, DOShape>
     <Self>(): {
       <const Id extends string, PropsReq = never>(
         id: Id,
         props: ImageContainerProps<PropsReq>,
-      ): Container.Decl<Self, {}, Id, PropsReq>;
-    };
+      ): Container.Decl<Self, {}, Id, PropsReq>
+    }
     <Self, Shape extends ContainerShape<Shape>>(): {
       <const Id extends string>(
         id: Id,
-      ): Container.Decl<Self, Shape, Id, Container.Application<Self>>;
-    };
+      ): Container.Decl<Self, Shape, Id, Container.Application<Self>>
+    }
   } = Object.assign(
-  (...args: any[]) => {
-    if (args.length === 0) {
-      return (...args: any[]) => {
-        if (args.length === 1) {
-          const [id] = args as [string];
-          const tag = ContainerPlatform()(id);
-          // `yield* MyContainer` binds the container to the hosting Durable
-          // Object and returns its handle. It never starts the container.
-          // NOTE: no `~alchemy/Container/ClassName` marker here — an
-          // effectful (`main`) container is not bindable on an async
-          // Worker's `env` (its application is created by the `.make()`
-          // Layer inside an Effect-native Durable Object host), so it must
-          // not be picked up by bindWorkerAsyncBindings' container branch.
-          return Object.assign(effectClass(makeContainerHandle(id, ContainerPlatform.bind(tag))), {
-            "~alchemy/Id": id,
-            make: (props: any, impl: any) => tag.make(props, impl),
-            // yield* MyContainer.Application to get the ContainerApplication Resource Outputs
-            Application: tag,
-            of: (shape: any) => shape,
-          });
-        } else {
-          return Container(...(args as [string, any]));
-        }
-      };
-    } else {
-      const [id, props] = args as [string, any];
-      const resource = ContainerPlatform(id, props);
-      return Object.assign(effectClass(makeContainerHandle(id, ContainerPlatform.bind(resource))), {
-        "~alchemy/Id": id,
-        // The Durable Object class name this container backs when bound on
-        // an async Worker's `env` (see bindWorkerAsyncBindings). Defaults to
-        // the binding name at bind time when no explicit `className` is set.
-        // Effect-valued props cannot be read synchronously here, so carry
-        // the unresolved lookup and let `bindContainerClass` await it.
-        "~alchemy/Container/ClassName": Effect.isEffect(props)
-          ? Effect.map(
+    (...args: any[]) => {
+      if (args.length === 0) {
+        return containerClassFactory(Container)
+      } else {
+        const [id, props] = args as [string, any]
+        const resource = ContainerPlatform(id, props)
+        return Object.assign(effectClass(makeContainerHandle(id, ContainerPlatform.bind(resource))), {
+          "~alchemy/Id": id,
+          // The Durable Object class name this container backs when bound on
+          // an async Worker's `env` (see bindWorkerAsyncBindings). Defaults to
+          // the binding name at bind time when no explicit `className` is set.
+          // Effect-valued props cannot be read synchronously here, so carry
+          // the unresolved lookup and let `bindContainerClass` await it.
+          "~alchemy/Container/ClassName": Effect.isEffect(props)
+            ? Effect.map(
               // oxlint-disable-next-line effecttsgo/unsafe-effect-type-assertion -- props are untyped; Effect-valued props are resolved by the engine
               props as Effect.Effect<{ className?: string } | undefined>,
               (resolved) => resolved?.className,
             )
-          : (props as { className?: string })?.className,
-        // yield* MyContainer.Application to get the ContainerApplication Resource Outputs
-        Application: resource,
-        of: (shape: any) => shape,
-      });
-    }
-  },
-  {
-    Type: ContainerTypeId,
-    // Read `ContainerPlatform` lazily: this module and ContainerPlatform.ts
-    // import each other, so it may not be initialized at module load.
-    ref: (id: string, options?: { stage?: string; stack?: string }) =>
-      (ContainerPlatform as unknown as Pick<ResourceClass<ContainerApplication>, "ref">).ref(
-        id,
-        options,
-      ),
-  },
-) as any;
+            : (props as { className?: string })?.className,
+          // yield* MyContainer.Application to get the ContainerApplication Resource Outputs
+          Application: resource,
+          of: (shape: any) => shape,
+        })
+      }
+    },
+    {
+      Type: ContainerTypeId,
+      // Read `ContainerPlatform` lazily: this module and ContainerPlatform.ts
+      // import each other, so it may not be initialized at module load.
+      ref: (id: string, options?: { stage?: string; stack?: string }) =>
+        (ContainerPlatform as unknown as Pick<ResourceClass<ContainerApplication>, "ref">).ref(
+          id,
+          options,
+        ),
+    },
+  ) as any
 
 export declare namespace Container {
   export interface Decl<
@@ -929,43 +935,42 @@ export declare namespace Container {
     Id extends string = string,
     Req = never,
     DOShape = unknown,
-  >
-    extends Effect.Effect<Self, never, Providers | Req>, Rpc<Shape>, Named<Id> {
-    new (): Container<Id> & Shape;
+  > extends Effect.Effect<Self, never, Providers | Req>, Rpc<Shape>, Named<Id> {
+    new(): Container<Id> & Shape
     /**
      * @internal phantom — the Durable Object class type backing this
      * container when it is bound on an async Worker's `env`. Drives
      * `InferEnv` (`env.NAME` becomes `DurableObjectNamespace<DOShape>`).
      */
-    readonly "~alchemy/Container/Shape": DOShape;
+    readonly "~alchemy/Container/Shape": DOShape
     /**
      * @internal — the explicit `className` from props (`undefined` defaults
      * to the binding name at bind time). Doubles as the runtime marker that
      * identifies an async-bindable Container declaration in a Worker's `env`
      * (see `bindWorkerAsyncBindings`).
      */
-    readonly "~alchemy/Container/ClassName": string | undefined | Effect.Effect<string | undefined>;
+    readonly "~alchemy/Container/ClassName": string | undefined | Effect.Effect<string | undefined>
     /**
      * The underlying {@link ContainerApplication} resource declaration —
      * `yield*` it to get the application's Output attributes.
      */
-    Application: Effect.Effect<ContainerApplication<Self>, never, Providers | Req>;
+    Application: Effect.Effect<ContainerApplication<Self>, never, Providers | Req>
     make: <InitReq = never, WorkerReq = never, PropsReq = never>(
       props:
         | InputProps<EffectfulContainerProps>
         | Effect.Effect<InputProps<EffectfulContainerProps>, Config.ConfigError, PropsReq>,
       impl: Effect.Effect<Shape & WorkerShape<WorkerReq>, Config.ConfigError, InitReq>,
-    ) => Layer.Layer<Application<Self>, never, Providers>;
-    of(shape: Shape & WorkerShape): Shape;
+    ) => Layer.Layer<Application<Self>, never, Providers>
+    of(shape: Shape & WorkerShape): Shape
   }
   export namespace Decl {
-    export type Any = Decl<any, any, string, any, any>;
+    export type Any = Decl<any, any, string, any, any>
   }
 
   export interface Application<Self> {
-    "~alchemy/Kind": "ContainerApplication";
-    "~alchemy/Self": Self;
+    "~alchemy/Kind": "ContainerApplication"
+    "~alchemy/Self": Self
   }
 
-  export type Instance<Shape = any> = Container & Shape;
+  export type Instance<Shape = any> = Container & Shape
 }

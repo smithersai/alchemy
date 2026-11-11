@@ -31,7 +31,7 @@ import type * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import path from "pathe";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
-import type { Container } from "../Containers/Container.ts";
+import type { Container } from "../Containers/Container.vibe";
 import type { DevContainerImage } from "../Containers/ContainerApplication.vibe";
 import type { DevOrigin } from "../Hyperdrive/Connection.vibe";
 import type { Providers } from "../Providers.vibe";

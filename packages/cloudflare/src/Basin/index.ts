@@ -6,7 +6,7 @@ export * from "./Table.vibe";
 export * from "../Pipelines/Pipeline.vibe";
 export * from "../Pipelines/Sink.vibe";
 export * from "../Pipelines/Stream.vibe";
-export * from "../Pipelines/StreamSchema.ts";
+export * from "../Pipelines/StreamSchema.vibe";
 export * from "../Pipelines/StreamSink.vibe";
 export * from "../Pipelines/StreamSinkBinding.vibe";
 export * from "../Pipelines/StreamSinkHttp.vibe";

@@ -1,16 +1,14 @@
-import * as kv from "@distilled.cloud/cloudflare/kv";
-import type * as Cause from "effect/Cause";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Stream from "effect/Stream";
+import * as kv from "@distilled.cloud/cloudflare/kv"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import {
   makeHttpKVNamespaceBinding,
   makeKVAuth,
   makeKVHttpScope,
   toKVNamespaceError,
   type KVAuth,
-} from "./NamespaceHttp.vibe";
-import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.vibe";
+} from "./NamespaceHttp.vibe"
+import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.vibe"
 
 /**
  * HTTP-backed implementation of the {@link ReadNamespace} binding.
@@ -24,17 +22,16 @@ export const ReadNamespaceHttp = Layer.effect(
     makeHttpKVNamespaceBinding({
       permissionGroups: ["Workers KV Storage Read"],
       makeClient: (token, namespaceId) => makeReadKVHttpClient(makeKVAuth(token), namespaceId),
-    }),
+    })
   ),
-);
+)
 
-/** @throws {never} */
 export const makeReadKVHttpClient = (
   auth: KVAuth,
   namespaceId: Effect.Effect<string>,
 ): ReadNamespaceClient => {
-  const { authorize } = auth;
-  const scope = makeKVHttpScope(auth, namespaceId);
+  const { authorize } = auth
+  const scope = makeKVHttpScope(auth, namespaceId)
 
   const getOne = (key: string, type: string) =>
     scope.pipe(
@@ -42,10 +39,10 @@ export const makeReadKVHttpClient = (
         authorize(kv.getNamespaceValue({ accountId, namespaceId, keyName: key })).pipe(
           Effect.flatMap((res) => materializeBody(res.body, type)),
           Effect.catchTag("KeyNotFound", () => Effect.succeed(null)),
-        ),
+        )
       ),
       Effect.mapError(toKVNamespaceError),
-    );
+    )
 
   const getMany = (keys: string[], type: string) =>
     scope.pipe(
@@ -57,18 +54,14 @@ export const makeReadKVHttpClient = (
             keys,
             type: type === "json" ? "json" : "text",
           }),
-        ),
+        )
       ),
       Effect.mapError(toKVNamespaceError),
-      Effect.map((res) => {
-        const values = (res.values ?? {}) as Record<string, unknown>;
-        const map = new Map<string, unknown>();
-        for (const key of keys) {
-          map.set(key, key in values ? decodeValue(values[key], type) : null);
-        }
-        return map;
-      }),
-    );
+      // A value that does not decode is a defect, as the throw it was.
+      Effect.flatMap((res) =>
+        Effect.orDie(Effect.try({ try: () => decodeValues(keys, res.values, type), catch: (e) => e }))
+      ),
+    )
 
   const getWithMetadataOne = (key: string, type: string) =>
     scope.pipe(
@@ -81,7 +74,7 @@ export const makeReadKVHttpClient = (
           metadata: authorize(
             kv.getNamespaceMetadata({ accountId, namespaceId, keyName: key }),
           ).pipe(Effect.catchTag(["KeyNotFound", "NamespaceNotFound"], () => Effect.succeed(null))),
-        }),
+        })
       ),
       Effect.mapError(toKVNamespaceError),
       Effect.map(({ value, metadata }) => ({
@@ -89,7 +82,7 @@ export const makeReadKVHttpClient = (
         metadata: metadata ?? null,
         cacheStatus: null,
       })),
-    );
+    )
 
   return {
     raw: Effect.die(
@@ -102,19 +95,19 @@ export const makeReadKVHttpClient = (
         ? getMany(key, readType(typeOrOptions))
         : getOne(key, readType(typeOrOptions))) as any,
     getWithMetadata: ((key: string | string[], typeOrOptions?: unknown) => {
-      const type = readType(typeOrOptions);
+      const type = readType(typeOrOptions)
       if (Array.isArray(key)) {
         return getMany(key, type).pipe(
           Effect.map((values) => {
-            const map = new Map<string, unknown>();
+            const map = new Map<string, unknown>()
             for (const [k, value] of values) {
-              map.set(k, { value, metadata: null, cacheStatus: null });
+              map.set(k, { value, metadata: null, cacheStatus: null })
             }
-            return map;
+            return map
           }),
-        );
+        )
       }
-      return getWithMetadataOne(key, type);
+      return getWithMetadataOne(key, type)
     }) as any,
     list: ((options?: KVNamespaceListOptions) =>
       scope.pipe(
@@ -127,7 +120,7 @@ export const makeReadKVHttpClient = (
               limit: options?.limit ?? undefined,
               cursor: options?.cursor ?? undefined,
             }),
-          ),
+          )
         ),
         Effect.mapError(toKVNamespaceError),
         Effect.map((res) => {
@@ -135,48 +128,75 @@ export const makeReadKVHttpClient = (
             name: k.name,
             expiration: k.expiration ?? undefined,
             metadata: k.metadata ?? undefined,
-          }));
-          const cursor = res.resultInfo?.cursor ?? undefined;
+          }))
+          const cursor = res.resultInfo?.cursor ?? undefined
           return (
             cursor
               ? { keys, list_complete: false, cursor, cacheStatus: null }
               : { keys, list_complete: true, cacheStatus: null }
-          ) as unknown;
+          ) as unknown
         }),
       )) as any,
-  };
-};
-
-/**
- * Materialize the raw value byte stream according to the requested type
- * ("text" | "json" | "arrayBuffer" | "stream").
- */
-const materializeBody = (
-  body: kv.GetNamespaceValueResponse["body"],
-  type: string,
-): Effect.Effect<unknown, Cause.UnknownError> =>
-  type === "stream"
-    ? Effect.sync(() => Stream.toReadableStream(body))
-    : Effect.tryPromise(() => {
-        const response = new Response(Stream.toReadableStream(body) as BodyInit);
-        return type === "arrayBuffer"
-          ? response.arrayBuffer()
-          : type === "json"
-            ? response.json()
-            : response.text();
-      });
+  }
+}
 
 /** Resolve the requested decode type from the overloaded second argument. */
 const readType = (typeOrOptions: unknown): string =>
   typeof typeOrOptions === "string"
     ? typeOrOptions
-    : ((typeOrOptions as { type?: string } | undefined)?.type ?? "text");
+    : ((typeOrOptions as { type?: string } | undefined)?.type ?? "text")
 
-/** Decode a raw KV value according to the requested type. */
-const decodeValue = (value: unknown, type: string): unknown => {
-  if (value === null || value === undefined) return null;
-  if (type === "json") {
-    return typeof value === "string" ? JSON.parse(value) : value;
+// Values are read through a Web `Response` (platform code), and a JSON value
+// that does not parse throws.
+module values {
+  import type * as kv from "@distilled.cloud/cloudflare/kv"
+  import type * as Cause from "effect/Cause"
+  import * as Effect from "effect/Effect"
+  import * as Stream from "effect/Stream"
+
+  /**
+   * Materialize the raw value byte stream according to the requested type
+   * ("text" | "json" | "arrayBuffer" | "stream").
+   */
+  export const materializeBody = (
+    body: kv.GetNamespaceValueResponse["body"],
+    type: string,
+  ): Effect.Effect<unknown, Cause.UnknownError> =>
+    type === "stream"
+      ? Effect.sync(() => Stream.toReadableStream(body))
+      : Effect.tryPromise(() => {
+        const response = new Response(Stream.toReadableStream(body) as BodyInit)
+        return type === "arrayBuffer"
+          ? response.arrayBuffer()
+          : type === "json"
+          ? response.json()
+          : response.text()
+      })
+
+  /**
+   * Decode a raw KV value according to the requested type.
+   * @throws {SyntaxError}
+   */
+  const decodeValue = (value: unknown, type: string): unknown => {
+    if (value === null || value === undefined) return null
+    if (type === "json") {
+      return typeof value === "string" ? JSON.parse(value) : value
+    }
+    return typeof value === "string" ? value : JSON.stringify(value)
   }
-  return typeof value === "string" ? value : JSON.stringify(value);
-};
+
+  /**
+   * Decode each requested key's raw value, `null` for a missing key.
+   * @throws {SyntaxError}
+   */
+  export const decodeValues = (keys: string[], raw: unknown, type: string): Map<string, unknown> => {
+    const values = (raw ?? {}) as Record<string, unknown>
+    const map = new Map<string, unknown>()
+    for (const key of keys) {
+      map.set(key, key in values ? decodeValue(values[key], type) : null)
+    }
+    return map
+  }
+}
+
+import { decodeValues, materializeBody } from values

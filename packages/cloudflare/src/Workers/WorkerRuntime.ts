@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { fromCloudflareFetcher, type Fetcher } from "../Fetcher.ts";
+import { fromCloudflareFetcher, type Fetcher } from "../Fetcher.vibe";
 import { resolveAccessContext, type WorkerExecutionContextAccess } from "./WorkerAccess.vibe";
 
 export const WorkerTypeId = "Cloudflare.Worker";

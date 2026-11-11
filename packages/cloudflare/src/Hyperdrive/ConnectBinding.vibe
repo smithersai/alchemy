@@ -1,25 +1,25 @@
-import type * as runtime from "@cloudflare/workers-types";
-import * as Output from "alchemy/Output";
-import { defaultProviderMode, type ProviderMode } from "alchemy/ProviderMode";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Redacted from "effect/Redacted";
-import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import { Connect, type ConnectClient } from "./Connect.vibe";
-import type { Connection } from "./Connection.vibe";
-import { defaultPort, type DevOrigin, type Mtls, type Origin } from "./Connection.vibe";
-import { type ConnectionLookup, isConnectionLookup } from "./ConnectionLookup.vibe";
+import type * as runtime from "@cloudflare/workers-types"
+import * as Output from "alchemy/Output"
+import { defaultProviderMode, type ProviderMode } from "alchemy/ProviderMode"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts"
+import { Connect, type ConnectClient } from "./Connect.vibe"
+import type { Connection } from "./Connection.vibe"
+import { defaultPort, type DevOrigin, type Mtls, type Origin } from "./Connection.vibe"
+import { type ConnectionLookup, isConnectionLookup } from "./ConnectionLookup.vibe"
 
 export const ConnectBinding = Layer.effect(
   Connect,
-  Effect.gen(function* () {
-    const env = yield* WorkerEnvironment;
-    const host = yield* Worker;
+  effect {
+    const env = try WorkerEnvironment
+    const host = try Worker
 
-    return Effect.fn(function* (connection: Connection | ConnectionLookup) {
+    return effect (connection: Connection | ConnectionLookup) => {
       if (!globalThis.__ALCHEMY_RUNTIME__) {
-        yield* host.bind`${connection}`({
+        try host.bind`${connection}`({
           bindings: [
             {
               type: "hyperdrive",
@@ -27,13 +27,13 @@ export const ConnectBinding = Layer.effect(
               id: connection.hyperdriveId as unknown as string,
             },
           ],
-          hyperdrives: yield* getHyperdriveDevOriginForHost(connection, host),
-        });
+          hyperdrives: try getHyperdriveDevOriginForHost(connection, host),
+        })
       }
 
       const hd = Effect.sync(
         () => (env as Record<string, runtime.Hyperdrive>)[connection.LogicalId]!,
-      );
+      )
 
       return {
         raw: hd,
@@ -43,10 +43,10 @@ export const ConnectBinding = Layer.effect(
         user: hd.pipe(Effect.map((hd) => hd.user)),
         password: hd.pipe(Effect.map((hd) => Redacted.make(hd.password))),
         database: hd.pipe(Effect.map((hd) => hd.database)),
-      } satisfies ConnectClient;
-    });
-  }),
-);
+      } satisfies ConnectClient
+    }
+  },
+)
 
 /**
  * The `hyperdrives` dev channel for `connection` bound to `host`. Only the
@@ -57,13 +57,13 @@ export const ConnectBinding = Layer.effect(
  * or a `remote()` worker in dev) never evaluates the dev origin, so an
  * Access-protected origin without a `dev` override deploys.
  */
-export const getHyperdriveDevOriginForHost = Effect.fn(function* (
+export const getHyperdriveDevOriginForHost = effect (
   connection: Connection | ConnectionLookup,
   host: { readonly Mode?: ProviderMode | undefined },
-) {
-  const mode = host.Mode ?? (yield* defaultProviderMode);
-  return mode === "local" ? getHyperdriveDevOrigin(connection) : undefined;
-});
+) => {
+  const mode = host.Mode ?? (try defaultProviderMode)
+  return mode === "local" ? getHyperdriveDevOrigin(connection) : undefined
+}
 
 /**
  * A Hyperdrive origin that `alchemy dev` cannot reach from the local
@@ -72,9 +72,9 @@ export const getHyperdriveDevOriginForHost = Effect.fn(function* (
 export class HyperdriveDevOriginUnsupported extends Data.TaggedError(
   "HyperdriveDevOriginUnsupported",
 )<{
-  message: string;
-  logicalId: string;
-  origin: "access" | "vpc" | "lookup";
+  message: string
+  logicalId: string
+  origin: "access" | "vpc" | "lookup"
 }> {}
 
 const toDevOrigin = (dev: DevOrigin): Required<DevOrigin> => ({
@@ -85,12 +85,12 @@ const toDevOrigin = (dev: DevOrigin): Required<DevOrigin> => ({
   database: dev.database,
   password: dev.password,
   sslmode: dev.sslmode ?? "prefer",
-});
+})
 
 export const getHyperdriveDevOrigin = (connection: Connection | ConnectionLookup) =>
   isConnectionLookup(connection)
     ? getLookupDevOrigin(connection)
-    : getConnectionDevOrigin(connection);
+    : getConnectionDevOrigin(connection)
 
 /**
  * A looked-up configuration's origin password is never returned by the
@@ -105,26 +105,26 @@ const getLookupDevOrigin = (lookup: ConnectionLookup) =>
           dev
             ? Effect.succeed(toDevOrigin(dev))
             : Effect.die(
-                new HyperdriveDevOriginUnsupported({
-                  logicalId: lookup.LogicalId,
-                  origin: "lookup",
-                  message:
-                    "A Hyperdrive.lookup(...) configuration cannot be emulated in development mode without a `dev` origin: " +
-                    "the Cloudflare API never returns the origin password of an existing configuration. " +
-                    "Set the `dev` property to an origin reachable from your machine.",
-                }),
-              ),
+              new HyperdriveDevOriginUnsupported({
+                logicalId: lookup.LogicalId,
+                origin: "lookup",
+                message:
+                  "A Hyperdrive.lookup(...) configuration cannot be emulated in development mode without a `dev` origin: "
+                  + "the Cloudflare API never returns the origin password of an existing configuration. "
+                  + "Set the `dev` property to an origin reachable from your machine.",
+              }),
+            )
         ),
-        Output.asOutput,
+        (origin) => Output.asOutput(origin),
       ),
     ),
     ([id, origin]) => ({ [id]: origin }),
-  ) as unknown as Record<string, Required<DevOrigin>>;
+  ) as unknown as Record<string, Required<DevOrigin>>
 
 const getConnectionDevOrigin = (connection: Connection) => {
   const origin = Output.mapEffect(([dev, origin, mtls]: [DevOrigin | undefined, Origin, Mtls]) => {
     if (dev) {
-      return Effect.succeed(toDevOrigin(dev));
+      return Effect.succeed(toDevOrigin(dev))
     }
     if ("accessClientId" in origin) {
       return Effect.die(
@@ -132,10 +132,10 @@ const getConnectionDevOrigin = (connection: Connection) => {
           logicalId: connection.LogicalId,
           origin: "access",
           message:
-            `Hyperdrive instance ${connection.LogicalId} has an origin that requires Cloudflare Access. This is not supported in development mode. ` +
-            "Select a different origin or set the `dev` property to an origin that does not require Cloudflare Access.",
+            `Hyperdrive instance ${connection.LogicalId} has an origin that requires Cloudflare Access. This is not supported in development mode. `
+            + "Select a different origin or set the `dev` property to an origin that does not require Cloudflare Access.",
         }),
-      );
+      )
     }
     if ("serviceId" in origin) {
       return Effect.die(
@@ -143,10 +143,10 @@ const getConnectionDevOrigin = (connection: Connection) => {
           logicalId: connection.LogicalId,
           origin: "vpc",
           message:
-            `Hyperdrive instance ${connection.LogicalId} has an origin that is reached through a Workers VPC Service. This is not supported in development mode. ` +
-            "Set the `dev` property to an origin reachable from your machine.",
+            `Hyperdrive instance ${connection.LogicalId} has an origin that is reached through a Workers VPC Service. This is not supported in development mode. `
+            + "Set the `dev` property to an origin reachable from your machine.",
         }),
-      );
+      )
     }
     return Effect.succeed<Required<DevOrigin>>({
       scheme: origin.scheme,
@@ -156,12 +156,12 @@ const getConnectionDevOrigin = (connection: Connection) => {
       database: origin.database,
       password: origin.password,
       sslmode: mtls?.sslmode ?? "require",
-    });
-  })(Output.all(connection.dev, connection.origin, connection.mtls));
+    })
+  })(Output.all(connection.dev, connection.origin, connection.mtls))
   return Output.map(
     Output.all(connection.hyperdriveId, Output.asOutput(origin)),
     ([id, origin]) => ({
       [id]: origin,
     }),
-  ) as unknown as Record<string, Required<DevOrigin>>;
-};
+  ) as unknown as Record<string, Required<DevOrigin>>
+}

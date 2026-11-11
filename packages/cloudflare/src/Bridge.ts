@@ -2,7 +2,7 @@
  * Runtime bridge factories and RPC helpers. This entry must not depend on
  * resource providers or local development tooling, even through dynamic imports.
  */
-export * from "./Fetcher.ts";
+export * from "./Fetcher.vibe";
 export * from "./Workers/InferEnv.ts";
 export * from "./Workers/Rpc.vibe";
 export * from "./Workers/RpcAsync.vibe";

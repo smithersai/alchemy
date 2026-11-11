@@ -1,6 +1,6 @@
-export * from "./Container.ts";
+export * from "./Container.vibe";
 export * from "./ContainerApplication.vibe";
-export * from "./ContainerBundle.ts";
+export * from "./ContainerBundle.vibe";
 export type {
   ContainerClient,
   ContainerExecOptions,
@@ -13,7 +13,7 @@ export type {
   ContainerSnapshotOptions,
   ContainerStartError,
   ReservedContainerKey,
-} from "./ContainerClient.ts";
+} from "./ContainerClient.vibe";
 export {
   ContainerApplicationSettingsConflict,
   ContainerConfigurationError,
@@ -22,7 +22,7 @@ export {
   DurableObjectContainerConflict,
   DurableObjectContainersOnEffectNativeClass,
 } from "./ContainerConfiguration.vibe";
-export { ContainerPlatform } from "./ContainerPlatform.ts";
+export { ContainerPlatform } from "./ContainerPlatform.vibe";
 export * from "./ContainerProvider.vibe";
 export {
   DurableObjectApplication,

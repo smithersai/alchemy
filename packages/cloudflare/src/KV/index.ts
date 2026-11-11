@@ -4,7 +4,7 @@ export * from "./Namespace.vibe";
 export * from "./NamespaceTypes.vibe";
 export * from "./ReadNamespace.vibe";
 export * from "./ReadNamespaceBinding.vibe";
-export * from "./ReadNamespaceHttp.ts";
+export * from "./ReadNamespaceHttp.vibe";
 export * from "./ReadNamespaceLocal.vibe";
 export * from "./ReadWriteNamespace.vibe";
 export * from "./ReadWriteNamespaceBinding.vibe";

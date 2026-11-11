@@ -2,7 +2,7 @@ export * from "./LegacyPipeline.vibe";
 export * from "./Pipeline.vibe";
 export * from "./Sink.vibe";
 export * from "./Stream.vibe";
-export * from "./StreamSchema.ts";
+export * from "./StreamSchema.vibe";
 export * from "./StreamSink.vibe";
 export * from "./StreamSinkBinding.vibe";
 export * from "./StreamSinkHttp.vibe";
