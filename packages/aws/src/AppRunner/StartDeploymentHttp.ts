@@ -1,7 +1,7 @@
 import * as apprunner from "@distilled.cloud/aws/apprunner";
-import { makeAppRunnerHttpBinding } from "./BindingHttp.ts";
-import type { Service } from "./Service.ts";
-import { StartDeployment } from "./StartDeployment.ts";
+import { makeAppRunnerHttpBinding } from "./BindingHttp.vibe";
+import type { Service } from "./Service.vibe";
+import { StartDeployment } from "./StartDeployment.vibe";
 
 /**
  * HTTP implementation of the {@link StartDeployment} binding. Calls

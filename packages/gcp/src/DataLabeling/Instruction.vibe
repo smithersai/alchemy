@@ -1,0 +1,324 @@
+import * as datalabeling from "@distilled.cloud/gcp/datalabeling_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  findOwned,
+  hasOwnershipMarker,
+  ignoreGone,
+  listInstructions,
+  noRetryLayer,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  projectParent,
+  replaceOnIdentity,
+  retryDelete,
+  retryTransient,
+  sameJson,
+  sameText,
+  toDisplayName,
+  waitForVisible,
+  waitUntilGone,
+} from "./internal.vibe"
+import { resourceNameFromOperation, waitForOperation } from "./operations.vibe"
+
+export type InstructionDataType = datalabeling.GoogleCloudDatalabelingV1beta1InstructionDataTypeEnum
+
+export type PdfInstruction = {
+  /**
+   * Cloud Storage URI of the PDF (`gs://...`).
+   */
+  gcsFileUri?: string
+}
+
+export type CsvInstruction = {
+  /**
+   * Cloud Storage URI of the CSV (`gs://...`). Deprecated — the API
+   * only accepts PDF instructions.
+   */
+  gcsFileUri?: string
+}
+
+export type InstructionProps = {
+  /**
+   * Instruction id (the last segment of
+   * `projects/{project}/instructions/{instruction}`). Server-assigned
+   * on create. Immutable — changing it replaces the instruction.
+   */
+  instructionId?: string
+  /**
+   * Display name. Maximum 64 characters. Required by the API; Alchemy
+   * falls back to a generated name. Immutable — changing it replaces
+   * the instruction.
+   */
+  displayName?: string
+  /**
+   * Data type this instruction applies to (`IMAGE`, `VIDEO`, `TEXT`,
+   * `GENERAL_DATA`). Immutable — changing it replaces the instruction.
+   */
+  dataType: InstructionDataType | (string & {})
+  /**
+   * Human-readable description. Instructions have no labels field, so
+   * Alchemy stamps ownership into this field. Immutable — changing it
+   * replaces the instruction.
+   */
+  description?: string
+  /**
+   * PDF instruction stored in Cloud Storage. Currently the only
+   * supported instruction format. Immutable — changing it replaces the
+   * instruction.
+   */
+  pdfInstruction?: PdfInstruction
+  /**
+   * Deprecated CSV instruction. Immutable — changing it replaces the
+   * instruction.
+   */
+  csvInstruction?: CsvInstruction
+}
+
+export type Instruction = Resource<
+  "GCP.DataLabeling.Instruction",
+  InstructionProps,
+  {
+    /** Full resource name `projects/{project}/instructions/{instruction}`. */
+    name: string
+    /** Instruction id (last path segment). */
+    instructionId: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Data type this instruction applies to. */
+    dataType: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** PDF instruction, if set. */
+    pdfInstruction: PdfInstruction | undefined
+    /** Deprecated CSV instruction, if set. */
+    csvInstruction: CsvInstruction | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Related resources blocking changes. */
+    blockingResources: string[] | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Labeling instruction describing how human operators should
+ * label data. Create is a long-running operation. The current API only
+ * accepts a PDF stored in Cloud Storage.
+ *
+ * Instruction ids are server-assigned. There is no labels API, so
+ * Alchemy stamps ownership into `description` so `list` / nuke can find
+ * them. All input fields are immutable — changing them replaces the
+ * instruction.
+ *
+ * ### Creating an Instruction
+ * **Example:** Image labeling PDF
+ * ```typescript
+ * const instruction = yield* GCP.DataLabeling.Instruction("HowTo", {
+ *   displayName: "image-classes",
+ *   dataType: "IMAGE",
+ *   pdfInstruction: {
+ *     gcsFileUri: "gs://my-bucket/instructions.pdf",
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Text labeling PDF with a description
+ * ```typescript
+ * const instruction = yield* GCP.DataLabeling.Instruction("HowTo", {
+ *   displayName: "entity-extraction",
+ *   dataType: "TEXT",
+ *   description: "highlight product names",
+ *   pdfInstruction: {
+ *     gcsFileUri: "gs://my-bucket/text-instructions.pdf",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category DataLabeling
+ */
+export const Instruction = Resource<Instruction>("GCP.DataLabeling.Instruction")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstructionNotResolved extends Data.TaggedError(
+  "GCP.DataLabeling.InstructionNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, instructionId: string): infer _ =>
+  `${projectParent(project)}/instructions/${instructionId}`
+
+const toAttrs = (
+  instruction: datalabeling.GoogleCloudDatalabelingV1beta1Instruction,
+  project: string,
+): infer _ => {
+  const name = instruction.name ?? ""
+  const parsed = parseResourceName(name, "instructions")
+  return {
+    name,
+    instructionId: parsed.id,
+    project: parsed.project || project,
+    displayName: instruction.displayName,
+    dataType: instruction.dataType,
+    description: parseOwnership(instruction.description).text,
+    pdfInstruction: instruction.pdfInstruction,
+    csvInstruction: instruction.csvInstruction,
+    createTime: instruction.createTime,
+    updateTime: instruction.updateTime,
+    blockingResources: instruction.blockingResources,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    provide noRetryLayer {
+      return try datalabeling.getProjectsInstructions({ name })
+    }
+  })
+}) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try Effect.undefined;
+  when { _tag: "BadGateway" }: try Effect.undefined;
+  default: throw e;
+})
+
+const findByOwnership = effect (id: string, project: string) => {
+  const rows = try listInstructions(
+    try Effect.orDie(Effect.try({ try: () => projectParent(project), catch: (e) => e })),
+  )
+  return try findOwned(id, rows, (row) => row.description)
+}
+
+export const InstructionProvider = (): infer _ =>
+  Provider.succeed(Instruction, {
+    stables: ["name", "instructionId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const extra = try Effect.orDie(Effect.try({
+        try: () =>
+          (resolved.displayName !== undefined
+            && output?.displayName !== undefined
+            && !sameText(resolved.displayName, output.displayName))
+          || (output?.dataType !== undefined && !sameText(resolved.dataType, output.dataType))
+          || (olds !== undefined && !sameText(resolved.description, output?.description))
+          || (output !== undefined && !sameJson(resolved.pdfInstruction, output.pdfInstruction))
+          || (output !== undefined && !sameJson(resolved.csvInstruction, output.csvInstruction)),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.instructionId ?? output?.instructionId,
+            nextId: resolved.instructionId,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const instructionId = olds?.instructionId
+        ?? output?.instructionId
+        ?? (output?.name
+          ? (try Effect.orDie(
+            Effect.try({ try: () => parseResourceName(output.name, "instructions"), catch: (e) => e }),
+          )).id
+          : "")
+      const name = output?.name ?? (instructionId.length > 0 ? resourceName(env.project, instructionId) : "")
+      const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const rows = try listInstructions(
+        try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e })),
+      )
+      return rows
+        .filter((row) => hasOwnershipMarker(row.description))
+        .map((row) => toAttrs(row, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const instructionId = news.instructionId ?? output?.instructionId
+      const name = output?.name
+        ?? (instructionId !== undefined ? resourceName(env.project, instructionId) : "")
+      const ownership = try createInternalLabels(id)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
+
+      let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+
+      if (current === undefined) {
+        const created = retryTransient(
+          datalabeling.createProjectsInstructions({
+            parent: projectParent(env.project),
+            body: {
+              instruction: {
+                displayName,
+                description,
+                dataType: news.dataType,
+                pdfInstruction: news.pdfInstruction,
+                csvInstruction: news.csvInstruction,
+              },
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const done = try waitForOperation(created)
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }),
+          )
+          if (createdName !== undefined) {
+            current = try waitForVisible(getByName(createdName))
+          }
+        }
+        if (current === undefined) {
+          current = try findByOwnership(id, env.project)
+        }
+      }
+
+      if (current === undefined) {
+        throw new InstructionNotResolved({
+          resourceName: name
+            || (try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e }))),
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try (datalabeling
+        .deleteProjectsInstructions({ name: output.name })
+        |> retryDelete(%)
+        |> ignoreGone(%))
+      try waitUntilGone(getByName(output.name))
+    },
+  })

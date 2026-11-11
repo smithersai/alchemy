@@ -5,20 +5,20 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import type * as Stream from "effect/Stream";
-import type { Unresolved } from "./AdoptPolicy.ts";
-import type { Artifacts } from "./Artifacts.ts";
+import type { Unresolved } from "./AdoptPolicy.vibe";
+import type { Artifacts } from "./Artifacts.vibe";
 import type { Diff } from "./Diff.ts";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import type { Platform } from "./Platform.ts";
-import { defaultProviderMode, type ProviderMode } from "./ProviderMode.ts";
-import type { ScopedPlanStatusSession } from "./Report.ts";
+import { defaultProviderMode, type ProviderMode } from "./ProviderMode.vibe";
+import type { ScopedPlanStatusSession } from "./Report.vibe";
 import type {
   ResourceBinding,
   ResourceClass,
   ResourceClassLike,
   ResourceLike,
 } from "./Resource.ts";
-import type { ResourceContext } from "./ResourceContext.ts";
+import type { ResourceContext } from "./ResourceContext.vibe";
 import type { State } from "./State/State.ts";
 
 export interface Provider<R extends ResourceLike = ResourceLike> extends Effect.Effect<
@@ -28,6 +28,7 @@ export interface Provider<R extends ResourceLike = ResourceLike> extends Effect.
 > {
   asEffect: () => Effect.Effect<ProviderService<R>, never, Provider<R>>;
   [Symbol.iterator]: () => Effect.EffectIterator<Provider<R>>;
+  /** @throws {never} */
   of: <
     ReadReq = never,
     DiffReq = never,

@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { AliasName } from "./Alias.ts";
-import type { Key } from "./Key.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import type { AliasName } from "./Alias.vibe";
+import type { Key } from "./Key.vibe";
 
 /**
  * The target of a KMS cryptographic binding: either a {@link Key} resource

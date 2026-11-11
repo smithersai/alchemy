@@ -1,2 +1,2 @@
-export * from "./BucketsDatasetsLink.ts";
-export * from "./TraceScope.ts";
+export * from "./BucketsDatasetsLink.vibe";
+export * from "./TraceScope.vibe";

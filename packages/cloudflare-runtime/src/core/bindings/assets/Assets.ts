@@ -7,7 +7,7 @@ import { parseHeaders, parseRedirects } from "../../../internal/workers-shared/i
 import {
   constructHeaders,
   constructRedirects,
-} from "../../../internal/workers-shared/node/configuration/constructConfiguration.ts";
+} from "../../../internal/workers-shared/node/configuration/constructConfiguration.vibe";
 import {
   createAssetsIgnoreFunction,
   getContentType,

@@ -1,0 +1,281 @@
+import * as Effect from "effect/Effect"
+import * as profiles from "@distilled.cloud/aws/route53profiles"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export interface ProfileProps {
+  /**
+   * Name of the Profile. If omitted, a unique name is generated from the
+   * app, stage, and logical ID. Profiles have no update API for the name,
+   * so changing it replaces the Profile.
+   */
+  name?: string
+
+  /**
+   * User tags to attach to the Profile. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Profile extends
+  Resource<
+    "AWS.Route53Profiles.Profile",
+    ProfileProps,
+    {
+      /** ID of the Profile (e.g. `rp-...`). */
+      profileId: string
+      /** ARN of the Profile. */
+      profileArn: string
+      /** Name of the Profile. */
+      profileName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Route 53 Profile — a reusable container of DNS configuration
+ * (private hosted zones, Resolver rules, and DNS Firewall rule groups) that
+ * can be associated with many VPCs at once.
+ *
+ * Attach DNS resources to the Profile with `ProfileResourceAssociation` and
+ * apply the whole bundle to a VPC with `ProfileAssociation`.
+ * ### Creating Profiles
+ * **Example:** Basic Profile
+ * ```typescript
+ * import * as Route53Profiles from "@alchemy.run/aws/Route53Profiles";
+ *
+ * const profile = yield* Route53Profiles.Profile("DnsProfile");
+ * ```
+ *
+ * **Example:** Profile with Tags
+ * ```typescript
+ * const profile = yield* Route53Profiles.Profile("DnsProfile", {
+ *   name: "shared-dns-config",
+ *   tags: { team: "platform" },
+ * });
+ * ```
+ *
+ * ### Applying a Profile to VPCs
+ * **Example:** Associate the Profile with a VPC
+ * ```typescript
+ * const vpc = yield* EC2.Vpc("AppVpc", { cidrBlock: "10.0.0.0/16" });
+ *
+ * yield* Route53Profiles.ProfileAssociation("AppVpcDns", {
+ *   profileId: profile.profileId,
+ *   resourceId: vpc.vpcId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Profile = Resource<Profile>("AWS.Route53Profiles.Profile")
+
+/**
+ * A Profile whose VPC associations are still draining rejects `DeleteProfile`
+ * with `ConflictException`. Disassociation completes asynchronously (observed
+ * ~1–2 minutes), so retry deletion on a bounded schedule (~2 min).
+ *
+ * Explicitly typed: inlining `Effect.retry` in provider lifecycle code can
+ * widen the provider layer to `unknown` in declaration emit.
+ *
+ * @internal
+ */
+const retryDeleteConflict = effect <A, E extends { _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.fixed("4 seconds"), Schedule.recurs(30)]),
+  })
+
+/**
+ * Bounded wait (~30s) for a freshly created Profile to leave `CREATING`
+ * (observed to settle in a few seconds).
+ *
+ * @internal
+ */
+const untilProfileSettled = effect <E, R>(
+  self: (profiles.Profile | undefined)!E!R,
+): (profiles.Profile | undefined)!E!R =>
+  try (self
+    |> Effect.repeat(%, {
+      schedule: Schedule.fixed("2 seconds"),
+      until: (profile) => profile === undefined || profile.Status !== "CREATING",
+      times: 15,
+    }))
+
+export const ProfileProvider = (): infer _ =>
+  Provider.effect(
+    Profile,
+    effect {
+      // `props` may be undefined at runtime — all ProfileProps fields are
+      // optional, so callers can omit the props object entirely.
+      const createName = effect (id: string, props: ProfileProps | undefined) =>
+        props?.name ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      // A deleted Profile lingers in `DELETING`/`DELETED` and is still
+      // returned by `GetProfile` — those states count as missing.
+      const observe = effect (profileId: string) =>
+        (effect {
+          return (try effect {
+            const r = try profiles.getProfile({ ProfileId: profileId })
+            return r.Profile === undefined
+                || r.Profile.Status === "DELETING"
+                || r.Profile.Status === "DELETED"
+              ? undefined
+              : r.Profile
+          })
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      const findByName = effect (name: string) =>
+        Array.from(
+          try (profiles.listProfiles.items({})
+            |> Stream.runCollect(%)),
+        ).find((summary) => summary.Name === name)
+
+      const readTags = effect (profileArn: string) =>
+        (effect {
+          return (try effect {
+            const r = try profiles.listTagsForResource({ ResourceArn: profileArn })
+
+            const tags: Record<string, string> = {}
+            for (const [key, value] of Object.entries(r.Tags)) {
+              if (value !== undefined) tags[key] = value
+            }
+            return tags
+          })
+        }) catch () => ({}) as Record<string, string>
+
+      const syncTags = effect (
+        id: string,
+        profileArn: string,
+        userTags: Record<string, string> | undefined,
+      ) => {
+        const internalTags = try createInternalTags(id)
+        // Diff against OBSERVED cloud tags so adoption converges.
+        const currentTags = try readTags(profileArn)
+        const { upsert, removed } = try Effect.orDie(Effect.try({
+          try: () =>
+            diffTags(currentTags, {
+              ...userTags,
+              ...internalTags,
+            }),
+          catch: (e) => e,
+        }))
+        if (upsert.length > 0) {
+          try profiles.tagResource({
+            ResourceArn: profileArn,
+            Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+          })
+        }
+        if (removed.length > 0) {
+          try profiles.untagResource({
+            ResourceArn: profileArn,
+            TagKeys: removed,
+          })
+        }
+      }
+
+      return Profile.Provider.of({
+        stables: ["profileId", "profileArn", "profileName"],
+        // Top-level enumeration of every Profile in the account/region.
+        list: effect () =>
+          Array.from(
+            try (profiles.listProfiles.items({})
+              |> Stream.runCollect(%)),
+          ).flatMap((summary) =>
+            summary.Id !== undefined && summary.Arn !== undefined && summary.Name !== undefined
+              ? [
+                {
+                  profileId: summary.Id,
+                  profileArn: summary.Arn,
+                  profileName: summary.Name,
+                },
+              ]
+              : []
+          ),
+        read: effect ({ id, olds, output }) => {
+          const profileId = output?.profileId
+            ?? ((try findByName(try createName(id, olds ?? {})))?.Id)
+          if (profileId === undefined) return undefined
+          const live = try observe(profileId)
+          if (!live) return undefined
+          const attrs = {
+            profileId,
+            profileArn: live.Arn!,
+            profileName: live.Name!,
+          }
+          const tags = try readTags(live.Arn!)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          // Profiles have no update API for the name.
+          if (oldName !== newName) return { action: "replace" } as const
+          // Fall through: tags changes take the default update path.
+        },
+        reconcile: effect ({ id, instanceId, news, output, session }) => {
+          const name = output?.profileName ?? (try createName(id, news))
+
+          // OBSERVE — output is only an id cache; fall back to a lookup by
+          // deterministic name so state loss / adoption converges.
+          let live = output?.profileId ? try observe(output.profileId) : undefined
+          if (!live) {
+            const found = try findByName(name)
+            live = found?.Id ? try observe(found.Id) : undefined
+          }
+
+          // ENSURE — the instance ID is the idempotency token, so a crashed
+          // reconcile that re-runs the create is a no-op returning the same
+          // Profile.
+          if (!live) {
+            const created = try profiles.createProfile({
+              Name: name,
+              ClientToken: instanceId,
+            })
+            live = created.Profile!
+          }
+
+          // Profiles settle to COMPLETE within seconds.
+          const settled = try untilProfileSettled(observe(live.Id!))
+          live = settled ?? live
+
+          // SYNC tags against observed cloud tags.
+          try syncTags(id, live.Arn!, news?.tags)
+
+          try session.note(live.Id!)
+          return {
+            profileId: live.Id!,
+            profileArn: live.Arn!,
+            profileName: live.Name ?? name,
+          }
+        },
+        delete: effect ({ output }) => {
+          // VPC disassociations drain asynchronously; DeleteProfile conflicts
+          // until they finish, so retry on a bounded schedule.
+          ;(effect {
+            return (try (retryDeleteConflict(profiles.deleteProfile({ ProfileId: output.profileId }))
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

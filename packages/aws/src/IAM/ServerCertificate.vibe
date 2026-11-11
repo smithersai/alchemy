@@ -1,0 +1,295 @@
+import * as iam from "@distilled.cloud/aws/iam"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasTags } from "alchemy/Tags"
+import * as Redacted from "effect/Redacted"
+import type { Providers } from "../Providers.vibe"
+import { toTagRecord } from "./common.vibe"
+
+export error ServerCertificateConflict {
+  message: string
+  cause?: unknown
+}
+
+export error ServerCertificateUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ServerCertificateProps {
+  /**
+   * Name of the server certificate. If omitted, a deterministic name is generated.
+   */
+  serverCertificateName?: string
+  /**
+   * Optional IAM path prefix.
+   * @default "/"
+   */
+  path?: string
+  /**
+   * PEM-encoded leaf certificate body.
+   */
+  certificateBody: string
+  /**
+   * PEM-encoded private key. AWS never returns this after upload.
+   */
+  privateKey: Redacted.Redacted<string> | string
+  /**
+   * Optional PEM-encoded certificate chain.
+   */
+  certificateChain?: string
+  /**
+   * User-defined tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ServerCertificate extends
+  Resource<
+    "AWS.IAM.ServerCertificate",
+    ServerCertificateProps,
+    {
+      /** The ARN of the server certificate. */
+      serverCertificateArn: string
+      /** The name of the server certificate. */
+      serverCertificateName: string
+      /** The stable unique ID of the server certificate. */
+      serverCertificateId: string | undefined
+      /** The IAM path of the server certificate. */
+      path: string | undefined
+      /** The PEM-encoded certificate body. */
+      certificateBody: string
+      /** The PEM-encoded certificate chain, if uploaded. */
+      certificateChain: string | undefined
+      /** When the certificate was uploaded. */
+      uploadDate: Date | undefined
+      /** When the certificate expires. */
+      expiration: Date | undefined
+      /** The tags applied to the certificate. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An IAM server certificate.
+ *
+ * `ServerCertificate` uploads and tracks a TLS certificate bundle for legacy
+ * IAM-integrated services. The private key is write-only and should be provided
+ * as a redacted value when possible.
+ * ### Uploading Server Certificates
+ * **Example:** Upload a TLS Certificate
+ * ```typescript
+ * const certificate = yield* ServerCertificate("ApiTlsCertificate", {
+ *   certificateBody: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
+ *   privateKey: Redacted.make(
+ *     "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----",
+ *   ),
+ *   certificateChain: "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ServerCertificate = Resource<ServerCertificate>("AWS.IAM.ServerCertificate")
+
+export const ServerCertificateProvider = (): infer _ =>
+  Provider.effect(
+    ServerCertificate,
+    effect {
+      const toName = effect (
+        id: string,
+        props: ServerCertificateProps,
+      ) => (props.serverCertificateName ? props.serverCertificateName : try createPhysicalName({ id, maxLength: 128 }))
+
+      const readCertificate = effect (name: string) => {
+        const response = iam
+          .getServerCertificate({
+            ServerCertificateName: name,
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined;
+            default: throw e;
+          }
+        return response?.ServerCertificate
+      }
+
+      return {
+        stables: ["serverCertificateArn", "serverCertificateName", "serverCertificateId"],
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (
+            (try toName(id, olds ?? ({} as ServerCertificateProps)))
+              !== (try toName(id, resolved))
+            || (olds.path ?? "/") !== (resolved.path ?? "/")
+            || olds.certificateBody !== resolved.certificateBody
+            || olds.certificateChain !== resolved.certificateChain
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.serverCertificateName
+            ?? (try toName(id, olds ?? ({} as ServerCertificateProps)))
+          const cert = try readCertificate(name)
+          if (!cert?.ServerCertificateMetadata?.Arn) {
+            return undefined
+          }
+          const tags = try iam.listServerCertificateTags({
+            ServerCertificateName: name,
+          })
+          return {
+            serverCertificateArn: cert.ServerCertificateMetadata.Arn,
+            serverCertificateName: cert.ServerCertificateMetadata.ServerCertificateName,
+            serverCertificateId: cert.ServerCertificateMetadata.ServerCertificateId,
+            path: cert.ServerCertificateMetadata.Path,
+            certificateBody: cert.CertificateBody,
+            certificateChain: cert.CertificateChain,
+            uploadDate: cert.ServerCertificateMetadata.UploadDate,
+            expiration: cert.ServerCertificateMetadata.Expiration,
+            tags: toTagRecord(tags.Tags),
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.serverCertificateName ?? (try toName(id, news))
+          const desiredTags = {
+            ...(try createInternalTags(id)),
+            ...news.tags,
+          }
+
+          // Observe — `getServerCertificate` returns the live cert (or
+          // absence). The cert body / chain are immutable (`diff`
+          // triggers replacement), so we never re-upload during sync.
+          let cert = try readCertificate(name)
+
+          // Ensure — upload when missing. On race, verify alchemy
+          // ownership tags; bail out otherwise.
+          if (!cert?.ServerCertificateMetadata?.Arn) {
+            const created = iam
+              .uploadServerCertificate({
+                Path: news.path,
+                ServerCertificateName: name,
+                CertificateBody: news.certificateBody,
+                PrivateKey: typeof news.privateKey === "string"
+                  ? news.privateKey
+                  : Redacted.value(news.privateKey),
+                CertificateChain: news.certificateChain,
+                Tags: createTagsList(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "EntityAlreadyExistsException" }: try effect {
+                  const existing = try readCertificate(name)
+                  if (!existing?.ServerCertificateMetadata?.Arn) {
+                    throw new ServerCertificateConflict({
+                      message: `Server certificate '${name}' already exists but could not be described`,
+                    })
+                  }
+                  if (!hasTags(desiredTags, existing.Tags)) {
+                    throw new ServerCertificateConflict({
+                      message: `Server certificate '${name}' already exists and is not managed by alchemy`,
+                    })
+                  }
+                  return {
+                    ServerCertificateMetadata: existing.ServerCertificateMetadata,
+                  }
+                };
+                default: throw e;
+              }
+            if (!created.ServerCertificateMetadata?.Arn) {
+              throw new ServerCertificateUnexpectedResponse({
+                message: `uploadServerCertificate returned no metadata`,
+              })
+            }
+            cert = try readCertificate(name)
+          }
+
+          // Sync tags against the cloud's actual tags.
+          const observedTags = toTagRecord(cert?.Tags)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try iam.tagServerCertificate({
+              ServerCertificateName: name,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0) {
+            try iam.untagServerCertificate({
+              ServerCertificateName: name,
+              TagKeys: removed,
+            })
+          }
+
+          // Re-read for fresh metadata.
+          const fresh = try readCertificate(name)
+          const metadata = fresh?.ServerCertificateMetadata
+          if (!metadata?.Arn || !metadata.ServerCertificateName) {
+            throw new ServerCertificateUnexpectedResponse({
+              message: `Server certificate '${name}' was not readable after sync`,
+            })
+          }
+
+          try session.note(metadata.Arn)
+          return {
+            serverCertificateArn: metadata.Arn,
+            serverCertificateName: metadata.ServerCertificateName,
+            serverCertificateId: metadata.ServerCertificateId,
+            path: metadata.Path,
+            certificateBody: fresh?.CertificateBody ?? news.certificateBody,
+            certificateChain: fresh?.CertificateChain ?? news.certificateChain,
+            uploadDate: metadata.UploadDate,
+            expiration: metadata.Expiration,
+            tags: desiredTags,
+          }
+        },
+        list: effect () => {
+          // IAM is global; `listServerCertificates` enumerates every cert in
+          // the account. Metadata lacks the body/chain/tags, so hydrate each
+          // entry to produce the full Attributes shape `read` returns.
+          const metadatas = Array.from(
+            try (iam.listServerCertificates.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.ServerCertificateMetadataList ?? [])
+          const rows = try Effect.forEach(
+            metadatas,
+            effect (meta) => {
+              const cert = try readCertificate(meta.ServerCertificateName)
+              // Raced delete between list and hydrate — skip it.
+              if (!cert?.ServerCertificateMetadata?.Arn) {
+                return undefined
+              }
+              const tags = try iam.listServerCertificateTags({
+                ServerCertificateName: meta.ServerCertificateName,
+              })
+              return {
+                serverCertificateArn: cert.ServerCertificateMetadata.Arn,
+                serverCertificateName: cert.ServerCertificateMetadata.ServerCertificateName,
+                serverCertificateId: cert.ServerCertificateMetadata.ServerCertificateId,
+                path: cert.ServerCertificateMetadata.Path,
+                certificateBody: cert.CertificateBody,
+                certificateChain: cert.CertificateChain,
+                uploadDate: cert.ServerCertificateMetadata.UploadDate,
+                expiration: cert.ServerCertificateMetadata.Expiration,
+                tags: toTagRecord(tags.Tags),
+              }
+            },
+            { concurrency: 10 },
+          )
+          return rows.filter((row) => row !== undefined)
+        },
+        delete: effect ({ output }) => {
+          iam
+            .deleteServerCertificate({
+              ServerCertificateName: output.serverCertificateName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

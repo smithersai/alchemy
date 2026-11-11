@@ -4,10 +4,10 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { UserFacingError } from "../UserFacingError.ts";
-import { loadConfigProvider } from "../Util/ConfigProvider.ts";
-import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.ts";
-import { cacheUntilExpiry } from "./CredentialsCache.ts";
-import { ProfileStore, reloadProviderConfig, SuppressMissingProviderConfig } from "./Profile.ts";
+import { loadConfigProvider } from "../Util/ConfigProvider.vibe";
+import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.vibe";
+import { cacheUntilExpiry } from "./CredentialsCache.vibe";
+import { ProfileStore, reloadProviderConfig, SuppressMissingProviderConfig } from "./Profile.vibe";
 
 /**
  * Resolve the selected Alchemy profile after the command's dotenv provider is
@@ -183,6 +183,7 @@ export const orDieCredentialsUnavailable =
  *     ),
  *   );
  * ```
+ * @throws {never}
  */
 export const lazyCredentials = <Resolved, E = CredentialsUnavailable>() =>
   Effect.fn("lazyCredentials")(function* <A>(

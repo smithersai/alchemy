@@ -1,0 +1,76 @@
+import * as AWS from "@alchemy.run/aws"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { LinkNotFound, Links, LinkStoreError, newCode, type Link } from "./Links.vibe"
+
+/** `Links` stored in a DynamoDB table that this Layer owns. Reads are strongly consistent. */
+export const LinksDynamo = Layer.effect(
+  Links,
+  effect {
+    const table = try AWS.DynamoDB.Table("LinksTable", {
+      partitionKey: "code",
+      attributes: { code: "S" },
+    })
+    const getItem = try AWS.DynamoDB.GetItem(table)
+    const putItem = try AWS.DynamoDB.PutItem(table)
+    const scan = try AWS.DynamoDB.Scan(table)
+
+    const toItem = (link: Link) => ({
+      code: { S: link.code },
+      link: { S: JSON.stringify(link) },
+    })
+    const fromItem = (item: { link?: { S?: string } }) =>
+      Effect.orDie(Effect.try({ try: () => JSON.parse(item.link!.S!) as Link, catch: (e) => e }))
+
+    const get = effect (code: string) => {
+      const { Item } = try getItem({ Key: { code: { S: code } }, ConsistentRead: true })
+      if (!Item) return try new LinkNotFound({ code })
+      return try fromItem(Item)
+    }
+
+    const storeError = (cause: unknown) => new LinkStoreError({ cause })
+
+    return {
+      create: Effect.fn(
+        effect (url: string) => {
+          const link: Link = {
+            code: try Effect.orDie(Effect.try({ try: () => newCode(), catch: (e) => e })),
+            url,
+            createdAt: Date.now(),
+          }
+          try putItem({ Item: toItem(link) })
+          return link
+        },
+        Effect.mapError(storeError),
+      ),
+      get: (code: string) =>
+        get(code).pipe(
+          Effect.catchIf(
+            (error) => error._tag !== "LinkNotFound",
+            (cause) => Effect.fail(storeError(cause)),
+          ),
+        ),
+      list: Effect.fn(
+        effect () => {
+          const { Items } = try scan({ ConsistentRead: true })
+          const links = try Effect.forEach(Items ?? [], fromItem)
+          return links.sort((a, b) => b.createdAt - a.createdAt)
+        },
+        Effect.mapError(storeError),
+      ),
+      setPreview: (code: string, preview: Link["preview"] & {}) =>
+        get(code).pipe(
+          Effect.flatMap((link) => putItem({ Item: toItem({ ...link, preview }) })),
+          Effect.asVoid,
+          Effect.catchIf(
+            (error) => error._tag !== "LinkNotFound",
+            (cause) => Effect.fail(storeError(cause)),
+          ),
+        ),
+    }
+  },
+).pipe(
+  Layer.provide(
+    Layer.mergeAll(AWS.DynamoDB.GetItemHttp, AWS.DynamoDB.PutItemHttp, AWS.DynamoDB.ScanHttp),
+  ),
+)

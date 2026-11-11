@@ -1,11 +1,11 @@
 import { toPath } from "../FQN.ts";
 import type { BindingAction, CRUD, ActionApply, ActionDelete, Plan } from "../Plan.ts";
-import type { ProviderMode } from "../ProviderMode.ts";
+import type { ProviderMode } from "../ProviderMode.vibe";
 import {
   formatDeclaredPropertyYaml,
   formatDriftPropertyYaml,
   type DeclaredPropertyYaml,
-} from "./PropertyDiff.ts";
+} from "./PropertyDiff.vibe";
 
 export type ActionTreeItem = ActionApply | ActionDelete;
 export type ActionVerb = ActionTreeItem["action"]; // "run" | "noop" | "delete"

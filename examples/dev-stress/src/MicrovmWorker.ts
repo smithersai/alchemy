@@ -8,7 +8,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import { PORTS } from "./ports.ts";
-import { ShellMicrovm } from "./ShellImage.ts";
+import { ShellMicrovm } from "./ShellImage.vibe";
 // <<VM_IMPORTS>>
 // <</VM_IMPORTS>>
 

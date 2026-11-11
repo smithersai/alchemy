@@ -1,0 +1,290 @@
+import * as healthcare from "@distilled.cloud/gcp/healthcare_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  decodeDataId,
+  encodeDataId,
+  expandParent,
+  hasOwnedDataId,
+  listAlchemyConsentStores,
+  normalizeLocation,
+  parseResourceName,
+  retryTransient,
+  sameJson,
+  sameText,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type DatasetsConsentStoresUserDataMappingProps = {
+  /**
+   * Parent consent store. Full name
+   * `.../consentStores/{consentStore}` or the store id (combined with
+   * `dataset` and `location`). Immutable — changing it replaces the
+   * mapping.
+   */
+  consentStore: string
+  /**
+   * Parent dataset used when `consentStore` is a bare id.
+   */
+  dataset?: string
+  /**
+   * Region used when `consentStore` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User UUID supplied by the client.
+   */
+  userId: string
+  /**
+   * Unique identifier for the mapped resource. User data mappings have
+   * no labels field, so Alchemy prefixes `dataId` with `alc-{id}-` and
+   * strips it from attributes.
+   */
+  dataId: string
+  /**
+   * Single-valued resource attributes.
+   */
+  resourceAttributes?: healthcare.Attribute[]
+}
+
+export type DatasetsConsentStoresUserDataMapping = Resource<
+  "GCP.Healthcare.DatasetsConsentStoresUserDataMapping",
+  DatasetsConsentStoresUserDataMappingProps,
+  {
+    /** Full resource name `.../userDataMappings/{userDataMapping}`. */
+    name: string
+    /** Server-assigned mapping id. */
+    userDataMappingId: string
+    /** Parent consent store resource name. */
+    consentStore: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User id. */
+    userId: string | undefined
+    /** Mapped resource id with the Alchemy prefix stripped. */
+    dataId: string | undefined
+    /** Resource attributes. */
+    resourceAttributes: healthcare.Attribute[] | undefined
+    /** Whether the mapping is archived. */
+    archived: boolean
+    /** RFC3339 archive time. */
+    archiveTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * Maps a resource to a user and consent attributes.
+ *
+ * Mapping ids are server-assigned. `userId`, `dataId`, and resource
+ * attributes update in place. Ownership is stamped into `dataId`.
+ *
+ * ### Creating a User Data Mapping
+ * **Example:** Map a FHIR resource to a user
+ * ```typescript
+ * const mapping = yield* GCP.Healthcare.DatasetsConsentStoresUserDataMapping(
+ *   "Chart",
+ *   {
+ *     consentStore: store.name,
+ *     userId: "user-123",
+ *     dataId: "Patient/abc",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category Healthcare
+ */
+export const DatasetsConsentStoresUserDataMapping = Resource<DatasetsConsentStoresUserDataMapping>(
+  "GCP.Healthcare.DatasetsConsentStoresUserDataMapping",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetsConsentStoresUserDataMappingNotResolved extends Data.TaggedError(
+  "GCP.Healthcare.DatasetsConsentStoresUserDataMappingNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const storeOf = (
+  consentStore: string,
+  project: string,
+  location: string,
+  dataset: string | undefined,
+): infer _ => {
+  if (consentStore.includes("/")) return consentStore.replace(/\/+$/, "")
+  if (dataset === undefined) {
+    return expandParent(consentStore, project, location, "consentStores")
+  }
+  const datasetName = expandParent(dataset, project, location, "datasets")
+  return `${datasetName}/consentStores/${consentStore}`
+}
+
+const toAttrs = (mapping: healthcare.UserDataMapping, project: string, region: string): infer _ => {
+  const name = mapping.name ?? ""
+  const parsed = parseResourceName(name, "userDataMappings", region)
+  return {
+    name,
+    userDataMappingId: parsed.id,
+    consentStore: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    userId: mapping.userId,
+    dataId: decodeDataId(mapping.dataId),
+    resourceAttributes: mapping.resourceAttributes,
+    archived: mapping.archived === true,
+    archiveTime: mapping.archiveTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : healthcare
+  .getProjectsLocationsDatasetsConsentStoresUserDataMappings({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const DatasetsConsentStoresUserDataMappingProvider = (): infer _ =>
+  Provider.succeed(DatasetsConsentStoresUserDataMapping, {
+    stables: ["name", "userDataMappingId", "consentStore", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousParent = olds?.consentStore ?? output?.consentStore
+      const nextParent = storeOf(
+        resolved.consentStore,
+        env.project,
+        try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(resolved.location ?? output?.location, env.region),
+            catch: (e) => e,
+          }),
+        ),
+        resolved.dataset,
+      )
+      if (previousParent !== undefined && previousParent !== nextParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try getByName(output?.name ?? "")
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try Effect.orDie(Effect.try({ try: () => hasOwnedDataId(existing.dataId), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const stores = try listAlchemyConsentStores(env.project, env.region)
+      const mappings = try Effect.forEach(
+        stores,
+        effect (store) =>
+          try collectPages(
+            healthcare.listProjectsLocationsDatasetsConsentStoresUserDataMappings.pages({
+              parent: store.name ?? "",
+              pageSize: 1000,
+            }),
+            (page) => page.userDataMappings,
+          ),
+        { concurrency: 4 },
+      )
+      return mappings
+        .flat()
+        .filter((mapping) => hasOwnedDataId(mapping.dataId))
+        .map((mapping) => toAttrs(mapping, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const consentStore = storeOf(news.consentStore, env.project, location, news.dataset)
+      const ownership = try createInternalLabels(id)
+      const dataId = try Effect.orDie(Effect.try({ try: () => encodeDataId(ownership, news.dataId), catch: (e) => e }))
+
+      let current = try getByName(output?.name ?? "")
+
+      if (current === undefined) {
+        current = try retryTransient(
+          healthcare.createProjectsLocationsDatasetsConsentStoresUserDataMappings({
+            parent: consentStore,
+            body: {
+              userId: news.userId,
+              dataId,
+              resourceAttributes: news.resourceAttributes,
+            },
+          }),
+        )
+      }
+
+      if (current === undefined) {
+        throw new DatasetsConsentStoresUserDataMappingNotResolved({
+          resourceName: consentStore,
+        })
+      }
+
+      const currentName = current.name ?? output?.name ?? ""
+      const userChanged = !sameText(current.userId, news.userId)
+      const dataChanged = !sameText(current.dataId, dataId)
+      const attrsChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.resourceAttributes, news.resourceAttributes),
+          catch: (e) => e,
+        }),
+      ))
+
+      if (userChanged || dataChanged || attrsChanged) {
+        current = try retryTransient(
+          healthcare.patchProjectsLocationsDatasetsConsentStoresUserDataMappings({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  userChanged ? "userId" : undefined,
+                  dataChanged ? "dataId" : undefined,
+                  attrsChanged ? "resourceAttributes" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: {
+              userId: news.userId,
+              dataId,
+              resourceAttributes: news.resourceAttributes,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryTransient(
+        healthcare.deleteProjectsLocationsDatasetsConsentStoresUserDataMappings({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

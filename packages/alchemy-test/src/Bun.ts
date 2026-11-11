@@ -8,7 +8,7 @@ import type { Stage } from "alchemy/Stage";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Scope from "effect/Scope";
-import * as Core from "./Core.ts";
+import * as Core from "./Core.vibe";
 
 export {
   executeWhenReady,
@@ -19,7 +19,7 @@ export {
   WorkerNotReady,
   type EdgeGuardOptions,
   type WhenReadyOptions,
-} from "./Http.ts";
+} from "./Http.vibe";
 
 export type MakeOptions<ROut = any> = Core.MakeOptions<ROut>;
 export type ScratchStack = Core.ScratchStack;

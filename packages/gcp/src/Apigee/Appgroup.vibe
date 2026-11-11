@@ -1,0 +1,292 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { lastSegment, orgParent, resolveOrgId, sameJson, toPhysicalId } from "./operations.vibe"
+import { fromAttributes, toAttributes, userAttributeList, type Attribute } from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 255
+
+export type AppgroupProps = {
+  /**
+   * Apigee organization id. Defaults to the GCP project id. Immutable.
+   */
+  organizationId?: string
+  /**
+   * AppGroup name (`A-Z0-9._-$ %`). If omitted, a unique name is
+   * generated. Immutable.
+   */
+  appgroupId?: string
+  /**
+   * Name shown in the UI.
+   */
+  displayName?: string
+  /**
+   * Contact email for the AppGroup.
+   */
+  email?: string
+  /**
+   * Channel identifier of the owner maintaining this grouping.
+   */
+  channelId?: string
+  /**
+   * Reference to the associated storefront or marketplace.
+   */
+  channelUri?: string
+  /**
+   * `active` or `inactive`. Status is synced via the update `action`
+   * query parameter.
+   * @default "active"
+   */
+  status?: string
+  /**
+   * Customer attributes. Alchemy ownership attributes are merged in
+   * automatically so `list` / nuke can find the group.
+   */
+  attributes?: Attribute[]
+}
+
+export type Appgroup = Resource<
+  "GCP.Apigee.Appgroup",
+  AppgroupProps,
+  {
+    /** Full resource name `organizations/{org}/appgroups/{appgroup}`. */
+    name: string
+    /** AppGroup id. */
+    appgroupId: string
+    /** Organization id. */
+    organizationId: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Contact email. */
+    email: string | undefined
+    /** Channel id. */
+    channelId: string | undefined
+    /** Channel URI. */
+    channelUri: string | undefined
+    /** `active` or `inactive`. */
+    status: string | undefined
+    /** User attributes (Alchemy ownership attributes stripped). */
+    attributes: Attribute[]
+    /** Internal AppGroup id. */
+    appGroupId: string | undefined
+    /** Creation time in milliseconds since epoch. */
+    createdAt: string | undefined
+    /** Last modification time in milliseconds since epoch. */
+    lastModifiedAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Apigee AppGroup — a logical grouping of apps that share credentials.
+ *
+ * AppGroups have no labels field. Alchemy stamps ownership into
+ * attributes so `list` / nuke can find them. The name is immutable.
+ *
+ * ### Creating an AppGroup
+ * **Example:** Generated name
+ * ```typescript
+ * const group = yield* GCP.Apigee.Appgroup("Partners", {
+ *   displayName: "Partners",
+ *   email: "partners@example.com",
+ * });
+ * ```
+ *
+ * **Example:** Inactive group
+ * ```typescript
+ * const group = yield* GCP.Apigee.Appgroup("Partners", {
+ *   appgroupId: "partners",
+ *   status: "inactive",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const Appgroup = Resource<Appgroup>("GCP.Apigee.Appgroup")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppgroupNotResolved extends Data.TaggedError("GCP.Apigee.AppgroupNotResolved")<{
+  resourceName: string
+}> {}
+
+const resourceName = (organizationId: string, appgroupId: string): infer _ =>
+  `${orgParent(organizationId)}/appgroups/${appgroupId}`
+
+const toAttrs = (
+  group: apigee.GoogleCloudApigeeV1AppGroup,
+  project: string,
+  organizationId: string,
+): infer _ => {
+  const appgroupId = lastSegment(group.name ?? "")
+  const attributes = userAttributeList(group.attributes)
+  return {
+    name: resourceName(organizationId, appgroupId),
+    appgroupId,
+    organizationId: group.organization ?? organizationId,
+    project,
+    displayName: group.displayName,
+    email: group.email,
+    channelId: group.channelId,
+    channelUri: group.channelUri,
+    status: group.status,
+    attributes,
+    appGroupId: group.appGroupId,
+    createdAt: group.createdAt,
+    lastModifiedAt: group.lastModifiedAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsAppgroups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const AppgroupProvider = (): infer _ =>
+  Provider.succeed(Appgroup, {
+    stables: ["name", "appgroupId", "organizationId", "project", "appGroupId", "createdAt"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.appgroupId ?? output?.appgroupId
+      const previousOrg = olds?.organizationId ?? output?.organizationId
+      if (
+        (previousId !== undefined
+          && resolved.appgroupId !== undefined
+          && resolved.appgroupId !== previousId)
+        || (previousOrg !== undefined
+          && resolved.organizationId !== undefined
+          && resolved.organizationId !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = olds?.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const appgroupId = try toPhysicalId(
+        id,
+        olds?.appgroupId,
+        output?.appgroupId,
+        MAX_NAME_LENGTH,
+      )
+      const name = output?.name ?? resourceName(organizationId, appgroupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, organizationId)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => fromAttributes(existing.attributes), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organizationId = try resolveOrgId(env.project)
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsAppgroups
+            .pages({
+              parent: try Effect.orDie(Effect.try({ try: () => orgParent(organizationId), catch: (e) => e })),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.appGroups ?? []))
+            |> Stream.filter(%, (group) => fromAttributes(group.attributes).labels["alchemy-id"] !== undefined)
+            |> Stream.map(%, (group) => toAttrs(group, env.project, organizationId))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = news.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const appgroupId = try toPhysicalId(
+        id,
+        news.appgroupId,
+        output?.appgroupId,
+        MAX_NAME_LENGTH,
+      )
+      const name = resourceName(organizationId, appgroupId)
+      const ownership = try createInternalLabels(id)
+      const desiredAttributes = try Effect.orDie(
+        Effect.try({ try: () => toAttributes(ownership, news.attributes), catch: (e) => e }),
+      )
+      const desiredStatus = news.status ?? "active"
+      const body: apigee.GoogleCloudApigeeV1AppGroup = {
+        name: appgroupId,
+        displayName: news.displayName ?? appgroupId,
+        email: news.email,
+        channelId: news.channelId,
+        channelUri: news.channelUri,
+        attributes: desiredAttributes,
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsAppgroups({
+            parent: orgParent(organizationId),
+            body,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppgroupNotResolved({ resourceName: name })
+      }
+
+      const needsUpdate = (current.displayName ?? "") !== (body.displayName ?? "")
+        || (current.email ?? "") !== (news.email ?? "")
+        || (current.channelId ?? "") !== (news.channelId ?? "")
+        || (current.channelUri ?? "") !== (news.channelUri ?? "")
+        || !(try Effect.orDie(
+          Effect.try({ try: sameJson.bind(undefined, current.attributes ?? [], desiredAttributes), catch: (e) => e }),
+        ))
+
+      if (needsUpdate) {
+        current = try apigee.updateOrganizationsAppgroups({
+          name,
+          body,
+        })
+      }
+
+      if ((current.status ?? "active") !== desiredStatus) {
+        current = try apigee.updateOrganizationsAppgroups({
+          name,
+          action: desiredStatus,
+        })
+      }
+
+      return toAttrs(current, env.project, organizationId)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsAppgroups({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

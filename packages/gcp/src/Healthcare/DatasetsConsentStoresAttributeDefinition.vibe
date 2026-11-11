@@ -1,0 +1,344 @@
+import * as healthcare from "@distilled.cloud/gcp/healthcare_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  encodeOwnership,
+  expandParent,
+  hasOwnershipMarker,
+  listAlchemyConsentStores,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalSnake,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type DatasetsConsentStoresAttributeDefinitionProps = {
+  /**
+   * Parent consent store. Full name
+   * `.../consentStores/{consentStore}` or the store id (combined with
+   * `dataset` and `location`). Immutable — changing it replaces the
+   * definition.
+   */
+  consentStore: string
+  /**
+   * Parent dataset used when `consentStore` is a bare id.
+   */
+  dataset?: string
+  /**
+   * Region used when `consentStore` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Attribute definition id. Must match letters, digits, and
+   * underscores; cannot be a CEL reserved keyword. Immutable — changing
+   * it replaces the definition.
+   */
+  attributeDefinitionId?: string
+  /**
+   * Attribute category. Immutable — changing it replaces the definition.
+   */
+  category: healthcare.AttributeDefinitionCategoryEnum | (string & {})
+  /**
+   * Allowed values. The list can only be expanded after creation.
+   */
+  allowedValues: string[]
+  /**
+   * Human-readable description. Attribute definitions have no labels
+   * field, so Alchemy ownership is stored in a `[alchemy …]` prefix and
+   * stripped from attributes.
+   */
+  description?: string
+  /**
+   * Default values applied to Consents that omit this attribute.
+   */
+  consentDefaultValues?: string[]
+  /**
+   * Default value applied to User data mappings (RESOURCE category).
+   */
+  dataMappingDefaultValue?: string
+}
+
+export type DatasetsConsentStoresAttributeDefinition = Resource<
+  "GCP.Healthcare.DatasetsConsentStoresAttributeDefinition",
+  DatasetsConsentStoresAttributeDefinitionProps,
+  {
+    /** Full resource name `.../attributeDefinitions/{attributeDefinition}`. */
+    name: string
+    /** Attribute definition id. */
+    attributeDefinitionId: string
+    /** Parent consent store resource name. */
+    consentStore: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Attribute category. */
+    category: string
+    /** Allowed values. */
+    allowedValues: string[]
+    /** Description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Default Consent values. */
+    consentDefaultValues: string[] | undefined
+    /** Default User data mapping value. */
+    dataMappingDefaultValue: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A client-defined consent attribute in a consent store.
+ *
+ * Consent store, id, and category are immutable. Allowed values can only
+ * grow. Description, consent defaults, and data-mapping default update
+ * in place. Ownership is stamped into `description`.
+ *
+ * ### Creating an Attribute Definition
+ * **Example:** Resource attribute
+ * ```typescript
+ * const attr = yield* GCP.Healthcare.DatasetsConsentStoresAttributeDefinition(
+ *   "DataType",
+ *   {
+ *     consentStore: store.name,
+ *     category: "RESOURCE",
+ *     allowedValues: ["fhir", "dicom"],
+ *     description: "data modality",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category Healthcare
+ */
+export const DatasetsConsentStoresAttributeDefinition = Resource<DatasetsConsentStoresAttributeDefinition>(
+  "GCP.Healthcare.DatasetsConsentStoresAttributeDefinition",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetsConsentStoresAttributeDefinitionNotResolved extends Data.TaggedError(
+  "GCP.Healthcare.DatasetsConsentStoresAttributeDefinitionNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const storeOf = (
+  consentStore: string,
+  project: string,
+  location: string,
+  dataset: string | undefined,
+): infer _ => {
+  if (consentStore.includes("/")) return consentStore.replace(/\/+$/, "")
+  if (dataset === undefined) {
+    return expandParent(consentStore, project, location, "consentStores")
+  }
+  const datasetName = expandParent(dataset, project, location, "datasets")
+  return `${datasetName}/consentStores/${consentStore}`
+}
+
+const resourceName = (consentStore: string, attributeDefinitionId: string): infer _ =>
+  `${consentStore}/attributeDefinitions/${attributeDefinitionId}`
+
+const toAttrs = (definition: healthcare.AttributeDefinition, project: string, region: string): infer _ => {
+  const name = definition.name ?? ""
+  const parsed = parseResourceName(name, "attributeDefinitions", region)
+  const ownership = parseOwnership(definition.description)
+  return {
+    name,
+    attributeDefinitionId: parsed.id,
+    consentStore: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    category: definition.category ?? "CATEGORY_UNSPECIFIED",
+    allowedValues: definition.allowedValues ?? [],
+    description: ownership.text,
+    consentDefaultValues: definition.consentDefaultValues,
+    dataMappingDefaultValue: definition.dataMappingDefaultValue,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : healthcare
+  .getProjectsLocationsDatasetsConsentStoresAttributeDefinitions({
+    name,
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const DatasetsConsentStoresAttributeDefinitionProvider = (): infer _ =>
+  Provider.succeed(DatasetsConsentStoresAttributeDefinition, {
+    stables: ["name", "attributeDefinitionId", "consentStore", "project", "location", "category"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousCategory = olds?.category ?? output?.category
+      const extra = previousCategory !== undefined && previousCategory !== resolved.category
+      const input = {
+        previousId: olds?.attributeDefinitionId ?? output?.attributeDefinitionId,
+        nextId: resolved.attributeDefinitionId,
+        previousParent: olds?.consentStore ?? output?.consentStore,
+        nextParent: storeOf(
+          resolved.consentStore,
+          env.project,
+          normalizeLocation(resolved.location ?? output?.location, env.region),
+          resolved.dataset,
+        ),
+        extra,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const attributeDefinitionId = try toPhysicalSnake(
+        id,
+        olds?.attributeDefinitionId,
+        output?.attributeDefinitionId,
+      )
+      const consentStore = olds?.consentStore !== undefined
+        ? storeOf(olds.consentStore, env.project, location, olds.dataset)
+        : (output?.consentStore ?? "")
+      const name = output?.name
+        ?? (consentStore.length > 0 ? resourceName(consentStore, attributeDefinitionId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const stores = try listAlchemyConsentStores(env.project, env.region)
+      const definitions = try Effect.forEach(
+        stores,
+        effect (store) =>
+          try collectPages(
+            healthcare.listProjectsLocationsDatasetsConsentStoresAttributeDefinitions.pages({
+              parent: store.name ?? "",
+              pageSize: 1000,
+            }),
+            (page) => page.attributeDefinitions,
+          ),
+        { concurrency: 4 },
+      )
+      return definitions
+        .flat()
+        .filter((definition) => hasOwnershipMarker(definition.description))
+        .map((definition) => toAttrs(definition, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const consentStore = storeOf(news.consentStore, env.project, location, news.dataset)
+      const attributeDefinitionId = try toPhysicalSnake(
+        id,
+        news.attributeDefinitionId,
+        output?.attributeDefinitionId,
+      )
+      const name = output?.name ?? resourceName(consentStore, attributeDefinitionId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          healthcare.createProjectsLocationsDatasetsConsentStoresAttributeDefinitions({
+            parent: consentStore,
+            attributeDefinitionId,
+            body: {
+              category: news.category,
+              allowedValues: news.allowedValues,
+              description,
+              consentDefaultValues: news.consentDefaultValues,
+              dataMappingDefaultValue: news.dataMappingDefaultValue,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DatasetsConsentStoresAttributeDefinitionNotResolved({
+          resourceName: name,
+        })
+      }
+
+      const currentName = current.name ?? name
+      const descriptionChanged = !sameText(current.description, description)
+      const allowedChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.allowedValues, news.allowedValues), catch: (e) => e }),
+      ))
+      const consentDefaultChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.consentDefaultValues, news.consentDefaultValues),
+          catch: (e) => e,
+        }),
+      ))
+      const mappingDefaultChanged = !sameText(
+        current.dataMappingDefaultValue,
+        news.dataMappingDefaultValue,
+      )
+
+      if (descriptionChanged || allowedChanged || consentDefaultChanged || mappingDefaultChanged) {
+        current = try retryTransient(
+          healthcare.patchProjectsLocationsDatasetsConsentStoresAttributeDefinitions({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  descriptionChanged ? "description" : undefined,
+                  allowedChanged ? "allowedValues" : undefined,
+                  consentDefaultChanged ? "consentDefaultValues" : undefined,
+                  mappingDefaultChanged ? "dataMappingDefaultValue" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: {
+              description,
+              allowedValues: news.allowedValues,
+              consentDefaultValues: news.consentDefaultValues,
+              dataMappingDefaultValue: news.dataMappingDefaultValue,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryTransient(
+        healthcare.deleteProjectsLocationsDatasetsConsentStoresAttributeDefinitions({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

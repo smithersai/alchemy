@@ -1,0 +1,49 @@
+import * as Effect from "effect/Effect"
+
+/**
+ * Shared scaffolding for Cognito's grouped HTTP bindings.
+ *
+ * NOT exported from `index.ts`. Unlike services whose capabilities are one
+ * operation per `Binding.Service`, Cognito's runtime bindings are grouped
+ * clients (`UserPoolAuth`, `UserPoolAdmin`, `IdentityPoolAuth`,
+ * `IdentityPoolAdmin`) — many operations sharing one bound resource. The
+ * boilerplate factored here is the per-method wrapper: a traced `Effect.fn`
+ * named `{binding}.{method}({logicalId})` that injects the bound resource's
+ * resolved identifier (`UserPoolId` / `ClientId` / `IdentityPoolId`) into
+ * every request before calling the distilled operation.
+ */
+export const cognitoMethods = (bindingId: string, logicalId: string): infer _ => ({
+  /**
+   * Build a client method that merges the resolved identifier field(s) in
+   * `inject` into every request. The exposed request type is the distilled
+   * request with the injected keys omitted.
+   */
+  injecting:
+    <I extends object>(inject: I!!): infer _ =>
+    <A extends I, O, E>(
+      name: string,
+      op: (input: A) => O!E,
+    ): (request: Omit<A, keyof I>) => O!E =>
+    effect (request: Omit<A, keyof I>) =>
+      try withSpan(
+        effect {
+          return try op({ ...request, ...(try inject) } as unknown as A)
+        },
+        `${bindingId}.${name}(${logicalId})`,
+      ),
+
+  /** Build a client method that passes the request through unchanged
+   * (operations authorized purely by an access token in the request). */
+  plain:
+    <A, O, E>(
+      name: string,
+      op: (input: A) => O!E,
+    ): (request: A) => O!E =>
+    effect (request: A) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `${bindingId}.${name}(${logicalId})`,
+      ),
+})

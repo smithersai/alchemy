@@ -1,2 +1,2 @@
-export * from "./Snippet.ts";
-export * from "./SnippetRules.ts";
+export * from "./Snippet.vibe";
+export * from "./SnippetRules.vibe";

@@ -1,0 +1,436 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
+import * as kinesis from "@distilled.cloud/aws/kinesis"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import type { StreamArn } from "./Stream.vibe"
+
+export error StreamConsumerUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type ConsumerName = string
+
+export type ConsumerArn = string
+
+export type ConsumerStatus = "CREATING" | "DELETING" | "ACTIVE"
+
+export interface StreamConsumerProps {
+  /**
+   * ARN of the stream that owns the consumer.
+   */
+  streamArn: Input<StreamArn>
+  /**
+   * Name of the stream consumer.
+   * @default ${app}-${stage}-${id}
+   */
+  consumerName?: string
+  /**
+   * Tags to associate with the consumer.
+   */
+  tags?: Record<string, string>
+}
+
+export interface StreamConsumer extends
+  Resource<
+    "AWS.Kinesis.StreamConsumer",
+    StreamConsumerProps,
+    {
+      /**
+       * The consumer's physical name.
+       */
+      consumerName: ConsumerName
+      /**
+       * ARN of the registered consumer.
+       */
+      consumerArn: ConsumerArn
+      /**
+       * Current lifecycle status of the consumer.
+       */
+      consumerStatus: ConsumerStatus
+      /**
+       * ARN of the stream the consumer is registered on.
+       */
+      streamArn: StreamArn
+      /**
+       * When the consumer was registered.
+       */
+      consumerCreationTimestamp: Date
+      /**
+       * Current tags reported for the consumer.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A registered Kinesis enhanced fan-out consumer.
+ *
+ * `StreamConsumer` is the canonical lifecycle resource for
+ * `RegisterStreamConsumer` / `DeregisterStreamConsumer`.
+ * ### Creating Consumers
+ * **Example:** Register a Consumer
+ * ```typescript
+ * const consumer = yield* StreamConsumer("AnalyticsConsumer", {
+ *   streamArn: stream.streamArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const StreamConsumer = Resource<StreamConsumer>("AWS.Kinesis.StreamConsumer")
+
+const createConsumerName = effect (
+  id: string,
+  props: {
+    consumerName?: string | undefined
+  },
+) => {
+  if (props.consumerName) {
+    return props.consumerName
+  }
+  return try createPhysicalName({
+    id,
+    maxLength: 128,
+  })
+}
+
+const toTagRecord = (tags: Array<{ Key: string; Value?: string }> | undefined): infer _ =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter((tag): tag is { Key: string; Value: string } => typeof tag.Value === "string")
+      .map((tag) => [tag.Key, tag.Value]),
+  )
+
+const toAttrs = ({
+  description,
+  tags,
+}: {
+  description: kinesis.ConsumerDescription
+  tags: Record<string, string>
+}): StreamConsumer["Attributes"] => ({
+  consumerName: description.ConsumerName,
+  consumerArn: description.ConsumerARN,
+  consumerStatus: description.ConsumerStatus as ConsumerStatus,
+  streamArn: description.StreamARN as StreamArn,
+  consumerCreationTimestamp: description.ConsumerCreationTimestamp,
+  tags,
+})
+
+const readConsumer = effect ({
+  streamArn,
+  consumerName,
+  consumerArn,
+}: {
+  streamArn?: string
+  consumerName?: string
+  consumerArn?: string
+}) => {
+  const response = kinesis
+    .describeStreamConsumer({
+      StreamARN: streamArn,
+      ConsumerName: consumerName,
+      ConsumerARN: consumerArn,
+    }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: undefined;
+      default: throw e;
+    }
+
+  if (!response) {
+    return undefined
+  }
+
+  const description = response.ConsumerDescription
+  const tagsResponse = try kinesis.listTagsForResource({
+    ResourceARN: description.ConsumerARN,
+  })
+
+  return toAttrs({
+    description,
+    tags: toTagRecord(tagsResponse.Tags),
+  })
+}
+
+// Kinesis tells us "in use" via ResourceInUseException, but the consumer
+// registry is eventually consistent — describeStreamConsumer can briefly
+// return ResourceNotFoundException for a consumer the registry just
+// confirmed exists. Poll up to ~10s before giving up.
+class ConsumerRegistryNotConsistent extends $MutableErrorBase("ConsumerRegistryNotConsistent")<{
+  consumerName: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "ConsumerRegistryNotConsistent", true)
+  }
+}
+
+const adoptExistingConsumer = effect (streamArn: string, consumerName: string) =>
+  (effect {
+    return (try (effect {
+      const state = try readConsumer({
+        streamArn,
+        consumerName,
+      })
+
+      if (!state) {
+        throw new ConsumerRegistryNotConsistent({ consumerName })
+      }
+
+      return state
+    }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "ConsumerRegistryNotConsistent",
+        schedule: Schedule.max([Schedule.exponential(250), Schedule.recurs(8)]),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "ConsumerRegistryNotConsistent" }: throw new StreamConsumerUnexpectedResponse({
+      message: `consumer ${consumerName} exists but could not be read after `
+        + `~10s of registry-consistency retries`,
+    });
+    default: throw e;
+  }
+
+const waitForConsumerStatus = effect (consumerArn: string, expectedStatus: ConsumerStatus) =>
+  try (effect {
+    try Effect.sleep("2 seconds")
+    const response = try kinesis.describeStreamConsumer({
+      ConsumerARN: consumerArn,
+    })
+    if (response.ConsumerDescription.ConsumerStatus !== expectedStatus) {
+      throw { _tag: "ConsumerStatusNotReady" as const }
+    }
+    return response.ConsumerDescription
+  }
+    |> Effect.retry(%, {
+      while: (e: { _tag: string }) => e._tag === "ConsumerStatusNotReady" || e._tag === "ParseError",
+      schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(60)]),
+    }))
+
+const waitForConsumerDeleted = effect (consumerArn: string) =>
+  (effect {
+    try kinesis.describeStreamConsumer({
+      ConsumerARN: consumerArn,
+    })
+    throw { _tag: "ConsumerStillExists" as const }
+  }
+    |> Effect.retry(%, {
+      while: (e: { _tag: string }) => e._tag === "ConsumerStillExists" || e._tag === "ParseError",
+      schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(60)]),
+    })) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: undefined as void;
+      default: throw e;
+    }
+
+export const StreamConsumerProvider = (): infer _ =>
+  Provider.succeed(StreamConsumer, {
+    stables: ["consumerArn", "consumerName"],
+    read: effect ({ id, olds, output }) => {
+      const consumerName = output?.consumerName ?? (try createConsumerName(id, olds ?? {}))
+      const streamArn = output?.streamArn ?? olds?.streamArn
+      // describeStreamConsumer rejects with InvalidArgumentException unless
+      // either consumerARN, or both streamARN + consumerName, are provided.
+      // If the engine probed for adoption before our upstream Stream was
+      // created we'll have neither — treat that as "doesn't exist".
+      if (typeof streamArn !== "string" && !output?.consumerArn) {
+        return undefined
+      }
+      const state = try readConsumer({
+        streamArn: typeof streamArn === "string" ? streamArn : undefined,
+        consumerName,
+        consumerArn: output?.consumerArn,
+      })
+      if (!state) return undefined
+      return (try hasAlchemyTags(id, state.tags as Tags))
+        ? state
+        : try Effect.orDie(Effect.try({ try: () => Unowned(state), catch: (e) => e }))
+    },
+    diff: effect ({ id, news, olds }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      const oldConsumerName = try createConsumerName(id, olds)
+      const newConsumerName = try createConsumerName(id, resolved)
+      if (oldConsumerName !== newConsumerName) {
+        return { action: "replace" } as const
+      }
+      if (
+        typeof resolved.streamArn === "string"
+        && typeof olds.streamArn === "string"
+        && resolved.streamArn !== olds.streamArn
+      ) {
+        return { action: "replace" } as const
+      }
+    },
+    reconcile: effect ({ id, news, output, session }) => {
+      const consumerName = output?.consumerName ?? (try createConsumerName(id, news))
+      const streamArn = news.streamArn as string
+      const internalTags = try createInternalTags(id)
+      const desiredTags = { ...internalTags, ...news.tags }
+
+      // Observe — fetch live cloud state. `output` is treated as a cache
+      // for the consumer ARN; the consumer's actual existence and tags are
+      // fetched fresh so the reconciler converges regardless of drift,
+      // adoption, or a partially-completed prior run.
+      let state = try readConsumer({
+        streamArn,
+        consumerName,
+        consumerArn: output?.consumerArn,
+      })
+
+      // Ensure — register the consumer if it's missing. Tolerate
+      // `ResourceInUseException` as a race with a peer reconciler: a
+      // brief registry-consistency wait, then re-read and continue the
+      // sync path.
+      if (state === undefined) {
+        ;(effect {
+          return (try (kinesis
+            .registerStreamConsumer({
+              StreamARN: streamArn,
+              ConsumerName: consumerName,
+              Tags: desiredTags,
+            })
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ResourceNotFoundException",
+              schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+            })
+            |> Effect.asVoid(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceInUseException" }: try (adoptExistingConsumer(streamArn, consumerName)
+            |> Effect.asVoid(%));
+          default: throw e;
+        }
+
+        state = try adoptExistingConsumer(streamArn, consumerName)
+        try waitForConsumerStatus(state.consumerArn, "ACTIVE")
+
+        state = try readConsumer({
+          consumerArn: state.consumerArn,
+          streamArn,
+          consumerName,
+        })
+        if (state === undefined) {
+          throw new StreamConsumerUnexpectedResponse({
+            message: `failed to read created consumer ${consumerName}`,
+          })
+        }
+      }
+
+      // Sync tags — diff observed cloud tags against desired. Adoption
+      // may bring us a consumer that already has its own tag set; diffing
+      // against `state.tags` (fetched fresh) lets the reconciler converge
+      // ownership without fighting whatever was there before.
+      const { removed, upsert } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(state.tags, desiredTags), catch: (e) => e }),
+      )
+
+      if (removed.length > 0) {
+        try kinesis.untagResource({
+          ResourceARN: state.consumerArn,
+          TagKeys: removed,
+        })
+      }
+
+      if (upsert.length > 0) {
+        const tagsToAdd: Record<string, string> = {}
+        for (const { Key, Value } of upsert) {
+          tagsToAdd[Key] = Value
+        }
+        try kinesis.tagResource({
+          ResourceARN: state.consumerArn,
+          Tags: tagsToAdd,
+        })
+      }
+
+      // Re-read final state so the returned attributes reflect what's
+      // actually in the cloud after all sync steps.
+      const final = try readConsumer({
+        consumerArn: state.consumerArn,
+      })
+      if (!final) {
+        throw new StreamConsumerUnexpectedResponse({
+          message: `failed to read reconciled consumer ${consumerName}`,
+        })
+      }
+
+      try session.note(final.consumerArn)
+      return final
+    },
+    delete: effect ({ output }) => {
+      kinesis
+        .deregisterStreamConsumer({
+          ConsumerARN: output.consumerArn,
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined as void;
+          default: throw e;
+        }
+
+      try waitForConsumerDeleted(output.consumerArn)
+    },
+    // Consumers are stream-scoped: listStreamConsumers requires a StreamARN.
+    // Fan out — enumerate every stream in the account/region, then list the
+    // consumers registered on each stream, then hydrate tags per consumer.
+    list: effect () => {
+      const streamArns = Array.from(
+        try (kinesis.listStreams.pages({})
+          |> Stream.runCollect(%)),
+      ).flatMap((page) =>
+        (page.StreamSummaries ?? [])
+          .map((summary) => summary.StreamARN)
+          .filter((arn): arn is string => typeof arn === "string")
+      )
+
+      const consumers = (try Effect.forEach(
+        streamArns,
+        effect (streamArn) =>
+          (effect {
+            return (Array.from(
+              try (kinesis.listStreamConsumers.pages({ StreamARN: streamArn })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.Consumers ?? []).map((consumer) => ({
+                streamArn,
+                consumer,
+              }))
+            ))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: [] as {
+              streamArn: string
+              consumer: kinesis.Consumer
+            }[];
+            default: throw e;
+          },
+        { concurrency: 10 },
+      )).flat()
+
+      const hydrated = try Effect.forEach(
+        consumers,
+        effect ({ streamArn, consumer }) =>
+          (effect {
+            return ({
+              consumerName: consumer.ConsumerName,
+              consumerArn: consumer.ConsumerARN,
+              consumerStatus: consumer.ConsumerStatus as ConsumerStatus,
+              streamArn: streamArn as StreamArn,
+              consumerCreationTimestamp: consumer.ConsumerCreationTimestamp,
+              tags: toTagRecord((try kinesis.listTagsForResource({ ResourceARN: consumer.ConsumerARN })).Tags),
+            })
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          },
+        { concurrency: 10 },
+      )
+
+      return hydrated.filter((row): row is StreamConsumer["Attributes"] => row !== undefined)
+    },
+  })

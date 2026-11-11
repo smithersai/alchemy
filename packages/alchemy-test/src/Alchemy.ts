@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
-import * as Core from "./Core.ts";
+import * as Core from "./Core.vibe";
 /**
  * Test adapter for the `alchemy-test` runner (see `packages/alchemy-test`).
  *
@@ -38,7 +38,7 @@ export {
   WorkerNotReady,
   type EdgeGuardOptions,
   type WhenReadyOptions,
-} from "./Http.ts";
+} from "./Http.vibe";
 
 export type MakeOptions<ROut = any> = Core.MakeOptions<ROut>;
 export type ScratchStack = Core.ScratchStack;

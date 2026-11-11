@@ -1,4 +1,4 @@
-export * from "./Config.ts";
+export * from "./Config.vibe";
 export type {
   InferZarazEcommerceEvents,
   InferZarazEvents,
@@ -22,4 +22,4 @@ export type {
   System,
   Track,
   WebApi,
-} from "./ZarazEventTypes.ts";
+} from "./ZarazEventTypes.vibe";

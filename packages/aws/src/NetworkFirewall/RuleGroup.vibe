@@ -1,0 +1,301 @@
+import * as Effect from "effect/Effect"
+import type * as NFW from "@distilled.cloud/aws/network-firewall"
+import * as nfw from "@distilled.cloud/aws/network-firewall"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { nfwTagsToRecord, recordToNfwTags, retryWhileNfwInUse, retryWhileNfwNotFound } from "./internal.vibe"
+
+export interface RuleGroupProps {
+  /**
+   * Name of the rule group. Must be 1-128 alphanumeric characters or
+   * hyphens. If omitted, a deterministic physical name is generated.
+   * Changing the name replaces the rule group.
+   */
+  ruleGroupName?: string
+  /**
+   * Whether the rule group inspects packets on their own (`STATELESS`) or
+   * in the context of their traffic flow (`STATEFUL`). Changing the type
+   * replaces the rule group.
+   */
+  type: "STATELESS" | "STATEFUL"
+  /**
+   * Maximum operating capacity the rule group can consume when applied.
+   * Capacity cannot be changed after creation — changing it replaces the
+   * rule group.
+   */
+  capacity: number
+  /**
+   * The rule group definition (rule variables, reference sets, and the
+   * rules source). Provide either `ruleGroup` or `rules`, not both.
+   * Uses raw Network Firewall API structures.
+   */
+  ruleGroup?: NFW.RuleGroup
+  /**
+   * A string containing stateful rules in Suricata format. Provide either
+   * `rules` or `ruleGroup`, not both. Only valid for `STATEFUL` groups.
+   */
+  rules?: string
+  /**
+   * Which rule attributes (`SID`, `MSG`, `METADATA`) DescribeRuleGroupSummary
+   * includes in per-rule summaries. Only valid for `STATEFUL` groups; when
+   * omitted, summaries are not generated.
+   */
+  summaryConfiguration?: NFW.SummaryConfiguration
+  /**
+   * Human-readable description of the rule group.
+   */
+  description?: string
+  /**
+   * Tags to apply to the rule group. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface RuleGroup extends
+  Resource<
+    "AWS.NetworkFirewall.RuleGroup",
+    RuleGroupProps,
+    {
+      /** Name of the rule group. */
+      ruleGroupName: string
+      /** ARN of the rule group. */
+      ruleGroupArn: string
+      /** Server-assigned unique id of the rule group. */
+      ruleGroupId: string
+      /** Rule group type (`STATELESS` or `STATEFUL`). */
+      type: string
+      /** Reserved rule capacity of the group. */
+      capacity: number
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Network Firewall rule group — a reusable collection of stateless
+ * or stateful network traffic inspection rules referenced by
+ * {@link FirewallPolicy | firewall policies}.
+ * ### Creating Rule Groups
+ * **Example:** Stateless Rule Group
+ * ```typescript
+ * import * as NetworkFirewall from "@alchemy.run/aws/NetworkFirewall";
+ *
+ * const stateless = yield* NetworkFirewall.RuleGroup("AllowHttp", {
+ *   type: "STATELESS",
+ *   capacity: 10,
+ *   ruleGroup: {
+ *     RulesSource: {
+ *       StatelessRulesAndCustomActions: {
+ *         StatelessRules: [
+ *           {
+ *             Priority: 1,
+ *             RuleDefinition: {
+ *               Actions: ["aws:pass"],
+ *               MatchAttributes: {
+ *                 Protocols: [6],
+ *                 DestinationPorts: [{ FromPort: 80, ToPort: 80 }],
+ *               },
+ *             },
+ *           },
+ *         ],
+ *       },
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Stateful Rule Group (Suricata rules)
+ * ```typescript
+ * const stateful = yield* NetworkFirewall.RuleGroup("BlockDomains", {
+ *   type: "STATEFUL",
+ *   capacity: 100,
+ *   rules: 'drop tcp any any -> any any (msg:"drop all tcp"; sid:1; rev:1;)',
+ * });
+ * ```
+ *
+ * **Example:** Stateful Domain List
+ * ```typescript
+ * const domains = yield* NetworkFirewall.RuleGroup("DenyList", {
+ *   type: "STATEFUL",
+ *   capacity: 100,
+ *   ruleGroup: {
+ *     RulesSource: {
+ *       RulesSourceList: {
+ *         Targets: [".example.com"],
+ *         TargetTypes: ["TLS_SNI", "HTTP_HOST"],
+ *         GeneratedRulesType: "DENYLIST",
+ *       },
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const RuleGroup = Resource<RuleGroup>("AWS.NetworkFirewall.RuleGroup")
+
+export const RuleGroupProvider = (): infer _ =>
+  Provider.effect(
+    RuleGroup,
+    effect {
+      const createName = effect (id: string, props: { ruleGroupName?: string }) =>
+        props.ruleGroupName ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      const toAttrs = (response: NFW.RuleGroupResponse): RuleGroup["Attributes"] => ({
+        ruleGroupName: response.RuleGroupName,
+        ruleGroupArn: response.RuleGroupArn,
+        ruleGroupId: response.RuleGroupId,
+        type: response.Type ?? "STATEFUL",
+        capacity: response.Capacity ?? 0,
+      })
+
+      return RuleGroup.Provider.of({
+        stables: ["ruleGroupName", "ruleGroupArn", "ruleGroupId", "type"],
+
+        list: effect () => {
+          const pages = try nfw.listRuleGroups
+            .pages({ Scope: "ACCOUNT" })
+            .pipe(Stream.runCollect)
+          const metas = Array.from(pages).flatMap((page) => page.RuleGroups ?? [])
+          const items = try Effect.forEach(
+            metas,
+            effect (meta) =>
+              (effect {
+                return (toAttrs((try nfw.describeRuleGroup({ RuleGroupArn: meta.Arn })).RuleGroupResponse))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              },
+            { concurrency: 5 },
+          )
+          return items.filter((item): item is RuleGroup["Attributes"] => item !== undefined)
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const found = output?.ruleGroupArn !== undefined
+            ? nfw
+              .describeRuleGroup({ RuleGroupArn: output.ruleGroupArn }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              }
+            : nfw
+              .describeRuleGroup({
+                RuleGroupName: try createName(id, olds ?? {}),
+                Type: olds?.type,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              }
+          if (found === undefined) return undefined
+          const attrs = toAttrs(found.RuleGroupResponse)
+          const tags = nfwTagsToRecord(found.RuleGroupResponse.Tags)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName || olds.type !== news.type || olds.capacity !== news.capacity) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.ruleGroupName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags: Record<string, string> = {
+            ...news.tags,
+            ...internalTags,
+          }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = nfw
+            .describeRuleGroup({ RuleGroupName: name, Type: news.type }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
+              default: throw e;
+            }
+
+          // 2. Ensure — create if missing.
+          if (observed === undefined) {
+            try nfw.createRuleGroup({
+              RuleGroupName: name,
+              Type: news.type,
+              Capacity: news.capacity,
+              RuleGroup: news.ruleGroup,
+              Rules: news.rules,
+              Description: news.description,
+              SummaryConfiguration: news.summaryConfiguration,
+              Tags: recordToNfwTags(desiredTags),
+            })
+            observed = try (nfw
+              .describeRuleGroup({ RuleGroupName: name, Type: news.type })
+              |> retryWhileNfwNotFound(%))
+          }
+
+          // 3. Sync definition — compare desired against OBSERVED state and
+          // apply only when it differs.
+          const observedDescription = observed.RuleGroupResponse.Description
+          const definitionDiffers = (news.rules !== undefined
+            && news.rules !== observed.RuleGroup?.RulesSource?.RulesString)
+            || (news.ruleGroup !== undefined && !(try Effect.orDie(Effect.try({
+              try: () => deepEqual(news.ruleGroup, observed.RuleGroup),
+              catch: (error) => error,
+            }))))
+            || (news.summaryConfiguration !== undefined
+              && !(try Effect.orDie(Effect.try({
+                try: () => deepEqual(news.summaryConfiguration, observed.RuleGroupResponse.SummaryConfiguration),
+                catch: (error) => error,
+              }))))
+            || (news.description ?? undefined) !== observedDescription
+          if (definitionDiffers) {
+            try nfw.updateRuleGroup({
+              UpdateToken: observed.UpdateToken,
+              RuleGroupArn: observed.RuleGroupResponse.RuleGroupArn,
+              RuleGroup: news.ruleGroup,
+              Rules: news.rules,
+              Type: news.type,
+              Description: news.description,
+              SummaryConfiguration: news.summaryConfiguration,
+            })
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          const observedTags = nfwTagsToRecord(observed.RuleGroupResponse.Tags)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const arn = observed.RuleGroupResponse.RuleGroupArn
+          if (upsert.length > 0) {
+            try nfw.tagResource({ ResourceArn: arn, Tags: upsert })
+          }
+          if (removed.length > 0) {
+            try nfw.untagResource({ ResourceArn: arn, TagKeys: removed })
+          }
+
+          try session.note(name)
+          return toAttrs(observed.RuleGroupResponse)
+        },
+
+        delete: effect ({ output }) => {
+          // A rule group still referenced by a firewall policy (deleted
+          // moments ago by the engine) rejects deletion with
+          // InvalidOperationException — retry through the release window.
+          ;(effect {
+            return (try (nfw.deleteRuleGroup({ RuleGroupArn: output.ruleGroupArn })
+              |> retryWhileNfwInUse(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

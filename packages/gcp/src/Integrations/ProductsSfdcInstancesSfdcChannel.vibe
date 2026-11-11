@@ -1,0 +1,347 @@
+import * as integrations from "@distilled.cloud/gcp/integrations_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_PRODUCT,
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  normalizeLocation,
+  normalizeProduct,
+  ownedByAlchemy,
+  parseOwnership,
+  productOf,
+  productParent,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type ProductsSfdcInstancesSfdcChannelProps = {
+  /**
+   * Parent Salesforce instance resource name
+   * `projects/{project}/locations/{location}/products/{product}/sfdcInstances/{sfdcInstance}`.
+   * Immutable — changing it replaces the channel.
+   */
+  sfdcInstance: string
+  /**
+   * Channel id (the `{sfdcChannel}` segment). Server-assigned on create.
+   * Immutable — changing it replaces the channel.
+   */
+  sfdcChannelId?: string
+  /**
+   * Location used when `sfdcInstance` is a bare id. Immutable —
+   * changing it replaces the channel.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Product id used when `sfdcInstance` is a bare id. Immutable —
+   * changing it replaces the channel.
+   * @default "IP"
+   */
+  product?: string
+  /**
+   * Unique display name / alias.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Salesforce channels have no labels
+   * field, so Alchemy ownership is stored in a `[alchemy …]` prefix and
+   * stripped from attributes.
+   */
+  description?: string
+  /**
+   * Salesforce channel topic once the channel is opened.
+   */
+  channelTopic: string
+}
+
+export type ProductsSfdcInstancesSfdcChannel = Resource<
+  "GCP.Integrations.ProductsSfdcInstancesSfdcChannel",
+  ProductsSfdcInstancesSfdcChannelProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Channel id (last path segment). */
+    sfdcChannelId: string
+    /** Parent Salesforce instance resource name. */
+    sfdcInstance: string
+    /** Location id. */
+    location: string
+    /** Product id. */
+    product: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Salesforce channel topic. */
+    channelTopic: string | undefined
+    /** Whether any published integration references this channel. */
+    isActive: boolean
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A product-scoped Salesforce CDC or Platform Event channel
+ * (`.../sfdcInstances/{sfdcInstance}/sfdcChannels/{sfdcChannel}`).
+ *
+ * Channels have no labels field — Alchemy stamps ownership into the
+ * description. Parent instance and id are immutable. Display name,
+ * description, and topic update in place.
+ *
+ * ### Creating a Salesforce Channel
+ * **Example:** Platform event topic
+ * ```typescript
+ * const channel = yield* GCP.Integrations.ProductsSfdcInstancesSfdcChannel("Orders", {
+ *   sfdcInstance: sfdc.name,
+ *   displayName: "orders",
+ *   channelTopic: "/event/AlchemyOrder__e",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Integrations
+ */
+export const ProductsSfdcInstancesSfdcChannel = Resource<ProductsSfdcInstancesSfdcChannel>(
+  "GCP.Integrations.ProductsSfdcInstancesSfdcChannel",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProductsSfdcInstancesSfdcChannelNotResolved extends Data.TaggedError(
+  "GCP.Integrations.ProductsSfdcInstancesSfdcChannelNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const expandInstance = (value: string, project: string, location: string, product: string): infer _ =>
+  value.includes("/sfdcInstances/")
+    ? value
+    : `${productParent(project, location, product)}/sfdcInstances/${value}`
+
+const resourceName = (sfdcInstance: string, sfdcChannelId: string): infer _ =>
+  `${sfdcInstance}/sfdcChannels/${sfdcChannelId}`
+
+const toAttrs = (
+  channel: integrations.GoogleCloudIntegrationsV1alphaSfdcChannel,
+  project: string,
+  region: string,
+  sfdcInstance: string,
+): infer _ => {
+  const name = channel.name ?? ""
+  const parsed = parseOwnership(channel.description)
+  return {
+    name,
+    sfdcChannelId: lastSegment(name),
+    sfdcInstance,
+    location: locationOf(name, region),
+    product: productOf(name),
+    project,
+    displayName: channel.displayName,
+    description: parsed.text,
+    channelTopic: channel.channelTopic,
+    isActive: channel.isActive === true,
+    createTime: channel.createTime,
+    updateTime: channel.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
+  .getProjectsLocationsProductsSfdcInstancesSfdcChannels({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsProductsSfdcInstancesSfdcChannels
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcChannels ?? []))
+        |> Stream.filter(%, (channel) => hasOwnershipMarker(channel.description))
+        |> Stream.map(%, (channel) => toAttrs(channel, project, region, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) =>
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsProductsSfdcInstancesSfdcChannels
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcChannels ?? []))
+        |> Stream.filterEffect(%, effect (channel) => try ownedByAlchemy(id, channel.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+const listOwnedChannels = effect (project: string, location: string, product: string) => {
+  const parent = productParent(project, location, product)
+  const instances = (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsProductsSfdcInstances
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sfdcInstances ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+  const nested = try Effect.forEach(
+    instances,
+    effect (
+      instance,
+    ) => (instance.name ? try listAt(instance.name, project, location) : [] as ReturnType<typeof toAttrs>[]),
+    { concurrency: 4 },
+  )
+  return nested.flat()
+}
+
+export const ProductsSfdcInstancesSfdcChannelProvider = (): infer _ =>
+  Provider.succeed(ProductsSfdcInstancesSfdcChannel, {
+    stables: [
+      "name",
+      "sfdcChannelId",
+      "sfdcInstance",
+      "location",
+      "product",
+      "project",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousInstance = olds?.sfdcInstance ?? output?.sfdcInstance
+      if (
+        previousInstance !== undefined
+        && resolved.sfdcInstance !== previousInstance
+        && !resolved.sfdcInstance.endsWith(`/${lastSegment(previousInstance)}`)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.sfdcChannelId ?? output?.sfdcChannelId
+      if (
+        previousId !== undefined
+        && resolved.sfdcChannelId !== undefined
+        && resolved.sfdcChannelId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const product = normalizeProduct(olds?.product ?? output?.product)
+      const sfdcInstance = expandInstance(
+        olds?.sfdcInstance ?? output?.sfdcInstance ?? "",
+        env.project,
+        location,
+        product,
+      )
+      const sfdcChannelId = try toResourceId(id, olds?.sfdcChannelId, output?.sfdcChannelId)
+      const name = output?.name ?? resourceName(sfdcInstance, sfdcChannelId)
+      let existing = try getByName(name)
+      if (existing === undefined && sfdcInstance.length > 0) {
+        existing = try findOwned(sfdcInstance, id)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region, sfdcInstance)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listOwnedChannels(env.project, env.region, DEFAULT_PRODUCT)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const product = normalizeProduct(news.product ?? output?.product ?? DEFAULT_PRODUCT)
+      const sfdcInstance = expandInstance(news.sfdcInstance, env.project, location, product)
+      const sfdcChannelId = try toResourceId(id, news.sfdcChannelId, output?.sfdcChannelId)
+      const name = output?.name ?? resourceName(sfdcInstance, sfdcChannelId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? sfdcChannelId
+
+      let current = try getByName(output?.name ?? name)
+      if (current === undefined) {
+        current = try findOwned(sfdcInstance, id)
+      }
+
+      if (current === undefined) {
+        const created = integrations
+          .createProjectsLocationsProductsSfdcInstancesSfdcChannels({
+            parent: sfdcInstance,
+            body: {
+              displayName,
+              description,
+              channelTopic: news.channelTopic,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findOwned(sfdcInstance, id);
+            default: throw e;
+          }
+        current = created ?? (try findOwned(sfdcInstance, id))
+      }
+
+      if (current === undefined) {
+        throw new ProductsSfdcInstancesSfdcChannelNotResolved({
+          resourceName: name,
+        })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+      const topicChanged = !sameText(current.channelTopic, news.channelTopic)
+
+      if (displayChanged || descriptionChanged || topicChanged) {
+        current = try integrations.patchProjectsLocationsProductsSfdcInstancesSfdcChannels({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            topicChanged ? "channel_topic" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            description,
+            channelTopic: news.channelTopic,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region, sfdcInstance)
+    },
+
+    delete: effect ({ output }) => {
+      integrations
+        .deleteProjectsLocationsProductsSfdcInstancesSfdcChannels({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+    },
+  })

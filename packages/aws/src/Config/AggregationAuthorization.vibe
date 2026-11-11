@@ -1,0 +1,215 @@
+import * as Effect from "effect/Effect"
+import * as config from "@distilled.cloud/aws/config-service"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export interface AggregationAuthorizationProps {
+  /**
+   * The 12-digit account ID of the aggregator account that is authorized to
+   * collect AWS Config data from this account. Changing it replaces the
+   * authorization.
+   */
+  authorizedAccountId: string
+  /**
+   * The region of the aggregator account that is authorized to collect AWS
+   * Config data from this account. Changing it replaces the authorization.
+   */
+  authorizedAwsRegion: string
+  /**
+   * Tags to apply to the authorization. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface AggregationAuthorization extends
+  Resource<
+    "AWS.Config.AggregationAuthorization",
+    AggregationAuthorizationProps,
+    {
+      /** ARN of the aggregation authorization. */
+      aggregationAuthorizationArn: string
+      /** The aggregator account authorized to collect data. */
+      authorizedAccountId: string
+      /** The aggregator region authorized to collect data. */
+      authorizedAwsRegion: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Config aggregation authorization that grants an aggregator account
+ * in a specific region permission to collect AWS Config configuration and
+ * compliance data from this account.
+ *
+ * The authorization's identity is the `(account, region)` pair — changing
+ * either replaces it.
+ * ### Authorizing an Aggregator
+ * **Example:** Authorize an aggregator account
+ * ```typescript
+ * import * as Config from "@alchemy.run/aws/Config";
+ *
+ * const authorization = yield* Config.AggregationAuthorization(
+ *   "OrgAggregator",
+ *   {
+ *     authorizedAccountId: "123456789012",
+ *     authorizedAwsRegion: "us-east-1",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ */
+export const AggregationAuthorization = Resource<AggregationAuthorization>(
+  "AWS.Config.AggregationAuthorization",
+)
+
+export const AggregationAuthorizationProvider = (): infer _ =>
+  Provider.effect(
+    AggregationAuthorization,
+    effect {
+      // There is no Get API — enumerate and match on the (account, region)
+      // identity pair.
+      const observeAuthorization = effect (accountId: string, region: string) =>
+        try effect {
+          const head = try (config.describeAggregationAuthorizations.items({})
+            |> Stream.filter(
+              %,
+              (auth) => auth.AuthorizedAccountId === accountId && auth.AuthorizedAwsRegion === region,
+            )
+            |> Stream.runHead(%))
+          return (head._tag === "Some" ? head.value : undefined)
+        }
+
+      const observedTags = effect (arn: string) =>
+        (effect {
+          return (Object.fromEntries(
+            ((try config.listTagsForResource({ ResourceArn: arn })).Tags ?? []).flatMap((
+              t,
+            ) => (t.Key !== undefined ? [[t.Key, t.Value ?? ""]] : [])),
+          ))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
+          default: throw e;
+        }
+
+      const toAttrs = (auth: config.AggregationAuthorization): infer _ => ({
+        aggregationAuthorizationArn: auth.AggregationAuthorizationArn!,
+        authorizedAccountId: auth.AuthorizedAccountId!,
+        authorizedAwsRegion: auth.AuthorizedAwsRegion!,
+      })
+
+      return AggregationAuthorization.Provider.of({
+        stables: ["aggregationAuthorizationArn", "authorizedAccountId", "authorizedAwsRegion"],
+        list: effect () =>
+          Array.from(
+            try (config.describeAggregationAuthorizations.items({})
+              |> Stream.runCollect(%)),
+          ).flatMap((auth) =>
+            auth.AggregationAuthorizationArn
+              && auth.AuthorizedAccountId
+              && auth.AuthorizedAwsRegion
+              ? [toAttrs(auth)]
+              : []
+          ),
+        read: effect ({ id, olds, output }) => {
+          const accountId = output?.authorizedAccountId ?? olds?.authorizedAccountId
+          const region = output?.authorizedAwsRegion ?? olds?.authorizedAwsRegion
+          if (accountId === undefined || region === undefined) {
+            return undefined
+          }
+          const auth = try observeAuthorization(accountId, region)
+          if (auth?.AggregationAuthorizationArn === undefined) {
+            return undefined
+          }
+          const attrs = toAttrs(auth)
+          const tags = try observedTags(auth.AggregationAuthorizationArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+        // The (account, region) pair IS the resource identity — any change
+        // replaces it. Tags remain updatable in place.
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          if (
+            olds.authorizedAccountId !== news.authorizedAccountId
+            || olds.authorizedAwsRegion !== news.authorizedAwsRegion
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          let live = try observeAuthorization(
+            news.authorizedAccountId,
+            news.authorizedAwsRegion,
+          )
+
+          // 2. ENSURE — PutAggregationAuthorization is idempotent: it
+          //    creates when missing and is a no-op when present (create-time
+          //    tags on an existing authorization are ignored, so tags are
+          //    synced separately below).
+          if (live === undefined) {
+            live = (try config
+              .putAggregationAuthorization({
+                AuthorizedAccountId: news.authorizedAccountId,
+                AuthorizedAwsRegion: news.authorizedAwsRegion,
+                Tags: createTagsList(desiredTags),
+              })).AggregationAuthorization
+          }
+
+          const arn = live?.AggregationAuthorizationArn
+          if (arn === undefined) {
+            // Extremely unlikely (Put returns the authorization) — fall back
+            // to a fresh observation so the attrs are never fabricated.
+            live = try observeAuthorization(news.authorizedAccountId, news.authorizedAwsRegion)
+          }
+
+          // 3. SYNC TAGS — diff against OBSERVED cloud tags so adoption
+          //    converges.
+          const finalArn = live?.AggregationAuthorizationArn
+          if (finalArn !== undefined) {
+            const currentTags = try observedTags(finalArn)
+            const { upsert, removed } = diffTags(currentTags, desiredTags)
+            if (upsert.length > 0) {
+              try config.tagResource({
+                ResourceArn: finalArn,
+                Tags: upsert,
+              })
+            }
+            if (removed.length > 0) {
+              try config.untagResource({
+                ResourceArn: finalArn,
+                TagKeys: removed,
+              })
+            }
+          }
+
+          try session.note(`${news.authorizedAccountId}/${news.authorizedAwsRegion}`)
+          return {
+            aggregationAuthorizationArn: finalArn!,
+            authorizedAccountId: news.authorizedAccountId,
+            authorizedAwsRegion: news.authorizedAwsRegion,
+          }
+        },
+        // DeleteAggregationAuthorization succeeds whether or not the
+        // authorization still exists — idempotent by design.
+        delete: effect ({ output }) => {
+          try config.deleteAggregationAuthorization({
+            AuthorizedAccountId: output.authorizedAccountId,
+            AuthorizedAwsRegion: output.authorizedAwsRegion,
+          })
+        },
+      })
+    },
+  )

@@ -1,0 +1,350 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
+import type { Credentials } from "@distilled.cloud/aws/Credentials"
+import * as ec2 from "@distilled.cloud/aws/ec2"
+import type { Region } from "@distilled.cloud/aws/Region"
+import type { HttpClient } from "effect/http/HttpClient"
+
+// Explicitly-typed pipeable retry helpers. Inlining `Effect.retry` in a
+// provider lifecycle op leaks `Retry.Return`'s conditional into declaration
+// emit and widens the provider layer to `unknown` R for every consumer of
+// `AWS.providers()`.
+const retryWhileVolumeInUse = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "VolumeInUse",
+    schedule: Schedule.max([Schedule.fixed(2000), Schedule.recurs(15)]),
+  })
+
+const retryWhileIncorrectState = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "IncorrectState",
+    schedule: Schedule.max([Schedule.fixed(2000), Schedule.recurs(10)]),
+  })
+
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import type { ScopedPlanStatusSession } from "alchemy/Report"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import type { InstanceId } from "./Instance.vibe"
+import type { VolumeId } from "./Volume.vibe"
+
+export interface VolumeAttachmentProps {
+  /**
+   * The ID of the EBS volume to attach. Required. Changing it replaces the
+   * attachment.
+   */
+  volumeId: VolumeId
+
+  /**
+   * The ID of the instance to attach the volume to. Required. Changing it
+   * replaces the attachment.
+   */
+  instanceId: InstanceId
+
+  /**
+   * The device name to expose to the instance, e.g. `/dev/sdf` (Linux) or
+   * `xvdf`. Required. Changing it replaces the attachment.
+   */
+  device: string
+
+  /**
+   * Whether to force-detach the volume on delete if a normal detach does not
+   * complete. Forcing can corrupt data if the volume is still mounted — use
+   * only when the instance is unresponsive.
+   * @default true
+   */
+  forceDetach?: boolean
+}
+
+export interface VolumeAttachment extends
+  Resource<
+    "AWS.EC2.VolumeAttachment",
+    VolumeAttachmentProps,
+    {
+      /**
+       * The ID of the attached volume.
+       */
+      volumeId: VolumeId
+
+      /**
+       * The ID of the instance the volume is attached to.
+       */
+      instanceId: InstanceId
+
+      /**
+       * The device name exposed to the instance.
+       */
+      device: string
+
+      /**
+       * The attachment state.
+       */
+      state: ec2.VolumeAttachmentState
+    },
+    never,
+    Providers
+  >
+{}
+/**
+ * Attaches an EBS {@link Volume} to an EC2 {@link Instance} at a device name.
+ * The volume and instance must be in the same Availability Zone. On delete the
+ * volume is detached (and force-detached as a fallback) before the resource is
+ * removed.
+ *
+ * This is an existence-style resource — its identity is the
+ * `volumeId`/`instanceId`/`device` triple. Changing any of them replaces the
+ * attachment.
+ *
+ * ### Attaching a Volume
+ * **Example:** Attach a Volume to an Instance
+ * ```typescript
+ * const attachment = yield* AWS.EC2.VolumeAttachment("DataAttachment", {
+ *   volumeId: volume.volumeId,
+ *   instanceId: instance.instanceId,
+ *   device: "/dev/sdf",
+ * });
+ * ```
+ *
+ * The volume appears to the instance as a block device at `device`. On modern
+ * Linux AMIs the kernel may rename `/dev/sdf` to `/dev/xvdf` — check
+ * `lsblk` inside the instance. The volume and instance must share an AZ.
+ *
+ * @resource
+ */
+export const VolumeAttachment = Resource<VolumeAttachment>("AWS.EC2.VolumeAttachment")
+
+export const VolumeAttachmentProvider = (): infer _ =>
+  Provider.effect(
+    VolumeAttachment,
+    effect {
+      return {
+        stables: ["volumeId", "instanceId", "device"],
+
+        diff: effect ({ news, olds }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (
+            olds.volumeId !== resolved.volumeId
+            || olds.instanceId !== resolved.instanceId
+            || olds.device !== resolved.device
+          ) {
+            return { action: "replace" }
+          }
+        },
+
+        reconcile: effect ({ news, session }) => {
+          // 1. OBSERVE — attachments are embedded in the volume; find one for
+          //    this instance.
+          const lookup = ec2
+            .describeVolumes({ VolumeIds: [news.volumeId] }) catch effect (e) => match (e) {
+              when { _tag: "InvalidVolume.NotFound" }: { Volumes: [] };
+              default: throw e;
+            }
+          const volume = lookup.Volumes?.[0]
+          let attachment = volume?.Attachments?.find(
+            (a) => a.InstanceId === news.instanceId && a.State !== "detaching" && a.State !== "detached",
+          )
+
+          // 2. ENSURE — attach the volume when it is not already attached to
+          //    this instance.
+          if (attachment === undefined) {
+            const result = try (ec2
+              .attachVolume({
+                VolumeId: news.volumeId,
+                InstanceId: news.instanceId,
+                Device: news.device,
+                DryRun: false,
+              })
+              |> retryWhileVolumeInUse(%))
+            try session.note(
+              `Volume ${news.volumeId} attaching to ${news.instanceId} at ${news.device}`,
+            )
+            attachment = {
+              VolumeId: result.VolumeId,
+              InstanceId: result.InstanceId,
+              Device: result.Device,
+              State: result.State,
+            }
+          }
+
+          // 3. WAIT — until the attachment is fully attached.
+          const state = try waitForAttachmentState(
+            news.volumeId,
+            news.instanceId,
+            "attached",
+            session,
+          )
+
+          return {
+            volumeId: news.volumeId,
+            instanceId: news.instanceId,
+            device: attachment.Device ?? news.device,
+            state,
+          }
+        },
+
+        // Attachments are embedded in volumes; there is no standalone
+        // enumeration keyed to this resource's identity.
+        list: effect () => [],
+
+        delete: effect ({ output, olds, session }) => {
+          const { volumeId, instanceId, device } = output
+          const force = olds?.forceDetach ?? true
+          try session.note(`Detaching volume ${volumeId} from ${instanceId}`)
+
+          // If the volume is already gone, nothing to detach.
+          const lookup = ec2
+            .describeVolumes({ VolumeIds: [volumeId] }) catch effect (e) => match (e) {
+              when { _tag: "InvalidVolume.NotFound" }: { Volumes: [] };
+              default: throw e;
+            }
+          const volume = lookup.Volumes?.[0]
+          if (!volume) {
+            return
+          }
+          const attached = volume.Attachments?.some(
+            (a) => a.InstanceId === instanceId && a.State !== "detached",
+          )
+          if (!attached) {
+            return
+          } // Normal detach, retrying while the volume is still in a transient
+          // state (attaching / busy → IncorrectState).
+          ;(effect {
+            return (try (effect {
+              return ec2
+                .detachVolume({
+                  VolumeId: volumeId,
+                  InstanceId: instanceId,
+                  Device: device,
+                  DryRun: false,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "InvalidVolume.NotFound" }: undefined as void;
+                  default: throw e;
+                }
+            }
+              |> retryWhileIncorrectState(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "IncorrectState" }: try (force
+              ? effect {
+                return ec2
+                  .detachVolume({
+                    VolumeId: volumeId,
+                    InstanceId: instanceId,
+                    Device: device,
+                    Force: true,
+                    DryRun: false,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "InvalidVolume.NotFound" }: undefined as void;
+                    when { _tag: "IncorrectState" }: undefined as void;
+                    default: throw e;
+                  }
+              }
+              : throw e);
+            default: throw e;
+          }
+
+          // Wait for the volume to return to 'available'.
+          try waitForVolumeDetached(volumeId, session)
+          try session.note(`Volume ${volumeId} detached from ${instanceId}`)
+        },
+      }
+    },
+  )
+
+class AttachmentNotReady extends $MutableErrorBase("AttachmentNotReady")<{
+  volumeId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "AttachmentNotReady", true)
+  }
+}
+
+class VolumeStillAttached extends $MutableErrorBase("VolumeStillAttached")<{
+  volumeId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "VolumeStillAttached", true)
+  }
+}
+
+/**
+ * Wait for the attachment of `volumeId` to `instanceId` to reach a target
+ * state.
+ */
+const waitForAttachmentState = effect (
+  volumeId: string,
+  instanceId: string,
+  target: ec2.VolumeAttachmentState,
+  session?: ScopedPlanStatusSession,
+): ec2.VolumeAttachmentState!(ec2.DescribeVolumesError | AttachmentNotReady)!(Credentials | Region | HttpClient) =>
+  try (effect {
+    const result = try ec2.describeVolumes({ VolumeIds: [volumeId] })
+    const attachment = result.Volumes?.[0]?.Attachments?.find((a) => a.InstanceId === instanceId)
+    const state = attachment?.State
+    if (state === target) {
+      return state
+    }
+    throw new AttachmentNotReady({
+      volumeId,
+      state: state ?? "unknown",
+    })
+  }
+    |> Effect.retry(%, {
+      while: (e) => e instanceof AttachmentNotReady,
+      schedule: Schedule.max([
+        Schedule.fixed(2000),
+        Schedule.recurs(20), // max ~40s
+      ]).pipe(
+        Schedule.tap(effect (
+          { attempt },
+        ) => (session
+          ? try session.note(`Waiting for volume attachment... (${(attempt + 1) * 2}s)`)
+          : (undefined as void))
+        ),
+      ),
+    }))
+
+/**
+ * Wait for the volume to return to `available` after a detach.
+ */
+const waitForVolumeDetached = effect (volumeId: string, session?: ScopedPlanStatusSession) =>
+  try (effect {
+    const result = ec2
+      .describeVolumes({ VolumeIds: [volumeId] }) catch effect (e) => match (e) {
+        when { _tag: "InvalidVolume.NotFound" }: { Volumes: [] };
+        default: throw e;
+      }
+    const volume = result.Volumes?.[0]
+    if (!volume || volume.State === "available") {
+      return
+    }
+    throw new VolumeStillAttached({
+      volumeId,
+      state: volume.State ?? "unknown",
+    })
+  }
+    |> Effect.retry(%, {
+      while: (e) => e instanceof VolumeStillAttached,
+      schedule: Schedule.max([
+        Schedule.fixed(2000),
+        Schedule.recurs(20), // max ~40s
+      ]).pipe(
+        Schedule.tap(effect (
+          { attempt },
+        ) => (session
+          ? try session.note(`Waiting for volume to detach... (${(attempt + 1) * 2}s)`)
+          : (undefined as void))
+        ),
+      ),
+    }))

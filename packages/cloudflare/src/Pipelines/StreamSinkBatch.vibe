@@ -1,0 +1,75 @@
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import { makeBatchedSink } from "alchemy/Util/BatchedSink"
+import type { PipelineRecord } from "cloudflare:pipelines"
+import type { NonEmptyReadonlyArray } from "effect/Array"
+import * as Layer from "effect/Layer"
+import type { Stream } from "./Stream.vibe"
+import { recordSize } from "./StreamCodec.vibe"
+import { StreamSink, type StreamSinkClient } from "./StreamSink.vibe"
+import { StreamSendError, WriteStream, type WriteStreamClient } from "./WriteStream.vibe"
+
+/**
+ * Batch packing for {@link StreamSink}. Internal — not exported from the
+ * Pipelines barrel.
+ */
+
+/** Pipelines' limit on one ingest request (5 MB), minus the array brackets. */
+export const MAX_REQUEST_BYTES = 5_000_000 - 2
+
+/**
+ * Build the sink over a `WriteStream` client: each chunk is encoded, then
+ * packed into `<= MAX_REQUEST_BYTES` requests (order preserved) and sent
+ * one `sendEncoded` per request.
+ */
+export const makeStreamSink = <A>(client: WriteStreamClient<A>): StreamSinkClient<A> =>
+  Sink.unwrap(
+    effect {
+      // BatchedSink sends without requirements; close over the runtime
+      // context the sink runs in.
+      const context = try Effect.context<RuntimeContext>()
+      return (try Effect.orDie(Effect.try({
+        try: () =>
+          makeBatchedSink<PipelineRecord, void, StreamSendError>({
+            maxRecords: Number.MAX_SAFE_INTEGER,
+            maxBytes: MAX_REQUEST_BYTES,
+            sizeOf: recordSize,
+            send: effect (batch) =>
+              try (client.sendEncoded(batch)
+                |> Effect.provideContext(%, context)),
+          }),
+        catch: (e) => e,
+      }))).pipe(
+        Sink.mapInputArrayEffect(effect (chunk: NonEmptyReadonlyArray<A>) =>
+          (try client
+            .encode(chunk)) as NonEmptyReadonlyArray<PipelineRecord>
+        ),
+        // No `unprocessed` extractor is configured, so retry exhaustion
+        // cannot occur; normalize the type anyway.
+        Sink.mapError((error) =>
+          error._tag === "BatchRetryExhaustedError"
+            ? new StreamSendError({
+              message: `${error.entries.length} records were not ingested`,
+              cause: error,
+              reason: "SendFailed",
+            })
+            : error
+        ),
+      )
+    },
+  )
+
+/**
+ * {@link StreamSink} over whichever {@link WriteStream} implementation is
+ * provided. Composed with each `WriteStream` layer in
+ * `StreamSinkBinding`, `StreamSinkHttp` and `StreamSinkLocal`.
+ */
+export const StreamSinkFromWriteStream = Layer.effect(
+  StreamSink,
+  effect {
+    const writeStream = try Effect.service(WriteStream)
+    return effect (stream: Stream<any>) => {
+      const client = try writeStream(stream)
+      return makeStreamSink(client)
+    }
+  },
+)

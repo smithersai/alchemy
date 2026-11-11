@@ -1,0 +1,55 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { regionFromArn } from "../Lambda/BindingHttp.vibe"
+import type { Bucket } from "../S3/Bucket.vibe"
+import { GrantTables } from "./BindingHttp.vibe"
+import { ExportTableToPointInTime, type ExportTableToPointInTimeRequest } from "./ExportTableToPointInTime.vibe"
+import type { Table } from "./Table.vibe"
+
+export const ExportTableToPointInTimeHttp = Layer.effect(
+  ExportTableToPointInTime,
+  effect {
+    const grantTables = try GrantTables
+    return effect <T extends Table, B extends Bucket>(table: T, bucket: B) => {
+      const TableArn = try table.tableArn.asEffect()
+      const S3Bucket = try bucket.bucketName.asEffect()
+      try grantTables(
+        `AWS.DynamoDB.ExportTableToPointInTime(${table.LogicalId}, ${bucket.LogicalId})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: ["dynamodb:ExportTableToPointInTime"],
+            Resource: [table.tableArn],
+          },
+          {
+            Effect: "Allow",
+            Action: ["s3:AbortMultipartUpload", "s3:PutObject", "s3:PutObjectAcl"],
+            Resource: [Output.interpolate`${bucket.bucketArn}/*`],
+          },
+        ],
+      )
+      // The export runs in the table's region; the bucket may be elsewhere.
+      const exportTableToPointInTime = try AWSBindings.withCredentials(
+        DynamoDB.exportTableToPointInTime,
+        Effect.succeed(
+          Effect.flatMap(
+            TableArn,
+            (arn) => Effect.orDie(Effect.try({ try: () => regionFromArn(arn), catch: (e) => e })),
+          ),
+        ),
+      )
+      return Effect.fn(
+        `AWS.DynamoDB.ExportTableToPointInTime(${table.LogicalId}, ${bucket.LogicalId})`,
+      )(effect (request?: ExportTableToPointInTimeRequest) => {
+        return try exportTableToPointInTime({
+          ...request,
+          TableArn: try TableArn,
+          S3Bucket: try S3Bucket,
+        })
+      })
+    }
+  },
+)

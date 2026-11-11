@@ -1,0 +1,52 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { DataLake } from "./DataLake.vibe"
+
+/**
+ * Shared scaffolding for Amazon Security Lake HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, makeSecurityLakeDataLakeHttpBinding({ … }))` over the
+ * builder below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a Security Lake operation scoped to the account's
+ * {@link DataLake}: the deploy-time half grants `actions` on the bound data
+ * lake's ARN, and the runtime half invokes the operation with the caller's
+ * request as-is (Security Lake's monitoring operations take no resource
+ * parameter — the data lake is implicit in the account/Region).
+ */
+export const makeSecurityLakeDataLakeHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.SecurityLake.GetDataLakeSources`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the data lake ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (lake: DataLake) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${lake})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [lake.dataLakeArn],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        `${options.tag}(${lake.LogicalId})`,
+      )
+  }
+}

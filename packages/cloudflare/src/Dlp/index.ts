@@ -1,2 +1,2 @@
-export * from "./Entry.ts";
-export * from "./Profile.ts";
+export * from "./Entry.vibe";
+export * from "./Profile.vibe";

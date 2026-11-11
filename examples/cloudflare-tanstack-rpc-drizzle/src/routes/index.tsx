@@ -2,7 +2,7 @@ import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { createFileRoute } from "@tanstack/react-router";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useState } from "react";
-import { createTodoAtom, deleteTodoAtom, listTodosAtom, toggleTodoAtom } from "../rpc-client.ts";
+import { createTodoAtom, deleteTodoAtom, listTodosAtom, toggleTodoAtom } from "../rpc-client.vibe";
 
 export const Route = createFileRoute("/")({
   component: Home,

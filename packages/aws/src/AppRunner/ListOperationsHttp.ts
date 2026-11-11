@@ -1,7 +1,7 @@
 import * as apprunner from "@distilled.cloud/aws/apprunner";
-import { makeAppRunnerHttpBinding } from "./BindingHttp.ts";
-import { ListOperations } from "./ListOperations.ts";
-import type { Service } from "./Service.ts";
+import { makeAppRunnerHttpBinding } from "./BindingHttp.vibe";
+import { ListOperations } from "./ListOperations.vibe";
+import type { Service } from "./Service.vibe";
 
 /**
  * HTTP implementation of the {@link ListOperations} binding. Calls

@@ -14,7 +14,7 @@
 import { pipeArguments } from "effect/Pipeable";
 import type { Pipeable } from "effect/Pipeable";
 import type { Expr, UnwrapExpr } from "./Jsonata.ts";
-import type { AslNode } from "./Node.ts";
+import type { AslNode } from "./Node.vibe";
 
 /** Brand distinguishing `SfnEffect` from `Effect` (and everything else). */
 export const SfnTypeId = Symbol.for("alchemy/AWS/StepFunctions/SfnEffect");
@@ -64,7 +64,7 @@ class SfnEffectImpl implements SfnEffect<any, any> {
 }
 
 /** Construct an {@link SfnEffect} from an AST node. */
-export const make = <A, E = never>(node: AslNode): SfnEffect<A, E> =>
+export const make = /** @throws {never} */ <A, E = never>(node: AslNode): SfnEffect<A, E> =>
   new SfnEffectImpl(node) as SfnEffect<A, E>;
 
 /** Runtime guard for {@link SfnEffect} values. */
@@ -95,7 +95,7 @@ export const isSfnEffect = (value: unknown): value is SfnEffect<any, any> =>
  * step results is unsound — use `Sfn.when` / `Sfn.match` for branching.
  * Yielding a real `Effect` is a type error by design.
  */
-export const gen = <Y extends SfnEffect<any, any>, R, In = any>(
+export const gen = /** @throws {never} */ <Y extends SfnEffect<any, any>, R, In = any>(
   body: (input: Expr<In>) => Generator<Y, R, any>,
 ): SfnEffect<UnwrapExpr<R>, [Y] extends [never] ? never : Error<Y>> =>
   make({ kind: "gen", body: body as unknown as GenBody });

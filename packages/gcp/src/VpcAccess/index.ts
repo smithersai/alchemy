@@ -1,1 +1,1 @@
-export * from "./Connector.ts";
+export * from "./Connector.vibe";

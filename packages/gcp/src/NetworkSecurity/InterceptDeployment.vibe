@@ -1,0 +1,360 @@
+import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_ZONE,
+  canonicalizeLink,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  linkKey,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  rfc1035,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const COLLECTION = "interceptDeployments"
+
+export type InterceptDeploymentState = networksecurity.InterceptDeploymentStateEnum | (string & {})
+
+export type InterceptDeploymentProps = {
+  /**
+   * Deployment id (the `{interceptDeployment}` segment of
+   * `projects/{project}/locations/{location}/interceptDeployments/{interceptDeployment}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Immutable — changing it replaces the deployment.
+   */
+  interceptDeploymentId?: string
+  /**
+   * Zone of the deployment (`us-central1-a`, …). Immutable — changing
+   * it replaces the deployment. `US-CENTRAL1-A` is accepted and
+   * normalized to `us-central1-a`.
+   * @default "us-central1-a"
+   */
+  location?: string
+  /**
+   * Parent InterceptDeploymentGroup resource name
+   * (`projects/{project}/locations/global/interceptDeploymentGroups/{interceptDeploymentGroup}`).
+   * Immutable — changing it replaces the deployment.
+   */
+  interceptDeploymentGroup: string
+  /**
+   * Regional forwarding rule that fronts interceptors, e.g.
+   * `projects/{project}/regions/{region}/forwardingRules/{forwardingRule}`.
+   * Immutable — changing it replaces the deployment.
+   */
+  forwardingRule: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type InterceptDeployment = Resource<
+  "GCP.NetworkSecurity.InterceptDeployment",
+  InterceptDeploymentProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/interceptDeployments/{interceptDeployment}`. */
+    name: string
+    /** Deployment id (last path segment). */
+    interceptDeploymentId: string
+    /** Project id. */
+    project: string
+    /** Zone id (`us-central1-a`). */
+    location: string
+    /** Parent InterceptDeploymentGroup resource name. */
+    interceptDeploymentGroup: string | undefined
+    /** Forwarding rule resource name. */
+    forwardingRule: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-reported lifecycle state (`ACTIVE`, `CREATING`, …). */
+    state: string | undefined
+    /** Whether reconciling is in progress. */
+    reconciling: boolean
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A zonal intercept deployment — a GENEVE backend (typically an
+ * internal passthrough load balancer) that belongs to a global
+ * InterceptDeploymentGroup.
+ *
+ * Changing `interceptDeploymentId`, `location`, `interceptDeploymentGroup`,
+ * or `forwardingRule` replaces the deployment. Description and labels
+ * update in place.
+ *
+ * ### Creating an InterceptDeployment
+ * **Example:** Attach a forwarding rule to a group
+ * ```typescript
+ * const deployment = yield* GCP.NetworkSecurity.InterceptDeployment(
+ *   "ZoneA",
+ *   {
+ *     location: "us-central1-a",
+ *     interceptDeploymentGroup: group.name,
+ *     forwardingRule: rule.selfLink,
+ *     description: "us-central1-a interceptors",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category NetworkSecurity
+ */
+export const InterceptDeployment = Resource<InterceptDeployment>(
+  "GCP.NetworkSecurity.InterceptDeployment",
+)
+
+const resourceName = (project: string, location: string, interceptDeploymentId: string): infer _ =>
+  `projects/${project}/locations/${location}/interceptDeployments/${interceptDeploymentId}`
+
+const toAttrs = (deployment: networksecurity.InterceptDeployment, project: string): infer _ => {
+  const name = deployment.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_ZONE)
+  return {
+    name,
+    interceptDeploymentId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || DEFAULT_ZONE,
+    interceptDeploymentGroup: deployment.interceptDeploymentGroup
+      ? canonicalizeLink(deployment.interceptDeploymentGroup)
+      : undefined,
+    forwardingRule: deployment.forwardingRule
+      ? canonicalizeLink(deployment.forwardingRule)
+      : undefined,
+    description: deployment.description,
+    labels: userLabels(deployment.labels),
+    state: deployment.state,
+    reconciling: deployment.reconciling === true,
+    createTime: deployment.createTime,
+    updateTime: deployment.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networksecurity
+    .getProjectsLocationsInterceptDeployments({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const InterceptDeploymentProvider = (): infer _ =>
+  Provider.succeed(InterceptDeployment, {
+    stables: [
+      "name",
+      "interceptDeploymentId",
+      "project",
+      "location",
+      "interceptDeploymentGroup",
+      "forwardingRule",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.interceptDeploymentId ?? output?.interceptDeploymentId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.interceptDeploymentId
+            ? rfc1035(resolved.interceptDeploymentId, "intercept-deployment")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
+      const previousGroup = try Effect.orDie(Effect.try({
+        try: () =>
+          linkKey(
+            olds?.interceptDeploymentGroup ?? output?.interceptDeploymentGroup,
+          ),
+        catch: (e) => e,
+      }))
+      const nextGroup = try Effect.orDie(
+        Effect.try({ try: () => linkKey(resolved.interceptDeploymentGroup), catch: (e) => e }),
+      )
+      const previousRule = try Effect.orDie(
+        Effect.try({ try: () => linkKey(olds?.forwardingRule ?? output?.forwardingRule), catch: (e) => e }),
+      )
+      const nextRule = try Effect.orDie(Effect.try({ try: () => linkKey(resolved.forwardingRule), catch: (e) => e }))
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || (previousGroup.length > 0 && previousGroup !== nextGroup)
+        || (previousRule.length > 0 && previousRule !== nextRule)
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const interceptDeploymentId = try toPhysicalId(
+        id,
+        olds?.interceptDeploymentId,
+        output?.interceptDeploymentId,
+        "intercept-deployment",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, interceptDeploymentId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networksecurity.listProjectsLocationsInterceptDeployments.pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
+          pageSize: 1000,
+        }),
+        (page) => page.interceptDeployments,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const interceptDeploymentId = try toPhysicalId(
+        id,
+        news.interceptDeploymentId,
+        output?.interceptDeploymentId,
+        "intercept-deployment",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, interceptDeploymentId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const interceptDeploymentGroup = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(news.interceptDeploymentGroup), catch: (e) => e }),
+      )
+      const forwardingRule = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(news.forwardingRule), catch: (e) => e }),
+      )
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsInterceptDeployments({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              interceptDeploymentId,
+              body: {
+                interceptDeploymentGroup,
+                forwardingRule,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilReady(getByName(name), name)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+          ]),
+        catch: (e) => e,
+      }))
+
+      if (updateMask.length > 0) {
+        const operation = try networksecurity.patchProjectsLocationsInterceptDeployments({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsInterceptDeployments({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

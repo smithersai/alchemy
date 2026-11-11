@@ -4,8 +4,8 @@ import * as Neon from "@alchemy.run/neon";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import Backend from "./src/backend/api.ts";
-import { Hyperdrive, NeonDatabase } from "./src/backend/database.ts";
+import Backend from "./src/backend/api.vibe";
+import { Hyperdrive, NeonDatabase } from "./src/backend/database.vibe";
 
 /**
  * The TanStack Start frontend. Deployed as a Cloudflare Worker + static assets

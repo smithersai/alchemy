@@ -1,0 +1,391 @@
+import * as vmwareengine from "@distilled.cloud/gcp/vmwareengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_ZONE,
+  VmwareengineNotResolved,
+  changedFields,
+  collectPages,
+  createInternalLabels,
+  expandName,
+  hasOwnershipMarker,
+  listAcrossLocations,
+  locationFromName,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  rfc1035,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.vibe"
+
+const COLLECTION = "loggingServers"
+const PARENT_COLLECTION = "privateClouds"
+const DEFAULT_PORT = 514
+const DEFAULT_PROTOCOL = "UDP"
+const DEFAULT_SOURCE_TYPE = "ESXI"
+
+export type LoggingServerProtocol = vmwareengine.LoggingServerProtocolEnum | (string & {})
+
+export type LoggingServerSourceType = vmwareengine.LoggingServerSourceTypeEnum | (string & {})
+
+export type PrivateCloudsLoggingServerProps = {
+  /**
+   * Parent PrivateCloud resource name
+   * (`projects/{project}/locations/{location}/privateClouds/{privateCloud}`)
+   * or the cloud id. Immutable — changing it replaces the logging server.
+   */
+  privateCloud: string
+  /**
+   * Logging server id (the `{loggingServer}` segment of
+   * `.../privateClouds/{privateCloud}/loggingServers/{loggingServer}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable.
+   */
+  loggingServerId?: string
+  /**
+   * Location of the parent private cloud. Inferred from `privateCloud`
+   * when that value is a full resource name. Immutable.
+   * @default "us-central1-a"
+   */
+  location?: string
+  /**
+   * FQDN or IP address of the logging server.
+   */
+  hostname: string
+  /**
+   * Port the logging server listens on.
+   * @default 514
+   */
+  port?: number
+  /**
+   * Protocol used to send logs (`UDP`, `TCP`, `TLS`, `SSL`, `RELP`).
+   * @default "UDP"
+   */
+  protocol?: LoggingServerProtocol
+  /**
+   * Component that produces logs (`ESXI` or `VCSA`).
+   * @default "ESXI"
+   */
+  sourceType?: LoggingServerSourceType
+}
+
+export type PrivateCloudsLoggingServer = Resource<
+  "GCP.VMwareEngine.PrivateCloudsLoggingServer",
+  PrivateCloudsLoggingServerProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Logging server id (last path segment). */
+    loggingServerId: string
+    /** Parent PrivateCloud resource name. */
+    privateCloud: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** FQDN or IP address. */
+    hostname: string | undefined
+    /** Listen port. */
+    port: number | undefined
+    /** Log transport protocol. */
+    protocol: string | undefined
+    /** Log source type. */
+    sourceType: string | undefined
+    /** System-generated unique identifier. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A syslog destination that receives vCenter or ESXi logs from a VMware
+ * Engine private cloud.
+ *
+ * Logging servers have no labels or description field, so Alchemy treats
+ * servers whose parent private cloud carries the `[alchemy …]` ownership
+ * marker as owned for `list` / nuke. Changing the parent cloud, server
+ * id, or location replaces the server. Hostname, port, protocol, and
+ * source type update in place.
+ *
+ * ### Creating a PrivateCloudsLoggingServer
+ * **Example:** Forward ESXi logs over UDP
+ * ```typescript
+ * const syslog = yield* GCP.VMwareEngine.PrivateCloudsLoggingServer(
+ *   "Esxi",
+ *   {
+ *     privateCloud: cloud.name,
+ *     hostname: "logs.example.com",
+ *     port: 514,
+ *     protocol: "UDP",
+ *     sourceType: "ESXI",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category VMwareEngine
+ */
+export const PrivateCloudsLoggingServer = Resource<PrivateCloudsLoggingServer>(
+  "GCP.VMwareEngine.PrivateCloudsLoggingServer",
+)
+
+const parentCloudName = (project: string, location: string, privateCloud: string): infer _ =>
+  expandName(privateCloud, project, location, PARENT_COLLECTION)
+
+const resourceNameOf = (parent: string, loggingServerId: string): infer _ =>
+  `${parent}/${COLLECTION}/${loggingServerId}`
+
+const toAttrs = (item: vmwareengine.LoggingServer, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_ZONE)
+  return {
+    name,
+    loggingServerId: parsed.id,
+    privateCloud: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    hostname: item.hostname,
+    port: item.port,
+    protocol: item.protocol,
+    sourceType: item.sourceType,
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  vmwareengine
+    .getProjectsLocationsPrivateCloudsLoggingServers({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const getParentCloud = effect (name: string) =>
+  vmwareengine
+    .getProjectsLocationsPrivateClouds({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const PrivateCloudsLoggingServerProvider = (): infer _ =>
+  Provider.succeed(PrivateCloudsLoggingServer, {
+    stables: [
+      "name",
+      "loggingServerId",
+      "privateCloud",
+      "project",
+      "location",
+      "uid",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE), catch: (e) => e }),
+      )
+      const input = {
+        previousId: olds?.loggingServerId ?? output?.loggingServerId,
+        nextId: resolved.loggingServerId
+          ? rfc1035(resolved.loggingServerId, "loggingserver")
+          : (olds?.loggingServerId ?? output?.loggingServerId),
+        previousLocation,
+        nextLocation: normalizeLocation(
+          resolved.location
+            ?? (try Effect.orDie(
+              Effect.try({
+                try: locationFromName.bind(undefined, resolved.privateCloud, previousLocation),
+                catch: (e) => e,
+              }),
+            )),
+          DEFAULT_ZONE,
+        ),
+        previousParent: olds?.privateCloud ?? output?.privateCloud,
+        nextParent: resolved.privateCloud,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location
+              ?? output?.location
+              ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
+      const parent = parentCloudName(
+        env.project,
+        location,
+        olds?.privateCloud ?? output?.privateCloud ?? "",
+      )
+      const loggingServerId = try toPhysicalId(
+        id,
+        olds?.loggingServerId,
+        output?.loggingServerId,
+        "loggingserver",
+      )
+      const name = output?.name ?? resourceNameOf(parent, loggingServerId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      if (output?.name === (existing.name ?? name)) return attrs
+      const parentCloud = try getParentCloud(attrs.privateCloud)
+      return (try Effect.orDie(
+          Effect.try({ try: () => hasOwnershipMarker(parentCloud?.description), catch: (e) => e }),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const clouds = try listAcrossLocations(env.project, env.region, effect (parent) =>
+        try collectPages(
+          vmwareengine.listProjectsLocationsPrivateClouds.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.privateClouds,
+        ))
+      const ownedClouds = clouds.filter((cloud) => hasOwnershipMarker(cloud.description))
+      const nested = try Effect.forEach(
+        ownedClouds.filter((cloud) => (cloud.name ?? "").length > 0),
+        effect (cloud) =>
+          try collectPages(
+            vmwareengine.listProjectsLocationsPrivateCloudsLoggingServers.pages({
+              parent: cloud.name ?? "",
+              pageSize: 1000,
+            }),
+            (page) => page.loggingServers,
+          ),
+        { concurrency: 4 },
+      )
+      return nested.flat().map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
+            DEFAULT_ZONE,
+          ),
+        catch: (e) => e,
+      }))
+      const parent = parentCloudName(env.project, location, news.privateCloud)
+      const loggingServerId = try toPhysicalId(
+        id,
+        news.loggingServerId,
+        output?.loggingServerId,
+        "loggingserver",
+      )
+      const name = resourceNameOf(parent, loggingServerId)
+      try createInternalLabels(id)
+      const port = news.port ?? DEFAULT_PORT
+      const protocol = news.protocol ?? DEFAULT_PROTOCOL
+      const sourceType = news.sourceType ?? DEFAULT_SOURCE_TYPE
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateCloudsLoggingServers({
+              parent,
+              loggingServerId,
+              body: {
+                hostname: news.hostname,
+                port,
+                protocol,
+                sourceType,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new VmwareengineNotResolved({ resourceName: name })
+      }
+
+      const hostnameChanged = (current.hostname ?? "") !== news.hostname
+      const portChanged = (current.port ?? 0) !== port
+      const protocolChanged = (current.protocol ?? "") !== protocol
+      const sourceChanged = (current.sourceType ?? "") !== sourceType
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["hostname", hostnameChanged],
+            ["port", portChanged],
+            ["protocol", protocolChanged],
+            ["sourceType", sourceChanged],
+          ]),
+        catch: (e) => e,
+      }))
+
+      if (updateMask.length > 0) {
+        const operation = try vmwareengine.patchProjectsLocationsPrivateCloudsLoggingServers({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            hostname: news.hostname,
+            port,
+            protocol,
+            sourceType,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateCloudsLoggingServers({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

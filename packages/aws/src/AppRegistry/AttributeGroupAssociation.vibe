@@ -1,0 +1,207 @@
+import * as Effect from "effect/Effect"
+import * as appregistry from "@distilled.cloud/aws/service-catalog-appregistry"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface AttributeGroupAssociationProps {
+  /**
+   * The application to associate the attribute group with: its ID, name, or
+   * ARN. Changing it replaces the association.
+   */
+  application: string
+  /**
+   * The attribute group to associate: its ID, name, or ARN. Changing it
+   * replaces the association.
+   */
+  attributeGroup: string
+}
+
+export interface AttributeGroupAssociation extends
+  Resource<
+    "AWS.AppRegistry.AttributeGroupAssociation",
+    AttributeGroupAssociationProps,
+    {
+      /** The ID of the associated application. */
+      applicationId: string
+      /** The ARN of the associated application. */
+      applicationArn: string
+      /** The ID of the associated attribute group. */
+      attributeGroupId: string
+      /** The ARN of the associated attribute group. */
+      attributeGroupArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Associates an AppRegistry {@link AttributeGroup} with an
+ * {@link Application} so the group's user-defined JSON metadata augments the
+ * application's machine-readable description.
+ *
+ * ### Associating an Attribute Group
+ * **Example:** Attach an Attribute Group to an Application
+ * ```typescript
+ * import * as AppRegistry from "@alchemy.run/aws/AppRegistry";
+ *
+ * const app = yield* AppRegistry.Application("Storefront", {});
+ * const group = yield* AppRegistry.AttributeGroup("Ownership", {
+ *   attributes: { owner: "commerce-team" },
+ * });
+ *
+ * const association = yield* AppRegistry.AttributeGroupAssociation("Assoc", {
+ *   application: app.applicationId,
+ *   attributeGroup: group.attributeGroupId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AttributeGroupAssociation = Resource<AttributeGroupAssociation>(
+  "AWS.AppRegistry.AttributeGroupAssociation",
+)
+
+export const AttributeGroupAssociationProvider = (): infer _ =>
+  Provider.effect(
+    AttributeGroupAssociation,
+    effect {
+      // getApplication / getAttributeGroup both accept a name, ID, or ARN.
+      const observeApplication = effect (specifier: string) =>
+        appregistry
+          .getApplication({ application: specifier }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+      const observeAttributeGroup = effect (specifier: string) =>
+        appregistry
+          .getAttributeGroup({ attributeGroup: specifier }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      const isAssociated = effect (applicationId: string, attributeGroupId: string) => {
+        const groupIds = Array.from(
+          try (appregistry.listAssociatedAttributeGroups
+            .pages({ application: applicationId })
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.attributeGroups ?? [])
+        return groupIds.includes(attributeGroupId)
+      }
+
+      return AttributeGroupAssociation.Provider.of({
+        stables: ["applicationId", "applicationArn", "attributeGroupId", "attributeGroupArn"],
+        // The application/attribute-group pair IS the association's identity —
+        // changing either side replaces the association.
+        diff: effect ({ olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          if (
+            olds !== undefined
+            && (olds.application !== news.application || olds.attributeGroup !== news.attributeGroup)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const applicationSpecifier = output?.applicationId ?? olds?.application
+          const attributeGroupSpecifier = output?.attributeGroupId ?? olds?.attributeGroup
+          if (applicationSpecifier === undefined || attributeGroupSpecifier === undefined) {
+            return undefined
+          }
+          const application = try observeApplication(applicationSpecifier)
+          if (application?.id === undefined) return undefined
+          const attributeGroup = try observeAttributeGroup(attributeGroupSpecifier)
+          if (attributeGroup?.id === undefined) return undefined
+          if (!(try isAssociated(application.id, attributeGroup.id))) {
+            return undefined
+          }
+          // Associations cannot carry tags; existence between our two parents
+          // is the ownership signal.
+          return {
+            applicationId: application.id,
+            applicationArn: application.arn!,
+            attributeGroupId: attributeGroup.id,
+            attributeGroupArn: attributeGroup.arn!,
+          }
+        },
+        reconcile: effect ({ news, session }) => {
+          // 1. OBSERVE — resolve both sides to canonical IDs; a missing parent
+          // surfaces its typed ResourceNotFoundException.
+          const application = try appregistry.getApplication({
+            application: news.application,
+          })
+          const attributeGroup = try appregistry.getAttributeGroup({
+            attributeGroup: news.attributeGroup,
+          })
+          const applicationId = application.id!
+          const attributeGroupId = attributeGroup.id!
+
+          // 2. ENSURE — associate when missing; a ConflictException is a
+          // concurrent-associate race, not a failure.
+          if (!(try isAssociated(applicationId, attributeGroupId))) {
+            appregistry
+              .associateAttributeGroup({
+                application: applicationId,
+                attributeGroup: attributeGroupId,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: undefined as void;
+                default: throw e;
+              }
+          }
+
+          try session.note(`${applicationId}/${attributeGroupId}`)
+          return {
+            applicationId,
+            applicationArn: application.arn!,
+            attributeGroupId,
+            attributeGroupArn: attributeGroup.arn!,
+          }
+        },
+        delete: effect ({ output }) => {
+          appregistry
+            .disassociateAttributeGroup({
+              application: output.applicationId,
+              attributeGroup: output.attributeGroupId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const applications = Array.from(
+            try (appregistry.listApplications.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.applications ?? [])
+          const results: {
+            applicationId: string
+            applicationArn: string
+            attributeGroupId: string
+            attributeGroupArn: string
+          }[] = []
+          for (const application of applications) {
+            if (application.id === undefined) continue
+            const groupIds = Array.from(
+              try (appregistry.listAssociatedAttributeGroups
+                .pages({ application: application.id })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.attributeGroups ?? [])
+            for (const attributeGroupId of groupIds) {
+              results.push({
+                applicationId: application.id,
+                applicationArn: application.arn!,
+                attributeGroupId,
+                attributeGroupArn:
+                  `arn:aws:servicecatalog:${region}:${accountId}:/attribute-groups/${attributeGroupId}`,
+              })
+            }
+          }
+          return results
+        },
+      })
+    },
+  )

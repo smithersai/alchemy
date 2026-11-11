@@ -2,14 +2,14 @@ import { getProjectBranchAiGateway } from "@distilled.cloud/neon";
 import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import { InvalidBranchScope, resolveBranchScope } from "./BranchScope.ts";
-import type { Credential } from "./Credential.ts";
+import { InvalidBranchScope, resolveBranchScope } from "./BranchScope.vibe";
+import type { Credential } from "./Credential.vibe";
 
 export type AIGatewayProps = (
   | {
       /** Branch resource or explicit identity; output references are accepted. */
       branch:
-        | import("./Branch.ts").Branch
+        | import("./Branch.vibe").Branch
         | {
             projectId: string | Output.Output<string>;
             branchId: string | Output.Output<string>;
@@ -19,7 +19,7 @@ export type AIGatewayProps = (
   | {
       /** Project resource or identity whose default branch supplies the gateway. */
       project:
-        | import("./Project.ts").Project
+        | import("./Project.vibe").Project
         | {
             projectId: string | Output.Output<string>;
           };

@@ -1,0 +1,353 @@
+import * as apigateway from "@distilled.cloud/gcp/apigateway_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  type ApiConfigFile,
+  type ApiConfigGrpcServiceDefinition,
+  type ApiConfigOpenApiDocument,
+  DEFAULT_LOCATION,
+  encodeFiles,
+  encodeGrpcServices,
+  encodeOpenApiDocuments,
+  expandApi,
+  fieldMask,
+  hasAlchemyLabelMap,
+  listApis,
+  listChildResources,
+  listConfigs,
+  locationParent,
+  parseName,
+  replaceOnIdentity,
+  resourceName,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  ResourceFailed,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type { ApiConfigFile, ApiConfigGrpcServiceDefinition, ApiConfigOpenApiDocument }
+
+export type ApisConfigProps = {
+  /**
+   * Parent API. Full name
+   * `projects/{project}/locations/global/apis/{api}` or the API id.
+   * Immutable — changing it replaces the config.
+   */
+  api: string
+  /**
+   * Config id (the `{apiConfig}` segment of
+   * `.../apis/{api}/configs/{apiConfig}`). If omitted, a unique RFC1035
+   * id is generated. Immutable — changing it replaces the config.
+   */
+  apiConfigId?: string
+  /**
+   * User-visible display name. Defaults to the config id.
+   */
+  displayName?: string
+  /**
+   * OpenAPI specification documents. Mutually exclusive with
+   * `grpcServices`. Immutable — changing them replaces the config.
+   */
+  openapiDocuments?: readonly ApiConfigOpenApiDocument[]
+  /**
+   * gRPC service definitions. Mutually exclusive with `openapiDocuments`.
+   * Immutable — changing them replaces the config.
+   */
+  grpcServices?: readonly ApiConfigGrpcServiceDefinition[]
+  /**
+   * Service Configuration files used with gRPC service definitions.
+   * Immutable — changing them replaces the config.
+   */
+  managedServiceConfigs?: readonly ApiConfigFile[]
+  /**
+   * IAM service account Gateways should use to authenticate to backends.
+   * Email (`{account}@{project}.iam.gserviceaccount.com`) or full resource
+   * name. Immutable — changing it replaces the config.
+   */
+  gatewayServiceAccount?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type ApisConfig = Resource<
+  "GCP.ApiGateway.ApisConfig",
+  ApisConfigProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Config id (last path segment). */
+    apiConfigId: string
+    /** Parent API resource name. */
+    api: string
+    /** Project id. */
+    project: string
+    /** Location id (`global`). */
+    location: string
+    /** User-visible display name. */
+    displayName: string | undefined
+    /** Service account Gateways use to call backends. */
+    gatewayServiceAccount: string | undefined
+    /** Associated Service Config id. */
+    serviceConfigId: string | undefined
+    /** Server-reported config state. */
+    state: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API Gateway API config — OpenAPI or gRPC settings for a managed
+ * API that Gateways serve.
+ *
+ * Parent API, config id, documents, gRPC definitions, and gateway
+ * service account are immutable. Display name and labels update in
+ * place. Configs live in `locations/global`.
+ *
+ * ### Creating an API Config
+ * **Example:** OpenAPI config
+ * ```typescript
+ * const config = yield* GCP.ApiGateway.ApisConfig("V1", {
+ *   api: api.name,
+ *   displayName: "v1",
+ *   openapiDocuments: [
+ *     {
+ *       document: {
+ *         path: "openapi.yaml",
+ *         contents: openApi,
+ *       },
+ *     },
+ *   ],
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Named config
+ * ```typescript
+ * const config = yield* GCP.ApiGateway.ApisConfig("V1", {
+ *   api: api.name,
+ *   apiConfigId: "v1",
+ *   openapiDocuments: [
+ *     {
+ *       document: {
+ *         path: "openapi.yaml",
+ *         contents: openApi,
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category ApiGateway
+ */
+export const ApisConfig = Resource<ApisConfig>("GCP.ApiGateway.ApisConfig")
+
+const toAttrs = (config: apigateway.ApigatewayApiConfig, project: string, api?: string): infer _ => {
+  const parsed = parseName(config.name ?? "", "configs")
+  // API Gateway reports names with the project number; keep the project-id
+  // form the parent API is addressed by so names are stable and comparable.
+  const parent = api !== undefined && api.length > 0
+    ? api
+    : parsed.parent.replace(/^projects\/\d+\//, `projects/${project}/`)
+  const name = config.name === undefined || config.name.length === 0 ? "" : `${parent}/configs/${parsed.id}`
+  return {
+    name,
+    apiConfigId: parsed.id,
+    api: parent,
+    project: parseName(parent, "apis").project || project,
+    location: parsed.location || DEFAULT_LOCATION,
+    displayName: config.displayName,
+    gatewayServiceAccount: config.gatewayServiceAccount,
+    serviceConfigId: config.serviceConfigId,
+    state: config.state,
+    labels: userLabels(config.labels),
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apigateway
+  .getProjectsLocationsApisConfigs({ name, view: "FULL" }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const documentsChanged = (news: ApisConfigProps, olds: ApisConfigProps | undefined): infer _ =>
+  (news.openapiDocuments !== undefined
+    && olds?.openapiDocuments !== undefined
+    && !sameJson(news.openapiDocuments, olds.openapiDocuments))
+  || (news.grpcServices !== undefined
+    && olds?.grpcServices !== undefined
+    && !sameJson(news.grpcServices, olds.grpcServices))
+  || (news.managedServiceConfigs !== undefined
+    && olds?.managedServiceConfigs !== undefined
+    && !sameJson(news.managedServiceConfigs, olds.managedServiceConfigs))
+
+export const ApisConfigProvider = (): infer _ =>
+  Provider.succeed(ApisConfig, {
+    stables: ["name", "apiConfigId", "api", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const accountChanged = (olds?.gatewayServiceAccount ?? output?.gatewayServiceAccount) !== undefined
+        && (resolved.gatewayServiceAccount ?? "")
+          !== (olds?.gatewayServiceAccount ?? output?.gatewayServiceAccount ?? "")
+      const input = {
+        previousId: olds?.apiConfigId ?? output?.apiConfigId,
+        nextId: resolved.apiConfigId ?? olds?.apiConfigId ?? output?.apiConfigId,
+        previousParent: olds?.api !== undefined ? expandApi(olds.api, env.project) : output?.api,
+        nextParent: expandApi(resolved.api, env.project),
+        extra: documentsChanged(resolved, olds) || accountChanged,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const apiConfigId = try toPhysicalId(id, olds?.apiConfigId, output?.apiConfigId)
+      const api = olds?.api !== undefined
+        ? try Effect.orDie(Effect.try({ try: () => expandApi(olds.api, env.project), catch: (e) => e }))
+        : (output?.api ?? "")
+      const name = output?.name
+        ?? (api ? try Effect.orDie(Effect.try({ try: () => resourceName(api, apiConfigId), catch: (e) => e })) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, api)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const apis = try listApis(
+        try Effect.orDie(Effect.try({ try: () => locationParent(env.project), catch: (e) => e })),
+      )
+      const configs = try listChildResources(apis, listConfigs)
+      return configs
+        .filter((item) => hasAlchemyLabelMap(item.labels))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const api = try Effect.orDie(Effect.try({ try: () => expandApi(news.api, env.project), catch: (e) => e }))
+      const apiConfigId = try toPhysicalId(id, news.apiConfigId, output?.apiConfigId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => resourceName(api, apiConfigId), catch: (e) => e })))
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const displayName = news.displayName ?? apiConfigId
+      const openapiDocuments = try encodeOpenApiDocuments(news.openapiDocuments)
+      const grpcServices = try encodeGrpcServices(news.grpcServices)
+      const managedServiceConfigs = try encodeFiles(news.managedServiceConfigs)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigateway
+          .createProjectsLocationsApisConfigs({
+            parent: api,
+            apiConfigId,
+            body: {
+              displayName,
+              labels: desiredLabels,
+              gatewayServiceAccount: news.gatewayServiceAccount,
+              openapiDocuments,
+              grpcServices,
+              managedServiceConfigs,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if ((current.state ?? "").toUpperCase() === "FAILED") {
+        throw new ResourceFailed({
+          resourceName: current.name ?? name,
+          state: current.state ?? "FAILED",
+        })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayChanged = !sameText(current.displayName, displayName)
+      const mask = try Effect.orDie(
+        Effect.try({
+          try: () => fieldMask([labelsChanged && "labels", displayChanged && "displayName"]),
+          catch: (e) => e,
+        }),
+      )
+
+      if (mask.length > 0) {
+        const operation = try apigateway.patchProjectsLocationsApisConfigs({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            labels: desiredLabels,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+        if ((current.state ?? "").toUpperCase() === "FAILED") {
+          throw new ResourceFailed({
+            resourceName: current.name ?? name,
+            state: current.state ?? "FAILED",
+          })
+        }
+      }
+
+      return toAttrs(current, env.project, api)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (apigateway
+          .deleteProjectsLocationsApisConfigs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

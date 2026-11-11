@@ -4,21 +4,21 @@ import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { Distribution } from "../CloudFront/Distribution.ts";
-import { Invalidation } from "../CloudFront/Invalidation.ts";
+import { Distribution } from "../CloudFront/Distribution.vibe";
+import { Invalidation } from "../CloudFront/Invalidation.vibe";
 import {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
   MANAGED_CACHING_DISABLED_POLICY_ID,
   MANAGED_CACHING_OPTIMIZED_POLICY_ID,
 } from "../CloudFront/ManagedPolicies.ts";
-import { OriginAccessControl } from "../CloudFront/OriginAccessControl.ts";
-import { domainCertificate, resolveDomainDns } from "../CustomDomain.ts";
-import type { Service } from "../ECS/Service.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import { Function } from "../Lambda/Function.ts";
-import { Bucket } from "../S3/Bucket.ts";
-import type { AssetFileOption } from "./AssetDeployment.ts";
-import { AssetDeployment } from "./AssetDeployment.ts";
+import { OriginAccessControl } from "../CloudFront/OriginAccessControl.vibe";
+import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
+import type { Service } from "../ECS/Service.vibe";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import { Function } from "../Lambda/Function.vibe";
+import { Bucket } from "../S3/Bucket.vibe";
+import type { AssetFileOption } from "./AssetDeployment.vibe";
+import { AssetDeployment } from "./AssetDeployment.vibe";
 import {
   normalizeWebsiteDomain,
   type SsrSiteRouteTargets,

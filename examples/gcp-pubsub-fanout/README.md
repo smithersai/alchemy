@@ -28,7 +28,7 @@ POST /orders/:id/cancel   │                             v
   other event type. It writes one "sent email" object per event to the
   outbox. Mail to a `.invalid` address always fails; after 5 attempts
   Pub/Sub forwards the event to `DeadOrderEvents`.
-- `src/Analytics.ts` — private `GCP.Function` with no filter. It inserts a
+- `src/Analytics.vibe` — private `GCP.Function` with no filter. It inserts a
   row for every event, using the event id as the BigQuery `insertId` so a
   redelivery does not duplicate it.
 

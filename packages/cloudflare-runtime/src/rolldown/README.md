@@ -34,6 +34,7 @@ await bundle.write({
 ## What It Does
 
 - Applies Cloudflare-friendly Rolldown defaults for resolution and output targeting.
+- Compiles VibeLang (`.vibe`) modules with `vibelang-unplugin`; other files are untouched.
 - Treats supported `cloudflare:*` imports as external.
 - Enables Node.js compatibility shims when `nodejs_compat` is set or the
   compatibility date is `2026-08-04` or later.

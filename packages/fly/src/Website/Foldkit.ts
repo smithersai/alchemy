@@ -1,4 +1,4 @@
-import { frameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { frameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 import type { ViteProps } from "./Vite.ts";
 
 /** Configuration for a Foldkit website. */

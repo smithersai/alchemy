@@ -1,2 +1,2 @@
-export * from "./NfsShare.ts";
-export * from "./VolumesSnapshot.ts";
+export * from "./NfsShare.vibe";
+export * from "./VolumesSnapshot.vibe";

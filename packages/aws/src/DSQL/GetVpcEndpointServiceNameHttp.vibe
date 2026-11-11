@@ -1,0 +1,41 @@
+import * as dsql from "@distilled.cloud/aws/dsql"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Cluster } from "./Cluster.vibe"
+import { GetVpcEndpointServiceName } from "./GetVpcEndpointServiceName.vibe"
+
+/**
+ * HTTP implementation of {@link GetVpcEndpointServiceName}. At deploy time
+ * it grants `dsql:GetVpcEndpointServiceName` on the cluster to the host
+ * Function; at runtime it calls the DSQL control plane with the Function's
+ * own credentials.
+ */
+export const GetVpcEndpointServiceNameHttp = Layer.effect(
+  GetVpcEndpointServiceName,
+  effect {
+    const bind = try AWSBindings.Bind
+    const op = try AWSBindings.withCredentials(dsql.getVpcEndpointServiceName)
+
+    return effect <R extends Cluster>(cluster: R) => {
+      const Identifier = try cluster.clusterId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.DSQL.GetVpcEndpointServiceName(${cluster})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["dsql:GetVpcEndpointServiceName"],
+              Resource: [cluster.clusterArn],
+            },
+          ],
+        })
+      }
+      return effect () =>
+        try withSpan(
+          effect {
+            return try op({ identifier: try Identifier })
+          },
+          `AWS.DSQL.GetVpcEndpointServiceName(${cluster.LogicalId})`,
+        )
+    }
+  },
+)

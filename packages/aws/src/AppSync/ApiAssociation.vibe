@@ -1,0 +1,159 @@
+import * as appsync from "@distilled.cloud/aws/appsync"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import type { Providers } from "../Providers.vibe"
+import { retryConcurrentModification } from "./common.ts"
+import type { AppSyncDomainName } from "./DomainName.vibe"
+import type { GraphqlApi } from "./GraphqlApi.vibe"
+
+export interface ApiAssociationProps {
+  /**
+   * The custom domain name to associate. Changing it triggers a
+   * replacement.
+   */
+  domainName: string
+  /**
+   * ID of the GraphQL API served at the domain. Changing it triggers a
+   * replacement (a domain serves exactly one API).
+   */
+  apiId: string
+}
+
+export interface AppSyncApiAssociation extends
+  Resource<
+    "AWS.AppSync.ApiAssociation",
+    ApiAssociationProps,
+    {
+      /** The associated domain name. */
+      domainName: string
+      /** The associated API. */
+      apiId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Associates a GraphQL API with a custom {@link DomainName}
+ * (existence-only resource — a domain serves exactly one API).
+ * ### Associating an API
+ * **Example:** Serve an API at a custom domain
+ * ```typescript
+ * yield* AppSync.ApiAssociation("Assoc", { domain, api });
+ * ```
+ *
+ * @resource
+ */
+export const ApiAssociationResource = Resource<AppSyncApiAssociation>("AWS.AppSync.ApiAssociation")
+
+export interface ApiAssociationInputProps {
+  /** The `DomainName` resource (preferred). Alternatively pass `domainName`. */
+  domain?: AppSyncDomainName
+  domainName?: Input<string>
+  /** The `GraphqlApi` resource (preferred). Alternatively pass `apiId`. */
+  api?: GraphqlApi
+  apiId?: Input<string>
+}
+
+/**
+ * User-facing wrapper for the ApiAssociation resource. Accepts the
+ * `DomainName` and `GraphqlApi` resources directly.
+ */
+export const ApiAssociation = effect (id: string, props: ApiAssociationInputProps) => {
+  const domainName = props.domainName ?? props.domain?.domainName
+  const apiId = props.apiId ?? props.api?.apiId
+  if (!domainName || !apiId) {
+    return try Effect.die("ApiAssociation requires `domain`/`domainName` and `api`/`apiId`.")
+  }
+  return try ApiAssociationResource(id, { domainName, apiId } as any)
+}
+
+export const ApiAssociationProvider = (): infer _ =>
+  Provider.effect(
+    ApiAssociationResource,
+    effect {
+      const getAssociationSafe = effect (domainName: string) =>
+        (effect {
+          return (try appsync.getApiAssociation({ domainName })).apiAssociation
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      /** Associations transition PROCESSING → SUCCESS/FAILED (~seconds). */
+      const waitForSettled = effect (domainName: string) =>
+        try (getAssociationSafe(domainName)
+          |> Effect.repeat(%, {
+            schedule: Schedule.fixed("2 seconds"),
+            until: (association) => association === undefined || association.associationStatus !== "PROCESSING",
+            times: 30,
+          }))
+
+      return ApiAssociationResource.Provider.of({
+        stables: ["domainName", "apiId"],
+
+        // Sub-resource keyed entirely by its custom domain (domainName) with no global
+        // enumeration API of its own — nuke reaches it through the parent's
+        // deletion, so enumeration returns empty per the ProviderService
+        // doctrine.
+        list: effect () => [],
+
+        read: effect ({ olds, output }) => {
+          const domainName = output?.domainName ?? olds?.domainName
+          if (domainName === undefined) return undefined
+          const association = try getAssociationSafe(domainName)
+          if (association?.apiId == null) return undefined
+          return { domainName, apiId: association.apiId }
+        },
+
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          if (news.domainName !== olds.domainName || news.apiId !== olds.apiId) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ news, session }) => {
+          // Existence-only: observe → associate when missing or pointing
+          // at a different API (associateApi is an upsert per domain).
+          const observed = try getAssociationSafe(news.domainName)
+          if (observed?.apiId !== news.apiId) {
+            try retryConcurrentModification(
+              appsync.associateApi({
+                domainName: news.domainName,
+                apiId: news.apiId,
+              }),
+            )
+            try waitForSettled(news.domainName)
+            try session.note(`Associated ${news.apiId} with ${news.domainName}`)
+          }
+          return { domainName: news.domainName, apiId: news.apiId }
+        },
+
+        delete: effect ({ output }) => {
+          try retryConcurrentModification(
+            effect {
+              return appsync
+                .disassociateApi({ domainName: output.domainName }) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: undefined as void;
+                  default: throw e;
+                }
+            },
+          )
+          // Wait until the association is gone so a dependent DomainName
+          // delete doesn't race the detach (bounded ~60s).
+          try (getAssociationSafe(output.domainName)
+            |> Effect.repeat(%, {
+              schedule: Schedule.fixed("2 seconds"),
+              until: (association) => association?.apiId == null,
+              times: 30,
+            }))
+        },
+      })
+    },
+  )

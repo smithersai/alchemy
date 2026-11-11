@@ -53,7 +53,7 @@ export const retryWhileRolePropagates = <A, E extends { _tag: string; message?: 
  * `[_A-Za-z][_0-9A-Za-z]*` (no dashes). Deterministic physical names are
  * generated with dashes, so sanitize into the allowed alphabet.
  */
-export const sanitizeAppSyncName = (name: string): string => {
+export const sanitizeAppSyncName = /** @throws {never} */ (name: string): string => {
   const sanitized = name.replaceAll(/[^_0-9A-Za-z]/g, "_");
   return /^[_A-Za-z]/.test(sanitized) ? sanitized : `_${sanitized}`;
 };

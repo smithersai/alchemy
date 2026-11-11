@@ -1,2 +1,2 @@
-export * from "./Settings.ts";
-export * from "./WaitingRoom.ts";
+export * from "./Settings.vibe";
+export * from "./WaitingRoom.vibe";

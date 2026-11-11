@@ -1,9 +1,9 @@
 export * from "./Arn.ts";
-export * from "./Assets.ts";
-export * from "./AssetsBucket.ts";
-export * from "./Environment.ts";
-export * as AWSBindings from "./AWSBindings.ts";
-export * from "./Providers.ts";
+export * from "./Assets.vibe";
+export * from "./AssetsBucket.vibe";
+export * from "./Environment.vibe";
+export * as AWSBindings from "./AWSBindings.vibe";
+export * from "./Providers.vibe";
 export * from "./StateStore/index.ts";
 
 export { Region } from "@distilled.cloud/aws/Region";

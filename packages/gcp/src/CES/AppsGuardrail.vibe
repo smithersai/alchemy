@@ -1,0 +1,397 @@
+import * as ces from "@distilled.cloud/gcp/ces_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  encodeOwnership,
+  expandApp,
+  forEachApp,
+  hasOwnershipMarker,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+const DEFAULT_CONTENT_FILTER: ces.GuardrailContentFilter = {
+  matchType: "SIMPLE_STRING_MATCH",
+  bannedContents: ["alchemy-ban"],
+}
+
+export type AppsGuardrailProps = {
+  /**
+   * Parent CES app. Full name
+   * `projects/{project}/locations/{location}/apps/{app}` or the app id
+   * (combined with `location`). Immutable — changing it replaces the
+   * guardrail.
+   */
+  app: string
+  /**
+   * Region used when `app` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * Guardrail id. If omitted, a unique name is generated. Immutable —
+   * changing it replaces the guardrail.
+   */
+  guardrailId?: string
+  /**
+   * Human-readable name. Required by the API; Alchemy falls back to the
+   * generated guardrail id.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Guardrails have no labels field, so
+   * Alchemy stamps ownership into this field.
+   */
+  description?: string
+  /**
+   * Whether the guardrail is enabled.
+   * @default true
+   */
+  enabled?: boolean
+  /**
+   * Phrase / regexp content filter. Defaults to a simple-string match
+   * on `alchemy-ban` when no other check is set.
+   */
+  contentFilter?: ces.GuardrailContentFilter
+  /**
+   * LLM policy check.
+   */
+  llmPolicy?: ces.GuardrailLlmPolicy
+  /**
+   * Prompt-security check.
+   */
+  llmPromptSecurity?: ces.GuardrailLlmPromptSecurity
+  /**
+   * Model safety overrides.
+   */
+  modelSafety?: ces.GuardrailModelSafety
+  /**
+   * Code-callback check.
+   */
+  codeCallback?: ces.GuardrailCodeCallback
+  /**
+   * Action taken when the guardrail triggers.
+   */
+  action?: ces.TriggerAction
+}
+
+export type AppsGuardrail = Resource<
+  "GCP.CES.AppsGuardrail",
+  AppsGuardrailProps,
+  {
+    /** Full resource name `.../apps/{app}/guardrails/{guardrail}`. */
+    name: string
+    /** Guardrail id (last path segment). */
+    guardrailId: string
+    /** Parent app resource name. */
+    app: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Whether the guardrail is enabled. */
+    enabled: boolean
+    /** Content filter. */
+    contentFilter: ces.GuardrailContentFilter | undefined
+    /** LLM policy. */
+    llmPolicy: ces.GuardrailLlmPolicy | undefined
+    /** Prompt-security check. */
+    llmPromptSecurity: ces.GuardrailLlmPromptSecurity | undefined
+    /** Model safety overrides. */
+    modelSafety: ces.GuardrailModelSafety | undefined
+    /** Code-callback check. */
+    codeCallback: ces.GuardrailCodeCallback | undefined
+    /** Trigger action. */
+    action: ces.TriggerAction | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Server-assigned etag. */
+    etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Customer Engagement Suite guardrail — content filter, LLM policy,
+ * model safety, or callback checks attached to an app or agent.
+ *
+ * Guardrails have no labels field — Alchemy stamps ownership into
+ * `description` so `list` / nuke can find them. Parent app, location,
+ * and guardrail id are immutable.
+ *
+ * ### Creating a Guardrail
+ * **Example:** Banned-phrase filter
+ * ```typescript
+ * const guardrail = yield* GCP.CES.AppsGuardrail("Safety", {
+ *   app: app.name,
+ *   displayName: "safety",
+ *   contentFilter: {
+ *     matchType: "SIMPLE_STRING_MATCH",
+ *     bannedContents: ["forbidden"],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category CES
+ */
+export const AppsGuardrail = Resource<AppsGuardrail>("GCP.CES.AppsGuardrail")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppsGuardrailNotResolved extends Data.TaggedError("GCP.CES.AppsGuardrailNotResolved")<{
+  resourceName: string
+}> {}
+
+const resourceName = (app: string, guardrailId: string): infer _ => `${app}/guardrails/${guardrailId}`
+
+const defaultFilter = (news: AppsGuardrailProps): infer _ => {
+  if (
+    news.contentFilter
+    || news.llmPolicy
+    || news.llmPromptSecurity
+    || news.modelSafety
+    || news.codeCallback
+  ) {
+    return news.contentFilter
+  }
+  return DEFAULT_CONTENT_FILTER
+}
+
+const toAttrs = (guardrail: ces.Guardrail, project: string, region: string, appHint?: string): infer _ => {
+  const name = guardrail.name ?? ""
+  const parsed = parseResourceName(name, "guardrails", region)
+  return {
+    name,
+    guardrailId: parsed.id,
+    app: name.includes("/guardrails/") ? parsed.app : (appHint ?? parsed.parent),
+    location: parsed.location,
+    project: parsed.project || project,
+    displayName: guardrail.displayName,
+    description: parseOwnership(guardrail.description).text,
+    enabled: guardrail.enabled !== false,
+    contentFilter: guardrail.contentFilter,
+    llmPolicy: guardrail.llmPolicy,
+    llmPromptSecurity: guardrail.llmPromptSecurity,
+    modelSafety: guardrail.modelSafety,
+    codeCallback: guardrail.codeCallback,
+    action: guardrail.action,
+    createTime: guardrail.createTime,
+    updateTime: guardrail.updateTime,
+    etag: guardrail.etag,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : ces
+  .getProjectsLocationsAppsGuardrails({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (try collectPages(
+    ces.listProjectsLocationsAppsGuardrails.pages({ parent, pageSize: 100 }),
+    (page) => page.guardrails,
+  ))
+    .filter((guardrail) => hasOwnershipMarker(guardrail.description))
+    .map((guardrail) => toAttrs(guardrail, project, region, parent))
+
+export const AppsGuardrailProvider = (): infer _ =>
+  Provider.succeed(AppsGuardrail, {
+    stables: ["name", "guardrailId", "app", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.guardrailId ?? output?.guardrailId,
+            nextId: resolved.guardrailId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
+      const guardrailId = try toPhysicalId(id, olds?.guardrailId, output?.guardrailId)
+      const name = output?.name ?? (app !== undefined ? resourceName(app, guardrailId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region, app)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try forEachApp(
+        env.project,
+        effect (parent) => try listAt(parent, env.project, env.region),
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
+      const guardrailId = try toPhysicalId(id, news.guardrailId, output?.guardrailId)
+      const name = output?.name ?? resourceName(app, guardrailId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
+      const displayName = news.displayName ?? guardrailId
+      const enabled = news.enabled !== false
+      const contentFilter = defaultFilter(news)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          ces.createProjectsLocationsAppsGuardrails({
+            parent: app,
+            guardrailId,
+            body: {
+              displayName,
+              description,
+              enabled,
+              contentFilter,
+              llmPolicy: news.llmPolicy,
+              llmPromptSecurity: news.llmPromptSecurity,
+              modelSafety: news.modelSafety,
+              codeCallback: news.codeCallback,
+              action: news.action,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppsGuardrailNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const enabledChanged = (current.enabled !== false) !== enabled
+      const filterChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.contentFilter, contentFilter), catch: (e) => e }),
+      ))
+      const policyChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.llmPolicy, news.llmPolicy),
+        catch: (e) => e,
+      })))
+      const promptChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.llmPromptSecurity, news.llmPromptSecurity),
+          catch: (e) => e,
+        }),
+      ))
+      const safetyChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.modelSafety, news.modelSafety), catch: (e) => e }),
+      ))
+      const callbackChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.codeCallback, news.codeCallback), catch: (e) => e }),
+      ))
+      const actionChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.action, news.action),
+        catch: (e) => e,
+      })))
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || enabledChanged
+        || filterChanged
+        || policyChanged
+        || promptChanged
+        || safetyChanged
+        || callbackChanged
+        || actionChanged
+      ) {
+        current = try retryTransient(
+          ces.patchProjectsLocationsAppsGuardrails({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  enabledChanged ? "enabled" : undefined,
+                  filterChanged ? "content_filter" : undefined,
+                  policyChanged ? "llm_policy" : undefined,
+                  promptChanged ? "llm_prompt_security" : undefined,
+                  safetyChanged ? "model_safety" : undefined,
+                  callbackChanged ? "code_callback" : undefined,
+                  actionChanged ? "action" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: {
+              displayName,
+              description,
+              enabled,
+              contentFilter,
+              llmPolicy: news.llmPolicy,
+              llmPromptSecurity: news.llmPromptSecurity,
+              modelSafety: news.modelSafety,
+              codeCallback: news.codeCallback,
+              action: news.action,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region, app)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      // `force: true` makes guardrail deletes fail with 500 INTERNAL.
+      retryTransient(ces.deleteProjectsLocationsAppsGuardrails({ name: output.name })) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+      try waitUntilGone(getByName(output.name))
+    },
+  })

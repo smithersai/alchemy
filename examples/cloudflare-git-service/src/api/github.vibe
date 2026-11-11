@@ -1,0 +1,59 @@
+/** The compatibility endpoint delegates to the same application write operation. */
+import * as Git from "@alchemy.run/git"
+import * as HttpRouter from "effect/http/HttpRouter"
+import { AppApi } from "./api.vibe"
+import { mergePull } from "./ref-writes.vibe"
+
+schema MergeBody {
+  readonly commit_message?: string
+  readonly sha?: string
+  readonly merge_method?: string
+}
+
+export const GitHubLive = HttpApiBuilder.group(AppApi, "github", effect (h) => {
+  const defaults = try Effect.service(Git.Handlers)
+  const git = try Effect.service(Git.Engine)
+  const { mergePull: _, ...rest } = defaults.github
+  return h.handleAll(rest).handleRaw("mergePull", effect ({ request }) =>
+    (effect {
+      return (try effect {
+        const params = try HttpRouter.params
+        const number = Number(params.number)
+        if (!Number.isSafeInteger(number) || number <= 0) {
+          return HttpServerResponse.empty({ status: 404 })
+        }
+        const body = try (request.json
+          |> Effect.flatMap(%, Schema.decodeUnknownEffect(MergeBody)))
+        if (body.merge_method !== undefined && body.merge_method !== "merge") {
+          return HttpServerResponse.jsonUnsafe(
+            { message: "Merge method is not supported" },
+            { status: 405 },
+          )
+        }
+        const result = try mergePull(
+          git,
+          { owner: params.owner ?? "", repo: params.repo ?? "", number },
+          { message: body.commit_message, expectedHeadOid: body.sha },
+        )
+        return HttpServerResponse.jsonUnsafe({
+          sha: result.oid,
+          merged: true,
+          message: "Pull Request successfully merged",
+        })
+      })
+    }) catch effect (error) =>
+      HttpServerResponse.jsonUnsafe(
+        { message: error._tag },
+        {
+          status: error._tag === "PushDenied"
+            ? 403
+            : error._tag === "Unauthorized"
+            ? 401
+            : error._tag === "RepoNotFound" || error._tag === "PullNotFound"
+            ? 404
+            : error._tag === "SchemaError" || error._tag === "HttpServerError"
+            ? 400
+            : 409,
+        },
+      ))
+})

@@ -1,1 +1,1 @@
-export * from "./CustomCertificate.ts";
+export * from "./CustomCertificate.vibe";

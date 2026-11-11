@@ -1,6 +1,6 @@
-import type { NamespaceNode } from "../Namespace.ts";
-import type { ProviderMode } from "../ProviderMode.ts";
-import type { RemovalPolicy } from "../RemovalPolicy.ts";
+import type { NamespaceNode } from "../Namespace.vibe";
+import type { ProviderMode } from "../ProviderMode.vibe";
+import type { RemovalPolicy } from "../RemovalPolicy.vibe";
 import type { ResourceBinding } from "../Resource.ts";
 
 export type ResourceState =

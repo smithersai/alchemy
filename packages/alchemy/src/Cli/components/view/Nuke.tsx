@@ -4,12 +4,12 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as LogLevel from "effect/LogLevel";
 import * as Match from "effect/Match";
-import { onEvent, type Event } from "../../../Events.ts";
+import { onEvent, type Event } from "../../../Events.vibe";
 import { Interaction } from "../../../Interaction.ts";
-import type { Result as NukeResult, Target } from "../../../Nuke.ts";
-import type { ProviderMode } from "../../../ProviderMode.ts";
-import { currentConsoleSettings } from "../../GlobalLog.ts";
-import { present } from "../../Present.ts";
+import type { Result as NukeResult, Target } from "../../../Nuke.vibe";
+import type { ProviderMode } from "../../../ProviderMode.vibe";
+import { currentConsoleSettings } from "../../GlobalLog.vibe";
+import { present } from "../../Present.vibe";
 import {
   LiveStore,
   ProgressBar,

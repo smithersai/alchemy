@@ -1,0 +1,378 @@
+import * as datalineage from "@distilled.cloud/gcp/datalineage_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  fingerprint,
+  hasAlchemyAttributeMap,
+  listLineageEvents,
+  listOwnedProcesses,
+  listRuns,
+  normalizeLocation,
+  parseName,
+  processOf,
+  replaceOnIdentity,
+  toPhysicalId,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type LineageEntityReference = {
+  /**
+   * Fully qualified name of the entity, for example
+   * `bigquery:project.dataset.table` or `custom:project.system.table`.
+   */
+  fullyQualifiedName: string
+  /**
+   * Optional nested field path within the entity. Empty for asset-level
+   * lineage.
+   */
+  field?: string[]
+}
+
+export type LineageEventLink = {
+  /** Source entity. */
+  source: LineageEntityReference
+  /** Target entity. */
+  target: LineageEntityReference
+  /**
+   * How the target depends on the source (`EXACT_COPY` or `OTHER`).
+   */
+  dependencyType?:
+    | datalineage.GoogleCloudDatacatalogLineageV1DependencyInfoDependencyTypeEnum
+    | (string & {})
+}
+
+export type ProcessesRunsLineageEventProps = {
+  /**
+   * Parent run. Full name
+   * `projects/{project}/locations/{location}/processes/{process}/runs/{run}`
+   * or a run id combined with `process`. Immutable — changing it replaces
+   * the event.
+   */
+  run: string
+  /**
+   * Parent process used when `run` is a bare id. Full process name or
+   * process id combined with `location`.
+   */
+  process?: string
+  /**
+   * Event id (the `{lineage_event}` segment). If omitted, a unique name
+   * is generated. Max 200 characters: letters, digits, underscores,
+   * hyphens, colons, periods. Immutable — changing it replaces the event.
+   */
+  lineageEventId?: string
+  /**
+   * Region used when `run` / `process` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * RFC3339 start of the transformation. Required by the API; Alchemy
+   * reuses the observed value on subsequent reconciles when omitted.
+   */
+  startTime?: string
+  /**
+   * RFC3339 end of the transformation.
+   */
+  endTime?: string
+  /**
+   * Source-target links (max 100). Lineage events have no labels or
+   * attributes field, so Alchemy lists events under alchemy-owned
+   * parent processes for nuke.
+   */
+  links?: LineageEventLink[]
+}
+
+export type ProcessesRunsLineageEvent = Resource<
+  "GCP.DataLineage.ProcessesRunsLineageEvent",
+  ProcessesRunsLineageEventProps,
+  {
+    /** Full resource name `.../runs/{run}/lineageEvents/{lineage_event}`. */
+    name: string
+    /** Lineage event id (last path segment). */
+    lineageEventId: string
+    /** Parent run resource name. */
+    run: string
+    /** Parent process resource name. */
+    process: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** RFC3339 start time. */
+    startTime: string | undefined
+    /** RFC3339 end time. */
+    endTime: string | undefined
+    /** Source-target links. */
+    links: LineageEventLink[]
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Lineage event — one operation that moved data from source
+ * assets to target assets.
+ *
+ * Events are immutable after create (no patch API). Identity is the
+ * parent run plus `lineageEventId`. Changing links or timestamps
+ * replaces the event. Events have no labels, so `list` / nuke walks
+ * alchemy-owned parent processes.
+ *
+ * ### Creating a Lineage Event
+ * **Example:** One source-to-target link
+ * ```typescript
+ * const event = yield* GCP.DataLineage.ProcessesRunsLineageEvent("Load", {
+ *   run: run.name,
+ *   startTime: "2024-01-01T00:00:00Z",
+ *   links: [
+ *     {
+ *       source: { fullyQualifiedName: "custom:proj.raw.orders" },
+ *       target: { fullyQualifiedName: "custom:proj.dw.orders" },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category DataLineage
+ */
+export const ProcessesRunsLineageEvent = Resource<ProcessesRunsLineageEvent>(
+  "GCP.DataLineage.ProcessesRunsLineageEvent",
+)
+
+/** Alias matching the Data Lineage resource name. */
+export const LineageEvent = ProcessesRunsLineageEvent
+export type LineageEvent = ProcessesRunsLineageEvent
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProcessesRunsLineageEventNotResolved extends Data.TaggedError(
+  "GCP.DataLineage.ProcessesRunsLineageEventNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (run: string, lineageEventId: string): infer _ => `${run}/lineageEvents/${lineageEventId}`
+
+const nowIso = effect () => new Date().toISOString()
+
+const runOf = (run: string, process: string | undefined, project: string, location: string): infer _ => {
+  if (run.includes("/")) return run.replace(/\/+$/, "")
+  const parent = processOf(process ?? "", project, location)
+  return `${parent}/runs/${run}`
+}
+
+const linksOf = (
+  links: readonly LineageEventLink[] | undefined,
+): datalineage.GoogleCloudDatacatalogLineageV1EventLink[] =>
+  (links ?? []).map((link) => ({
+    source: {
+      fullyQualifiedName: link.source.fullyQualifiedName,
+      field: link.source.field,
+    },
+    target: {
+      fullyQualifiedName: link.target.fullyQualifiedName,
+      field: link.target.field,
+    },
+    dependencyInfo: link.dependencyType !== undefined ? { dependencyType: link.dependencyType } : undefined,
+  }))
+
+const linksFrom = (
+  links: readonly datalineage.GoogleCloudDatacatalogLineageV1EventLink[] | undefined,
+): LineageEventLink[] =>
+  (links ?? [])
+    .filter(
+      (link) =>
+        (link.source?.fullyQualifiedName ?? "").length > 0
+        && (link.target?.fullyQualifiedName ?? "").length > 0,
+    )
+    .map((link) => ({
+      source: {
+        fullyQualifiedName: link.source?.fullyQualifiedName ?? "",
+        field: link.source?.field,
+      },
+      target: {
+        fullyQualifiedName: link.target?.fullyQualifiedName ?? "",
+        field: link.target?.field,
+      },
+      dependencyType: link.dependencyInfo?.dependencyType,
+    }))
+
+const toAttrs = (
+  event: datalineage.GoogleCloudDatacatalogLineageV1LineageEvent,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = event.name ?? ""
+  const parsed = parseName(name, "lineageEvents", region)
+  const process = parseName(parsed.parent, "runs", region).parent
+  return {
+    name,
+    lineageEventId: parsed.id,
+    run: parsed.parent,
+    process,
+    project: parsed.project || project,
+    location: parsed.location,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    links: linksFrom(event.links),
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : datalineage
+  .getProjectsLocationsProcessesRunsLineageEvents({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const getProcess = effect (name: string) => (name.length === 0 ? try Effect.undefined : datalineage
+  .getProjectsLocationsProcesses({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const identityFingerprint = (news: {
+  startTime?: string
+  endTime?: string
+  links?: LineageEventLink[]
+}): infer _ =>
+  fingerprint({
+    startTime: news.startTime,
+    endTime: news.endTime,
+    links: linksOf(news.links),
+  })
+
+export const ProcessesRunsLineageEventProvider = (): infer _ =>
+  Provider.succeed(ProcessesRunsLineageEvent, {
+    stables: ["name", "lineageEventId", "run", "process", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previous = identityFingerprint({
+        startTime: olds?.startTime ?? output?.startTime,
+        endTime: olds?.endTime ?? output?.endTime,
+        links: olds?.links ?? output?.links,
+      })
+      const next = identityFingerprint({
+        startTime: resolved.startTime ?? olds?.startTime ?? output?.startTime,
+        endTime: resolved.endTime ?? olds?.endTime ?? output?.endTime,
+        links: resolved.links ?? olds?.links ?? output?.links,
+      })
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.lineageEventId ?? output?.lineageEventId,
+            nextId: resolved.lineageEventId,
+            previousParent: olds?.run ?? output?.run,
+            nextParent: resolved.run,
+            extra: (output !== undefined && previousLocation !== nextLocation)
+              || (output !== undefined && previous !== next),
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parentRef = olds?.run ?? output?.run
+      // A recovery read of an interrupted create gets persisted props whose
+      // unresolved parent reference was stripped; without the parent there
+      // is no name to look up, so report nothing found rather than calling
+      // the API with an empty path segment.
+      if (output?.name === undefined && (typeof parentRef !== "string" || parentRef.length === 0)) {
+        return undefined
+      }
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const run = runOf(
+        olds?.run ?? output?.run ?? "",
+        olds?.process ?? output?.process,
+        env.project,
+        location,
+      )
+      const lineageEventId = try toPhysicalId(id, olds?.lineageEventId, output?.lineageEventId)
+      const name = output?.name ?? resourceName(run, lineageEventId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const parent = try getProcess(attrs.process)
+      return parent === undefined
+          || (try Effect.orDie(Effect.try({ try: () => hasAlchemyAttributeMap(parent.attributes), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const processes = try listOwnedProcesses(env.project, env.region)
+      const runs = (try Effect.forEach(processes, effect (process) => try listRuns(process.name ?? ""), {
+        concurrency: 4,
+      })).flat()
+      const events = (try Effect.forEach(runs, effect (run) => try listLineageEvents(run.name ?? ""), {
+        concurrency: 4,
+      })).flat()
+      return events.map((event) => toAttrs(event, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const run = runOf(news.run, news.process, env.project, location)
+      const lineageEventId = try toPhysicalId(id, news.lineageEventId, output?.lineageEventId)
+      const name = output?.name ?? resourceName(run, lineageEventId)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const startTime = news.startTime ?? (try nowIso())
+        const created = datalineage
+          .createProjectsLocationsProcessesRunsLineageEvents({
+            parent: run,
+            body: {
+              name,
+              startTime,
+              endTime: news.endTime,
+              links: linksOf(news.links),
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ProcessesRunsLineageEventNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      datalineage
+        .deleteProjectsLocationsProcessesRunsLineageEvents({
+          name: output.name,
+          allowMissing: true,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

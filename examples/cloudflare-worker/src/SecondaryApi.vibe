@@ -1,0 +1,30 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import Agent from "./Agent.vibe"
+
+// A second Worker that binds the same `Agent` Durable Object as `Api`. Each
+// `yield* Agent` runs the DO's outer init, which calls
+// `Cloudflare.Container(Sandbox)` and pushes a binding onto the Sandbox
+// ContainerApplication carrying the Agent namespace. With two Workers binding
+// the same DO, the Sandbox ends up with two bindings that share a single
+// `namespaceId` — the regression case for the dedupe fix in this PR.
+export class SecondaryApi extends Cloudflare.Worker<SecondaryApi, {}>()("SecondaryApi") {}
+
+export default SecondaryApi.make(
+  {
+    main: import.meta.url,
+    observability: { enabled: true },
+  },
+  effect {
+    const agents = try Agent
+
+    return {
+      fetch: effect {
+        const agent = try Effect.orDie(Effect.try({ try: () => agents.getByName("sandbox-test"), catch: (e) => e }))
+        const body = try (agent.hello()
+          |> Effect.orDie(%))
+        return HttpServerResponse.text(body)
+      },
+    }
+  },
+)

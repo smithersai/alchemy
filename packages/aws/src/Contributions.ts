@@ -3,21 +3,21 @@ import * as Contributions from "alchemy/Contributions";
 export default Contributions.make({
   name: "aws",
   auth: Contributions.lazy(
-    () => import("./AuthProvider.ts"),
+    () => import("./AuthProvider.vibe"),
     (module) => module.AwsAuth,
   ),
   stateStores: {
     aws: {
       description: "DynamoDB state store in the profile's AWS account",
       load: Contributions.lazy(
-        () => import("./Alchemist/DynamoDBStateStore.ts"),
+        () => import("./Alchemist/DynamoDBStateStore.vibe"),
         (module) => module.stateStore,
       ),
     },
     "aws-s3": {
       description: "S3 state store in the profile's AWS account",
       load: Contributions.lazy(
-        () => import("./Alchemist/StateStore.ts"),
+        () => import("./Alchemist/StateStore.vibe"),
         (module) => module.s3StateStore,
       ),
     },
@@ -26,17 +26,17 @@ export default Contributions.make({
     provider: {
       description: "Manage AWS provider prerequisites",
       load: Contributions.lazy(
-        () => import("./Cli.ts"),
+        () => import("./Cli.vibe"),
         (module) => module.awsCommand,
       ),
     },
   },
   testServices: Contributions.lazy(
-    () => import("./Local/TestServices.ts"),
+    () => import("./Local/TestServices.vibe"),
     (module) => module.testServices(),
   ),
   devEnv: Contributions.lazy(
-    () => import("./Local/DevEnv.ts"),
+    () => import("./Local/DevEnv.vibe"),
     (module) => module.devEnv,
   ),
 });

@@ -1,0 +1,277 @@
+import * as Effect from "effect/Effect"
+import * as sesv2 from "@distilled.cloud/aws/sesv2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface CustomVerificationEmailTemplateProps {
+  /**
+   * Name of the template. May contain letters, numbers, dashes and
+   * underscores, up to 64 characters. If omitted, a deterministic physical
+   * name is generated from the app, stage, and logical ID. Changing the name
+   * replaces the template.
+   */
+  templateName?: string
+  /**
+   * The verified email address the verification email is sent from. The
+   * identity must already be verified for sending.
+   */
+  fromEmailAddress: string
+  /**
+   * The subject line of the verification email.
+   */
+  templateSubject: string
+  /**
+   * The HTML body of the verification email. Must contain a link to the
+   * verification URL SES generates.
+   */
+  templateContent: string
+  /**
+   * The URL the recipient is redirected to after successfully verifying.
+   */
+  successRedirectionURL: string
+  /**
+   * The URL the recipient is redirected to if verification fails.
+   */
+  failureRedirectionURL: string
+  /**
+   * Tags to apply to the template. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface CustomVerificationEmailTemplate extends
+  Resource<
+    "AWS.SES.CustomVerificationEmailTemplate",
+    CustomVerificationEmailTemplateProps,
+    {
+      /** Name of the template. */
+      templateName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SES v2 custom verification email template — the branded email SES
+ * sends when you verify a new email-address identity via
+ * `SendCustomVerificationEmail`.
+ *
+ * Creating, reading, updating, and deleting the template works on any account.
+ * Actually *sending* a custom verification email requires the account to be
+ * out of the SES sandbox (production access).
+ * ### Creating Templates
+ * **Example:** Branded Verification Email
+ * ```typescript
+ * import * as SES from "@alchemy.run/aws/SES";
+ *
+ * const template = yield* SES.CustomVerificationEmailTemplate("Verify", {
+ *   fromEmailAddress: "verify@example.com",
+ *   templateSubject: "Please confirm your email",
+ *   templateContent:
+ *     "<html><body>Click the link to verify your address.</body></html>",
+ *   successRedirectionURL: "https://example.com/verified",
+ *   failureRedirectionURL: "https://example.com/verify-failed",
+ * });
+ * ```
+ *
+ * **Example:** Explicit Template Name
+ * ```typescript
+ * // Without templateName a deterministic name is derived from app/stage/id.
+ * const template = yield* SES.CustomVerificationEmailTemplate("Verify", {
+ *   templateName: "onboarding-verification",
+ *   fromEmailAddress: "verify@example.com",
+ *   templateSubject: "Please confirm your email",
+ *   templateContent:
+ *     "<html><body>Click the link to verify your address.</body></html>",
+ *   successRedirectionURL: "https://example.com/verified",
+ *   failureRedirectionURL: "https://example.com/verify-failed",
+ * });
+ * ```
+ *
+ * ### Sending the Verification Email
+ * **Example:** Verify a New Address from a Lambda Function
+ * ```typescript
+ * // init — account-level binding, no resource argument
+ * const sendVerification = yield* SES.SendCustomVerificationEmail();
+ *
+ * // runtime — SES emails the branded template to the address, and the
+ * // address becomes a verified identity once the recipient clicks through.
+ * const { MessageId } = yield* sendVerification({
+ *   EmailAddress: "new-user@example.com",
+ *   TemplateName: yield* template.templateName,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const CustomVerificationEmailTemplate = Resource<CustomVerificationEmailTemplate>(
+  "AWS.SES.CustomVerificationEmailTemplate",
+)
+
+const toTagRecord = (
+  tags: ReadonlyArray<{ Key: string; Value: string }> | undefined,
+): Record<string, string> => Object.fromEntries((tags ?? []).map((tag) => [tag.Key, tag.Value]))
+
+// getCustomVerificationEmailTemplate returns no ARN, so the ARN
+// listTagsForResource needs is derived — verified live against SES.
+const templateArnOf = (region: string, accountId: string, name: string): infer _ =>
+  `arn:aws:ses:${region}:${accountId}:custom-verification-email-template/${name}`
+
+export const CustomVerificationEmailTemplateProvider = (): infer _ =>
+  Provider.effect(
+    CustomVerificationEmailTemplate,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<CustomVerificationEmailTemplateProps, "templateName">,
+      ) => props.templateName ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      const getTemplate = effect (name: string) =>
+        sesv2
+          .getCustomVerificationEmailTemplate({ TemplateName: name }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      // The get returns no tags, so ownership costs a second API call. Only
+      // `read` pays it — `list` deletes by name.
+      const getTemplateTags = effect (name: string) => {
+        const { accountId, region } = try AWSEnvironment.current
+        return (effect {
+          return (toTagRecord(
+            (try sesv2
+              .listTagsForResource({
+                ResourceArn: templateArnOf(region, accountId, name),
+              })).Tags,
+          ))
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: {} as Record<string, string>;
+          default: throw e;
+        }
+      }
+
+      return CustomVerificationEmailTemplate.Provider.of({
+        stables: ["templateName"],
+
+        // Account/region-scoped: enumerate every template so leaked test
+        // resources are cleaned by nuke. Custom verification email templates
+        // carry no ownership signal, so existence is treated as ownership.
+        list: effect () => {
+          const pages = try sesv2.listCustomVerificationEmailTemplates
+            .pages({})
+            .pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.CustomVerificationEmailTemplates ?? [])
+            .flatMap((meta) => (meta.TemplateName ? [{ templateName: meta.TemplateName }] : []))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.templateName ?? (try createName(id, olds ?? {}))
+          const found = try getTemplate(name)
+          if (!found) return undefined
+          // Templates are taggable and reconcile brands the ones it creates,
+          // so existence at our deterministic name is not proof of ownership.
+          const tags = try getTemplateTags(name)
+          return (try hasAlchemyTags(id, tags))
+            ? { templateName: name }
+            : (try Effect.orDie(Effect.try({ try: () => Unowned({ templateName: name }), catch: (error) => error })))
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news ?? {})
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output }) => {
+          const name = output?.templateName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          const observed = try getTemplate(name)
+
+          if (observed === undefined) {
+            // 2. ENSURE — create; AlreadyExists is a race → converge via update.
+            sesv2
+              .createCustomVerificationEmailTemplate({
+                TemplateName: name,
+                FromEmailAddress: news.fromEmailAddress,
+                TemplateSubject: news.templateSubject,
+                TemplateContent: news.templateContent,
+                SuccessRedirectionURL: news.successRedirectionURL,
+                FailureRedirectionURL: news.failureRedirectionURL,
+                Tags: createTagsList(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "AlreadyExistsException" }: try sesv2.updateCustomVerificationEmailTemplate({
+                  TemplateName: name,
+                  FromEmailAddress: news.fromEmailAddress,
+                  TemplateSubject: news.templateSubject,
+                  TemplateContent: news.templateContent,
+                  SuccessRedirectionURL: news.successRedirectionURL,
+                  FailureRedirectionURL: news.failureRedirectionURL,
+                });
+                default: throw e;
+              }
+          } else if (
+            observed.FromEmailAddress !== news.fromEmailAddress
+            || observed.TemplateSubject !== news.templateSubject
+            || observed.TemplateContent !== news.templateContent
+            || observed.SuccessRedirectionURL !== news.successRedirectionURL
+            || observed.FailureRedirectionURL !== news.failureRedirectionURL
+          ) {
+            // 3. SYNC — a single full-replace update converges the template.
+            try sesv2.updateCustomVerificationEmailTemplate({
+              TemplateName: name,
+              FromEmailAddress: news.fromEmailAddress,
+              TemplateSubject: news.templateSubject,
+              TemplateContent: news.templateContent,
+              SuccessRedirectionURL: news.successRedirectionURL,
+              FailureRedirectionURL: news.failureRedirectionURL,
+            })
+          }
+
+          // 4. SYNC TAGS — diff against OBSERVED cloud tags so an adopted
+          //    template gets branded and stops reading as Unowned.
+          const observedTags = try getTemplateTags(name)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0 || removed.length > 0) {
+            const { accountId, region } = try AWSEnvironment.current
+            const arn = templateArnOf(region, accountId, name)
+            if (upsert.length > 0) {
+              try sesv2.tagResource({ ResourceArn: arn, Tags: upsert })
+            }
+            if (removed.length > 0) {
+              try sesv2.untagResource({
+                ResourceArn: arn,
+                TagKeys: removed,
+              })
+            }
+          }
+
+          return { templateName: name }
+        },
+
+        delete: effect ({ output }) => {
+          sesv2
+            .deleteCustomVerificationEmailTemplate({
+              TemplateName: output.templateName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

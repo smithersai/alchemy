@@ -1,0 +1,328 @@
+import * as integrations from "@distilled.cloud/gcp/integrations_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+import type { AuthConfigVisibility, CredentialType, DecryptedCredential } from "./shared.ts"
+import { credentialBody } from "./shared.ts"
+
+export type AuthConfigProps = {
+  /**
+   * Auth config id (the `{authConfig}` segment of
+   * `projects/{project}/locations/{location}/authConfigs/{authConfig}`).
+   * Server-assigned on create. Immutable — changing it replaces the
+   * config.
+   */
+  authConfigId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * config. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Unique display name within the client.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Auth configs have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+  /**
+   * Credential type applied to `decryptedCredential` when it omits one.
+   * @default "USERNAME_AND_PASSWORD"
+   */
+  credentialType?: CredentialType
+  /**
+   * Decrypted credential payload. Write-only — never returned on
+   * attributes.
+   */
+  decryptedCredential?: DecryptedCredential
+  /**
+   * Certificate id used for client-certificate auth.
+   */
+  certificateId?: string
+  /**
+   * Visibility of the auth config.
+   * @default "PRIVATE"
+   */
+  visibility?: AuthConfigVisibility
+}
+
+export type AuthConfig = Resource<
+  "GCP.Integrations.AuthConfig",
+  AuthConfigProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/authConfigs/{authConfig}`. */
+    name: string
+    /** Auth config id (last path segment). */
+    authConfigId: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Credential type. */
+    credentialType: string | undefined
+    /** Certificate id, if any. */
+    certificateId: string | undefined
+    /** Visibility. */
+    visibility: string | undefined
+    /** Server-reported state. */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Application Integration auth config (username/password, token, JWT,
+ * service account, …).
+ *
+ * Auth configs have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Location and id are
+ * immutable. Display name, description, visibility, and credentials
+ * update in place.
+ *
+ * ### Creating an Auth Config
+ * **Example:** Username and password
+ * ```typescript
+ * const auth = yield* GCP.Integrations.AuthConfig("Salesforce", {
+ *   displayName: "salesforce-basic",
+ *   credentialType: "USERNAME_AND_PASSWORD",
+ *   decryptedCredential: {
+ *     credentialType: "USERNAME_AND_PASSWORD",
+ *     usernameAndPassword: { username: "user", password: "secret" },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Integrations
+ */
+export const AuthConfig = Resource<AuthConfig>("GCP.Integrations.AuthConfig")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AuthConfigNotResolved extends Data.TaggedError(
+  "GCP.Integrations.AuthConfigNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const DEFAULT_CREDENTIAL_TYPE: CredentialType = "USERNAME_AND_PASSWORD"
+const DEFAULT_VISIBILITY: AuthConfigVisibility = "PRIVATE"
+
+const resourceName = (project: string, location: string, authConfigId: string): infer _ =>
+  `${locationParent(project, location)}/authConfigs/${authConfigId}`
+
+const toAttrs = (
+  config: integrations.GoogleCloudIntegrationsV1alphaAuthConfig,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseOwnership(config.description)
+  return {
+    name,
+    authConfigId: lastSegment(name),
+    location: locationOf(name, region),
+    project,
+    displayName: config.displayName,
+    description: parsed.text,
+    credentialType: config.credentialType ?? config.decryptedCredential?.credentialType,
+    certificateId: config.certificateId,
+    visibility: config.visibility,
+    state: config.state,
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
+  .getProjectsLocationsAuthConfigs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsAuthConfigs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authConfigs ?? []))
+        |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
+        |> Stream.map(%, (config) => toAttrs(config, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) =>
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsAuthConfigs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authConfigs ?? []))
+        |> Stream.filterEffect(%, effect (config) => try ownedByAlchemy(id, config.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+export const AuthConfigProvider = (): infer _ =>
+  Provider.succeed(AuthConfig, {
+    stables: ["name", "authConfigId", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = normalizeLocation(resolved.location, previousLocation ?? env.region)
+      if (
+        previousLocation !== undefined
+        && normalizeLocation(previousLocation, env.region) !== nextLocation
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.authConfigId ?? output?.authConfigId
+      if (
+        previousId !== undefined
+        && resolved.authConfigId !== undefined
+        && resolved.authConfigId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const authConfigId = try toResourceId(id, olds?.authConfigId, output?.authConfigId)
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, authConfigId)
+      let existing = try getByName(name)
+      if (existing === undefined && output?.name === undefined) {
+        existing = try findOwned(locationParent(env.project, location), id)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project, env.region)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const parent = locationParent(env.project, location)
+      const authConfigId = try toResourceId(id, news.authConfigId, output?.authConfigId)
+      const name = output?.name ?? resourceName(env.project, location, authConfigId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? authConfigId
+      const credentialType = news.credentialType ?? DEFAULT_CREDENTIAL_TYPE
+      const visibility = news.visibility ?? DEFAULT_VISIBILITY
+      const decryptedCredential = try Effect.orDie(
+        Effect.try({ try: () => credentialBody(news.decryptedCredential, credentialType), catch: (e) => e }),
+      )
+
+      let current = try getByName(output?.name ?? name)
+      if (current === undefined) {
+        current = try findOwned(parent, id)
+      }
+
+      if (current === undefined) {
+        const created = integrations
+          .createProjectsLocationsAuthConfigs({
+            parent,
+            body: {
+              displayName,
+              description,
+              decryptedCredential,
+              certificateId: news.certificateId,
+              visibility,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try findOwned(parent, id); default: throw e; }
+        current = created ?? (try findOwned(parent, id))
+      }
+
+      if (current === undefined) {
+        throw new AuthConfigNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+      const visibilityChanged = !sameText(current.visibility, visibility)
+      const certificateChanged = !sameText(current.certificateId, news.certificateId)
+      const credentialChanged = news.decryptedCredential !== undefined
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || visibilityChanged
+        || certificateChanged
+        || credentialChanged
+      ) {
+        current = try integrations.patchProjectsLocationsAuthConfigs({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            visibilityChanged ? "visibility" : undefined,
+            certificateChanged ? "certificate_id" : undefined,
+            credentialChanged ? "decrypted_credential" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            description,
+            decryptedCredential,
+            certificateId: news.certificateId,
+            visibility,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      integrations
+        .deleteProjectsLocationsAuthConfigs({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

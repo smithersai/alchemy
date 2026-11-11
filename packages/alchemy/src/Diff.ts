@@ -1,12 +1,12 @@
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import * as Output from "./Output.ts";
 import type { BindingNode } from "./Plan.ts";
 import type { ResourceBinding } from "./Resource.ts";
 import { bytesToBase64 } from "./Util/base64.ts";
-import { isPlainData, isPrimitive, mapPlainData } from "./Util/data.ts";
+import { isPlainData, isPrimitive, mapPlainData } from "./Util/data.vibe";
 
 export type Diff = NoopDiff | UpdateDiff | ReplaceDiff;
 

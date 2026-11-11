@@ -37,7 +37,7 @@ import {
   resolveVinextCli,
   runVinextBuild,
   spawnVinextDev,
-} from "./cli.ts";
+} from "./cli.vibe";
 
 const failTarget = (message: string, cause?: unknown) =>
   new DeployTargetError({ platform: "node", message, cause });

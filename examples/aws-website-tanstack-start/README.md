@@ -34,3 +34,7 @@ the input files are content-hashed (scoped by `memo.include`).
 ```sh
 bun run destroy
 ```
+
+## Deployment type checking
+
+The deployment config enables JSX when checking imported shared UI modules.

@@ -15,7 +15,7 @@ import type { SqlQueryPlan } from "@prisma/orm-postgres/relational-core/plan";
 import type { PostgresStaticContext } from "@prisma/orm-postgres/static";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { type ClientError, wrapPrismaError } from "./Errors.ts";
+import { type ClientError, wrapPrismaError } from "./Errors.vibe";
 import type { QueryResult } from "./OrmClient.ts";
 
 type QueryOptions<Params, Row> = Parameters<PreparedStatement<Params, Row>["query"]>[2];

@@ -1,0 +1,141 @@
+import * as Drizzle from "@alchemy.run/drizzle/Postgres"
+import * as Fly from "@alchemy.run/fly"
+import { eq, sql } from "drizzle-orm"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { randomUUID } from "./api.platform.ts"
+import { relations, Users } from "./schema.ts"
+import { API_PORT, Db, MIGRATE_TOKEN } from "./shared.ts"
+
+/**
+ * HTTP Service that binds Managed Postgres via {@link Fly.ConnectPostgres}
+ * and queries through Drizzle.
+ *
+ * Also exposes `POST /migrate`: MPG is only reachable on the org's private
+ * network, so DDL is applied through this in-network Service — the deploy
+ * (or test) posts the generated migration SQL here instead of connecting
+ * to the cluster directly.
+ */
+export default class Api extends Fly.Service<Api>()(
+  "Api",
+  {
+    main: import.meta.url,
+    region: "iad",
+    port: API_PORT,
+    guest: { cpuKind: "shared", cpus: 1, memoryMb: 256 },
+  },
+  effect {
+    const conn = try Fly.ConnectPostgres(Db)
+    const db = try Drizzle.Postgres(conn.connectionString, {
+      relations,
+    })
+    // DDL and other session-scoped statements need the direct
+    // (non-PgBouncer) connection.
+    const directDb = try Drizzle.Postgres(conn.directConnectionString)
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const path = new URL(request.url, "http://service").pathname
+        if (path === "/migrate" && request.method === "POST") {
+          if (request.headers["x-migrate-token"] !== MIGRATE_TOKEN) {
+            return try HttpServerResponse.json({ error: "unauthorized" }, { status: 401 })
+          }
+          // drizzle-kit emits one file per migration with statements
+          // separated by `--> statement-breakpoint`. Apply each statement,
+          // tolerating re-runs (the client retries through service warmup,
+          // so a statement may already have been applied).
+          const body = try request.text
+          const statements = body
+            .split("--> statement-breakpoint")
+            .map((statement) => statement.trim())
+            .filter((statement) => statement.length > 0)
+          for (const statement of statements) {
+            const raw = try Effect.orDie(
+              Effect.try({ try: () => sql.raw(statement), catch: (e) => e }),
+            )
+            try directDb
+              .execute(raw)
+              .pipe(
+                Effect.catch((error) => String(error).includes("already exists") ? Effect.void : Effect.fail(error)),
+              )
+          }
+          return try HttpServerResponse.json({
+            applied: statements.length,
+          })
+        }
+        if (path === "/health") {
+          const query = try Effect.orDie(
+            Effect.try({ try: () => db.select().from(Users), catch: (e) => e }),
+          )
+          const users = try query
+          return try HttpServerResponse.json({
+            ok: true,
+            users: users.length,
+          })
+        }
+        switch (request.method) {
+          case "GET": {
+            if (path === "/" || path === "/users") {
+              const query = try Effect.orDie(
+                Effect.try({ try: () => db.select().from(Users), catch: (e) => e }),
+              )
+              const users = try query
+              return try HttpServerResponse.json({ users })
+            }
+            const id = Number(path.split("/").pop())
+            if (Number.isNaN(id)) {
+              return try HttpServerResponse.json({ error: "Invalid user ID" }, { status: 400 })
+            }
+            const query = try Effect.orDie(
+              Effect.try({
+                try: () =>
+                  db.query.Users.findFirst({
+                    where: { id },
+                    with: { posts: true },
+                  }),
+                catch: (e) => e,
+              }),
+            )
+            const user = try query
+            return try HttpServerResponse.json({ user })
+          }
+          case "POST": {
+            const values = {
+              name: try randomUUID(),
+              email: try randomUUID(),
+            }
+            const query = try Effect.orDie(
+              Effect.try({
+                try: () => db.insert(Users).values(values).returning(),
+                catch: (e) => e,
+              }),
+            )
+            const user = try query
+            return try HttpServerResponse.json({ user })
+          }
+          case "DELETE": {
+            const id = Number(path.split("/").pop())
+            if (Number.isNaN(id)) {
+              return try HttpServerResponse.json({ error: "Invalid user ID" }, { status: 400 })
+            }
+            const query = try Effect.orDie(
+              Effect.try({
+                try: () => db.delete(Users).where(eq(Users.id, id)).returning(),
+                catch: (e) => e,
+              }),
+            )
+            const [user] = try query
+            return try HttpServerResponse.json({ user })
+          }
+          default: {
+            return try HttpServerResponse.json({ error: "Method not allowed" }, { status: 405 })
+          }
+        }
+      }.pipe(
+        Effect.catch((cause: unknown) => HttpServerResponse.json({ ok: false, error: String(cause) }, { status: 500 })),
+      ),
+    }
+  }.pipe(Effect.provide(Fly.ConnectPostgresHttp)),
+) {}

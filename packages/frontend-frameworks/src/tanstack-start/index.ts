@@ -25,7 +25,7 @@ import type * as FileSystem from "effect/FileSystem";
 import type * as Layer from "effect/Layer";
 import type * as Path from "effect/Path";
 import type { Framework } from "../core/index.ts";
-import { layer, type TanStackStartOptions } from "./TanStackStart.ts";
+import { layer, type TanStackStartOptions } from "./TanStackStart.vibe";
 
 export {
   DEFAULT_OUT_DIR,
@@ -45,7 +45,7 @@ export {
   type TanStackStartViteBuilder,
   type TanStackStartViteDevServer,
   type TanStackStartViteModule,
-} from "./TanStackStart.ts";
+} from "./TanStackStart.vibe";
 
 /**
  * The structural subset of the e2e harness's `Options` this package reads.

@@ -1,0 +1,157 @@
+import * as Effect from "effect/Effect"
+import * as sdb from "@distilled.cloud/aws/simpledb"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface DomainProps {
+  /**
+   * Name of the SimpleDB domain. 3-255 characters; letters, digits, `_`,
+   * `-`, and `.` are allowed. Changing the name replaces the domain.
+   * @default a generated physical name
+   */
+  domainName?: string
+}
+
+export interface Domain extends
+  Resource<
+    "AWS.SimpleDB.Domain",
+    DomainProps,
+    {
+      domainName: string
+      domainArn: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SimpleDB domain — the container for SimpleDB items and
+ * attributes, analogous to a table.
+ *
+ * SimpleDB is a legacy service (closed to accounts that never used it and
+ * slated for migration via the SimpleDBv2 export API), but domains remain
+ * fully manageable on grandfathered accounts. A domain has no mutable
+ * configuration: the name is its identity, so any name change replaces the
+ * domain. SimpleDB has no tagging API, so Alchemy cannot brand domains for
+ * ownership detection.
+ * ### Creating Domains
+ * **Example:** Basic Domain
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const domain = yield* AWS.SimpleDB.Domain("MyDomain", {});
+ * ```
+ *
+ * **Example:** Named Domain
+ * ```typescript
+ * const domain = yield* AWS.SimpleDB.Domain("MyDomain", {
+ *   domainName: "my-application-data",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Domain = Resource<Domain>("AWS.SimpleDB.Domain")
+
+/**
+ * CreateDomain is eventually consistent — DomainMetadata directly after a
+ * create can briefly report NoSuchDomain. Explicitly typed so the
+ * conditional `Retry.Return` type does not leak into declaration emit.
+ */
+const retryWhileNoSuchDomain = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "NoSuchDomain",
+    schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(10)]),
+  })
+
+export const DomainProvider = (): infer _ =>
+  Provider.effect(
+    Domain,
+    effect {
+      const createName = effect (id: string, props: DomainProps) =>
+        props.domainName ?? (try createPhysicalName({ id, maxLength: 255 }))
+
+      const domainArn = (region: string, accountId: string, name: string): infer _ =>
+        `arn:aws:sdb:${region}:${accountId}:domain/${name}`
+
+      const observeDomain = effect (name: string) =>
+        sdb
+          .domainMetadata({ DomainName: name }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchDomain" }: undefined;
+            default: throw e;
+          }
+
+      return Domain.Provider.of({
+        stables: ["domainName", "domainArn"],
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const names = try sdb.listDomains.items({}).pipe(Stream.runCollect)
+          return Array.from(names).map((name) => ({
+            domainName: name,
+            domainArn: domainArn(region, accountId, name),
+          }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.domainName ?? (try createName(id, olds ?? {}))
+          const metadata = try observeDomain(name)
+          if (metadata === undefined) {
+            return undefined
+          }
+          // SimpleDB has no tagging API, so ownership cannot be verified —
+          // an existing domain with the derived name is treated as ours.
+          return {
+            domainName: name,
+            domainArn: domainArn(region, accountId, name),
+          }
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.domainName ?? (try createName(id, news))
+
+          // 1. OBSERVE — cloud state is authoritative
+          const metadata = try observeDomain(name)
+
+          // 2. ENSURE — CreateDomain is idempotent (creating an existing
+          //    domain succeeds); wait until the domain is visible.
+          if (metadata === undefined) {
+            try sdb.createDomain({ DomainName: name })
+            try retryWhileNoSuchDomain(sdb.domainMetadata({ DomainName: name }))
+          }
+
+          // 3. SYNC — a domain has no mutable configuration and no tags.
+
+          try session.note(name)
+          return {
+            domainName: name,
+            domainArn: domainArn(region, accountId, name),
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // DeleteDomain is idempotent — deleting a missing domain succeeds.
+          try sdb.deleteDomain({ DomainName: output.domainName })
+        },
+      })
+    },
+  )

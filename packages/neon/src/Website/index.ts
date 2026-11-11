@@ -1,11 +1,11 @@
-export * from "./Astro.ts";
+export * from "./Astro.vibe";
 export * from "./Foldkit.ts";
 export * from "./Nextjs.ts";
 export * from "./Nuxt.ts";
 export * from "./Octane.ts";
 export * from "./ReactRouter.ts";
 export * from "./SolidStart.ts";
-export * from "./StaticSite.ts";
+export * from "./StaticSite.vibe";
 export * from "./SvelteKit.ts";
 export * from "./TanStackStart.ts";
 export * from "./Vite.ts";
@@ -17,4 +17,4 @@ export type {
   FrameworkSiteOptions,
   WebsiteDomain,
   WebsiteFunctionOptions,
-} from "./FrameworkSite.ts";
+} from "./FrameworkSite.vibe";

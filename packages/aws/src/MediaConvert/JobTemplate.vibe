@@ -1,0 +1,225 @@
+import * as mediaconvert from "@distilled.cloud/aws/mediaconvert"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readMcTags, syncMcTags } from "./internal.vibe"
+
+export interface JobTemplateProps {
+  /**
+   * Name of the job template. Must be unique within the account/region and
+   * match `^[\w-]+$`. If omitted, a unique name is generated. Changing the
+   * name replaces the job template.
+   */
+  jobTemplateName?: string
+  /**
+   * Optional description of the job template.
+   */
+  description?: string
+  /**
+   * Optional category used to group job templates in the MediaConvert console.
+   */
+  category?: string
+  /**
+   * Name of the queue jobs created from this template are submitted to. If
+   * omitted, the account's `Default` queue is used.
+   */
+  queue?: string
+  /**
+   * Relative priority (-50 to 50) of jobs created from this template.
+   */
+  priority?: number
+  /**
+   * The transcode settings — input template(s), output groups, timecode
+   * config, and so on — applied to jobs created from this template. Required.
+   */
+  settings: mediaconvert.JobTemplateSettings
+  /**
+   * Accelerated transcoding configuration.
+   */
+  accelerationSettings?: mediaconvert.AccelerationSettings
+  /**
+   * Optional destination queues jobs hop to if they wait too long.
+   */
+  hopDestinations?: mediaconvert.HopDestination[]
+  /**
+   * How often, in seconds, MediaConvert emits `STATUS_UPDATE` events for jobs
+   * created from this template.
+   */
+  statusUpdateInterval?: mediaconvert.StatusUpdateInterval
+  /**
+   * User-defined tags for the job template.
+   */
+  tags?: Record<string, string>
+}
+
+export interface JobTemplate extends
+  Resource<
+    "AWS.MediaConvert.JobTemplate",
+    JobTemplateProps,
+    {
+      jobTemplateName: string
+      jobTemplateArn: string
+      type: string | undefined
+      category: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Elemental MediaConvert job template — a reusable, named transcode
+ * configuration (inputs, output groups, and job-level settings) that new jobs
+ * are created from so callers only supply the input/output specifics.
+ *
+ * ### Creating a Job Template
+ * **Example:** MP4 File-Group Template
+ * ```typescript
+ * const template = yield* MediaConvert.JobTemplate("Mp4", {
+ *   description: "Single MP4 output",
+ *   settings: {
+ *     Inputs: [{ TimecodeSource: "ZEROBASED" }],
+ *     OutputGroups: [
+ *       {
+ *         OutputGroupSettings: {
+ *           Type: "FILE_GROUP_SETTINGS",
+ *           FileGroupSettings: {},
+ *         },
+ *         Outputs: [
+ *           {
+ *             ContainerSettings: { Container: "MP4" },
+ *             VideoDescription: {
+ *               CodecSettings: {
+ *                 Codec: "H_264",
+ *                 H264Settings: {
+ *                   RateControlMode: "QVBR",
+ *                   MaxBitrate: 5000000,
+ *                 },
+ *               },
+ *             },
+ *           },
+ *         ],
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const JobTemplate = Resource<JobTemplate>("AWS.MediaConvert.JobTemplate")
+
+export const JobTemplateProvider = (): infer _ =>
+  Provider.effect(
+    JobTemplate,
+    effect {
+      const createName = effect (id: string, props: JobTemplateProps) =>
+        props.jobTemplateName ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      const toAttrs = (template: mediaconvert.JobTemplate & { Name: string }): infer _ => ({
+        jobTemplateName: template.Name,
+        jobTemplateArn: template.Arn!,
+        type: template.Type,
+        category: template.Category,
+      })
+
+      /** Get a job template by name; typed not-found → undefined. */
+      const getJobTemplate = effect (name: string) => {
+        const response = mediaconvert
+          .getJobTemplate({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: undefined;
+            default: throw e;
+          }
+        return response?.JobTemplate
+      }
+
+      return {
+        stables: ["jobTemplateName", "jobTemplateArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, resolved)
+          if (oldName !== newName) return { action: "replace" } as const
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.jobTemplateName ?? (try createName(id, olds ?? {}))
+          const template = try getJobTemplate(name)
+          if (template === undefined) return undefined
+          const attrs = toAttrs(template)
+          const tags = try readMcTags(template.Arn!)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const name = output?.jobTemplateName ?? (try createName(id, news))
+
+          // 1. Observe — cloud state is authoritative.
+          let template = try getJobTemplate(name)
+
+          // 2. Ensure — create if missing.
+          if (template === undefined) {
+            const created = try mediaconvert.createJobTemplate({
+              Name: name,
+              Description: news.description,
+              Category: news.category,
+              Queue: news.queue,
+              Priority: news.priority,
+              Settings: news.settings,
+              AccelerationSettings: news.accelerationSettings,
+              HopDestinations: news.hopDestinations,
+              StatusUpdateInterval: news.statusUpdateInterval,
+              Tags: desiredTags,
+            })
+            template = created.JobTemplate!
+          } else {
+            // 3. Sync — UpdateJobTemplate re-applies the mutable fields.
+            const updated = try mediaconvert.updateJobTemplate({
+              Name: name,
+              Description: news.description,
+              Category: news.category,
+              Queue: news.queue,
+              Priority: news.priority,
+              Settings: news.settings,
+              AccelerationSettings: news.accelerationSettings,
+              HopDestinations: news.hopDestinations,
+              StatusUpdateInterval: news.statusUpdateInterval,
+            })
+            template = updated.JobTemplate!
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncMcTags(template.Arn!, desiredTags)
+
+          try session.note(name)
+          return toAttrs(template as mediaconvert.JobTemplate & { Name: string })
+        },
+
+        delete: effect ({ output }) => {
+          mediaconvert
+            .deleteJobTemplate({ Name: output.jobTemplateName }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          (Array.from(
+            try (mediaconvert.listJobTemplates.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.JobTemplates ?? [])).map(toAttrs),
+      }
+    },
+  )

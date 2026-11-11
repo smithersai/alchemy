@@ -1,0 +1,222 @@
+import * as bigqueryreservation from "@distilled.cloud/gcp/bigqueryreservation_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  listLocations,
+  hasOwnershipMarker,
+  lastSegment,
+  normalizeLocation,
+  ownedByAlchemy,
+  parentOf,
+  parseResourceName,
+  toResourceId,
+} from "./internal.vibe"
+
+export type ReservationGroupProps = {
+  /**
+   * Reservation group id (the `{reservationGroup}` segment of
+   * `projects/{project}/locations/{location}/reservationGroups/{reservationGroup}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must contain only lowercase letters, digits, or dashes;
+   * start with a letter; not end with a dash; max 64 characters.
+   * Groups have no labels field, so Alchemy stamps ownership into this
+   * id (`alch---…`) for `list` / nuke. Immutable — changing it replaces
+   * the group.
+   */
+  reservationGroupId?: string
+  /**
+   * BigQuery location (`us-central1`, `US`, `EU`, …). Immutable —
+   * changing it replaces the group. Multi-regions `US` and `EU` stay
+   * uppercase; regional ids are lowercased.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+}
+
+export type ReservationGroup = Resource<
+  "GCP.BigQueryReservation.ReservationGroup",
+  ReservationGroupProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/reservationGroups/{reservationGroup}`. */
+    name: string
+    /** Reservation group id (last path segment), including the Alchemy prefix. */
+    reservationGroupId: string
+    /** Project id. */
+    project: string
+    /** Location id (`us-central1`, `US`, …). */
+    location: string
+  },
+  never,
+  Providers
+>
+
+/**
+ * A BigQuery reservation group — a named container for reservations.
+ *
+ * Groups have no labels or description, so Alchemy stamps ownership into
+ * the group id (`alch---…`) so `list` / `pnpm nuke:gcp` can find them.
+ * There is no update API; `reservationGroupId` and `location` are
+ * identity and changing them replaces the group.
+ *
+ * ### Creating a Reservation Group
+ * **Example:** Generated id
+ * ```typescript
+ * const group = yield* GCP.BigQueryReservation.ReservationGroup("Team", {});
+ * ```
+ *
+ * **Example:** Explicit id and multi-region location
+ * ```typescript
+ * const group = yield* GCP.BigQueryReservation.ReservationGroup("Team", {
+ *   reservationGroupId: "analytics-prod",
+ *   location: "US",
+ * });
+ * ```
+ *
+ * @resource
+ * @category BigQueryReservation
+ */
+export const ReservationGroup = Resource<ReservationGroup>(
+  "GCP.BigQueryReservation.ReservationGroup",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ReservationGroupNotResolved extends Data.TaggedError(
+  "GCP.BigQueryReservation.ReservationGroupNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, reservationGroupId: string): infer _ =>
+  `projects/${project}/locations/${location}/reservationGroups/${reservationGroupId}`
+
+const toAttrs = (current: bigqueryreservation.ReservationGroup, project: string): infer _ => {
+  const name = current.name ?? ""
+  const parsed = parseResourceName(name, "reservationGroups")
+  return {
+    name,
+    reservationGroupId: parsed.resourceId,
+    project: parsed.project || project,
+    location: parsed.location,
+  }
+}
+
+const getByName = effect (name: string) =>
+  bigqueryreservation
+    .getProjectsLocationsReservationGroups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const listOwnedAt = effect (project: string, location: string) =>
+  (effect {
+    return (Array.from(
+      try (bigqueryreservation.listProjectsLocationsReservationGroups
+        .pages({
+          parent: parentOf(project, location),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.reservationGroups ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(lastSegment(item.name ?? "")))
+        |> Stream.map(%, (item) => toAttrs(item, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const ReservationGroupProvider = (): infer _ =>
+  Provider.succeed(ReservationGroup, {
+    stables: ["name", "reservationGroupId", "project", "location"],
+
+    diff: effect ({ id, news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+
+      const previousId = olds?.reservationGroupId ?? output?.reservationGroupId
+      const nextId = try toResourceId(id, resolved.reservationGroupId, previousId)
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const nextLocation = normalizeLocation(resolved.location ?? output?.location ?? env.region)
+
+      const replace = (previousId !== undefined && nextId !== previousId) || previousLocation !== nextLocation
+
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const reservationGroupId = try toResourceId(
+        id,
+        olds?.reservationGroupId,
+        output?.reservationGroupId,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceName(env.project, location, reservationGroupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, lastSegment(existing.name ?? "")))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listOwnedAt(env.project, location),
+        { concurrency: 4 },
+      )
+      const byName = new Map<string, ReturnType<typeof toAttrs>>()
+      for (const item of pages.flat()) {
+        byName.set(item.name, item)
+      }
+      return Array.from(byName.values())
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const reservationGroupId = try toResourceId(
+        id,
+        news.reservationGroupId,
+        output?.reservationGroupId,
+      )
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const name = resourceName(env.project, location, reservationGroupId)
+      const parent = parentOf(env.project, location)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = bigqueryreservation
+          .createProjectsLocationsReservationGroups({
+            parent,
+            reservationGroupId,
+            body: {},
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ReservationGroupNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      bigqueryreservation
+        .deleteProjectsLocationsReservationGroups({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

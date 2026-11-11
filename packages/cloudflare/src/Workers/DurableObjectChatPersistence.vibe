@@ -1,0 +1,152 @@
+import { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Arr from "effect/Array"
+import * as Layer from "effect/Layer"
+import { BackingPersistence, PersistenceError, type BackingPersistenceStore } from "effect/persistence/Persistence"
+import { DurableObjectState } from "./DurableObjectState.vibe"
+
+/**
+ * A `BackingPersistence` layer (Effect AI persistence module) backed
+ * by the surrounding Durable Object's `state.storage`. Drop-in storage
+ * for `Persistence.layerResultPersisted({ storeId })` so chat history,
+ * cached AI responses, or any other persisted state lives in the DO
+ * SQLite store with `${storeId}:` key namespacing.
+ *
+ * Multiple `storeId`s can coexist within a single Durable Object —
+ * keys are namespaced with a `${storeId}:` prefix so they don't
+ * collide.
+ *
+ * :::caution
+ * TTL is currently ignored; Durable Object storage has no native TTL.
+ * If you need expiry, layer a TTL-aware backing store on top, or run
+ * a periodic `clear`.
+ * :::
+ *
+ * ### Wiring it into a chat-backing DO
+ * **Example:** Persisted chat history per DO instance
+ * `Persistence.layerResultPersisted({ storeId })` is the seam Effect
+ * AI exposes for cached/replayable AI calls. Layer
+ * `DurableObjectChatPersistence` underneath and every entry is stored
+ * in the DO's `state.storage` under the `alchemy.chat:` prefix.
+ * ```typescript
+ * import * as Cloudflare from "@alchemy.run/cloudflare";
+ * import * as Effect from "effect/Effect";
+ * import * as Layer from "effect/Layer";
+ * import { Chat, LanguageModel } from "effect/ai";
+ * import { Persistence } from "effect/persistence";
+ *
+ * export default class ChatBackend extends Cloudflare.DurableObject<ChatBackend>()(
+ *   "ChatBackend",
+ *   Effect.gen(function* () {
+ *     return Effect.gen(function* () {
+ *       const persistence = yield* Persistence.layerResultPersisted({
+ *         storeId: "alchemy.chat",
+ *       }).pipe(Layer.provide(Cloudflare.AI.DurableObjectChatPersistence));
+ *
+ *       return {
+ *         send: (threadId: string, prompt: string) =>
+ *           LanguageModel.generateText({ prompt }).pipe(Effect.provide(persistence)),
+ *       };
+ *     });
+ *   }),
+ * ) {}
+ * ```
+ *
+ * ### Multiple stores in the same DO
+ * **Example:** Separate `storeId`s coexist
+ * Different `storeId`s namespace their keys with `${storeId}:`, so
+ * one DO can keep, say, chat history *and* an audit log in separate
+ * stores without colliding.
+ * ```typescript
+ * const aiPersistence = yield* Persistence.layerResultPersisted({
+ *   storeId: "alchemy.chat",
+ * }).pipe(Layer.provide(Cloudflare.AI.DurableObjectChatPersistence));
+ *
+ * const auditPersistence = yield* Persistence.layerResultPersisted({
+ *   storeId: "alchemy.audit",
+ * }).pipe(Layer.provide(Cloudflare.AI.DurableObjectChatPersistence));
+ * ```
+ *
+ * @binding
+ * @product Workers
+ * @category Workers & Compute
+ */
+export const DurableObjectChatPersistence = Layer.effect(BackingPersistence)(
+  effect {
+    const state = try Effect.service(DurableObjectState)
+    const storage = state.storage
+
+    const wrapErr = (op: string, key?: string): infer _ => (cause: unknown): infer _ =>
+      PersistenceError.make({
+        message: `Failed to ${op}${key !== undefined ? ` key ${key}` : ""} in DurableObject storage`,
+        cause,
+      })
+
+    return BackingPersistence.of({
+      make: effect (storeId) =>
+        try effect {
+          const prefixed = (k: string): infer _ => `${storeId}:${k}`
+          return {
+            get: effect (key) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .get<object>(prefixed(key))
+                    |> Effect.mapError(%, wrapErr("get", key)))
+                }
+              },
+            getMany: effect (keys) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try effect {
+                    const map = try (storage.get<object>(keys.map(prefixed))
+                      |> Effect.mapError(%, wrapErr("getMany")))
+                    return keys.map((k) => map.get(prefixed(k))) as Arr.NonEmptyArray<object | undefined>
+                  }
+                }
+              },
+            set: effect (key, value, _ttl) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .put(prefixed(key), value)
+                    |> Effect.mapError(%, wrapErr("set", key)))
+                }
+              },
+            setMany: effect (entries) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .put(Object.fromEntries(entries.map(([k, v]) => [prefixed(k), v])))
+                    |> Effect.mapError(%, wrapErr("setMany")))
+                }
+              },
+            remove: effect (key) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .delete(prefixed(key))
+                    |> Effect.asVoid(%)
+                    |> Effect.mapError(%, wrapErr("remove", key)))
+                }
+              },
+            clear: effect {
+              return try effect {
+                provide RuntimeContext.phantom {
+                  return try (effect {
+                    return try effect {
+                      const map = try storage.list({ prefix: `${storeId}:` })
+
+                      const ks = [...map.keys()]
+                      if (ks.length === 0) return
+                      return try Effect.asVoid(storage.delete(ks))
+                    }
+                  }
+                    |> Effect.mapError(%, wrapErr("clear")))
+                }
+              }
+            },
+          } satisfies BackingPersistenceStore
+        },
+    })
+  },
+)

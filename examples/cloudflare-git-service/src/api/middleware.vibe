@@ -1,0 +1,89 @@
+import * as Git from "@alchemy.run/git"
+/**
+ * Who may call what. Native `HttpApiMiddleware` on the application's API,
+ * git's and ours: REST, the wire, the raw reads, and the GitHub facade.
+ * A user owns the repositories under their own name; anyone may read a
+ * public one.
+ */
+import { RuntimeContext } from "alchemy"
+import * as HttpApiMiddleware from "effect/http-api/HttpApiMiddleware"
+import * as Layer from "effect/Layer"
+import { Auth, Session, Unauthorized } from "./auth.vibe"
+
+/** A 401 that makes `git` ask for credentials. */
+const unauthorized = HttpServerResponse.jsonUnsafe(
+  { _tag: "Unauthorized" },
+  { status: 401, headers: { "www-authenticate": "Basic realm=\"git\"" } },
+)
+
+/**
+ * An API key in the password field of the remote names a user; otherwise
+ * the session cookie does; otherwise the request is anonymous. A user may
+ * do anything under their own owner name and use the routes that have no
+ * owner (create, list, import); anyone may read a public repository.
+ */
+export class Authentication extends HttpApiMiddleware.Service<
+  Authentication,
+  { provides: Session }
+>()("app/Authentication", { error: Unauthorized }) {
+  static readonly layer = Layer.effect(
+    Authentication,
+    effect {
+      const auth = try Auth
+      const registry = try Git.RegistryStore
+
+      const resolve = effect {
+        const { password } = try HttpApiBuilder.securityDecode(HttpApiSecurity.basic)
+        const key = Redacted.value(password)
+        if (key !== "") {
+          const verified = auth.api
+            .verifyApiKey({ body: { key } }) catch (e) => match (e) {
+              when { _tag: "BetterAuthApiError" }: { valid: false as const, key: null };
+            }
+          return verified.valid && verified.key ? { id: verified.key.referenceId } : undefined
+        }
+        const session = auth
+          .getSession() catch (e) => match (e) {
+            when { _tag: "BetterAuthApiError" }: null;
+          }
+        return session ? { id: session.user.id, name: session.user.name } : undefined
+      }
+
+      /**
+       * Anonymous may read one public repository. A repository that does
+       * not exist is the route's 404, so a 401 never confirms a private one.
+       */
+      const publicRead = effect {
+        const params = try HttpRouter.params
+        const owner = params.owner?.toLowerCase()
+        const name = params.repo?.toLowerCase().replace(/\.git$/, "")
+        if (owner === undefined || name === undefined) return false
+        const entry = registry
+          .resolve(owner, name) catch (e) => match (e) {
+            when { _tag: "StoreError" }: undefined;
+          }
+        return entry === undefined || entry.public
+      }
+
+      return effect (httpEffect) =>
+        effect {
+          const user = try resolve
+          const { owner } = try HttpRouter.params
+          const own = owner === undefined || owner.toLowerCase() === user?.id.toLowerCase()
+          if (user !== undefined && own) {
+            return try Effect.provideService(httpEffect, Session, { user })
+          }
+          const request = try HttpServerRequest.HttpServerRequest
+          if (
+            (try Effect.orDie(Effect.try({ try: () => Git.isRead(request), catch: (error) => error })))
+            && (try publicRead)
+          ) {
+            return try Effect.provideService(httpEffect, Session, {
+              user: user ?? null,
+            })
+          }
+          return unauthorized
+        } |> try Effect.provide(%, RuntimeContext.phantom)
+    },
+  )
+}

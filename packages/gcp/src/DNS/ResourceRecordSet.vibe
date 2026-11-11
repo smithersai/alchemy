@@ -1,0 +1,424 @@
+import * as dns from "@distilled.cloud/gcp/dns_v1"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { ALCHEMY_LABEL_PREFIX } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+
+const DEFAULT_TTL = 300
+const MAX_LABEL_LENGTH = 63
+const SYSTEM_TYPES = new Set(["SOA", "NS"])
+
+export type ResourceRecordSetRoutingPolicy = dns.RRSetRoutingPolicy
+
+export type ResourceRecordSetProps = {
+  /**
+   * Managed zone name or numeric id that owns this record set. Immutable —
+   * changing it replaces the record set.
+   */
+  managedZone: string
+  /**
+   * Fully qualified DNS name (e.g. `"www.example.com."`). A trailing dot
+   * is added if omitted. Relative names are qualified with the zone's
+   * DNS name. If omitted entirely, a unique subdomain of the zone is
+   * generated. Immutable — changing it replaces the record set.
+   */
+  name?: string
+  /**
+   * DNS record type (`A`, `AAAA`, `CNAME`, `MX`, `TXT`, `NS`, …).
+   * Immutable — changing it replaces the record set.
+   */
+  type: string
+  /**
+   * TTL in seconds.
+   * @default 300
+   */
+  ttl?: number
+  /**
+   * Resource-record data. For `A` records this is a list of IPv4
+   * addresses; for `TXT`, quoted strings. Mutually exclusive with
+   * `routingPolicy`.
+   */
+  rrdatas?: string[]
+  /**
+   * Dynamic routing policy (geo / weighted-round-robin / primary-backup).
+   * A record set has either `rrdatas` or `routingPolicy`, not both.
+   */
+  routingPolicy?: ResourceRecordSetRoutingPolicy
+}
+
+export type ResourceRecordSet = Resource<
+  "GCP.DNS.ResourceRecordSet",
+  ResourceRecordSetProps,
+  {
+    /** Project id. */
+    project: string
+    /** Managed zone name. */
+    managedZone: string
+    /** Fully qualified DNS name, with trailing dot. */
+    name: string
+    /** DNS record type. */
+    type: string
+    /** TTL in seconds. */
+    ttl: number
+    /** Resource-record data. */
+    rrdatas: string[]
+    /** Dynamic routing policy, if this is not a static record. */
+    routingPolicy: ResourceRecordSetRoutingPolicy | undefined
+    /** DNSSEC signature records, if present. */
+    signatureRrdatas: string[] | undefined
+    /** Server-reported kind (`dns#resourceRecordSet`). */
+    kind: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud DNS resource record set inside a managed zone.
+ *
+ * Identity is `(managedZone, name, type)`. TTL, `rrdatas`, and
+ * `routingPolicy` are mutable. Record sets have no labels; `list` / nuke
+ * discover them by enumerating managed zones stamped with `alchemy-*`
+ * labels and skipping the zone's apex `SOA`/`NS` records.
+ *
+ * ### Creating a Record Set
+ * **Example:** A record
+ * ```typescript
+ * const zone = yield* GCP.DNS.ManagedZone("Public", { forceDestroy: true });
+ * const www = yield* GCP.DNS.ResourceRecordSet("Www", {
+ *   managedZone: zone.zoneName,
+ *   name: "www",
+ *   type: "A",
+ *   ttl: 300,
+ *   rrdatas: ["203.0.113.10"],
+ * });
+ * ```
+ *
+ * **Example:** TXT record
+ * ```typescript
+ * const verify = yield* GCP.DNS.ResourceRecordSet("Verify", {
+ *   managedZone: zone.zoneName,
+ *   name: zone.dnsName,
+ *   type: "TXT",
+ *   ttl: 60,
+ *   rrdatas: ['"v=spf1 -all"'],
+ * });
+ * ```
+ *
+ * **Example:** Generated subdomain
+ * ```typescript
+ * const record = yield* GCP.DNS.ResourceRecordSet("Probe", {
+ *   managedZone: zone.zoneName,
+ *   type: "A",
+ *   rrdatas: ["203.0.113.20"],
+ * });
+ * ```
+ *
+ * @resource
+ * @category DNS
+ */
+export const ResourceRecordSet = Resource<ResourceRecordSet>("GCP.DNS.ResourceRecordSet")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ResourceRecordSetNotResolved extends Data.TaggedError(
+  "GCP.DNS.ResourceRecordSetNotResolved",
+)<{
+  managedZone: string
+  resourceName: string
+  type: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ResourceRecordSetZoneNotFound extends Data.TaggedError(
+  "GCP.DNS.ResourceRecordSetZoneNotFound",
+)<{
+  managedZone: string
+}> {}
+
+const withTrailingDot = (name: string): infer _ => (name.endsWith(".") ? name : `${name}.`)
+
+const normalizeFqdn = (name: string): infer _ => withTrailingDot(name).toLowerCase()
+
+const normalizeType = (type: string): infer _ => type.toUpperCase()
+
+const isRelativeName = (name: string): infer _ => {
+  const trimmed = name.endsWith(".") ? name.slice(0, -1) : name
+  return !trimmed.includes(".")
+}
+
+const qualifyName = (name: string, dnsName: string): infer _ => {
+  const zone = normalizeFqdn(dnsName)
+  if (isRelativeName(name)) {
+    return `${name.replace(/\.$/, "").toLowerCase()}.${zone}`
+  }
+  const fqdn = normalizeFqdn(name)
+  if (fqdn === zone || fqdn.endsWith(`.${zone}`)) return fqdn
+  return `${name.replace(/\.$/, "").toLowerCase()}.${zone}`
+}
+
+const dnsLabel = (value: string): infer _ => {
+  const cleaned = value.toLowerCase().replace(/[^a-z0-9-]/g, "-")
+  const trimmed = cleaned.replace(/^-+/, "").slice(0, MAX_LABEL_LENGTH)
+  const started = /^[a-z]/.test(trimmed) ? trimmed : `r${trimmed}`
+  return started.replace(/-+$/g, "").slice(0, MAX_LABEL_LENGTH)
+}
+
+const sameRrdatas = (left: string[] | undefined, right: string[] | undefined): infer _ =>
+  JSON.stringify(left ?? []) === JSON.stringify(right ?? [])
+
+const sameRoutingPolicy = (
+  left: ResourceRecordSetRoutingPolicy | undefined,
+  right: ResourceRecordSetRoutingPolicy | undefined,
+): infer _ => JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+
+const nameIdentityChanged = (newsName: string | undefined, previousName: string | undefined): infer _ => {
+  if (newsName === undefined || previousName === undefined) return false
+  const previous = normalizeFqdn(previousName)
+  if (isRelativeName(newsName)) {
+    const label = newsName.replace(/\.$/, "").toLowerCase()
+    return previous.split(".")[0] !== label
+  }
+  return normalizeFqdn(newsName) !== previous
+}
+
+const isApexSystemRecord = (record: dns.ResourceRecordSet, dnsName: string | undefined): infer _ => {
+  const type = normalizeType(record.type ?? "")
+  if (!SYSTEM_TYPES.has(type)) return false
+  if (dnsName === undefined || record.name === undefined) {
+    return type === "SOA"
+  }
+  return normalizeFqdn(record.name) === normalizeFqdn(dnsName)
+}
+
+const hasAlchemyZoneLabels = (labels: Record<string, string | undefined> | null | undefined): infer _ =>
+  Object.keys(labels ?? {}).some((key) => key.startsWith(ALCHEMY_LABEL_PREFIX))
+
+const toBody = (props: {
+  name: string
+  type: string
+  ttl: number
+  rrdatas?: string[]
+  routingPolicy?: ResourceRecordSetRoutingPolicy
+}): dns.ResourceRecordSet =>
+  props.routingPolicy !== undefined
+    ? {
+      name: props.name,
+      type: props.type,
+      ttl: props.ttl,
+      routingPolicy: props.routingPolicy,
+    }
+    : {
+      name: props.name,
+      type: props.type,
+      ttl: props.ttl,
+      rrdatas: props.rrdatas ?? [],
+    }
+
+const toAttrs = (record: dns.ResourceRecordSet, project: string, managedZone: string): infer _ => ({
+  project,
+  managedZone,
+  name: record.name ? normalizeFqdn(record.name) : "",
+  type: normalizeType(record.type ?? ""),
+  ttl: record.ttl ?? DEFAULT_TTL,
+  rrdatas: record.rrdatas ?? [],
+  routingPolicy: record.routingPolicy,
+  signatureRrdatas: record.signatureRrdatas,
+  kind: record.kind,
+})
+
+const getZone = effect (project: string, managedZone: string) =>
+  dns
+    .getManagedZones({ project, managedZone }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const getByName = effect (project: string, managedZone: string, name: string, type: string) =>
+  dns
+    .getResourceRecordSets({ project, managedZone, name, type }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const toRecordName = effect (
+  id: string,
+  name: string | undefined,
+  existing: string | undefined,
+  dnsName: string,
+) => {
+  if (name !== undefined) return qualifyName(name, dnsName)
+  if (existing !== undefined) return normalizeFqdn(existing)
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_LABEL_LENGTH,
+    lowercase: true,
+  })
+  return `${dnsLabel(generated)}.${normalizeFqdn(dnsName)}`
+}
+
+const listRrsets = effect (project: string, zoneName: string) =>
+  (effect {
+    return (try effect {
+      const found: dns.ResourceRecordSet[] = []
+      let pageToken: string | undefined
+      for (let page = 0; page < 10; page++) {
+        const response = try dns.listResourceRecordSets({
+          project,
+          managedZone: zoneName,
+          maxResults: 1000,
+          pageToken,
+        })
+        found.push(...(response.rrsets ?? []))
+        pageToken = response.nextPageToken
+        if (pageToken === undefined || pageToken === "") break
+      }
+      return found
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dns.ResourceRecordSet[]; default: throw e; }
+
+const listAlchemyZones = effect (project: string) => {
+  const found: dns.ManagedZone[] = []
+  let pageToken: string | undefined
+  for (let page = 0; page < 10; page++) {
+    const response = try dns.listManagedZones({
+      project,
+      maxResults: 1000,
+      pageToken,
+    })
+    for (const zone of response.managedZones ?? []) {
+      if (hasAlchemyZoneLabels(zone.labels)) found.push(zone)
+    }
+    pageToken = response.nextPageToken
+    if (pageToken === undefined || pageToken === "") break
+  }
+  return found
+}
+
+export const ResourceRecordSetProvider = (): infer _ =>
+  Provider.succeed(ResourceRecordSet, {
+    stables: ["project", "managedZone", "name", "type"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousZone = olds?.managedZone ?? output?.managedZone
+      const previousName = olds?.name ?? output?.name
+      const previousType = olds?.type ?? output?.type
+      const nextType = normalizeType(resolved.type)
+      const zoneChanged = previousZone !== undefined && resolved.managedZone !== previousZone
+      const typeChanged = previousType !== undefined && nextType !== normalizeType(previousType)
+      const nameChanged = nameIdentityChanged(resolved.name, previousName)
+      if (zoneChanged || typeChanged || nameChanged) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const managedZone = output?.managedZone ?? olds?.managedZone
+      const typeRaw = output?.type ?? olds?.type
+      if (managedZone === undefined || typeRaw === undefined) {
+        return undefined
+      }
+      const type = normalizeType(typeRaw)
+      const zone = try getZone(env.project, managedZone)
+      if (zone === undefined || zone.name === undefined) return undefined
+      const name = try toRecordName(id, olds?.name, output?.name, zone.dnsName ?? zone.name)
+      const existing = try getByName(env.project, zone.name, name, type)
+      if (existing === undefined) return undefined
+      // Record sets have no labels. Identity (zone + name + type) is
+      // ownership — same as Route 53 records.
+      return toAttrs(existing, env.project, zone.name)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const zones = try listAlchemyZones(env.project)
+      const pages = try Effect.forEach(
+        zones,
+        effect (zone) => (zone.name
+          ? (try listRrsets(env.project, zone.name))
+            .filter((record) => !isApexSystemRecord(record, zone.dnsName))
+            .map((record) => toAttrs(record, env.project, zone.name ?? ""))
+          : [] as ReturnType<typeof toAttrs>[]),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const zone = try getZone(env.project, news.managedZone)
+      if (zone === undefined || zone.name === undefined) {
+        throw new ResourceRecordSetZoneNotFound({
+          managedZone: news.managedZone,
+        })
+      }
+      const managedZone = zone.name
+      const type = normalizeType(news.type)
+      const name = try toRecordName(id, news.name, output?.name, zone.dnsName ?? managedZone)
+      const ttl = news.ttl ?? DEFAULT_TTL
+      const desired = toBody({
+        name,
+        type,
+        ttl,
+        rrdatas: news.rrdatas,
+        routingPolicy: news.routingPolicy,
+      })
+
+      let current = try getByName(env.project, managedZone, name, type)
+
+      if (current === undefined) {
+        const created = dns
+          .createResourceRecordSets({
+            project: env.project,
+            managedZone,
+            body: desired,
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try getByName(env.project, managedZone, name, type);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ResourceRecordSetNotResolved({
+          managedZone,
+          resourceName: name,
+          type,
+        })
+      }
+
+      const ttlChanged = (current.ttl ?? DEFAULT_TTL) !== ttl
+      const rrdatasChanged = !sameRrdatas(current.rrdatas, desired.rrdatas)
+      const routingChanged = !sameRoutingPolicy(current.routingPolicy, desired.routingPolicy)
+
+      if (ttlChanged || rrdatasChanged || routingChanged) {
+        current = try dns.patchResourceRecordSets({
+          project: env.project,
+          managedZone,
+          name,
+          type,
+          body: desired,
+        })
+      }
+
+      return toAttrs(current, env.project, managedZone)
+    },
+
+    delete: effect ({ output }) => {
+      dns
+        .deleteResourceRecordSets({
+          project: output.project,
+          managedZone: output.managedZone,
+          name: output.name,
+          type: output.type,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+    },
+  })

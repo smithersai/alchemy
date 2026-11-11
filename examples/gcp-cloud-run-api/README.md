@@ -15,7 +15,7 @@ curl "$URL/links/aZ3k9Qx"
 
 - [`Links`](./src/resources.ts) — named Firestore Native database; one document per link at `links/{code}`.
 - [`ApiKey`](./src/resources.ts) — Secret Manager secret holding the key callers send as `x-api-key`. Alchemy creates the secret; adding a version with the value is an operator step.
-- [`Api`](./src/Api.ts) — public `GCP.Function` (a Cloud Run service):
+- [`Api`](./src/Api.vibe) — public `GCP.Function` (a Cloud Run service):
   - `GET /` — health check.
   - `POST /links` — mint a 7-character base62 code for a URL (requires `x-api-key`).
   - `GET /l/:code` — `302` to the target and count the click.

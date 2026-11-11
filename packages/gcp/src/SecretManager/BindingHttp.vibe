@@ -1,0 +1,38 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.vibe"
+import { grantFor, type BindingIam, type GcpHttpOp } from "../HttpBinding.vibe"
+import type { LocationsSecret } from "./LocationsSecret.vibe"
+import type { Secret } from "./Secret.vibe"
+
+export type SecretBindingTarget = Secret | LocationsSecret
+
+/**
+ * Shared HTTP scaffolding for Secret Manager bindings.
+ * NOT exported from index.ts.
+ */
+export const makeSecretHttpBinding = effect <I, A, E, Req = void>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+  toInput: (secretName: string, request: Req | undefined) => I
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (secret: SecretBindingTarget) => {
+    // `name` is `projects/p/secrets/s` or, for regional secrets,
+    // `projects/p/locations/l/secrets/s`; both are secret IAM targets.
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${secret})`({
+        iam: [try Effect.orDie(Effect.try({ try: () => grantFor(options.iam, secret.name), catch: (e) => e }))],
+      })
+    }
+    const name = try secret.name.asEffect()
+    return effect (request?: Req | undefined) =>
+      try withSpan(
+        effect {
+          return try run(options.toInput(try name, request))
+        },
+        `${options.tag}(${secret.LogicalId})`,
+      )
+  }
+}

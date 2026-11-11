@@ -1,2 +1,2 @@
-export * from "./Policy.ts";
-export * from "./CustomConstraint.ts";
+export * from "./Policy.vibe";
+export * from "./CustomConstraint.vibe";

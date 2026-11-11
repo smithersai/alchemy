@@ -1,0 +1,104 @@
+import { AuthError } from "alchemy/Auth/AuthProvider"
+import * as Clock from "effect/Clock"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as HttpClient from "effect/http/HttpClient"
+import * as HttpClientRequest from "effect/http/HttpClientRequest"
+import * as Redacted from "effect/Redacted"
+import { signJwt, TOKEN_URL } from "./Token.platform.js"
+
+export interface ServiceAccountKey {
+  readonly type?: string
+  readonly project_id?: string
+  readonly client_email: string
+  readonly private_key: string
+  readonly token_uri?: string
+}
+
+export interface MintedToken {
+  readonly accessToken: Redacted.Redacted<string>
+  readonly expirationMs: number
+  readonly project?: string
+}
+
+/**
+ * Exchange a service-account JSON key for an OAuth2 access token.
+ * Distilled GCP only accepts a bearer token, so Alchemy mints and refreshes
+ * it here.
+ */
+export const mintAccessToken = (sa: ServiceAccountKey): Effect.Effect<MintedToken, AuthError> =>
+  effect {
+    const issuedAt = try Clock.currentTimeMillis
+    const jwt = try Effect.try({
+      try: () => signJwt(sa, issuedAt),
+      catch: (cause) =>
+        AuthError.make({
+          message: "Failed to sign Google service-account JWT",
+          cause,
+        }),
+    })
+    const http = try HttpClient.HttpClient
+    const tokenResponse = try http
+      .execute(
+        HttpClientRequest.post(TOKEN_URL).pipe(
+          HttpClientRequest.bodyUrlParams({
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: jwt,
+          }),
+        ),
+      )
+      .pipe(
+        Effect.mapError((cause) =>
+          AuthError.make({
+            message: "Failed to mint Google access token",
+            cause,
+          })
+        ),
+      )
+    const body = try tokenResponse.json.pipe(
+      Effect.mapError((cause) =>
+        AuthError.make({
+          message: "Google token response was not JSON",
+          cause,
+        })
+      ),
+    )
+    if (
+      typeof body !== "object"
+      || body === null
+      || typeof (body as { access_token?: unknown }).access_token !== "string"
+    ) {
+      return try AuthError.make({
+        message: `Google token endpoint returned no access_token: ${JSON.stringify(body)}`,
+      })
+    }
+    const expiresIn = typeof (body as { expires_in?: unknown }).expires_in === "number"
+      ? (body as { expires_in: number }).expires_in
+      : 3600
+    return {
+      accessToken: Redacted.make((body as { access_token: string }).access_token),
+      expirationMs: issuedAt + expiresIn * 1000,
+      project: sa.project_id,
+    }
+  }.pipe(Effect.provide(FetchHttpClient.layer))
+
+export const parseServiceAccountKey = (raw: string): Effect.Effect<ServiceAccountKey, AuthError> =>
+  effect {
+    const invalid = (cause: unknown) =>
+      AuthError.make({
+        message: "Invalid Google service-account JSON",
+        cause,
+      })
+    const parsed = try Effect.try({
+      try: () => JSON.parse(raw) as ServiceAccountKey,
+      catch: invalid,
+    })
+    const incomplete = try Effect.try({
+      try: () => !parsed.client_email || !parsed.private_key,
+      catch: invalid,
+    })
+    if (incomplete) {
+      return try invalid(new Error("JSON is missing client_email or private_key"))
+    }
+    return parsed
+  }

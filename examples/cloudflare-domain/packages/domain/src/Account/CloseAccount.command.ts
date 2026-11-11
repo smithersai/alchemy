@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
-import { Cents } from "../Money.ts";
+import { Cents } from "../Money.vibe";
 import { Session } from "../Session.middleware.ts";
-import { AccountId } from "./Account.id.ts";
+import { AccountId } from "./Account.id.vibe";
 import { NotOpen } from "./NotOpen.rejection.ts";
 import { NotOwner } from "./NotOwner.rejection.ts";
 

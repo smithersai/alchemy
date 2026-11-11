@@ -1,0 +1,238 @@
+import * as speech from "@distilled.cloud/gcp/speech_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  type ClassItem,
+  DEFAULT_LOCATION,
+  deleteCustomClass,
+  getCustomClass,
+  listOwnedCustomClasses,
+  locationParent,
+  markerFromItems,
+  normalizeLocation,
+  parseResourceName,
+  replaceOnIdentity,
+  resourceNameOf,
+  sameItems,
+  stripOwnershipItems,
+  toPhysicalId,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type { ClassItem }
+
+export type CustomClassProps = {
+  /**
+   * Speech-to-Text Adaptation location. The global Speech endpoint
+   * accepts `global`; `us` and `eu` need matching regional endpoints.
+   * Immutable — changing it replaces the custom class.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Custom class id (the `{custom_class}` segment of
+   * `projects/{project}/locations/{location}/customClasses/{custom_class}`).
+   * If omitted, a unique id is generated. Letters, numbers, and hyphens;
+   * 4-63 characters; must start with a letter. Immutable — changing it
+   * replaces the custom class.
+   */
+  customClassId?: string
+  /**
+   * Class items (words or phrases that represent one concept).
+   */
+  items?: ClassItem[]
+}
+
+export type CustomClass = Resource<
+  "GCP.Speech.CustomClass",
+  CustomClassProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/customClasses/{custom_class}`. */
+    name: string
+    /** Custom class id (last path segment). */
+    customClassId: string
+    /** Project id. */
+    project: string
+    /** Adaptation location. */
+    location: string
+    /** Class items. */
+    items: ClassItem[]
+    /** Server-assigned uid, if present. */
+    uid: string | undefined
+    /** Lifecycle state, if present. */
+    state: string | undefined
+    /** KMS key encrypting class items, if any. */
+    kmsKeyName: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Speech-to-Text Adaptation custom class. Custom classes group words
+ * that represent one concept (for example passenger ship names) and are
+ * referenced from PhraseSet hints as `${custom_class_id}`.
+ *
+ * Speech-to-Text v1 classes have no labels field and Alchemy does not
+ * write ownership into the items (they steer recognition). A generated id
+ * identifies the class; one with an explicit id that Alchemy has no state
+ * for is reported as unowned. Location and custom class id are identity — changing either replaces the class.
+ * `items` update in place.
+ *
+ * ### Creating a Custom Class
+ * **Example:** Generated id
+ * ```typescript
+ * const ships = yield* GCP.Speech.CustomClass("Ships", {
+ *   items: [{ value: "sloop" }, { value: "ketch" }],
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and location
+ * ```typescript
+ * const ships = yield* GCP.Speech.CustomClass("Ships", {
+ *   location: "global",
+ *   customClassId: "passenger-ships",
+ *   items: [{ value: "sloop" }],
+ * });
+ * ```
+ *
+ * ### Updating a Custom Class
+ * **Example:** Replace the class items
+ * ```typescript
+ * const ships = yield* GCP.Speech.CustomClass("Ships", {
+ *   items: [{ value: "brig" }, { value: "barque" }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Speech
+ */
+export const CustomClass = Resource<CustomClass>("GCP.Speech.CustomClass")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CustomClassNotResolved extends Data.TaggedError("GCP.Speech.CustomClassNotResolved")<{
+  resourceName: string
+}> {}
+
+const customClassNameOf = (project: string, location: string, customClassId: string): infer _ =>
+  resourceNameOf(project, location, "customClasses", customClassId)
+
+const toAttrs = (customClass: speech.CustomClass, project: string): infer _ => {
+  const name = customClass.name ?? ""
+  const parsed = parseResourceName(name, "customClasses")
+  return {
+    name,
+    customClassId: parsed.id || customClass.customClassId || "",
+    // Speech echoes names with the project number; report the project id.
+    project,
+    location: parsed.location,
+    items: stripOwnershipItems(customClass.items),
+    uid: customClass.uid,
+    state: customClass.state,
+    kmsKeyName: customClass.kmsKeyName,
+  }
+}
+
+export const CustomClassProvider = (): infer _ =>
+  Provider.succeed(CustomClass, {
+    stables: ["name", "customClassId", "project", "location", "uid"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return replaceOnIdentity({
+        previousId: olds?.customClassId ?? output?.customClassId,
+        nextId: resolved.customClassId,
+        previousLocation: olds?.location ?? output?.location,
+        nextLocation: resolved.location ?? olds?.location ?? output?.location,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const customClassId = try toPhysicalId(id, olds?.customClassId, output?.customClassId)
+      const existing = try getCustomClass(
+        output?.name ?? customClassNameOf(env.project, location, customClassId),
+      )
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      // No labels: a generated id derives from this stack, stage, logical
+      // id and instance; an explicit id is only ours when state has it.
+      return output !== undefined || olds?.customClassId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const classes = try listOwnedCustomClasses(env.project)
+      return classes.map((customClass) => toAttrs(customClass, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+      const customClassId = try toPhysicalId(id, news.customClassId, output?.customClassId)
+      const items = news.items ?? []
+      const name = output?.name ?? customClassNameOf(env.project, location, customClassId)
+
+      let current = try getCustomClass(name)
+
+      if (current === undefined) {
+        const created = speech
+          .createProjectsLocationsCustomClasses({
+            parent: locationParent(env.project, location),
+            body: {
+              customClassId,
+              customClass: { items },
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try getCustomClass(customClassNameOf(env.project, location, customClassId));
+            default: throw e;
+          }
+        current = created ?? undefined
+        if (current?.name) {
+          current = (try getCustomClass(current.name)) ?? current
+        }
+      }
+
+      if (current === undefined) {
+        throw new CustomClassNotResolved({
+          resourceName: name || customClassNameOf(env.project, location, customClassId),
+        })
+      }
+
+      const currentName = current.name ?? name
+      const updateMask = updateMaskOf(
+        markerFromItems(current.items) === undefined && sameItems(current.items, news.items)
+          ? undefined
+          : "items",
+      )
+      if (updateMask.length > 0) {
+        current = try speech.patchProjectsLocationsCustomClasses({
+          name: currentName,
+          updateMask,
+          body: {
+            name: currentName,
+            items,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try deleteCustomClass(output.name)
+      try waitUntilGone(getCustomClass(output.name))
+    },
+  })

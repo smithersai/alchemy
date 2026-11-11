@@ -1,9 +1,13 @@
 import { Resource } from "alchemy/Resource";
-import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "../Branch.ts";
-import type { Providers } from "../Providers.ts";
-import type { MySQLClusterSize } from "./MySQLClusterSize.ts";
-import type { MySQLDatabase } from "./MySQLDatabase.ts";
-import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.ts";
+import {
+  type BaseBranchAttributes,
+  type BaseBranchProps,
+  makeBranchProvider,
+} from "../Branch.vibe";
+import type { Providers } from "../Providers.vibe";
+import type { MySQLClusterSize } from "./MySQLClusterSize.vibe";
+import type { MySQLDatabase } from "./MySQLDatabase.vibe";
+import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.vibe";
 
 /**
  * Properties for creating or updating a {@link MySQLBranch}.

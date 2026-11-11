@@ -1,7 +1,7 @@
 import * as AWS from "@alchemy.run/aws";
 import * as Effect from "effect/Effect";
 import { MicrovmBuildRole } from "./build-role.ts";
-import { effectfulImpl } from "./effectful-impl.ts";
+import { effectfulImpl } from "./effectful-impl.vibe";
 
 /**
  * Effectful MicroVM image on **bun** — a bundled Effect program exposing a raw

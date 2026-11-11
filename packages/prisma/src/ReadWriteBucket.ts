@@ -1,9 +1,9 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import { makeBucketBinding } from "./BucketBinding.ts";
-import type { BucketCredentials } from "./BucketTypes.ts";
+import type { BucketCredentials } from "./BucketTypes.vibe";
 import { makeBucketAccess } from "./internal/BucketClient.ts";
 import { readBucketOperations, type ReadBucketClient } from "./ReadBucket.ts";
 import { writeBucketOperations, type WriteBucketClient } from "./WriteBucket.ts";

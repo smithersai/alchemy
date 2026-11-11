@@ -1,9 +1,9 @@
 import type { DnsAliasSet, DnsConfig } from "alchemy/DNS/Adapter";
 import type { Input } from "alchemy/Input";
-import type { Certificate } from "../ACM/Certificate.ts";
-import type { Distribution } from "../CloudFront/Distribution.ts";
-import type { Bucket } from "../S3/Bucket.ts";
-import type { AssetFileOption } from "./AssetDeployment.ts";
+import type { Certificate } from "../ACM/Certificate.vibe";
+import type { Distribution } from "../CloudFront/Distribution.vibe";
+import type { Bucket } from "../S3/Bucket.vibe";
+import type { AssetFileOption } from "./AssetDeployment.vibe";
 
 /**
  * Same-stack resources a Router-attached site binds its concrete hostnames

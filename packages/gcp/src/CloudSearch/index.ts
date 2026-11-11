@@ -1,2 +1,2 @@
-export * from "./SettingsDatasource.ts";
-export * from "./SettingsSearchapplication.ts";
+export * from "./SettingsDatasource.vibe";
+export * from "./SettingsSearchapplication.vibe";

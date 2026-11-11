@@ -1,0 +1,443 @@
+import * as pubsub from "@distilled.cloud/gcp/pubsub_v1"
+import * as we from "@distilled.cloud/gcp/workspaceevents_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  ensureTopic,
+  expandTopic,
+  findSubscription,
+  getSubscription,
+  getTopic,
+  lastSegment,
+  listOwnedSubscriptions,
+  operationResourceName,
+  ownedByWesubLabels,
+  sameText,
+  sortedStrings,
+  subscriptionIdOf,
+  toPhysicalId,
+  toSubscriptionName,
+  updateMaskOf,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  wesubLabels,
+} from "./internal.vibe"
+
+export type PayloadOptions = {
+  /**
+   * Whether the event payload includes data about the changed resource.
+   * Chat and Drive events only.
+   */
+  includeResource?: boolean
+  /**
+   * Comma-separated fields to include when `includeResource` is true.
+   */
+  fieldMask?: string
+}
+
+export type DriveOptions = {
+  /**
+   * Receive events about Drive files that are children of the target
+   * folder or shared drive. Immutable — changing it replaces the
+   * subscription.
+   */
+  includeDescendants?: boolean
+}
+
+export type SubscriptionProps = {
+  /**
+   * Resource name `subscriptions/{subscription}` or the `{subscription}`
+   * id. Server-assigned on create. Immutable — changing it replaces the
+   * subscription.
+   */
+  subscriptionId?: string
+  /**
+   * Google Workspace resource to monitor, as a full resource name
+   * (`//chat.googleapis.com/spaces/{space}`,
+   * `//drive.googleapis.com/files/{file}`,
+   * `//meet.googleapis.com/spaces/{space}`). Immutable — changing it
+   * replaces the subscription.
+   */
+  targetResource: string
+  /**
+   * CloudEvents types to receive about the target resource. Lifecycle
+   * events are delivered automatically.
+   */
+  eventTypes: string[]
+  /**
+   * Pub/Sub topic that receives events
+   * (`projects/{project}/topics/{topic}` or a topic id). Created with
+   * Alchemy ownership labels when omitted. Immutable — changing it
+   * replaces the subscription. The topic must live in the same project.
+   */
+  pubsubTopic?: string
+  /**
+   * Event payload options. Chat and Drive only. Immutable — changing
+   * them replaces the subscription.
+   */
+  payloadOptions?: PayloadOptions
+  /**
+   * Drive-only options. Immutable — changing them replaces the
+   * subscription.
+   */
+  driveOptions?: DriveOptions
+  /**
+   * RFC3339 expiration timestamp. Mutually exclusive with `ttl`.
+   */
+  expireTime?: string
+  /**
+   * Time-to-live duration (for example `"86400s"`). Mutually exclusive
+   * with `expireTime`. Omitted uses the API maximum.
+   */
+  ttl?: string
+}
+
+export type Subscription = Resource<
+  "GCP.WorkspaceEvents.Subscription",
+  SubscriptionProps,
+  {
+    /** Full resource name `subscriptions/{subscription}`. */
+    name: string
+    /** Subscription id (last path segment). */
+    subscriptionId: string
+    /** Project id used when the subscription was reconciled. */
+    project: string
+    /** Monitored Google Workspace resource. */
+    targetResource: string | undefined
+    /** CloudEvents types. */
+    eventTypes: string[]
+    /** Pub/Sub topic that receives events. */
+    pubsubTopic: string | undefined
+    /** Event payload options. */
+    payloadOptions: PayloadOptions | undefined
+    /** Drive-only options. */
+    driveOptions: DriveOptions | undefined
+    /** RFC3339 expiration timestamp. */
+    expireTime: string | undefined
+    /** Subscription state (`ACTIVE`, `SUSPENDED`, `DELETED`). */
+    state: string | undefined
+    /** Error that suspended the subscription, if any. */
+    suspensionReason: string | undefined
+    /** User who authorized the subscription. */
+    authority: string | undefined
+    /** Service account that authorized the subscription. */
+    serviceAccountAuthority: string | undefined
+    /** System-assigned unique identifier. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Whether Alchemy created the Pub/Sub topic. */
+    managedTopic: boolean
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google Workspace Events subscription.
+ *
+ * Subscriptions have no labels field, so Alchemy stamps ownership onto
+ * the destination Pub/Sub topic (`alchemy-wesub-*`) for `list` / nuke.
+ * `targetResource`, the Pub/Sub topic, payload options, and Drive options
+ * are identity — changing them replaces the subscription. Event types and
+ * expiration update in place. Creating a subscription requires Workspace
+ * Events OAuth scopes for the target resource (Chat, Drive, or Meet).
+ *
+ * ### Creating a Subscription
+ * **Example:** Chat space messages to a Pub/Sub topic
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("ChatEvents", {});
+ * const sub = yield* GCP.WorkspaceEvents.Subscription("SpaceEvents", {
+ *   targetResource: "//chat.googleapis.com/spaces/SPACE_ID",
+ *   eventTypes: ["google.workspace.chat.message.v1.created"],
+ *   pubsubTopic: topic.name,
+ * });
+ * ```
+ *
+ * **Example:** Generated topic
+ * ```typescript
+ * const sub = yield* GCP.WorkspaceEvents.Subscription("MeetEvents", {
+ *   targetResource: "//meet.googleapis.com/spaces/SPACE_ID",
+ *   eventTypes: ["google.workspace.meet.conference.v2.started"],
+ * });
+ * ```
+ *
+ * ### Updating a Subscription
+ * **Example:** Renew TTL and add an event type
+ * ```typescript
+ * // Same logical id, changed props: the engine updates it in place.
+ * const sub = yield* GCP.WorkspaceEvents.Subscription("SpaceEvents", {
+ *   targetResource: "//chat.googleapis.com/spaces/SPACE_ID",
+ *   eventTypes: [
+ *     "google.workspace.chat.message.v1.created",
+ *     "google.workspace.chat.message.v1.updated",
+ *   ],
+ *   pubsubTopic: topic.name,
+ *   ttl: "86400s",
+ * });
+ * ```
+ *
+ * @resource
+ * @category WorkspaceEvents
+ */
+export const Subscription = Resource<Subscription>("GCP.WorkspaceEvents.Subscription")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SubscriptionNotResolved extends Data.TaggedError(
+  "GCP.WorkspaceEvents.SubscriptionNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const payloadOf = (options: we.PayloadOptions | undefined): PayloadOptions | undefined => {
+  if (options === undefined) return undefined
+  return {
+    includeResource: options.includeResource,
+    fieldMask: options.fieldMask,
+  }
+}
+
+const driveOf = (options: we.DriveOptions | undefined): DriveOptions | undefined => {
+  if (options === undefined) return undefined
+  return { includeDescendants: options.includeDescendants }
+}
+
+const toAttrs = (subscription: we.Subscription, project: string, managedTopic: boolean): infer _ => {
+  const name = subscription.name ?? ""
+  return {
+    name,
+    subscriptionId: subscriptionIdOf(name),
+    project,
+    targetResource: subscription.targetResource,
+    eventTypes: subscription.eventTypes ?? [],
+    pubsubTopic: subscription.notificationEndpoint?.pubsubTopic,
+    payloadOptions: payloadOf(subscription.payloadOptions),
+    driveOptions: driveOf(subscription.driveOptions),
+    expireTime: subscription.expireTime,
+    state: subscription.state,
+    suspensionReason: subscription.suspensionReason,
+    authority: subscription.authority,
+    serviceAccountAuthority: subscription.serviceAccountAuthority,
+    uid: subscription.uid,
+    createTime: subscription.createTime,
+    updateTime: subscription.updateTime,
+    managedTopic,
+  }
+}
+
+const lookupName = (subscriptionId: string | undefined, existingName: string | undefined): infer _ => {
+  if (subscriptionId !== undefined && subscriptionId.length > 0) {
+    return toSubscriptionName(subscriptionId)
+  }
+  if (existingName !== undefined && existingName.length > 0) {
+    return toSubscriptionName(existingName)
+  }
+  return ""
+}
+
+const sameTopic = (left: string | undefined, right: string | undefined): infer _ => {
+  if (left === undefined || right === undefined) return left === right
+  return left === right || lastSegment(left) === lastSegment(right)
+}
+
+export const SubscriptionProvider = (): infer _ =>
+  Provider.succeed(Subscription, {
+    stables: ["name", "subscriptionId", "project", "uid", "createTime", "targetResource"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.subscriptionId ?? output?.subscriptionId
+      if (
+        previousId !== undefined
+        && resolved.subscriptionId !== undefined
+        && toSubscriptionName(resolved.subscriptionId) !== toSubscriptionName(previousId)
+        && resolved.subscriptionId !== output?.subscriptionId
+        && toSubscriptionName(resolved.subscriptionId) !== output?.name
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousTarget = olds?.targetResource ?? output?.targetResource
+      if (previousTarget !== undefined && resolved.targetResource !== previousTarget) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousTopic = olds?.pubsubTopic ?? output?.pubsubTopic
+      if (
+        resolved.pubsubTopic !== undefined
+        && previousTopic !== undefined
+        && !sameTopic(resolved.pubsubTopic, previousTopic)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousPayload = olds?.payloadOptions ?? output?.payloadOptions
+      if (
+        resolved.payloadOptions !== undefined
+        && previousPayload !== undefined
+        && (resolved.payloadOptions.includeResource !== previousPayload.includeResource
+          || (resolved.payloadOptions.fieldMask ?? "") !== (previousPayload.fieldMask ?? ""))
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousDrive = olds?.driveOptions ?? output?.driveOptions
+      if (
+        resolved.driveOptions?.includeDescendants !== undefined
+        && previousDrive?.includeDescendants !== undefined
+        && resolved.driveOptions.includeDescendants !== previousDrive.includeDescendants
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const name = lookupName(olds?.subscriptionId ?? output?.subscriptionId, output?.name)
+      let existing = try getSubscription(name)
+      if (existing === undefined) {
+        existing = try findSubscription(
+          name,
+          olds?.eventTypes ?? output?.eventTypes ?? [],
+          olds?.targetResource ?? output?.targetResource,
+        )
+      }
+      if (existing === undefined) return undefined
+      const topic = try getTopic(existing.notificationEndpoint?.pubsubTopic ?? "")
+      const attrs = toAttrs(existing, env.project, output?.managedTopic === true)
+      return (try ownedByWesubLabels(id, topic?.labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const subscriptions = try listOwnedSubscriptions()
+      return subscriptions.map((subscription) => toAttrs(subscription, env.project, false))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const labels = try wesubLabels(id)
+      const managedTopic = news.pubsubTopic === undefined
+      const topicName = news.pubsubTopic
+        ? expandTopic(news.pubsubTopic, env.project)
+        : expandTopic(
+          output?.pubsubTopic
+            ?? (try toPhysicalId(`${id}-topic`, undefined, undefined, "topic", 255)),
+          env.project,
+        )
+
+      try ensureTopic(topicName, labels)
+
+      const eventTypes = news.eventTypes
+      const lookup = lookupName(news.subscriptionId ?? output?.subscriptionId, output?.name)
+      let current = try findSubscription(lookup, eventTypes, news.targetResource)
+
+      if (current === undefined) {
+        const created = we
+          .createSubscriptions({
+            body: {
+              targetResource: news.targetResource,
+              eventTypes,
+              notificationEndpoint: { pubsubTopic: topicName },
+              payloadOptions: news.payloadOptions,
+              driveOptions: news.driveOptions,
+              expireTime: news.expireTime,
+              ttl: news.ttl,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          const settled = waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: error.code === 6 ? created : throw error;
+            default: throw error;
+          }
+          const createdName = operationResourceName(settled) ?? lookup
+          if (createdName.length > 0) {
+            current = try waitUntilExists(getSubscription(createdName), createdName)
+          }
+        }
+        if (current === undefined) {
+          current = try findSubscription(lookup, eventTypes, news.targetResource)
+        }
+      }
+
+      if (current === undefined) {
+        throw new SubscriptionNotResolved({
+          resourceName: lookup || news.targetResource,
+        })
+      }
+
+      const name = current.name ?? lookup
+      const eventTypesChanged = sortedStrings(current.eventTypes).join(",") !== sortedStrings(eventTypes).join(",")
+      const expireChanged = news.expireTime !== undefined && !sameText(current.expireTime, news.expireTime)
+      const ttlChanged = news.ttl !== undefined && news.expireTime === undefined
+      const mask = updateMaskOf(
+        eventTypesChanged ? "event_types" : undefined,
+        expireChanged ? "expire_time" : undefined,
+        ttlChanged ? "ttl" : undefined,
+      )
+      if (mask.length > 0) {
+        const patched = try we.patchSubscriptions({
+          name,
+          updateMask: mask,
+          body: {
+            eventTypes,
+            expireTime: news.expireTime,
+            ttl: news.ttl,
+          },
+        })
+        try waitForOperation(patched)
+        current = (try getSubscription(name)) ?? current
+      }
+
+      if (current.state === "SUSPENDED") {
+        const reactivated = we
+          .reactivateSubscriptions({ name, body: {} }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" } or { _tag: "BadRequest" } or { _tag: "Conflict" }: undefined;
+            default: throw e;
+          }
+        if (reactivated !== undefined) {
+          try waitForOperation(reactivated)
+          current = (try getSubscription(name)) ?? current
+        }
+      }
+
+      const fresh = (try getSubscription(name)) ?? current
+      return toAttrs(fresh, env.project, managedTopic)
+    },
+
+    delete: effect ({ output }) => {
+      const name = output.name || toSubscriptionName(output.subscriptionId)
+      if (name.length > 0) {
+        const operation = we
+          .deleteSubscriptions({ name, allowMissing: true }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: undefined;
+            default: throw e;
+          }
+        if (operation !== undefined) {
+          // NOT_FOUND (5): already gone.
+          waitForOperation(operation) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+            default: throw error;
+          }
+        }
+        try waitUntilGone(getSubscription(name), name)
+      }
+      if (output.managedTopic === true && output.pubsubTopic) {
+        pubsub
+          .deleteProjectsTopics({ topic: output.pubsubTopic }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: undefined as void;
+            default: throw e;
+          }
+      }
+    },
+  })

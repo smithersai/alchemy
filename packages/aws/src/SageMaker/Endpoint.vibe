@@ -1,0 +1,342 @@
+import * as sagemaker from "@distilled.cloud/aws/sagemaker"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+
+export error SageMakerEndpointInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error SageMakerEndpointUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type EndpointStatus = sagemaker.EndpointStatus
+
+export interface EndpointProps {
+  /**
+   * Name of the endpoint. Maximum 63 characters.
+   * @default ${app}-${stage}-${id}
+   */
+  endpointName?: string
+  /**
+   * Name of the `EndpointConfig` that describes the models and hosting
+   * resources to deploy. Changing it updates the live endpoint in place
+   * (blue/green by default on the SageMaker side).
+   */
+  endpointConfigName: string
+  /**
+   * Deployment (blue/green or rolling) configuration applied when the
+   * endpoint is updated to a new configuration.
+   */
+  deploymentConfig?: sagemaker.DeploymentConfig
+  /**
+   * Tags to associate with the endpoint. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Endpoint extends
+  Resource<
+    "AWS.SageMaker.Endpoint",
+    EndpointProps,
+    {
+      /**
+       * The endpoint's name.
+       */
+      endpointName: string
+      /**
+       * ARN of the endpoint.
+       */
+      endpointArn: string
+      /**
+       * Lifecycle status of the endpoint after reconcile (`InService`).
+       */
+      endpointStatus: EndpointStatus | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SageMaker Endpoint — the live, invocable deployment of an
+ * `EndpointConfig`. Provisioning takes minutes and **bills while the
+ * endpoint exists** (serverless variants bill per request; instance variants
+ * bill per instance-hour). Destroy endpoints promptly.
+ *
+ * Invoke a deployed endpoint from a function with
+ * `AWS.SageMakerRuntime.InvokeEndpoint`.
+ * ### Creating Endpoints
+ * **Example:** Deploy an EndpointConfig
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const endpoint = yield* AWS.SageMaker.Endpoint("MyEndpoint", {
+ *   endpointConfigName: config.endpointConfigName,
+ * });
+ * ```
+ *
+ * ### Invoking
+ * **Example:** Invoke from a Lambda function
+ * ```typescript
+ * // init
+ * const invoke = yield* AWS.SageMakerRuntime.InvokeEndpoint(
+ *   endpoint.endpointName,
+ * );
+ *
+ * // runtime
+ * const result = yield* invoke({
+ *   ContentType: "application/json",
+ *   Body: JSON.stringify({ instances: [[1, 2, 3, 4]] }),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Endpoint = Resource<Endpoint>("AWS.SageMaker.Endpoint")
+
+const createEndpointName = effect (
+  id: string,
+  props: { endpointName?: string | undefined },
+) => (props.endpointName ? props.endpointName : try createPhysicalName({ id, maxLength: 63 }))
+
+const fetchEndpointTags = effect (arn: string) => {
+  const response = sagemaker
+    .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
+      when { _tag: "AccessDeniedException" }: undefined;
+      default: throw e;
+    }
+  return Object.fromEntries(
+    (response?.Tags ?? []).flatMap((tag) => tag.Key !== undefined ? [[tag.Key, tag.Value ?? ""]] : []),
+  )
+}
+
+const describeEndpointOrUndefined = effect (name: string) =>
+  sagemaker
+    .describeEndpoint({ EndpointName: name }) catch effect (e) => match (e) {
+      when { _tag: "EndpointNotFound" }: undefined;
+      default: throw e;
+    }
+
+/**
+ * The endpoint is still transitioning toward the awaited state — retried by
+ * the bounded wait schedule.
+ */
+error EndpointNotReady {
+  endpointName: string
+  status: string | undefined
+}
+
+/**
+ * The endpoint's asynchronous provisioning converged to the terminal
+ * `Failed` status (e.g. the container image could not be pulled or the model
+ * server failed its health checks).
+ */
+export error EndpointProvisioningFailed {
+  endpointName: string
+  message: string | undefined
+}
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "EndpointNotReady",
+    // Endpoint provisioning takes ~3-10 min; poll every 15s up to ~20 min.
+    schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(80)]),
+  })
+
+const waitForEndpoint = effect (name: string, target: "InService" | "Gone") =>
+  try retryWhileNotReady(
+    effect {
+      const described = try describeEndpointOrUndefined(name)
+      if (target === "Gone") {
+        if (described === undefined) return
+        throw new EndpointNotReady({
+          endpointName: name,
+          status: described.EndpointStatus,
+        })
+      }
+      if (described?.EndpointStatus === "InService") return
+      if (described?.EndpointStatus === "Failed") {
+        throw new EndpointProvisioningFailed({
+          endpointName: name,
+          message: described.FailureReason,
+        })
+      }
+      throw new EndpointNotReady({
+        endpointName: name,
+        status: described?.EndpointStatus,
+      })
+    },
+  )
+
+export const EndpointProvider = (): infer _ =>
+  Provider.effect(
+    Endpoint,
+    effect {
+      return {
+        stables: ["endpointName", "endpointArn"],
+        list: effect () => {
+          const summaries = Array.from(
+            try (sagemaker.listEndpoints.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.Endpoints ?? [])
+          return summaries.flatMap((s) =>
+            s.EndpointName !== undefined && s.EndpointArn !== undefined
+              ? [
+                {
+                  endpointName: s.EndpointName,
+                  endpointArn: s.EndpointArn,
+                  endpointStatus: s.EndpointStatus,
+                },
+              ]
+              : []
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.endpointName ?? (try createEndpointName(id, olds ?? {}))
+          const described = try describeEndpointOrUndefined(name)
+          if (!described || described.EndpointStatus === "Deleting") {
+            return undefined
+          }
+          const attrs = {
+            endpointName: described.EndpointName,
+            endpointArn: described.EndpointArn,
+            endpointStatus: described.EndpointStatus,
+          }
+          const tags = try fetchEndpointTags(described.EndpointArn)
+          return (try hasAlchemyTags(id, tags as Tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+        diff: effect ({ id, news, olds }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (olds === undefined) return
+          const oldName = try createEndpointName(id, olds)
+          const newName = try createEndpointName(id, resolved)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          // endpointConfigName changes update the live endpoint in place.
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new SageMakerEndpointInvalidProps({
+              message: "SageMaker Endpoint requires props",
+            })
+          }
+          const name = output?.endpointName ?? (try createEndpointName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe.
+          let described = try describeEndpointOrUndefined(name)
+
+          // A terminally-failed endpoint cannot be updated — delete it and
+          // fall through to a fresh create so the reconciler converges.
+          if (described?.EndpointStatus === "Failed") {
+            try session.note(
+              `Endpoint ${name} is Failed (${described.FailureReason ?? "unknown"}) — recreating`,
+            )
+            sagemaker
+              .deleteEndpoint({ EndpointName: name }) catch effect (e) => match (e) {
+                when { _tag: "EndpointNotFound" }: undefined as void;
+                default: throw e;
+              }
+            try waitForEndpoint(name, "Gone")
+            described = undefined
+          }
+
+          // Ensure — create if missing; tolerate the already-exists race.
+          if (described === undefined) {
+            sagemaker
+              .createEndpoint({
+                EndpointName: name,
+                EndpointConfigName: news.endpointConfigName,
+                DeploymentConfig: news.deploymentConfig,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "EndpointAlreadyExists" }: undefined as void;
+                default: throw e;
+              }
+            try session.note(`Creating endpoint ${name}...`)
+          } else if (
+            described.EndpointConfigName !== news.endpointConfigName
+            && described.EndpointStatus === "InService"
+          ) {
+            // Sync — roll the live endpoint onto the desired configuration.
+            try sagemaker.updateEndpoint({
+              EndpointName: name,
+              EndpointConfigName: news.endpointConfigName,
+              DeploymentConfig: news.deploymentConfig,
+            })
+            try session.note(
+              `Updating endpoint ${name} to config ${news.endpointConfigName}...`,
+            )
+          }
+
+          // Converge to InService (also settles Creating/Updating states we
+          // observed mid-flight, e.g. after a crashed reconcile).
+          try waitForEndpoint(name, "InService")
+          const final = try describeEndpointOrUndefined(name)
+          if (final === undefined) {
+            throw new SageMakerEndpointUnexpectedResponse({
+              message: `failed to read reconciled endpoint ${name}`,
+            })
+          }
+
+          // Sync tags — diff against OBSERVED cloud tags.
+          const currentTags = try fetchEndpointTags(final.EndpointArn)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(currentTags, desiredTags), catch: (e) => e }),
+          )
+          if (removed.length > 0) {
+            try sagemaker.deleteTags({
+              ResourceArn: final.EndpointArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try sagemaker.addTags({
+              ResourceArn: final.EndpointArn,
+              Tags: upsert.map(({ Key, Value }) => ({ Key, Value })),
+            })
+          }
+
+          try session.note(final.EndpointArn)
+          return {
+            endpointName: final.EndpointName,
+            endpointArn: final.EndpointArn,
+            endpointStatus: final.EndpointStatus,
+          }
+        },
+        delete: effect ({ output }) => {
+          sagemaker
+            .deleteEndpoint({ EndpointName: output.endpointName }) catch effect (e) => match (e) {
+              when { _tag: "EndpointNotFound" }: undefined as void;
+              default: throw e;
+            }
+          try waitForEndpoint(output.endpointName, "Gone")
+        },
+      }
+    },
+  )

@@ -1,0 +1,258 @@
+import * as appconfig from "@distilled.cloud/aws/appconfig"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { extensionAssociationArn, readAppConfigTags, syncAppConfigTags, toTagRecord } from "./internal.vibe"
+
+export interface ExtensionAssociationProps {
+  /**
+   * The extension to associate: its ID, name, or ARN. Changing it replaces
+   * the association.
+   */
+  extensionIdentifier: string
+  /**
+   * The version of the extension to pin. If omitted, AppConfig uses the
+   * latest version. Changing it replaces the association.
+   */
+  extensionVersionNumber?: number
+  /**
+   * ARN of the AppConfig resource the extension attaches to: an application,
+   * environment, or configuration profile. Changing it replaces the
+   * association.
+   */
+  resourceIdentifier: string
+  /**
+   * Values for the parameters declared by the extension, keyed by parameter
+   * name.
+   */
+  parameters?: Record<string, string>
+  /**
+   * User-defined tags for the extension association.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ExtensionAssociation extends
+  Resource<
+    "AWS.AppConfig.ExtensionAssociation",
+    ExtensionAssociationProps,
+    {
+      extensionAssociationId: string
+      extensionAssociationArn: string
+      extensionArn: string
+      resourceArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS AppConfig extension association — attaches an {@link Extension} to an
+ * application, environment, or configuration profile so the extension's
+ * actions fire for that resource's workflow events.
+ *
+ * ### Associating an Extension
+ * **Example:** Attach an Extension to an Application
+ * ```typescript
+ * const association = yield* AppConfig.ExtensionAssociation("Hook", {
+ *   extensionIdentifier: extension.extensionId,
+ *   resourceIdentifier: app.applicationArn,
+ * });
+ * ```
+ *
+ * **Example:** Attach with Parameter Values
+ * ```typescript
+ * const association = yield* AppConfig.ExtensionAssociation("Hook", {
+ *   extensionIdentifier: extension.extensionId,
+ *   resourceIdentifier: env.environmentArn,
+ *   parameters: { topicArn: topic.topicArn },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ExtensionAssociation = Resource<ExtensionAssociation>(
+  "AWS.AppConfig.ExtensionAssociation",
+)
+
+export const ExtensionAssociationProvider = (): infer _ =>
+  Provider.effect(
+    ExtensionAssociation,
+    effect {
+      const readAssociation = effect (extensionAssociationId: string) =>
+        appconfig
+          .getExtensionAssociation({
+            ExtensionAssociationId: extensionAssociationId,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      /**
+       * Find an existing association between the extension and the resource
+       * (associations have no name; the pair is the natural identity).
+       *
+       * `ListExtensionAssociations` rejects requests carrying BOTH
+       * `ExtensionIdentifier` and `ResourceIdentifier` ("Request cannot
+       * contain both..."), so list by resource and match the extension
+       * client-side via its resolved id (association `ExtensionArn`s are
+       * versioned, `.../extension/{id}/{version}`).
+       */
+      const findByIdentifiers = effect (props: Partial<ExtensionAssociationProps>) => {
+        if (props.extensionIdentifier === undefined || props.resourceIdentifier === undefined) {
+          return undefined
+        }
+        const extension = appconfig
+          .getExtension({ ExtensionIdentifier: props.extensionIdentifier }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+        if (extension?.Id === undefined) return undefined
+        const summaries = Array.from(
+          try (appconfig.listExtensionAssociations
+            .pages({ ResourceIdentifier: props.resourceIdentifier })
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.Items ?? [])
+        const summary = summaries.find(
+          (item) =>
+            item.Id !== undefined
+            && item.ExtensionArn !== undefined
+            && item.ExtensionArn.includes(extension.Id!),
+        )
+        return summary?.Id === undefined ? undefined : try readAssociation(summary.Id)
+      }
+
+      const toAttrs = effect (association: appconfig.ExtensionAssociation) => {
+        const { accountId, region } = try AWSEnvironment.current
+        return {
+          extensionAssociationId: association.Id!,
+          extensionAssociationArn: association.Arn ?? extensionAssociationArn(region, accountId, association.Id!),
+          extensionArn: association.ExtensionArn!,
+          resourceArn: association.ResourceArn!,
+        }
+      }
+
+      return {
+        stables: [
+          "extensionAssociationId",
+          "extensionAssociationArn",
+          "extensionArn",
+          "resourceArn",
+        ],
+
+        diff: effect ({ olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if (
+            olds !== undefined
+            && (olds.extensionIdentifier !== resolved.extensionIdentifier
+              || olds.resourceIdentifier !== resolved.resourceIdentifier
+              || (olds.extensionVersionNumber ?? undefined)
+                !== (resolved.extensionVersionNumber ?? undefined))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const association = output?.extensionAssociationId
+            ? try readAssociation(output.extensionAssociationId)
+            : try findByIdentifiers(olds ?? {})
+          if (association?.Id === undefined) return undefined
+          const attrs = try toAttrs(association)
+          const tags = try readAppConfigTags(attrs.extensionAssociationArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe.
+          let observed = output?.extensionAssociationId
+            ? try readAssociation(output.extensionAssociationId)
+            : undefined
+          if (observed === undefined) {
+            observed = try findByIdentifiers(news)
+          }
+
+          // 2. Ensure.
+          if (observed?.Id === undefined) {
+            observed = try appconfig.createExtensionAssociation({
+              ExtensionIdentifier: news.extensionIdentifier,
+              ExtensionVersionNumber: news.extensionVersionNumber,
+              ResourceIdentifier: news.resourceIdentifier,
+              Parameters: news.parameters,
+              Tags: desiredTags,
+            })
+          } else {
+            // 3. Sync — parameter values are mutable in place.
+            const observedParameters = toTagRecord(observed.Parameters)
+            const desiredParameters = news.parameters ?? {}
+            const { removed, upsert } = try Effect.orDie(
+              Effect.try({ try: () => diffTags(observedParameters, desiredParameters), catch: (e) => e }),
+            )
+            if (removed.length > 0 || upsert.length > 0) {
+              observed = try appconfig.updateExtensionAssociation({
+                ExtensionAssociationId: observed.Id,
+                Parameters: desiredParameters,
+              })
+            }
+          }
+
+          const attrs = try toAttrs(observed)
+
+          // 3b. Sync tags against observed cloud tags.
+          try syncAppConfigTags(attrs.extensionAssociationArn, desiredTags)
+
+          try session.note(attrs.extensionAssociationId)
+          return attrs
+        },
+
+        delete: effect ({ output }) => {
+          appconfig
+            .deleteExtensionAssociation({
+              ExtensionAssociationId: output.extensionAssociationId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const summaries = Array.from(
+            try (appconfig.listExtensionAssociations.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Items ?? [])
+          return summaries.flatMap((summary) =>
+            summary.Id !== undefined
+              && summary.ExtensionArn !== undefined
+              && summary.ResourceArn !== undefined
+              ? [
+                {
+                  extensionAssociationId: summary.Id,
+                  extensionAssociationArn: extensionAssociationArn(
+                    region,
+                    accountId,
+                    summary.Id,
+                  ),
+                  extensionArn: summary.ExtensionArn,
+                  resourceArn: summary.ResourceArn,
+                },
+              ]
+              : []
+          )
+        },
+      }
+    },
+  )

@@ -2,7 +2,7 @@
  * Derives a deterministic AppRegistry client token from the resource's
  * instance ID so retried creates never double-provision.
  */
-export const clientToken = (instanceId: string): string =>
+export const clientToken = /** @throws {never} */ (instanceId: string): string =>
   instanceId.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 64) || "alchemy";
 
 /**

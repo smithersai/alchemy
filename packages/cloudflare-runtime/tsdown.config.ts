@@ -1,4 +1,5 @@
 import { defineConfig, type UserConfig } from "tsdown";
+import vibelang from "vibelang-unplugin/rolldown";
 import { DEFAULT_COMPATIBILITY_DATE } from "./src/core/internal/constants.ts";
 import {
   InternalWorkerExportPlugin,
@@ -31,6 +32,7 @@ const workerConfig = (
   // copy; the structural compare between the two plugin types blows tsc's
   // depth limit, so bridge through `unknown`.
   plugins: [
+    vibelang(),
     cloudflare({
       compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
       compatibilityFlags: options.compatibilityFlags,
@@ -57,6 +59,7 @@ export default defineConfig([
     unbundle: true,
     dts: { incremental: false },
     shims: false,
+    plugins: [vibelang()],
     sourcemap: true,
     target: "esnext",
     format: "esm",
@@ -68,7 +71,7 @@ export default defineConfig([
   // worker itself, so it isn't an entry: it's bundled into its importers (as
   // a shared chunk when there are several).
   workerConfig([
-    "src/core/**/*.worker.ts",
+    "src/core/**/*.worker.{ts,vibe}",
     "!src/core/internal/shared.worker.ts",
     "!src/core/**/R2Bucket.worker.ts",
   ]),
@@ -86,9 +89,14 @@ export default defineConfig([
   {
     cwd: ".",
     entry: [
-      "src/core/**/*.ts",
-      "!src/core/**/*.worker.ts",
+      "src/core/**/*.{ts,vibe}",
+      "!src/core/**/*.worker.{ts,vibe}",
       "!src/core/globals.d.ts",
+      "!src/core/**/*.d.vibe.ts",
+      // VibeLang writes an X.d.ts declaration sidecar beside each X.vibe
+      // source; it is not a module of its own.
+      "!src/core/**/*.d.ts",
+      "!src/core/**/*.platform.ts",
       "!src/core/scripts/**/*.ts",
       "!src/core/test/**/*.ts",
     ],
@@ -100,6 +108,7 @@ export default defineConfig([
     unbundle: true,
     dts: { incremental: false },
     shims: false,
+    plugins: [vibelang()],
     target: "esnext",
     format: "esm",
     inputOptions: {
@@ -152,7 +161,7 @@ export default defineConfig([
     shims: false,
     target: "esnext",
     format: "esm",
-    plugins: [RuntimeSubpathExportPlugin()],
+    plugins: [vibelang(), RuntimeSubpathExportPlugin()],
     deps: {
       // These are subpaths of this consolidated package. Keep them as public
       // imports so the Vite declaration bundle shares the core runtime types.

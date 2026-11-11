@@ -7,7 +7,7 @@ import * as Fly from "@alchemy.run/fly";
  */
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Api from "./src/api.ts";
+import Api from "./src/api.vibe";
 import { Cache } from "./src/shared.ts";
 
 export default Alchemy.Stack(

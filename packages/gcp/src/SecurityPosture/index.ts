@@ -1,2 +1,2 @@
-export * from "./Posture.ts";
-export * from "./PostureDeployment.ts";
+export * from "./Posture.vibe";
+export * from "./PostureDeployment.vibe";

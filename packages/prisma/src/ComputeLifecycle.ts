@@ -11,7 +11,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { stopDeploymentIdempotent } from "./internal/DeploymentActions.ts";
-import { observeDeployment } from "./internal/DeploymentObserve.ts";
+import { observeDeployment } from "./internal/DeploymentObserve.vibe";
 import type { ObservedDeployment } from "./internal/Observed.ts";
 import { PrismaPaginationError } from "./internal/Pagination.ts";
 export { isConflict } from "./Client.ts";

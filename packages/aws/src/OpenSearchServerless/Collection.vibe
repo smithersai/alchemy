@@ -1,0 +1,324 @@
+import * as Effect from "effect/Effect"
+import * as aoss from "@distilled.cloud/aws/opensearchserverless"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { awaitCollectionActive, recordToTagList, retryWhileConflict, tagsToRecord } from "./internal.vibe"
+
+/**
+ * The collection type, which determines the OpenSearch features available:
+ * - `SEARCH` — full-text search and analytics.
+ * - `TIMESERIES` — log analytics over time-ordered data.
+ * - `VECTORSEARCH` — vector (k-NN) similarity search — the type required to
+ *   back an Amazon Bedrock Knowledge Base.
+ */
+export type CollectionType = "SEARCH" | "TIMESERIES" | "VECTORSEARCH"
+
+export interface CollectionProps {
+  /**
+   * Name of the collection (3-32 characters, lowercase; must start with a
+   * lowercase letter). Must be matched by an encryption
+   * {@link SecurityPolicy | security policy} before it can be created. Changing
+   * the name replaces the collection.
+   * @default a generated physical name
+   */
+  collectionName?: string
+  /**
+   * The collection type. Changing the type replaces the collection.
+   * @default "SEARCH"
+   */
+  type?: CollectionType
+  /**
+   * A human-readable description of the collection.
+   */
+  description?: string
+  /**
+   * Whether to deploy redundant standby replicas (`ENABLED` doubles the OCU
+   * floor but provides higher availability). Set at creation time.
+   * @default "ENABLED"
+   */
+  standbyReplicas?: "ENABLED" | "DISABLED"
+  /**
+   * Whether deletion protection is enabled. When `ENABLED`, the collection
+   * cannot be deleted until protection is turned off.
+   * @default "DISABLED"
+   */
+  deletionProtection?: "ENABLED" | "DISABLED"
+  /**
+   * Tags to apply to the collection. Merged with the internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Collection extends
+  Resource<
+    "AWS.OpenSearchServerless.Collection",
+    CollectionProps,
+    {
+      /**
+       * Unique identifier of the collection.
+       */
+      collectionId: string
+      /**
+       * Name of the collection.
+       */
+      collectionName: string
+      /**
+       * ARN of the collection.
+       */
+      collectionArn: string
+      /**
+       * Collection type (`SEARCH`, `TIMESERIES`, or `VECTORSEARCH`).
+       */
+      type?: string
+      /**
+       * Collection status (e.g. `ACTIVE`, `CREATING`, `DELETING`).
+       */
+      status?: string
+      /**
+       * ARN of the KMS key encrypting the collection.
+       */
+      kmsKeyArn?: string
+      /**
+       * OpenSearch endpoint for data-plane requests.
+       */
+      collectionEndpoint?: string
+      /**
+       * OpenSearch Dashboards endpoint for the collection.
+       */
+      dashboardEndpoint?: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An Amazon OpenSearch Serverless collection — a group of OpenSearch indexes
+ * that scales OpenSearch Compute Units (OCUs) automatically. A collection of
+ * type `VECTORSEARCH` is the vector store required to back an Amazon Bedrock
+ * Knowledge Base.
+ *
+ * A collection requires a matching encryption {@link SecurityPolicy} to exist
+ * before creation, plus a network security policy and a data
+ * {@link AccessPolicy} to be reachable and usable. Creation is asynchronous —
+ * the provider polls (bounded, ~5 minutes) until the collection reaches
+ * `ACTIVE`.
+ *
+ * ### Creating Collections
+ * **Example:** Vector Search Collection for a Bedrock Knowledge Base
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const encryption = yield* AWS.OpenSearchServerless.SecurityPolicy("Enc", {
+ *   policyName: "kb-enc",
+ *   type: "encryption",
+ *   policy: {
+ *     Rules: [{ ResourceType: "collection", Resource: ["collection/kb"] }],
+ *     AWSOwnedKey: true,
+ *   },
+ * });
+ * const network = yield* AWS.OpenSearchServerless.SecurityPolicy("Net", {
+ *   policyName: "kb-net",
+ *   type: "network",
+ *   policy: [
+ *     {
+ *       Rules: [
+ *         { ResourceType: "collection", Resource: ["collection/kb"] },
+ *         { ResourceType: "dashboard", Resource: ["collection/kb"] },
+ *       ],
+ *       AllowFromPublic: true,
+ *     },
+ *   ],
+ * });
+ * const collection = yield* AWS.OpenSearchServerless.Collection("KB", {
+ *   collectionName: "kb",
+ *   type: "VECTORSEARCH",
+ * });
+ * // collection.collectionEndpoint is the aoss data-plane endpoint
+ * ```
+ *
+ * ### Search Collections
+ * **Example:** Simple Search Collection
+ * ```typescript
+ * const collection = yield* AWS.OpenSearchServerless.Collection("Search", {
+ *   collectionName: "logs",
+ *   type: "SEARCH",
+ *   description: "application logs",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Collection = Resource<Collection>("AWS.OpenSearchServerless.Collection")
+
+export const CollectionProvider = (): infer _ =>
+  Provider.effect(
+    Collection,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { collectionName?: string | undefined },
+      ) => (
+        props.collectionName
+          ?? (try createPhysicalName({ id, maxLength: 32, lowercase: true }))
+      )
+
+      const toAttributes = (detail: aoss.CollectionDetail): infer _ => ({
+        collectionId: detail.id!,
+        collectionName: detail.name!,
+        collectionArn: detail.arn!,
+        type: detail.type,
+        status: detail.status,
+        kmsKeyArn: detail.kmsKeyArn,
+        collectionEndpoint: detail.collectionEndpoint,
+        dashboardEndpoint: detail.dashboardEndpoint,
+      })
+
+      const observeByName = effect (name: string) => {
+        const response = try aoss.batchGetCollection({ names: [name] })
+        return response.collectionDetails?.[0]
+      }
+
+      const syncTags = effect (arn: string, desired: Record<string, string>) => {
+        const observed = tagsToRecord(
+          (try aoss
+            .listTagsForResource({ resourceArn: arn })).tags,
+        )
+        const { upsert, removed } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observed, desired), catch: (e) => e }),
+        )
+        if (upsert.length > 0) {
+          try aoss.tagResource({
+            resourceArn: arn,
+            tags: recordToTagList(Object.fromEntries(upsert.map((t) => [t.Key, t.Value]))),
+          })
+        }
+        if (removed.length > 0) {
+          try aoss.untagResource({ resourceArn: arn, tagKeys: removed })
+        }
+      }
+
+      return Collection.Provider.of({
+        stables: ["collectionId", "collectionName", "collectionArn"],
+
+        list: effect () => {
+          const pages = try aoss.listCollections.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.collectionSummaries ?? [])
+            .filter((s) => s.id !== undefined && s.name !== undefined && s.arn !== undefined)
+            .map((s) => ({
+              collectionId: s.id!,
+              collectionName: s.name!,
+              collectionArn: s.arn!,
+              status: s.status,
+              kmsKeyArn: s.kmsKeyArn,
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.collectionName ?? (try createName(id, olds ?? {}))
+          const detail = try observeByName(name)
+          if (detail?.id === undefined || detail.arn === undefined) {
+            return undefined
+          }
+          const attrs = toAttributes(detail)
+          const collectionArn = detail.arn
+          const tags = effect {
+            return ((try aoss.listTagsForResource({ resourceArn: collectionArn })).tags)
+          } catch () => undefined
+          return (try hasAlchemyTags(
+              id,
+              (tags ?? []).map((t) => ({ Key: t.key, Value: t.value })),
+            ))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          if ((olds.type ?? "SEARCH") !== (news.type ?? "SEARCH")) {
+            return { action: "replace" } as const
+          }
+          // description/deletionProtection/tags fall through to update
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.collectionName ?? (try createName(id, news))
+          const type = news.type ?? "SEARCH"
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative
+          let detail = try observeByName(name)
+
+          // 2. ENSURE — create if missing; wait for ACTIVE (async provisioning)
+          if (detail === undefined) {
+            const created = (effect {
+              return (try aoss
+                .createCollection({
+                  name,
+                  type,
+                  description: news.description,
+                  standbyReplicas: news.standbyReplicas,
+                  deletionProtection: news.deletionProtection,
+                  tags: recordToTagList(desiredTags),
+                })).createCollectionDetail
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
+            const collectionId = created?.id ?? (try observeByName(name))?.id
+            if (collectionId === undefined) {
+              throw try Effect.orDie(Effect.try({
+                try: () =>
+                  aoss.ResourceNotFoundException.make({
+                    message: `collection ${name} not visible after create`,
+                  }),
+                catch: (e) => e,
+              }))
+            }
+            try session.note(`creating collection ${name} (async)...`)
+            detail = try awaitCollectionActive(collectionId)
+          } else if (detail.status !== "ACTIVE") {
+            detail = try awaitCollectionActive(detail.id!)
+          }
+
+          // 3. SYNC — description (deletionProtection updates alongside)
+          const descriptionDrift = news.description !== undefined && news.description !== detail.description
+          const protectionDrift = news.deletionProtection !== undefined
+            && news.deletionProtection !== detail.deletionProtection
+          if (descriptionDrift || protectionDrift) {
+            try aoss.updateCollection({
+              id: detail.id!,
+              description: descriptionDrift ? news.description : undefined,
+              deletionProtection: protectionDrift ? news.deletionProtection : undefined,
+            })
+          }
+
+          // 3b. SYNC TAGS — diff against observed cloud tags
+          try syncTags(detail.arn!, desiredTags)
+
+          try session.note(detail.id!)
+          return toAttributes(detail)
+        },
+
+        delete: effect ({ output }) => {
+          retryWhileConflict(aoss.deleteCollection({ id: output.collectionId })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

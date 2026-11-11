@@ -1,0 +1,145 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Instance } from "./Instance.vibe"
+
+/**
+ * Shared scaffolding for the IAM Identity Center runtime bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate:
+ *
+ * - {@link makeIdentityStoreHttpBinding} — Identity Store data-plane
+ *   operations (`identitystore:*` actions: user CRUD, group lookups,
+ *   membership management). The runtime callable injects the bound
+ *   {@link Instance}'s `IdentityStoreId`; the deploy-time half grants
+ *   `actions` on the identity store ARN plus the region-less
+ *   `user/*`/`group/*`/`membership/*` sub-resource ARNs the actions require.
+ * - {@link makeIdentityCenterInstanceHttpBinding} — `sso:*` admin reads
+ *   scoped to the bound {@link Instance} (account-assignment audit,
+ *   permission set reads). The runtime callable injects the instance's
+ *   `InstanceArn`; the deploy-time half grants `actions` on the instance ARN
+ *   plus the region-less `permissionSet/*` and `account/*` ARNs.
+ */
+
+/**
+ * Build the impl Effect for an Identity Store data-plane operation scoped to
+ * one {@link Instance}: the deploy-time half grants `actions` on the
+ * identity store ARN (`arn:aws:identitystore::{account}:identitystore/{id}`)
+ * and the `user/*`/`group/*`/`membership/*` sub-resources, and the runtime
+ * half injects the instance's `IdentityStoreId` into every request.
+ */
+export const makeIdentityStoreHttpBinding = effect <
+  I extends { IdentityStoreId?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IdentityCenter.DescribeUser`. */
+  tag: string
+  /** The distilled operation; `IdentityStoreId` is injected from the instance. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the identity store + sub-resource ARNs. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (instance: Instance) => {
+    const IdentityStoreId = try instance.identityStoreId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId } = try (AWSEnvironment.current as unknown as {
+        accountId: string;
+      }!!)
+      try bind`${options.tag}(${instance})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`arn:aws:identitystore::${accountId}:identitystore/${instance.identityStoreId}`,
+              // Identity Store sub-resources are region-less and
+              // account-less; the concrete user/group/membership ids
+              // are chosen per request at runtime.
+              "arn:aws:identitystore:::user/*",
+              "arn:aws:identitystore:::group/*",
+              "arn:aws:identitystore:::membership/*",
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "IdentityStoreId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            IdentityStoreId: try IdentityStoreId,
+          } as I)
+        },
+        `${options.tag}(${instance.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an `sso:*` admin operation scoped to one
+ * {@link Instance}: the deploy-time half grants `actions` on the instance
+ * ARN plus the region-less `permissionSet/*` and `account/*` ARNs, and the
+ * runtime half injects the instance's `InstanceArn` into every request.
+ */
+export const makeIdentityCenterInstanceHttpBinding = effect <
+  I extends { InstanceArn?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IdentityCenter.ListPermissionSets`. */
+  tag: string
+  /** The distilled operation; `InstanceArn` is injected from the instance. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the instance / permission set / account ARNs. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (instance: Instance) => {
+    const InstanceArn = try instance.instanceArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${instance})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`${instance.instanceArn}`,
+              // Permission sets and target accounts are chosen per
+              // request at runtime; their ARNs are region-less and
+              // account-less.
+              "arn:aws:sso:::permissionSet/*",
+              "arn:aws:sso:::account/*",
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "InstanceArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            InstanceArn: try InstanceArn,
+          } as I)
+        },
+        `${options.tag}(${instance.LogicalId})`,
+      )
+  }
+}

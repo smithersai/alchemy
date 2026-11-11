@@ -1,0 +1,363 @@
+import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  OracleDatabaseNotResolved,
+  collectPages,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceNameOf,
+  retryConflict,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const COLLECTION = "goldengateConnectionAssignments"
+const FALLBACK_ID = "ggassign"
+
+export type GoldengateConnectionAssignmentPropertiesInput = {
+  /**
+   * GoldenGate connection
+   * (`projects/{project}/locations/{location}/goldengateConnections/{id}`).
+   * Required on create. Immutable.
+   */
+  goldengateConnection?: string
+  /**
+   * GoldenGate deployment
+   * (`projects/{project}/locations/{location}/goldengateDeployments/{id}`).
+   * Required on create. Immutable.
+   */
+  goldengateDeployment?: string
+}
+
+export type GoldengateConnectionAssignmentProps = {
+  /**
+   * Assignment id. If omitted, a unique RFC1035 name is generated.
+   * Immutable.
+   */
+  goldengateConnectionAssignmentId?: string
+  /**
+   * Region. Immutable.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Display name.
+   */
+  displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Assignment properties.
+   */
+  properties?: GoldengateConnectionAssignmentPropertiesInput
+  /** Connection name. Convenience alias. */
+  goldengateConnection?: string
+  /** Deployment name. Convenience alias. */
+  goldengateDeployment?: string
+}
+
+export type GoldengateConnectionAssignment = Resource<
+  "GCP.OracleDatabase.GoldengateConnectionAssignment",
+  GoldengateConnectionAssignmentProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Assignment id. */
+    goldengateConnectionAssignmentId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Entitlement id. */
+    entitlementId: string | undefined
+    /** Assigned connection. */
+    goldengateConnection: string | undefined
+    /** Assigned deployment. */
+    goldengateDeployment: string | undefined
+    /** Lifecycle state. */
+    state: string | undefined
+    /** Credential store alias. */
+    alias: string | undefined
+    /** OCID. */
+    ocid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Oracle GoldenGate connection assignment on Google Cloud.
+ *
+ * Changing `goldengateConnectionAssignmentId`, `location`, the
+ * connection, or the deployment replaces the assignment. There is no
+ * patch API in the distilled SDK, so labels are applied at create.
+ *
+ * ### Creating an assignment
+ * **Example:** Bind a connection to a deployment
+ * ```typescript
+ * const assignment = yield* GCP.OracleDatabase.GoldengateConnectionAssignment(
+ *   "Assign",
+ *   {
+ *     goldengateConnection: connection.name,
+ *     goldengateDeployment: deployment.name,
+ *     displayName: "assign",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category OracleDatabase
+ */
+export const GoldengateConnectionAssignment = Resource<GoldengateConnectionAssignment>(
+  "GCP.OracleDatabase.GoldengateConnectionAssignment",
+)
+
+const mergedProperties = (
+  news: GoldengateConnectionAssignmentProps,
+): GoldengateConnectionAssignmentPropertiesInput => ({
+  ...news.properties,
+  goldengateConnection: news.goldengateConnection ?? news.properties?.goldengateConnection,
+  goldengateDeployment: news.goldengateDeployment ?? news.properties?.goldengateDeployment,
+})
+
+const toCreateBody = (
+  news: GoldengateConnectionAssignmentProps,
+  desiredLabels: Record<string, string>,
+): oracle.GoldengateConnectionAssignment => {
+  const props = mergedProperties(news)
+  const properties: oracle.GoldengateConnectionAssignmentProperties = {}
+  if (props.goldengateConnection !== undefined) {
+    properties.goldengateConnection = props.goldengateConnection
+  }
+  if (props.goldengateDeployment !== undefined) {
+    properties.goldengateDeployment = props.goldengateDeployment
+  }
+  const body: oracle.GoldengateConnectionAssignment = {
+    labels: desiredLabels,
+    properties,
+  }
+  if (news.displayName !== undefined) body.displayName = news.displayName
+  return body
+}
+
+const toAttrs = (assignment: oracle.GoldengateConnectionAssignment, project: string): infer _ => {
+  const name = assignment.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    goldengateConnectionAssignmentId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: assignment.displayName,
+    labels: userLabels(assignment.labels),
+    entitlementId: assignment.entitlementId,
+    goldengateConnection: assignment.properties?.goldengateConnection,
+    goldengateDeployment: assignment.properties?.goldengateDeployment,
+    state: assignment.properties?.state,
+    alias: assignment.properties?.alias,
+    ocid: assignment.properties?.ocid,
+    createTime: assignment.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(oracle.getProjectsLocationsGoldengateConnectionAssignments({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listAssignments = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (try collectPages(
+      oracle.listProjectsLocationsGoldengateConnectionAssignments.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.goldengateConnectionAssignments,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))
+  return listAtLocation(project, region, collect) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+}
+
+export const GoldengateConnectionAssignmentProvider = (): infer _ =>
+  Provider.succeed(GoldengateConnectionAssignment, {
+    stables: [
+      "name",
+      "goldengateConnectionAssignmentId",
+      "project",
+      "location",
+      "createTime",
+      "ocid",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousConn = olds?.goldengateConnection
+        ?? olds?.properties?.goldengateConnection
+        ?? output?.goldengateConnection
+        ?? ""
+      const nextConn = resolved.goldengateConnection ?? resolved.properties?.goldengateConnection ?? previousConn
+      const previousDep = olds?.goldengateDeployment
+        ?? olds?.properties?.goldengateDeployment
+        ?? output?.goldengateDeployment
+        ?? ""
+      const nextDep = resolved.goldengateDeployment ?? resolved.properties?.goldengateDeployment ?? previousDep
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.goldengateConnectionAssignmentId ?? output?.goldengateConnectionAssignmentId,
+            nextId: resolved.goldengateConnectionAssignmentId
+              ?? olds?.goldengateConnectionAssignmentId
+              ?? output?.goldengateConnectionAssignmentId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            extra: nextConn !== previousConn || nextDep !== previousDep,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const goldengateConnectionAssignmentId = try toPhysicalId(
+        id,
+        olds?.goldengateConnectionAssignmentId,
+        output?.goldengateConnectionAssignmentId,
+        FALLBACK_ID,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceNameOf(env.project, location, COLLECTION, goldengateConnectionAssignmentId),
+            catch: (e) => e,
+          }),
+        ))
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listAssignments(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const goldengateConnectionAssignmentId = try toPhysicalId(
+        id,
+        news.goldengateConnectionAssignmentId,
+        output?.goldengateConnectionAssignmentId,
+        FALLBACK_ID,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(Effect.try({
+        try: () =>
+          resourceNameOf(
+            env.project,
+            location,
+            COLLECTION,
+            goldengateConnectionAssignmentId,
+          ),
+        catch: (e) => e,
+      }))
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (oracle
+            .createProjectsLocationsGoldengateConnectionAssignments({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              goldengateConnectionAssignmentId,
+              body: toCreateBody(news, desiredLabels),
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new OracleDatabaseNotResolved({ resourceName: name })
+      }
+
+      const ready = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (value) => value.properties?.state,
+      )
+
+      return toAttrs(ready, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsGoldengateConnectionAssignments({
+            name: output.name,
+          })
+          |> retryConflict(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

@@ -1,3 +1,3 @@
-export * from "./OperationSetting.ts";
-export * from "./Schema.ts";
-export * from "./Settings.ts";
+export * from "./OperationSetting.vibe";
+export * from "./Schema.vibe";
+export * from "./Settings.vibe";

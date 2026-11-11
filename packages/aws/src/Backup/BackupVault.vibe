@@ -1,0 +1,303 @@
+import * as Effect from "effect/Effect"
+import * as backup from "@distilled.cloud/aws/backup"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { normalizePolicyDocument, stringifyPolicyDocument, type PolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface BackupVaultProps {
+  /**
+   * Name of the backup vault. Must be between 2 and 50 characters and
+   * contain only letters, numbers, hyphens, and underscores. If omitted, a
+   * unique name is generated from the app, stage, and logical ID.
+   *
+   * Changing the name replaces the vault.
+   */
+  backupVaultName?: string
+  /**
+   * ARN of the KMS key used to encrypt the recovery points stored in this
+   * vault. If omitted, AWS Backup uses an AWS-owned key.
+   *
+   * The encryption key is fixed at creation — changing it replaces the vault.
+   */
+  encryptionKeyArn?: string
+  /**
+   * Resource-based access policy attached to the vault. Provided as a
+   * structured {@link PolicyDocument} (typed actions, drift-normalized on
+   * re-deploy) or a raw JSON string escape hatch. Omit to leave the vault
+   * without a resource policy.
+   */
+  accessPolicy?: PolicyDocument | string
+  /**
+   * Tags to apply to the vault. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface BackupVault extends
+  Resource<
+    "AWS.Backup.BackupVault",
+    BackupVaultProps,
+    {
+      /**
+       * Name of the backup vault.
+       */
+      backupVaultName: string
+      /**
+       * ARN of the backup vault.
+       */
+      backupVaultArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Backup vault — a logical container that stores and organizes
+ * recovery points created by backup jobs.
+ *
+ * A vault name is auto-generated from the app, stage, and logical ID unless
+ * you provide one explicitly. Recovery points can optionally be encrypted
+ * with a customer-managed KMS key, and access to the vault can be restricted
+ * with a resource-based policy.
+ *
+ * ### Creating a Vault
+ * **Example:** Basic Vault
+ * ```typescript
+ * import * as Backup from "@alchemy.run/aws/Backup";
+ *
+ * const vault = yield* Backup.BackupVault("AppBackups");
+ * ```
+ *
+ * **Example:** Vault with a Customer-Managed KMS Key
+ * ```typescript
+ * const vault = yield* Backup.BackupVault("EncryptedBackups", {
+ *   encryptionKeyArn: key.keyArn,
+ * });
+ * ```
+ *
+ * ### Vault Access Policy
+ * **Example:** Deny deletion of recovery points
+ * ```typescript
+ * const vault = yield* Backup.BackupVault("LockedBackups", {
+ *   accessPolicy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Deny",
+ *         Principal: { AWS: "*" },
+ *         Action: ["backup:DeleteRecoveryPoint"],
+ *         Resource: "*",
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const BackupVault = Resource<BackupVault>("AWS.Backup.BackupVault")
+
+const toPolicyString = (policy: PolicyDocument | string | undefined): string | undefined =>
+  policy === undefined
+    ? undefined
+    : typeof policy === "string"
+    ? policy
+    : stringifyPolicyDocument(policy)
+
+export const BackupVaultProvider = (): infer _ =>
+  Provider.effect(
+    BackupVault,
+    effect {
+      const createName = effect (id: string, props: BackupVaultProps) =>
+        props.backupVaultName ?? (try createPhysicalName({ id, maxLength: 50 }))
+
+      return BackupVault.Provider.of({
+        stables: ["backupVaultName", "backupVaultArn"],
+        list: effect () =>
+          Array.from(
+            try (backup.listBackupVaults.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.BackupVaultList ?? [])
+            .filter(
+              (v) =>
+                v.BackupVaultName !== undefined
+                && v.BackupVaultArn !== undefined
+                // Service-managed vaults (e.g. EFS automatic backups'
+                // `aws/efs/automatic-backup-vault`) reject
+                // DeleteBackupVault with a 403 even when empty (verified
+                // live) — keep them out of enumeration for account-wide
+                // teardown (nuke).
+                && !v.BackupVaultName.startsWith("aws/"),
+            )
+            .map((v) => ({
+              backupVaultName: v.BackupVaultName!,
+              backupVaultArn: v.BackupVaultArn!,
+            })),
+        read: effect ({ id, olds, output }) => {
+          const name = output?.backupVaultName ?? (try createName(id, olds ?? {}))
+          // AWS Backup returns AccessDeniedException (with an empty message),
+          // not ResourceNotFoundException, when a vault does not exist — it
+          // hides existence behind a 403. Treat both as "absent".
+          const found = backup
+            .describeBackupVault({ BackupVaultName: name }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: undefined;
+              default: throw e;
+            }
+          if (!found?.BackupVaultArn) return undefined
+          const attrs = {
+            backupVaultName: name,
+            backupVaultArn: found.BackupVaultArn,
+          }
+          const backupVaultArn = found.BackupVaultArn
+          const tags = (effect {
+            return ((try backup.listTags({ ResourceArn: backupVaultArn })).Tags ?? {})
+          }) catch () => ({}) as Record<string, string | undefined>
+          return (try hasAlchemyTags(id, tags as Record<string, string>))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+        diff: effect ({ id, news: _newsInput = {}, olds = {} }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          if ((olds.encryptionKeyArn ?? "") !== (news.encryptionKeyArn ?? "")) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const name = output?.backupVaultName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+
+          // OBSERVE — cloud state is authoritative; output is only an id cache.
+          // A missing vault surfaces as AccessDeniedException (see read()).
+          let live = backup
+            .describeBackupVault({ BackupVaultName: name }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: undefined;
+              default: throw e;
+            }
+
+          // ENSURE — create if missing; tolerate an AlreadyExists race.
+          if (!live?.BackupVaultArn) {
+            live = backup
+              .createBackupVault({
+                BackupVaultName: name,
+                EncryptionKeyArn: news.encryptionKeyArn,
+                BackupVaultTags: { ...internalTags, ...news.tags },
+              }) catch effect (e) => match (e) {
+                when { _tag: "AlreadyExistsException" }: try backup.describeBackupVault({ BackupVaultName: name });
+                default: throw e;
+              }
+          }
+          const backupVaultArn = live.BackupVaultArn!
+
+          // SYNC access policy — diff observed against desired, comparing
+          // canonicalized documents so a re-deploy of an equivalent policy
+          // (key order, whitespace) is a no-op.
+          const desiredPolicy = toPolicyString(news.accessPolicy)
+          const currentPolicy = (effect {
+            return (try effect {
+              const r = try backup
+                .getBackupVaultAccessPolicy({ BackupVaultName: name })
+              return (r.Policy ? r.Policy : undefined)
+            })
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+          const policyDrifted = desiredPolicy === undefined || currentPolicy === undefined
+            ? desiredPolicy !== currentPolicy
+            : normalizePolicyDocument(currentPolicy) !== normalizePolicyDocument(desiredPolicy)
+          if (policyDrifted) {
+            if (desiredPolicy === undefined) {
+              backup
+                .deleteBackupVaultAccessPolicy({ BackupVaultName: name }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: undefined as void;
+                  default: throw e;
+                }
+            } else {
+              try backup.putBackupVaultAccessPolicy({
+                BackupVaultName: name,
+                Policy: desiredPolicy,
+              })
+            }
+          }
+
+          // SYNC tags — diff against observed cloud tags.
+          const currentTags = (effect {
+            return ((try backup.listTags({ ResourceArn: backupVaultArn })).Tags ?? {})
+          }) catch () => ({}) as Record<string, string | undefined>
+          const { upsert, removed } = diffTags(currentTags as Record<string, string>, {
+            ...news.tags,
+            ...internalTags,
+          })
+          if (upsert.length > 0) {
+            try backup.tagResource({
+              ResourceArn: backupVaultArn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try backup.untagResource({
+              ResourceArn: backupVaultArn,
+              TagKeyList: removed,
+            })
+          }
+
+          try session.note(backupVaultArn)
+          return { backupVaultName: name, backupVaultArn }
+        },
+        delete: effect ({ output }) => {
+          // A vault can only be deleted when it is empty — delete any
+          // remaining recovery points first. Each delete tolerates the point
+          // already being gone or being in a state that can't be deleted
+          // right now (EXPIRED/continuous points settle on their own).
+          const recoveryPoints = (effect {
+            return (Array.from(
+              try (backup.listRecoveryPointsByBackupVault
+                .pages({ BackupVaultName: output.backupVaultName })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.RecoveryPoints ?? []))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: [];
+            default: throw e;
+          }
+          try Effect.forEach(
+            recoveryPoints,
+            effect (rp) => (rp.RecoveryPointArn
+              ? backup
+                .deleteRecoveryPoint({
+                  BackupVaultName: output.backupVaultName,
+                  RecoveryPointArn: rp.RecoveryPointArn,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidResourceStateException" }:
+                    undefined as void;
+                  default: throw e;
+                }
+              : (undefined as void)),
+            { discard: true },
+          )
+          // A missing vault deletes as AccessDeniedException, not
+          // ResourceNotFoundException — both mean "already gone" here.
+          try (effect {
+            return backup.deleteBackupVault({ BackupVaultName: output.backupVaultName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" } or { _tag: "AccessDeniedException" }: undefined as void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "InvalidRequestException",
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
+            }))
+        },
+      })
+    },
+  )

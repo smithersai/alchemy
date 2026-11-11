@@ -1,0 +1,440 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  hasAlchemyLabelKeys,
+  hasOwnershipMarker,
+  normalizeLocation,
+  parentOf,
+  parseOwnership,
+  parseResourceName,
+  rfc1035,
+  resourceNameFromOperation,
+  stringMapOf,
+  userLabels,
+  waitForOperation,
+} from "./internal.ts"
+import { listLocations } from "./names.vibe"
+
+export type AgentTool = {
+  /**
+   * Tool type: `code_execution`, `filesystem`, `google_search`,
+   * `mcp_server`, or `url_context`.
+   */
+  type?: string
+  /**
+   * MCP server name. Only when `type` is `mcp_server`.
+   */
+  name?: string
+  /**
+   * MCP server endpoint URL. Only when `type` is `mcp_server`.
+   */
+  url?: string
+  /**
+   * MCP server headers (for example authentication). Only when `type` is
+   * `mcp_server`.
+   */
+  headers?: Record<string, string>
+}
+
+export type AgentProps = {
+  /**
+   * Agent id (the `{agent}` segment of
+   * `projects/{project}/locations/{location}/agents/{agent}`). If omitted,
+   * a unique name is generated. Must match
+   * `[a-z]([a-z0-9-]{0,61}[a-z0-9])?`. Immutable — changing it replaces
+   * the agent.
+   */
+  agentId?: string
+  /**
+   * Region. Immutable — changing it replaces the agent.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Base agent. Required by the API.
+   * @default "antigravity-preview-05-2026"
+   */
+  baseAgent?: string
+  /**
+   * Description. Alchemy also stamps ownership here when metadata is
+   * stripped by the API.
+   */
+  description?: string
+  /**
+   * System instruction passed to the LLM.
+   */
+  systemInstruction?: string
+  /**
+   * Tools available to the agent.
+   */
+  tools?: AgentTool[]
+  /**
+   * User metadata. Alchemy ownership labels are merged in automatically.
+   */
+  metadata?: Record<string, string>
+  /**
+   * Base environment (`remote`, an environment id, or a config struct).
+   */
+  baseEnvironment?: unknown
+}
+
+export type Agent = Resource<
+  "GCP.AIPlatform.Agent",
+  AgentProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/agents/{agent}`. */
+    name: string
+    /** Agent id (last path segment). */
+    agentId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Base agent identifier. */
+    baseAgent: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** System instruction. */
+    systemInstruction: string | undefined
+    /** Configured tools. */
+    tools: AgentTool[]
+    /** User metadata (Alchemy ownership keys stripped). */
+    metadata: Record<string, string>
+    /** Base environment. */
+    baseEnvironment: unknown
+    /** Object type (`agent`). */
+    object: string | undefined
+    /** RFC3339 creation timestamp. */
+    created: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updated: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI Agent — instructions and tool configuration for an LLM
+ * task.
+ *
+ * Agent id, location, and base agent are immutable. Description, system
+ * instruction, tools, and metadata update in place. Alchemy ownership is
+ * stored in `metadata` (and mirrored in `description`) so `list` / nuke
+ * can find the agent.
+ *
+ * ### Creating an Agent
+ * **Example:** Generated id
+ * ```typescript
+ * const agent = yield* GCP.AIPlatform.Agent("Support", {
+ *   systemInstruction: "Answer product questions briefly.",
+ *   metadata: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and a search tool
+ * ```typescript
+ * const agent = yield* GCP.AIPlatform.Agent("Research", {
+ *   agentId: "research-bot",
+ *   tools: [{ type: "google_search" }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const Agent = Resource<Agent>("GCP.AIPlatform.Agent")
+
+export class AgentNotResolved extends Data.TaggedError("GCP.AIPlatform.AgentNotResolved")<{
+  resourceName: string
+}> {}
+
+export class AgentStillExists extends Data.TaggedError("GCP.AIPlatform.AgentStillExists")<{
+  resourceName: string
+}> {}
+
+const DEFAULT_BASE_AGENT = "antigravity-preview-05-2026"
+
+const resourceName = (project: string, location: string, agentId: string) =>
+  `projects/${project}/locations/${location}/agents/${agentId}`
+
+const toId = (id: string, agentId: string | undefined, existing?: string) =>
+  effect {
+    if (agentId !== undefined) return rfc1035(agentId)
+    if (existing !== undefined) return existing
+    return rfc1035(
+      try createPhysicalName({
+        id,
+        maxLength: 63,
+        lowercase: true,
+      }),
+    )
+  }
+
+const toolsOf = (
+  tools: readonly AgentTool[] | readonly aiplatform.GoogleCloudAiplatformV1AgentTool[] | undefined,
+): AgentTool[] =>
+  (tools ?? []).map((tool) => ({
+    type: tool.type,
+    name: tool.name,
+    url: tool.url,
+    headers: stringMapOf(tool.headers),
+  }))
+
+const toAttrs = (agent: aiplatform.GoogleCloudAiplatformV1Agent, project: string) => {
+  const name = agent.name ?? ""
+  const parsed = parseResourceName(name, "agents")
+  const ownership = parseOwnership(agent.description)
+  return {
+    name,
+    agentId: agent.id ?? parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    baseAgent: agent.base_agent,
+    description: ownership.text,
+    systemInstruction: agent.system_instruction,
+    tools: toolsOf(agent.tools),
+    metadata: userLabels(agent.metadata),
+    baseEnvironment: agent.base_environment,
+    object: agent.object,
+    created: agent.created,
+    updated: agent.updated,
+  }
+}
+
+const getByName = (name: string) =>
+  aiplatform
+    .getProjectsLocationsAgents({ name })
+    .pipe(Effect.catchTag("NotFound", () => Effect.undefined))
+
+const listAgents = (project: string, region: string) => {
+  const collect = (parent: string) =>
+    aiplatform.listProjectsLocationsAgents.pages({ parent, pageSize: 100 }).pipe(
+      Stream.flatMap((page) => Stream.fromIterable(page.agents ?? [])),
+      Stream.runCollect,
+      Effect.map((chunk) => Array.from(chunk)),
+    )
+  const fallback = Effect.forEach(
+    listLocations(region),
+    (location) => collect(`projects/${project}/locations/${location}`),
+  ).pipe(Effect.map((pages) => pages.flat()))
+  // Vertex AI has no `locations/-` wildcard; scan known locations.
+  return fallback.pipe(Effect.catchTag("NotFound", () => Effect.succeed([])))
+}
+
+const isOwnedAgent = (agent: aiplatform.GoogleCloudAiplatformV1Agent, id: string) =>
+  effect {
+    if (try hasAlchemyLabels(id, tagRecord(agent.metadata))) return true
+    const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(agent.description), catch: (e) => e }))
+    return try hasAlchemyLabels(id, labels)
+  }
+
+const findOwned = (id: string, project: string, region: string, hinted?: string) =>
+  effect {
+    if (hinted !== undefined && hinted.length > 0) {
+      const existing = try getByName(hinted)
+      if (existing !== undefined) return existing
+    }
+    const agents = try listAgents(project, region)
+    for (const agent of agents) {
+      if (try isOwnedAgent(agent, id)) return agent
+    }
+    return undefined as aiplatform.GoogleCloudAiplatformV1Agent | undefined
+  }
+
+const waitUntilExists = (name: string) =>
+  getByName(name).pipe(
+    Effect.flatMap((agent) =>
+      agent ? Effect.succeed(agent) : Effect.fail(new AgentNotResolved({ resourceName: name }))
+    ),
+    Effect.retry({
+      while: (error) => error._tag === "GCP.AIPlatform.AgentNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("1 second"),
+    }),
+  )
+
+const waitUntilGone = (name: string) =>
+  getByName(name).pipe(
+    Effect.flatMap((agent) =>
+      agent === undefined ? Effect.void : Effect.fail(new AgentStillExists({ resourceName: name }))
+    ),
+    Effect.retry({
+      while: (error) => error._tag === "GCP.AIPlatform.AgentStillExists",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }),
+  )
+
+export const AgentProvider = () =>
+  Provider.succeed(Agent, {
+    stables: ["name", "agentId", "project", "location", "created"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const props = try Effect.orDie(Effect.try({ try: () => (isResolved(news) ? news : undefined), catch: (e) => e }))
+      if (props === undefined) return undefined
+      const previousId = olds?.agentId ?? output?.agentId
+      const nextId = props.agentId ?? previousId
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            props.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousBase = olds?.baseAgent ?? output?.baseAgent ?? DEFAULT_BASE_AGENT
+      const nextBase = props.baseAgent ?? previousBase
+      const replace = (previousId !== undefined && nextId !== undefined && rfc1035(nextId) !== previousId)
+        || previousLocation !== nextLocation
+        || previousBase !== nextBase
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation
+          && previousId !== undefined
+          && rfc1035(nextId ?? previousId) === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const agentId = try toId(id, olds?.agentId, output?.agentId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, agentId)
+      const existing = try findOwned(id, env.project, env.region, name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try isOwnedAgent(existing, id))
+        ? attrs
+        : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e })))
+    },
+
+    list: () =>
+      effect {
+        const env = try GcpEnvironment.current
+        const agents = try listAgents(env.project, env.region)
+        return agents
+          .filter(
+            (agent) => hasAlchemyLabelKeys(agent.metadata) || hasOwnershipMarker(agent.description),
+          )
+          .map((agent) => toAttrs(agent, env.project))
+      },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const agentId = try toId(id, news.agentId, output?.agentId)
+      const name = resourceName(env.project, location, agentId)
+      const internal = try createInternalLabels(id)
+      const desiredMetadata = {
+        ...toLabels(news.metadata),
+        ...internal,
+      }
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(internal, news.description), catch: (e) => e }),
+      )
+      const baseAgent = news.baseAgent ?? DEFAULT_BASE_AGENT
+      const tools = toolsOf(news.tools)
+
+      let current = try findOwned(id, env.project, env.region, output?.name ?? name)
+
+      if (current === undefined) {
+        const created = try aiplatform
+          .createProjectsLocationsAgents({
+            parent: parentOf(env.project, location),
+            body: {
+              id: agentId,
+              base_agent: baseAgent,
+              description: desiredDescription,
+              system_instruction: news.systemInstruction,
+              tools,
+              metadata: desiredMetadata,
+              base_environment: news.baseEnvironment,
+            },
+          })
+          .pipe(Effect.catchTag("Conflict", () => Effect.undefined))
+        if (created !== undefined) {
+          const done = try waitForOperation(created)
+          const createdName = (try Effect.orDie(Effect.try({
+            try: () => resourceNameFromOperation(done),
+            catch: (e) => e,
+          }))) ?? name
+          current = try waitUntilExists(createdName)
+        }
+        if (current === undefined) {
+          current = try findOwned(id, env.project, env.region, name)
+        }
+      }
+
+      if (current === undefined) {
+        return try new AgentNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const observedMetadata = tagRecord(current.metadata)
+      const { upsert, removed } = diffLabels(observedMetadata, desiredMetadata)
+      const metadataChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const instructionChanged = (current.system_instruction ?? "") !== (news.systemInstruction ?? "")
+      const toolsChanged = JSON.stringify(toolsOf(current.tools)) !== JSON.stringify(tools)
+
+      if (metadataChanged || descriptionChanged || instructionChanged || toolsChanged) {
+        // Patch is a long-running operation; re-read the agent once it lands.
+        const patched = try aiplatform.patchProjectsLocationsAgents({
+          name: currentName,
+          updateMask: [
+            metadataChanged ? "metadata" : undefined,
+            descriptionChanged ? "description" : undefined,
+            instructionChanged ? "system_instruction" : undefined,
+            toolsChanged ? "tools" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name: currentName,
+            metadata: desiredMetadata,
+            description: desiredDescription,
+            system_instruction: news.systemInstruction,
+            tools,
+          },
+        })
+        try waitForOperation(patched)
+        current = try waitUntilExists(currentName)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      const operation = try aiplatform
+        .deleteProjectsLocationsAgents({ name: output.name })
+        .pipe(Effect.catchTag("NotFound", () => Effect.undefined))
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

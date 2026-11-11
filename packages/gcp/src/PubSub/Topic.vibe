@@ -1,0 +1,303 @@
+import * as pubsub from "@distilled.cloud/gcp/pubsub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export type TopicProps = {
+  /**
+   * Topic id (the `{topic}` segment of `projects/{project}/topics/{topic}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id.
+   */
+  topicId?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Cloud KMS key used to encrypt messages, as
+   * `projects/{project}/locations/{location}/keyRings/{keyRing}/cryptoKeys/{cryptoKey}`.
+   */
+  kmsKeyName?: string
+  /**
+   * Minimum duration to retain published messages (e.g. `"86400s"`).
+   */
+  messageRetentionDuration?: string
+}
+
+export type Topic = Resource<
+  "GCP.PubSub.Topic",
+  TopicProps,
+  {
+    /** Full resource name `projects/{project}/topics/{topic}`. */
+    name: string
+    /** Topic id (last path segment). */
+    topicId: string
+    /** Project id. */
+    project: string
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** KMS key used for encryption, if any. */
+    kmsKeyName: string | undefined
+    /** Message retention duration, if set. */
+    messageRetentionDuration: string | undefined
+    /** Server-reported topic state. */
+    state: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google Cloud Pub/Sub topic.
+ *
+ * ### Creating a Topic
+ * **Example:** Generated name
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("events", {});
+ * ```
+ *
+ * **Example:** Explicit id and labels
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("events", {
+ *   topicId: "order-events",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Topic
+ * **Example:** Change labels
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("events", {
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Binding from a Function
+ * **Example:** Publish from Cloud Run
+ * ```typescript
+ * export class Api extends GCP.Function<Api>()(
+ *   "Api",
+ *   { main: import.meta.url },
+ *   Effect.gen(function* () {
+ *     const topic = yield* GCP.PubSub.Topic("events", {});
+ *     const publish = yield* GCP.PubSub.Publish(topic);
+ *     return {
+ *       fetch: Effect.gen(function* () {
+ *         yield* publish({
+ *           body: { messages: [{ data: btoa("hello") }] },
+ *         }).pipe(Effect.orDie);
+ *         return HttpServerResponse.text("ok");
+ *       }),
+ *     };
+ *   }).pipe(Effect.provide([GCP.PubSub.PublishHttp])),
+ * ) {}
+ * ```
+ *
+ * ### Destroying a Topic
+ * **Example:** `alchemy destroy` deletes the topic after its subscriptions.
+ *
+ * @resource
+ * @category PubSub
+ */
+export const Topic = Resource<Topic>("GCP.PubSub.Topic")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TopicStillExists extends Data.TaggedError("GCP.PubSub.TopicStillExists")<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TopicNotResolved extends Data.TaggedError("GCP.PubSub.TopicNotResolved")<{
+  resourceName: string
+}> {}
+
+const topicIdOf = (name: string): infer _ => name.split("/").pop() ?? name
+
+const resourceName = (project: string, topicId: string): infer _ => `projects/${project}/topics/${topicId}`
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toId = effect (id: string, topicId: string | undefined, existing?: string) => (
+  topicId ?? existing ?? (try createPhysicalName({ id, maxLength: 255, lowercase: true }))
+)
+
+const toAttrs = (topic: pubsub.Topic, project: string): infer _ => {
+  const name = topic.name ?? ""
+  return {
+    name,
+    topicId: topicIdOf(name),
+    project,
+    labels: userLabels(topic.labels),
+    kmsKeyName: topic.kmsKeyName,
+    messageRetentionDuration: topic.messageRetentionDuration,
+    state: topic.state,
+  }
+}
+
+const getByName = effect (name: string) =>
+  pubsub
+    .getProjectsTopics({ topic: name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+// Pub/Sub serves reads from replicas that lag writes: one successful GET
+// does not mean the next one (or a publish routed to it) sees the
+// resource. Require consecutive successful reads before reporting ready.
+const CONSISTENT_READS = 3
+
+const waitUntilPresent = effect (name: string) =>
+  try (effect {
+    let found: pubsub.Topic | undefined
+    for (let read = 0; read < CONSISTENT_READS; read++) {
+      if (read > 0) try Effect.sleep("1 second")
+      found = try getByName(name)
+      if (found === undefined) {
+        throw new TopicNotResolved({ resourceName: name })
+      }
+    }
+    return found!
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.PubSub.TopicNotResolved",
+      schedule: Schedule.spaced("1 second"),
+      times: 60,
+    }))
+
+export const TopicProvider = (): infer _ =>
+  Provider.succeed(Topic, {
+    stables: ["name", "topicId", "project"],
+
+    // topicId is the physical identity: a new id is a new topic, and the
+    // old one must be deleted (not left behind by an in-place "update").
+    diff: effect ({ id, news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previous = output?.topicId ?? olds?.topicId
+      if (previous === undefined) return undefined
+      const next = try toId(id, resolved.topicId, output?.topicId)
+      return next !== previous ? { action: "replace" as const, deleteFirst: false } : undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const topicId = try toId(id, olds?.topicId, output?.topicId)
+      const name = output?.name ?? resourceName(env.project, topicId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (pubsub.listProjectsTopics
+          .pages({
+            project: `projects/${env.project}`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.topics ?? []))
+          |> Stream.filter(%, (topic) => Object.keys(topic.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+          |> Stream.map(%, (topic) => toAttrs(topic, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const topicId = try toId(id, news.topicId, output?.topicId)
+      const name = resourceName(env.project, topicId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        pubsub
+          .createProjectsTopics({
+            name,
+            body: {
+              labels: desiredLabels,
+              kmsKeyName: news.kmsKeyName,
+              messageRetentionDuration: news.messageRetentionDuration,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        // Block until Pub/Sub serves the topic, not just the create response.
+        current = try waitUntilPresent(name)
+      }
+
+      if (current === undefined) {
+        throw new TopicNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const kmsChanged = (current.kmsKeyName ?? "") !== (news.kmsKeyName ?? "")
+      const retentionChanged = (current.messageRetentionDuration ?? "") !== (news.messageRetentionDuration ?? "")
+
+      if (labelsChanged || kmsChanged || retentionChanged) {
+        current = try pubsub.patchProjectsTopics({
+          name,
+          body: {
+            topic: {
+              name,
+              labels: desiredLabels,
+              kmsKeyName: news.kmsKeyName,
+              messageRetentionDuration: news.messageRetentionDuration,
+            },
+            updateMask: [
+              labelsChanged ? "labels" : undefined,
+              kmsChanged ? "kmsKeyName" : undefined,
+              retentionChanged ? "messageRetentionDuration" : undefined,
+            ]
+              .filter((field): field is string => field !== undefined)
+              .join(","),
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      pubsub
+        .deleteProjectsTopics({ topic: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      // Pub/Sub reads lag deletes; block until it stops serving it.
+      try (getByName(output.name)
+        |> Effect.filterOrFail(
+          %,
+          (existing) => existing === undefined,
+          () => new TopicStillExists({ resourceName: output.name }),
+        )
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "GCP.PubSub.TopicStillExists",
+          schedule: Schedule.spaced("2 seconds"),
+          times: 30,
+        }))
+    },
+  })

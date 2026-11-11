@@ -1,0 +1,374 @@
+import * as ecrpublic from "@distilled.cloud/aws/ecr-public"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { AccountID } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { Region } from "../Region.vibe"
+
+export error ECRPublicRepositoryUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+// Amazon ECR Public is a single global registry hosted only in us-east-1. Every
+// control-plane call must target that region regardless of the ambient stack
+// region, so we pin it on every distilled operation.
+const US_EAST_1 = "us-east-1"
+const pin = effect <A, E, R>(effect: A!E!R) =>
+  try effect {
+    provide Region = Effect.succeed(US_EAST_1) {
+      return try effect
+    }
+  }
+
+export type RepositoryName = string
+export type RepositoryArn = `arn:aws:ecr-public::${AccountID}:repository/${RepositoryName}`
+
+/**
+ * Catalog display metadata shown on the public.ecr.aws gallery page for a
+ * repository. All fields are optional and free-form.
+ */
+export interface PublicRepositoryCatalogData {
+  /** Short description of the contents of the repository. */
+  description?: string
+  /** CPU architectures the images support (e.g. `["x86-64", "ARM 64"]`). */
+  architectures?: string[]
+  /** Operating systems the images support (e.g. `["Linux"]`). */
+  operatingSystems?: string[]
+  /** Detailed "about" markdown shown on the gallery page. */
+  aboutText?: string
+  /** Usage instructions markdown shown on the gallery page. */
+  usageText?: string
+}
+
+export interface PublicRepositoryProps {
+  /**
+   * Name of the public repository. If omitted, a unique name is generated.
+   * Must be lowercase.
+   */
+  repositoryName?: string
+  /**
+   * Catalog display metadata for the public gallery page.
+   */
+  catalogData?: PublicRepositoryCatalogData
+  /**
+   * Repository permission policy JSON granting push/pull access to other
+   * principals. Omit for a private-push, public-pull repository.
+   */
+  policyText?: string
+  /**
+   * User-defined tags to apply to the repository.
+   */
+  tags?: Record<string, string>
+}
+
+export interface PublicRepository extends
+  Resource<
+    "AWS.ECRPublic.Repository",
+    PublicRepositoryProps,
+    {
+      /** The name of the public repository. */
+      repositoryName: RepositoryName
+      /** The ARN of the public repository. */
+      repositoryArn: RepositoryArn
+      /** The public pull URI, e.g. `public.ecr.aws/<alias>/<name>`. */
+      repositoryUri: string
+      /** The AWS account ID of the registry. */
+      registryId: string
+      /** The JSON repository permissions policy, if any. */
+      policyText?: string
+      /** The tags attached to the repository. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon ECR Public repository on the public.ecr.aws registry. Images pushed
+ * here are pullable by anyone. ECR Public is a global service hosted only in
+ * `us-east-1`; this resource pins every control-plane call there regardless of
+ * the stack region.
+ *
+ * ### Creating Public Repositories
+ * **Example:** Basic Public Repository
+ * ```typescript
+ * const repo = yield* PublicRepository("MyPublicRepo", {});
+ * ```
+ *
+ * **Example:** With Catalog Metadata
+ * ```typescript
+ * const repo = yield* PublicRepository("MyPublicRepo", {
+ *   catalogData: {
+ *     description: "My awesome container image",
+ *     architectures: ["x86-64", "ARM 64"],
+ *     operatingSystems: ["Linux"],
+ *     aboutText: "# About\nThis image does X.",
+ *     usageText: "docker pull public.ecr.aws/...",
+ *   },
+ * });
+ * ```
+ *
+ * ### Access Policies
+ * **Example:** Grant Cross-Account Push
+ * ```typescript
+ * const repo = yield* PublicRepository("MyPublicRepo", {
+ *   policyText: JSON.stringify({
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Sid: "AllowPush",
+ *         Effect: "Allow",
+ *         Principal: { AWS: "arn:aws:iam::123456789012:root" },
+ *         Action: ["ecr-public:BatchCheckLayerAvailability", "ecr-public:PutImage"],
+ *       },
+ *     ],
+ *   }),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PublicRepository = Resource<PublicRepository>("AWS.ECRPublic.Repository")
+
+const toCatalogInput = (
+  catalogData: PublicRepositoryCatalogData | undefined,
+): ecrpublic.RepositoryCatalogDataInput | undefined =>
+  catalogData
+    ? {
+      description: catalogData.description,
+      architectures: catalogData.architectures,
+      operatingSystems: catalogData.operatingSystems,
+      aboutText: catalogData.aboutText,
+      usageText: catalogData.usageText,
+    }
+    : undefined
+
+const toTagRecord = (tags: ecrpublic.Tag[] | undefined): Record<string, string> =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter(
+        (t): t is { Key: string; Value: string } => typeof t.Key === "string" && typeof t.Value === "string",
+      )
+      .map((t) => [t.Key, t.Value]),
+  )
+
+export const PublicRepositoryProvider = (): infer _ =>
+  Provider.effect(
+    PublicRepository,
+    effect {
+      const toRepositoryName = effect (
+        id: string,
+        props: { repositoryName?: string } = {},
+      ) => (props.repositoryName
+        ? props.repositoryName
+        : try createPhysicalName({ id, maxLength: 205, lowercase: true }))
+
+      const observe = effect (repositoryName: string) =>
+        (effect {
+          return ((try pin(
+            ecrpublic.describeRepositories({
+              repositoryNames: [repositoryName],
+            }),
+          )).repositories?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "RepositoryNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      const readPolicy = effect (repositoryName: string) =>
+        (effect {
+          return (try pin(ecrpublic.getRepositoryPolicy({ repositoryName }))).policyText
+        }) catch effect (e) => match (e) {
+          when { _tag: "RepositoryPolicyNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      const syncPolicy = effect (repositoryName: string, desired: string | undefined) => {
+        const observed = try readPolicy(repositoryName)
+        if (desired) {
+          if (observed !== desired) {
+            try pin(
+              ecrpublic.setRepositoryPolicy({
+                repositoryName,
+                policyText: desired,
+              }),
+            )
+          }
+        } else if (observed !== undefined) {
+          pin(ecrpublic.deleteRepositoryPolicy({ repositoryName })) catch effect (e) => match (e) {
+            when { _tag: "RepositoryPolicyNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        }
+      }
+
+      const syncTags = effect (
+        repositoryArn: string,
+        desiredTags: Record<string, string>,
+      ) => {
+        const listed = try pin(ecrpublic.listTagsForResource({ resourceArn: repositoryArn }))
+        const observedTags = toTagRecord(listed.tags)
+        const { removed, upsert } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+        )
+        if (upsert.length > 0) {
+          try pin(ecrpublic.tagResource({ resourceArn: repositoryArn, tags: upsert }))
+        }
+        if (removed.length > 0) {
+          try pin(
+            ecrpublic.untagResource({
+              resourceArn: repositoryArn,
+              tagKeys: removed,
+            }),
+          )
+        }
+      }
+
+      return {
+        stables: ["repositoryArn", "repositoryName", "repositoryUri", "registryId"],
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (
+            (try toRepositoryName(id, olds ?? {})) !== (try toRepositoryName(id, resolved ?? {}))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const repositoryName = output?.repositoryName ?? (try toRepositoryName(id, olds ?? {}))
+          const repository = try observe(repositoryName)
+          if (!repository?.repositoryArn || !repository.repositoryUri) {
+            return undefined
+          }
+          const listed = try pin(
+            ecrpublic.listTagsForResource({
+              resourceArn: repository.repositoryArn,
+            }),
+          )
+          const attrs = {
+            repositoryName,
+            repositoryArn: repository.repositoryArn as RepositoryArn,
+            repositoryUri: repository.repositoryUri,
+            registryId: repository.registryId!,
+            policyText: try readPolicy(repositoryName),
+            tags: toTagRecord(listed.tags),
+          }
+          return (try hasAlchemyTags(id, toTagRecord(listed.tags)))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+        reconcile: effect ({ id, news, session }) => {
+          const repositoryName = try toRepositoryName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — cloud state is authoritative.
+          let repository = try observe(repositoryName)
+
+          // Ensure — create if missing. Tolerate the AlreadyExists race.
+          if (!repository?.repositoryArn || !repository.repositoryUri) {
+            const created = (effect {
+              return (try pin(
+                ecrpublic.createRepository({
+                  repositoryName,
+                  catalogData: toCatalogInput(news.catalogData),
+                  tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                    Key,
+                    Value,
+                  })),
+                }),
+              )).repository
+            }) catch effect (e) => match (e) {
+              when { _tag: "RepositoryAlreadyExistsException" }: try observe(repositoryName);
+              default: throw e;
+            }
+            repository = created
+            if (!repository?.repositoryArn || !repository.repositoryUri) {
+              throw new ECRPublicRepositoryUnexpectedResponse({
+                message: `Failed to create or read public repository ${repositoryName}`,
+              })
+            }
+          } else if (news.catalogData) {
+            // Sync catalog data on updates (create already set it).
+            try pin(
+              ecrpublic.putRepositoryCatalogData({
+                repositoryName,
+                catalogData: toCatalogInput(news.catalogData)!,
+              }),
+            )
+          }
+
+          const repositoryArn = repository.repositoryArn as RepositoryArn
+
+          try syncPolicy(repositoryName, news.policyText)
+          try syncTags(repositoryArn, desiredTags)
+
+          try session.note(repositoryArn)
+          return {
+            repositoryName,
+            repositoryArn,
+            repositoryUri: repository.repositoryUri,
+            registryId: repository.registryId!,
+            policyText: news.policyText,
+            tags: desiredTags,
+          }
+        },
+        // Enumerate every public repository in the account. `describeRepositories`
+        // is paginated (items under `repositories`).
+        list: effect () => {
+          const repositories = try pin(
+            ecrpublic.describeRepositories.pages({})
+              |> Stream.runCollect(%)
+              |> Effect.map(%, (chunk) => Array.from(chunk).flatMap((page) => page.repositories ?? [])),
+          )
+          return try Effect.forEach(
+            repositories.filter(
+              (
+                r,
+              ): r is ecrpublic.Repository & {
+                repositoryName: string
+                repositoryArn: string
+                repositoryUri: string
+              } => r.repositoryName != null && r.repositoryArn != null && r.repositoryUri != null,
+            ),
+            effect (repository) => {
+              const listed = try pin(
+                ecrpublic.listTagsForResource({
+                  resourceArn: repository.repositoryArn,
+                }),
+              )
+              return {
+                repositoryName: repository.repositoryName,
+                repositoryArn: repository.repositoryArn as RepositoryArn,
+                repositoryUri: repository.repositoryUri,
+                registryId: repository.registryId!,
+                policyText: try readPolicy(repository.repositoryName),
+                tags: toTagRecord(listed.tags),
+              }
+            },
+            { concurrency: 10 },
+          )
+        },
+        delete: effect ({ output }) => {
+          pin(
+            ecrpublic.deleteRepository({
+              repositoryName: output.repositoryName,
+              force: true,
+            }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "RepositoryNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

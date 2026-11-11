@@ -4,9 +4,9 @@ import * as Effect from "effect/Effect";
 import { Gateway } from "./src/AiGateway.ts";
 import Api from "./src/Api.ts";
 import { Bucket } from "./src/Bucket.ts";
-import SandboxLive from "./src/Sandbox.ts";
-import SecondaryApiLive, { SecondaryApi } from "./src/SecondaryApi.ts";
-import WorkerTagLive, { WorkerTag } from "./src/WorkerTag.ts";
+import SandboxLive from "./src/Sandbox.vibe";
+import SecondaryApiLive, { SecondaryApi } from "./src/SecondaryApi.vibe";
+import WorkerTagLive, { WorkerTag } from "./src/WorkerTag.vibe";
 
 // Demo Action — runs at deploy time when its input (the resolved deployed
 // URL) changes. Logs the new URL and returns a tiny manifest used as the

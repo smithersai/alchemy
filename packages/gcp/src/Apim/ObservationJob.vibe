@@ -1,0 +1,330 @@
+import * as apim from "@distilled.cloud/gcp/apim_v1alpha"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  ResourceFailed,
+  ResourceNotReady,
+  ResourceNotResolved,
+  expandObservationSource,
+  hasAlchemyId,
+  listAtLocation,
+  collectPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceName,
+  sameStringList,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const COLLECTION = "observationJobs"
+const CREATED = new Set(["DISABLED", "ENABLED"])
+const ENABLED = new Set(["ENABLED"])
+const DISABLED = new Set(["DISABLED"])
+
+export type ObservationJobProps = {
+  /**
+   * Observation job id (the `{observation_job}` segment of
+   * `projects/{project}/locations/{location}/observationJobs/{observation_job}`).
+   * Must be 4-63 lowercase letters, digits, or hyphens. If omitted, a
+   * unique `alch-` prefixed name is generated. Immutable — changing it
+   * replaces the job.
+   */
+  observationJobId?: string
+  /**
+   * Region of the job (`us-central1`, …). Immutable — changing it
+   * replaces the job.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Observation source names
+   * (`projects/{project}/locations/{location}/observationSources/{source}`)
+   * or bare source ids in the same location. Sources must be the same
+   * kind. Immutable — changing them replaces the job.
+   */
+  sources?: string[]
+  /**
+   * When true, the job is enabled and collects observations. Synced in
+   * place via enable/disable. Jobs are created disabled.
+   * @default false
+   */
+  enabled?: boolean
+}
+
+export type ObservationJob = Resource<
+  "GCP.Apim.ObservationJob",
+  ObservationJobProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Observation job id (last path segment). */
+    observationJobId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Observation source resource names. */
+    sources: string[]
+    /** Whether the job is enabled. */
+    enabled: boolean
+    /** Server-reported state. */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API Observation job — configuration that collects data about APIs
+ * from attached observation sources. Jobs have no labels, description,
+ * or patch API; Alchemy stamps ownership into generated ids (`alch-`)
+ * so `list` / nuke can find them. Identity, location, and sources
+ * replace the resource. `enabled` is synced in place.
+ *
+ * ### Creating an Observation Job
+ * **Example:** Disabled job with a source
+ * ```typescript
+ * const job = yield* GCP.Apim.ObservationJob("Shadow", {
+ *   sources: [source.name],
+ * });
+ * ```
+ *
+ * **Example:** Enable collection
+ * ```typescript
+ * const job = yield* GCP.Apim.ObservationJob("Shadow", {
+ *   sources: [source.name],
+ *   enabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apim
+ */
+export const ObservationJob = Resource<ObservationJob>("GCP.Apim.ObservationJob")
+
+const toAttrs = (location: string, item: apim.ObservationJob, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  const state = item.state
+  return {
+    name,
+    observationJobId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || location,
+    sources: [...(item.sources ?? [])],
+    enabled: (state ?? "").toUpperCase() === "ENABLED",
+    state,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apim
+  .getProjectsLocationsObservationJobs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  (try listAtLocation(project, region, effect (parent) =>
+    try collectPages(
+      apim.listProjectsLocationsObservationJobs.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.observationJobs,
+    ))).filter((item) => hasAlchemyId(parseName(item.name ?? "", COLLECTION).id))
+
+const runAndWait = effect (operation: apim.Operation | undefined) => {
+  if (operation !== undefined) {
+    try waitForOperation(operation)
+  }
+}
+
+export const ObservationJobProvider = (): infer _ =>
+  Provider.succeed(ObservationJob, {
+    stables: ["name", "observationJobId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousSources = olds?.sources ?? output?.sources
+      const input = {
+        previousId: olds?.observationJobId ?? output?.observationJobId,
+        nextId: resolved.observationJobId ?? olds?.observationJobId ?? output?.observationJobId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+        nextLocation: normalizeLocation(
+          resolved.location ?? olds?.location ?? output?.location ?? env.region,
+        ),
+        extra: previousSources !== undefined
+          && resolved.sources !== undefined
+          && !sameStringList(previousSources, resolved.sources),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const observationJobId = try toPhysicalId(
+        id,
+        olds?.observationJobId,
+        output?.observationJobId,
+        "job",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, observationJobId), catch: (e) => e }),
+        ))
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(location, existing, env.project)
+      if (
+        output !== undefined
+        || (try Effect.orDie(Effect.try({ try: () => hasAlchemyId(attrs.observationJobId), catch: (e) => e })))
+      ) {
+        return attrs
+      }
+      return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(env.region, item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const observationJobId = try toPhysicalId(
+        id,
+        news.observationJobId,
+        output?.observationJobId,
+        "job",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, observationJobId), catch: (e) => e }),
+      )
+      const sources = (news.sources ?? []).map((source) => expandObservationSource(source, env.project, location))
+      const wantEnabled = news.enabled === true
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apim
+          .createProjectsLocationsObservationJobs({
+            parent: parentOf(env.project, location),
+            observationJobId,
+            body: {
+              sources: sources.length > 0 ? sources : undefined,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const resource = current.name ?? name
+      current = try waitUntilReady(getByName(resource), resource, (item) => item.state, CREATED)
+
+      const state = (current.state ?? "").toUpperCase()
+      if (wantEnabled && state !== "ENABLED") {
+        const operation = apim
+          .enableProjectsLocationsObservationJobs({
+            name: resource,
+            body: {},
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        try runAndWait(operation)
+        current = try waitUntilReady(
+          getByName(resource),
+          resource,
+          (item) => item.state,
+          ENABLED,
+        )
+      } else if (!wantEnabled && state === "ENABLED") {
+        const operation = apim
+          .disableProjectsLocationsObservationJobs({
+            name: resource,
+            body: {},
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        try runAndWait(operation)
+        current = try waitUntilReady(
+          getByName(resource),
+          resource,
+          (item) => item.state,
+          DISABLED,
+        )
+      }
+
+      return toAttrs(location, current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      const state = (existing?.state ?? "").toUpperCase()
+      if (existing !== undefined && (state === "ENABLED" || state === "ENABLING")) {
+        const disable = apim
+          .disableProjectsLocationsObservationJobs({
+            name: output.name,
+            body: {},
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" } or { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (disable !== undefined) {
+          try waitForOperation(disable, { notFoundOk: true })
+        }
+        try (waitUntilReady(
+          getByName(output.name),
+          output.name,
+          (item) => item.state,
+          DISABLED,
+        )
+          |> Effect.catchIf(%, (error) =>
+            error instanceof ResourceNotResolved
+            || error instanceof ResourceNotReady
+            || error instanceof ResourceFailed, effect () => try Effect.void))
+      }
+
+      const operation = (effect {
+        return (try (apim
+          .deleteProjectsLocationsObservationJobs({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

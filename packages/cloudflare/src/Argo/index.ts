@@ -1,2 +1,2 @@
-export * from "./SmartRouting.ts";
-export * from "./TieredCaching.ts";
+export * from "./SmartRouting.vibe";
+export * from "./TieredCaching.vibe";

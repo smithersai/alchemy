@@ -1,0 +1,343 @@
+import * as netapp from "@distilled.cloud/gcp/netapp_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  fieldMask,
+  listAtNested,
+  listLabeledPages,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  volumeOf,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+export type VolumesSnapshotProps = {
+  /**
+   * Parent volume. Full name
+   * `projects/{project}/locations/{location}/volumes/{volume}` or the
+   * volume id (combined with `location`). Immutable — changing it
+   * replaces the snapshot.
+   */
+  volume: string
+  /**
+   * Region used when `volume` is a bare id. Immutable — changing it
+   * replaces the snapshot. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * Snapshot id (the `{snapshot}` segment of
+   * `.../volumes/{volume}/snapshots/{snapshot}`). If omitted, a unique
+   * RFC1035 name is generated from the stack, stage, and logical id.
+   * Immutable — changing it replaces the snapshot.
+   */
+  snapshotId?: string
+  /**
+   * Human-readable description (2048 characters or less).
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type VolumesSnapshot = Resource<
+  "GCP.NetApp.VolumesSnapshot",
+  VolumesSnapshotProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Snapshot id (last path segment). */
+    snapshotId: string
+    /** Parent volume resource name. */
+    volume: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Human-readable description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Storage used by unique snapshot blocks, in bytes. */
+    usedBytes: number | undefined
+    /** Server-reported state. */
+    state: string | undefined
+    /** Server-reported state details. */
+    stateDetails: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud NetApp Volumes snapshot — a point-in-time copy of a volume.
+ *
+ * Changing `snapshotId`, `volume`, or `location` replaces the snapshot.
+ * Description and labels update in place.
+ *
+ * ### Creating a Snapshot
+ * **Example:** Generated name
+ * ```typescript
+ * const snap = yield* GCP.NetApp.VolumesSnapshot("Nightly", {
+ *   volume: volume.name,
+ * });
+ * ```
+ *
+ * **Example:** Explicit id, description, and labels
+ * ```typescript
+ * const snap = yield* GCP.NetApp.VolumesSnapshot("Nightly", {
+ *   volume: volume.name,
+ *   snapshotId: "app-nightly",
+ *   description: "nightly snapshot",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Snapshot
+ * **Example:** Description and labels
+ * ```typescript
+ * const snap = yield* GCP.NetApp.VolumesSnapshot("Nightly", {
+ *   volume: volume.name,
+ *   description: "nightly snapshot v2",
+ *   labels: { env: "prod", team: "storage" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetApp
+ */
+export const VolumesSnapshot = Resource<VolumesSnapshot>("GCP.NetApp.VolumesSnapshot")
+
+const resourceName = (volume: string, snapshotId: string): infer _ => `${volume}/snapshots/${snapshotId}`
+
+const toAttrs = (snapshot: netapp.Snapshot, project: string, region: string): infer _ => {
+  const name = snapshot.name ?? ""
+  const parsed = parseName(name, "snapshots", region)
+  return {
+    name,
+    snapshotId: parsed.id,
+    volume: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    description: snapshot.description,
+    labels: userLabels(snapshot.labels),
+    usedBytes: snapshot.usedBytes,
+    state: snapshot.state,
+    stateDetails: snapshot.stateDetails,
+    createTime: snapshot.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 || name.includes("//") ? try Effect.undefined : netapp
+  .getProjectsLocationsVolumesSnapshots({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string) =>
+  try listAtNested(project, "volumes/-", effect (parent) =>
+    try listLabeledPages(
+      netapp.listProjectsLocationsVolumesSnapshots.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.snapshots,
+      (item) => item.labels,
+    ))
+
+export const VolumesSnapshotProvider = (): infer _ =>
+  Provider.succeed(VolumesSnapshot, {
+    stables: ["name", "snapshotId", "volume", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousVolume = try Effect.orDie(Effect.try({
+        try: () =>
+          volumeOf(
+            olds?.volume ?? output?.volume ?? "",
+            env.project,
+            previousLocation,
+          ),
+        catch: (e) => e,
+      }))
+      const nextVolume = try Effect.orDie(Effect.try({
+        try: () =>
+          volumeOf(
+            resolved.volume ?? olds?.volume ?? output?.volume ?? "",
+            env.project,
+            nextLocation,
+          ),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.snapshotId ?? output?.snapshotId,
+            nextId: resolved.snapshotId ?? olds?.snapshotId ?? output?.snapshotId,
+            previousLocation,
+            nextLocation,
+            previousParent: previousVolume,
+            nextParent: nextVolume,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const volume = try Effect.orDie(
+        Effect.try({
+          try: () => volumeOf(olds?.volume ?? output?.volume ?? "", env.project, location),
+          catch: (e) => e,
+        }),
+      )
+      const snapshotId = try toPhysicalId(id, olds?.snapshotId, output?.snapshotId, "snapshot")
+      const name = output?.name ?? resourceName(volume, snapshotId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const locationHint = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const volume = try Effect.orDie(
+        Effect.try({ try: () => volumeOf(news.volume, env.project, locationHint), catch: (e) => e }),
+      )
+      const snapshotId = try toPhysicalId(id, news.snapshotId, output?.snapshotId, "snapshot")
+      const name = output?.name ?? resourceName(volume, snapshotId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = netapp
+          .createProjectsLocationsVolumesSnapshots({
+            parent: volume,
+            snapshotId,
+            body: {
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const mask = try Effect.orDie(
+        Effect.try({
+          try: () => fieldMask([labelsChanged && "labels", descriptionChanged && "description"]),
+          catch: (e) => e,
+        }),
+      )
+
+      if (mask.length > 0) {
+        const operation = try netapp.patchProjectsLocationsVolumesSnapshots({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name || output.name.includes("//")) return
+      const operation = (effect {
+        return (try (netapp
+          .deleteProjectsLocationsVolumesSnapshots({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

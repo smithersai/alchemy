@@ -1,3 +1,3 @@
-export * from "./CatalogSync.ts";
-export * from "./CloudIntegration.ts";
-export * from "./OnRamp.ts";
+export * from "./CatalogSync.vibe";
+export * from "./CloudIntegration.vibe";
+export * from "./OnRamp.vibe";

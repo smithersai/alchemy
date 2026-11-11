@@ -1,0 +1,179 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
+import * as Neon from "@distilled.cloud/neon"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "./Providers.vibe"
+
+export interface CustomDomainProps {
+  /** Target Function. Domain ownership remains independent of Function configuration. */ function: {
+    projectId: string
+    branchId: string
+    slug: string
+    url: string
+  }
+  /** Public DNS hostname. Register the returned target with a DNS-only CNAME. */ hostname: string
+}
+export interface CustomDomainAttributes {
+  /** Owning project. */ projectId: string
+  /** Owning branch. */ branchId: string
+  /** Target Function slug. */ slug: string
+  /** Normalized custom hostname. */ hostname: string
+  /** DNS-only CNAME target; returned before DNS activation to avoid dependency cycles. */ cnameTarget: string
+  /** Registration state. This is not an independent HTTPS probe. */ status: string | undefined
+  /** DNS/CAA check state. */ dnsStatus: string | undefined
+  /** Internal routing state. */ bindingStatus: string | undefined
+  /** Machine-readable status explanation. */ statusReason: string | undefined
+  /** Custom HTTPS URL; not proof that the certificate is ready. */ url: string
+  /** Native Function URL. */ nativeUrl: string
+}
+export interface CustomDomain extends
+  Resource<
+    "Neon.CustomDomain",
+    CustomDomainProps,
+    CustomDomainAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Register a branch-local custom Function domain without waiting for DNS.
+ * A registration does not prove HTTPS works. Publish a DNS-only CNAME, then
+ * verify the custom URL separately. Domains are not inherited by child branches.
+ *
+ * ### Register a Domain
+ * **Example:** Obtain DNS configuration
+ * ```typescript
+ * const domain = yield* Neon.CustomDomain("Domain", { function: api, hostname: "api.example.com" });
+ * // Publish domain.cnameTarget as a DNS-only CNAME for domain.hostname.
+ * ```
+ *
+ * @resource
+ * @product Function
+ */
+export const CustomDomain = Resource<CustomDomain>("Neon.CustomDomain")
+export class FunctionDomainConflict extends $MutableErrorBase("FunctionDomainConflict")<{
+  hostname: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "FunctionDomainConflict", true)
+  }
+}
+const normalize = (value: string): infer _ => value.toLowerCase().replace(/\.$/, "")
+const scopeOf = (fn: { projectId: string; branchId: string }): infer _ => ({
+  project_id: fn.projectId,
+  branch_id: fn.branchId,
+})
+const observe = effect (
+  scope: { project_id: string; branch_id: string },
+  hostname: string,
+) => {
+  const domains = try Neon.listProjectBranchCustomDomains.items(scope).pipe(Stream.runCollect)
+  return domains.find((domain) => domain.domain === hostname)
+}
+const attrs = (
+  fn: { projectId: string; branchId: string; slug: string; url: string },
+  domain: Neon.CustomDomain,
+): CustomDomainAttributes => ({
+  projectId: fn.projectId,
+  branchId: fn.branchId,
+  slug: fn.slug,
+  hostname: domain.domain,
+  cnameTarget: domain.cname_target,
+  status: domain.status,
+  dnsStatus: domain.dns_status,
+  bindingStatus: domain.binding_status,
+  statusReason: domain.status_reason,
+  url: `https://${domain.domain}`,
+  nativeUrl: fn.url,
+})
+export const CustomDomainProvider = (): infer _ =>
+  Provider.succeed(CustomDomain, {
+    stables: ["projectId", "branchId", "slug", "hostname", "url"],
+    list: effect () => {
+      const result: CustomDomainAttributes[] = []
+      for (const project of try Neon.listProjects.items({}).pipe(Stream.runCollect)) {
+        for (
+          const branch of try Neon.listProjectBranches
+            .items({ project_id: project.id })
+            .pipe(Stream.runCollect)
+        ) {
+          for (
+            const domain of try Neon.listProjectBranchCustomDomains
+              .items({ project_id: project.id, branch_id: branch.id })
+              .pipe(Stream.runCollect)
+          ) {
+            result.push(
+              attrs(
+                {
+                  projectId: project.id,
+                  branchId: branch.id,
+                  slug: domain.entity_id,
+                  url: "",
+                },
+                domain,
+              ),
+            )
+          }
+        }
+      }
+      return result
+    },
+    diff: effect ({ news, output }) => {
+      const resolved = try Effect.orDie(Effect.try({
+        try: () => isResolved(news) ? { value: news } : undefined,
+        catch: (cause) => cause,
+      }))
+      if (!resolved || !output) return
+      const resolvedNews = resolved.value
+      if (
+        normalize(resolvedNews.hostname) !== output.hostname
+        || resolvedNews.function.projectId !== output.projectId
+        || resolvedNews.function.branchId !== output.branchId
+        || resolvedNews.function.slug !== output.slug
+      ) {
+        return { action: "replace", deleteFirst: true }
+      }
+    },
+    read: effect ({ olds, output }) => {
+      if (!output && (!olds?.function || !olds.hostname)) return undefined
+      const fn = output ? { ...output, url: output.nativeUrl } : olds!.function
+      const domain = try observe(scopeOf(fn), output?.hostname ?? normalize(olds!.hostname))
+      if (!domain) return undefined
+      const result = attrs(fn, domain)
+      return output ? result : try Effect.orDie(Effect.try({ try: () => Unowned(result), catch: (e) => e }))
+    },
+    reconcile: effect ({ news }) => {
+      const scope = scopeOf(news.function)
+      const hostname = normalize(news.hostname)
+      let domain = try observe(scope, hostname)
+      if (!domain) {
+        Neon.registerProjectBranchCustomDomain({
+          ...scope,
+          domain: hostname,
+          entity_type: "function",
+          entity_id: news.function.slug,
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined as void; default: throw e; }
+        domain = try observe(scope, hostname)
+      }
+      if (!domain || domain.entity_type !== "function" || domain.entity_id !== news.function.slug) {
+        throw new FunctionDomainConflict({ hostname })
+      }
+      return attrs(news.function, domain)
+    },
+    delete: effect ({ output }) => {
+      const scope = scopeOf(output)
+      const domain = try observe(scope, output.hostname)
+      if (!domain) return
+      if (domain.entity_id !== output.slug || domain.entity_type !== "function") {
+        throw new FunctionDomainConflict({ hostname: output.hostname })
+      }
+      Neon.deleteProjectBranchCustomDomain({
+        ...scope,
+        domain: output.hostname,
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+    },
+  })

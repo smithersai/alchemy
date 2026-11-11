@@ -1,0 +1,208 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Connection } from "./Connection.vibe"
+import type { RepositoryLink } from "./RepositoryLink.vibe"
+import type { SyncConfiguration } from "./SyncConfiguration.vibe"
+
+/**
+ * Shared HTTP scaffolding for the CodeConnections runtime bindings.
+ *
+ * Every capability follows the same shape — resolve the distilled
+ * operation, register an IAM policy statement on the binding host, and
+ * return a runtime callable. The only variation is the operation, the IAM
+ * action(s), and the identifier(s) injected from the bound resource:
+ * a {@link Connection}'s ARN, a {@link RepositoryLink}'s ID, or a
+ * {@link SyncConfiguration}'s (resource name, sync type) identity.
+ *
+ * NOT exported from `index.ts`.
+ */
+
+/**
+ * Build the impl Effect for a connection-scoped operation: the runtime
+ * callable injects the bound {@link Connection}'s ARN as `ConnectionArn`
+ * and the deploy-time half grants `actions` on the connection ARN.
+ */
+export const makeConnectionScopedHttpBinding = effect <
+  I extends { ConnectionArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.CodeConnections.GetConnection`. */
+  tag: string
+  /** The distilled operation; `ConnectionArn` is injected from the resource. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the connection ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (connection: Connection) => {
+    const ConnectionArn = try connection.connectionArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${connection})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${connection.connectionArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ConnectionArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ConnectionArn: try ConnectionArn,
+          } as I)
+        },
+        `${options.tag}(${connection.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a repository-link-scoped operation: the runtime
+ * callable injects the bound {@link RepositoryLink}'s ID as
+ * `RepositoryLinkId` and the deploy-time half grants `actions` on the
+ * repository link ARN.
+ */
+export const makeRepositoryLinkScopedHttpBinding = effect <
+  I extends { RepositoryLinkId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag. */
+  tag: string
+  /** The distilled operation; `RepositoryLinkId` is injected from the resource. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the repository link ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (repositoryLink: RepositoryLink) => {
+    const RepositoryLinkId = try repositoryLink.repositoryLinkId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${repositoryLink})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${repositoryLink.repositoryLinkArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "RepositoryLinkId">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            RepositoryLinkId: try RepositoryLinkId,
+          } as I)
+        },
+        `${options.tag}(${repositoryLink.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a sync-configuration-scoped operation: the
+ * runtime callable injects the bound {@link SyncConfiguration}'s
+ * `ResourceName` + `SyncType` identity. Sync operations are not
+ * resource-scoped in IAM (sync configurations have no ARN), so the
+ * deploy-time half grants `actions` on `*`.
+ */
+export const makeSyncConfigurationScopedHttpBinding = effect <
+  I extends { ResourceName: string; SyncType: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag. */
+  tag: string
+  /** The distilled operation; `ResourceName` + `SyncType` are injected. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (syncConfiguration: SyncConfiguration) => {
+    const ResourceName = try syncConfiguration.resourceName.asEffect()
+    const SyncType = try syncConfiguration.syncType.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${syncConfiguration})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ResourceName" | "SyncType"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ResourceName: try ResourceName,
+            SyncType: try SyncType,
+          } as I)
+        },
+        `${options.tag}(${syncConfiguration.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level operation (no target
+ * resource). The deploy-time half grants `actions` on `*`.
+ */
+export const makeCodeConnectionsAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.CodeConnections.ListConnections`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

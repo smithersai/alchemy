@@ -1,0 +1,83 @@
+import { logChildLine } from "alchemy/Util/LogRecord"
+import { sha256 } from "alchemy/Util/sha256"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import type { WebsiteArtifactProps } from "./Artifact.vibe"
+
+// Locates VibeLang's Node loader for a source runner (host access).
+module vibelang_loader {
+  import { createRequire } from "node:module"
+  import { pathToFileURL } from "node:url"
+
+  /** @throws {Error} */
+  export function registerUrl(parentUrl: string): string {
+    return pathToFileURL(createRequire(parentUrl).resolve("vibelang/register")).href
+  }
+}
+
+import { registerUrl } from vibelang_loader
+
+export error PackageOperationFailed {
+  message: string
+  cause?: unknown
+}
+
+/** Release staging, compression and validation buffers between deployments. */
+export const packageWebsiteInChild = effect (props: WebsiteArtifactProps) =>
+  try (effect {
+    const fs = try FileSystem.FileSystem
+    const path = try Path.Path
+    const directory = try fs.makeTempDirectoryScoped({
+      prefix: "alchemy-neon-package-",
+    })
+    const inputPath = path.join(directory, "input.json")
+    const outputPath = path.join(directory, "output.zip")
+    try fs.writeFileString(inputPath, JSON.stringify(props))
+    const runner = try path.fromFileUrl(
+      new URL(
+        new URL(import.meta.url).pathname.endsWith(".js")
+          ? "./PackageRunner.js"
+          : "./PackageRunner.ts",
+        import.meta.url,
+      ),
+    )
+    const child = try ChildProcess.make(
+      "node",
+      [
+        "--max-old-space-size=1536",
+        // A source runner loads its `.vibe` program through VibeLang's Node loader.
+        ...(runner.endsWith(".ts")
+          ? [
+            "--experimental-transform-types",
+            "--no-warnings=ExperimentalWarning",
+            "--import",
+            try Effect.orDie(
+              Effect.try({ try: () => registerUrl(import.meta.url), catch: (e) => e }),
+            ),
+          ]
+          : []),
+        runner,
+        inputPath,
+        outputPath,
+      ],
+      { stdin: "ignore", stdout: "ignore", stderr: "pipe" },
+    )
+    // The runner's diagnostics become log records instead of raw terminal writes.
+    const [code] = try Effect.all(
+      [
+        child.exitCode,
+        child.stderr.pipe(
+          Stream.decodeText,
+          Stream.splitLines,
+          Stream.runForEach((line) => logChildLine(line, { stream: "stderr" })),
+        ),
+      ],
+      { concurrency: "unbounded" },
+    )
+    if (code !== 0) {
+      throw new PackageOperationFailed({ message: `Website packaging exited ${code}` })
+    }
+    const archive = try fs.readFile(outputPath)
+    return { archive, hash: try sha256(archive) }
+  } |> Effect.scoped(%) |> Effect.timeout(%, "90 seconds"))

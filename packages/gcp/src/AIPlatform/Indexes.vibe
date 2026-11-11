@@ -1,0 +1,386 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  alchemyIdFilter,
+  createInternalLabels,
+  hasAlchemyPrefix,
+  labelsDiffer,
+  listLocations,
+  locationOf,
+  lastSegment,
+  normalizeLocation,
+  projectOf,
+  resourceNameFromOperation,
+  stableJson,
+  toDisplayName,
+  toLabels,
+  userLabels,
+} from "./names.vibe"
+import { settlePendingCreates, waitForOperation } from "./operations.vibe"
+
+export type IndexProps = {
+  /**
+   * Vertex AI location (`us-central1`, …). Immutable — changing it
+   * replaces the index.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Display name (max 128 Unicode characters). Generated from the stack,
+   * stage, and logical id when omitted.
+   */
+  displayName?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * How the index is updated. Immutable.
+   * @default "STREAM_UPDATE"
+   */
+  indexUpdateMethod?: aiplatform.GoogleCloudAiplatformV1IndexIndexUpdateMethodEnum | (string & {})
+  /**
+   * Matching Engine metadata (`contentsDeltaUri`, `config.dimensions`,
+   * algorithm config).
+   */
+  metadata?: unknown
+  /**
+   * GCS URI of the OpenAPI schema for `metadata`. Immutable.
+   */
+  metadataSchemaUri?: string
+  /**
+   * Customer-managed encryption key. Immutable.
+   */
+  encryptionSpec?: aiplatform.GoogleCloudAiplatformV1EncryptionSpec
+}
+
+export type Index = Resource<
+  "GCP.AIPlatform.Index",
+  IndexProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/indexes/{index}`. */
+    name: string
+    /** Index id (last path segment). */
+    indexId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Update method (`BATCH_UPDATE` or `STREAM_UPDATE`). */
+    indexUpdateMethod: string | undefined
+    /** Matching Engine metadata. */
+    metadata: unknown
+    /** Schema URI for metadata, if set. */
+    metadataSchemaUri: string | undefined
+    /** Dense vector count. */
+    vectorsCount: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI Matching Engine Index of embedding vectors.
+ *
+ * Changing `location`, `indexUpdateMethod`, encryption, or
+ * `metadataSchemaUri` replaces the index. Display name, description,
+ * labels, and metadata update in place (metadata updates are long-running).
+ *
+ * ### Creating an Index
+ * **Example:** Empty streaming index
+ * ```typescript
+ * const index = yield* GCP.AIPlatform.Index("Embeddings", {
+ *   displayName: "product-embeddings",
+ *   indexUpdateMethod: "STREAM_UPDATE",
+ *   metadata: {
+ *     config: {
+ *       dimensions: 768,
+ *       approximateNeighborsCount: 150,
+ *       distanceMeasureType: "DOT_PRODUCT_DISTANCE",
+ *       shardSize: "SHARD_SIZE_SMALL",
+ *       algorithmConfig: { bruteForceConfig: {} },
+ *     },
+ *   },
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const Index = Resource<Index>("GCP.AIPlatform.Index")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IndexNotResolved extends Data.TaggedError("GCP.AIPlatform.IndexNotResolved")<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IndexStillExists extends Data.TaggedError("GCP.AIPlatform.IndexStillExists")<{
+  resourceName: string
+}> {}
+
+const DEFAULT_UPDATE_METHOD = "STREAM_UPDATE"
+
+const toAttrs = (index: aiplatform.GoogleCloudAiplatformV1Index, project: string): infer _ => {
+  const name = index.name ?? ""
+  return {
+    name,
+    indexId: lastSegment(name),
+    project: projectOf(name, project),
+    location: locationOf(name),
+    displayName: index.displayName,
+    description: index.description,
+    labels: userLabels(index.labels),
+    indexUpdateMethod: index.indexUpdateMethod,
+    metadata: index.metadata,
+    metadataSchemaUri: index.metadataSchemaUri,
+    vectorsCount: index.indexStats?.vectorsCount,
+    createTime: index.createTime,
+    updateTime: index.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsIndexes({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const listPage = effect (parent: string, filter?: string) =>
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsIndexes.pages({ parent, pageSize: 100, filter })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.indexes ?? []))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Index[];
+    default: throw e;
+  }
+
+const findVisible = effect (project: string, location: string, labels: Record<string, string>) =>
+  (try listPage(`projects/${project}/locations/${location}`, alchemyIdFilter(labels))).find((item) =>
+    hasAlchemyPrefix(item.labels)
+  ) ?? undefined
+
+/**
+ * Find our resource by its ownership labels. Ids are server-assigned and the
+ * resource is invisible to `list` while its create operation is pending
+ * (minutes on a fresh project), so on a miss wait for pending creates in
+ * this location and look again — otherwise an interrupted create's
+ * recovery read reports it gone and leaks it.
+ */
+const findOwned = effect (project: string, location: string, labels: Record<string, string>) => {
+  const visible = try findVisible(project, location, labels)
+  if (visible !== undefined) return visible
+  const settled = try settlePendingCreates({
+    parent: `projects/${project}/locations/${location}`,
+    collection: "indexes",
+  })
+  return settled ? try findVisible(project, location, labels) : undefined
+}
+
+const waitUntilExists = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(
+      %,
+      (index): index is aiplatform.GoogleCloudAiplatformV1Index => index !== undefined,
+      () => new IndexNotResolved({ resourceName: name }),
+    )
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.IndexNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (index) => index === undefined, () => new IndexStillExists({ resourceName: name }))
+    |> Effect.asVoid(%)
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.IndexStillExists",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+export const IndexProvider = (): infer _ =>
+  Provider.succeed(Index, {
+    stables: ["name", "indexId", "project", "location", "indexUpdateMethod", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        resolved.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      const previousMethod = (
+        olds?.indexUpdateMethod
+          ?? output?.indexUpdateMethod
+          ?? DEFAULT_UPDATE_METHOD
+      ).toUpperCase()
+      const nextMethod = (resolved.indexUpdateMethod ?? previousMethod).toUpperCase()
+      const previousSchema = olds?.metadataSchemaUri ?? output?.metadataSchemaUri ?? ""
+      const nextSchema = resolved.metadataSchemaUri ?? previousSchema
+      if (
+        previousLocation !== nextLocation
+        || previousMethod !== nextMethod
+        || nextSchema !== previousSchema
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const ownership = try createInternalLabels(id)
+      const existing = (output?.name !== undefined ? try getByName(output.name) : undefined)
+        ?? (try findOwned(env.project, location, ownership))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listPage(`projects/${env.project}/locations/${location}`),
+        { concurrency: 4 },
+      )
+      return pages
+        .flat()
+        .filter((index) => hasAlchemyPrefix(index.labels))
+        .map((index) => toAttrs(index, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const indexUpdateMethod = (
+        news.indexUpdateMethod
+          ?? output?.indexUpdateMethod
+          ?? DEFAULT_UPDATE_METHOD
+      ).toUpperCase()
+
+      let current = (output?.name !== undefined ? try getByName(output.name) : undefined)
+        ?? (try findOwned(env.project, location, desiredLabels))
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsIndexes({
+            parent: `projects/${env.project}/locations/${location}`,
+            body: {
+              displayName,
+              description: news.description,
+              labels: desiredLabels,
+              indexUpdateMethod,
+              metadata: news.metadata,
+              metadataSchemaUri: news.metadataSchemaUri,
+              encryptionSpec: news.encryptionSpec,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        if (created !== undefined) {
+          const done = try waitForOperation(created)
+          const name = try Effect.orDie(Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }))
+          current = name !== undefined
+            ? try waitUntilExists(name)
+            : try findOwned(env.project, location, desiredLabels)
+        }
+        if (current === undefined) {
+          current = try findOwned(env.project, location, desiredLabels)
+        }
+      }
+
+      if (current === undefined || current.name === undefined) {
+        throw new IndexNotResolved({
+          resourceName: output?.name ?? `${location}/indexes`,
+        })
+      }
+
+      const name = current.name
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const labelsChanged = labelsDiffer(current.labels, desiredLabels)
+      const metadataChanged = news.metadata !== undefined && stableJson(current.metadata) !== stableJson(news.metadata)
+
+      if (descriptionChanged || displayChanged || labelsChanged || metadataChanged) {
+        const operation = try aiplatform.patchProjectsLocationsIndexes({
+          name,
+          updateMask: [
+            descriptionChanged ? "description" : undefined,
+            displayChanged ? "display_name" : undefined,
+            labelsChanged ? "labels" : undefined,
+            metadataChanged ? "metadata" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            displayName,
+            description: news.description,
+            labels: desiredLabels,
+            metadata: news.metadata,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (aiplatform
+          .deleteProjectsLocationsIndexes({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

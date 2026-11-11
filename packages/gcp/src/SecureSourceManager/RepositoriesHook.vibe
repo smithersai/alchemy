@@ -1,0 +1,373 @@
+import * as ssm from "@distilled.cloud/gcp/securesourcemanager_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  catchMissing,
+  collectPages,
+  expandName,
+  fieldMask,
+  fingerprint,
+  forEachRepository,
+  hasTargetUriOwnership,
+  normalizeLocation,
+  PAGE_SIZE,
+  parseName,
+  parseTargetUriOwnership,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  retryConflict,
+  rfc1035,
+  sameText,
+  stripAlchemyQuery,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type HookEvent = ssm.HookEventsItemEnum | (string & {})
+
+export type RepositoriesHookProps = {
+  /**
+   * Parent repository. Full name
+   * `projects/{project}/locations/{location}/repositories/{repository}`
+   * or the repository id (combined with `location`). Immutable —
+   * changing it replaces the hook.
+   */
+  repository: string
+  /**
+   * Region used when `repository` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Hook id (the `{hook}` segment). If omitted, a unique RFC1035 name is
+   * generated. Immutable — changing it replaces the hook.
+   */
+  hookId?: string
+  /**
+   * Target URI that receives webhook payloads, sent as given. Hooks have
+   * no labels, so ownership rests on the hook id (generated ids embed the
+   * stack, stage, and logical id).
+   */
+  targetUri: string
+  /**
+   * Events that fire the hook (`PUSH`, `PULL_REQUEST`).
+   */
+  events?: HookEvent[]
+  /**
+   * When true, the hook exists but does not send traffic.
+   * @default false
+   */
+  disabled?: boolean
+  /**
+   * Sensitive query string appended to `targetUri` by the service.
+   */
+  sensitiveQueryString?: string
+  /**
+   * Push-event filter. Empty or `*` reports every branch.
+   */
+  pushOption?: {
+    /** Glob of branches that trigger the hook. */
+    branchFilter?: string
+  }
+}
+
+export type RepositoriesHook = Resource<
+  "GCP.SecureSourceManager.RepositoriesHook",
+  RepositoriesHookProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Hook id (last path segment). */
+    hookId: string
+    /** Parent repository resource name. */
+    repository: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Target URI with Alchemy ownership query parameters stripped. */
+    targetUri: string
+    /** Events that fire the hook. */
+    events: HookEvent[]
+    /** Whether the hook is disabled. */
+    disabled: boolean
+    /** Push-event filter. */
+    pushOption:
+      | {
+        branchFilter: string | undefined
+      }
+      | undefined
+    /** Server-generated resource uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Secure Source Manager repository webhook.
+ *
+ * Changing `hookId`, `repository`, or `location` replaces the hook.
+ * Target URI, events, disabled flag, and push options update in place.
+ * Ownership for `list` / nuke is stamped into `targetUri` query
+ * parameters (hooks have no labels field).
+ *
+ * ### Creating a Hook
+ * **Example:** Push webhook
+ * ```typescript
+ * const hook = yield* GCP.SecureSourceManager.RepositoriesHook("Notify", {
+ *   repository: repo.name,
+ *   targetUri: "https://example.com/hooks/ssm",
+ *   events: ["PUSH"],
+ * });
+ * ```
+ *
+ * **Example:** Named hook with a branch filter
+ * ```typescript
+ * const hook = yield* GCP.SecureSourceManager.RepositoriesHook("Notify", {
+ *   repository: repo.name,
+ *   hookId: "prod-push",
+ *   targetUri: "https://example.com/hooks/ssm",
+ *   events: ["PUSH", "PULL_REQUEST"],
+ *   pushOption: { branchFilter: "main" },
+ * });
+ * ```
+ *
+ * ### Updating a Hook
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Disable and retarget
+ * ```typescript
+ * const hook = yield* GCP.SecureSourceManager.RepositoriesHook("Notify", {
+ *   repository: repo.name,
+ *   targetUri: "https://example.com/hooks/ssm-v2",
+ *   events: ["PUSH"],
+ *   disabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category SecureSourceManager
+ */
+export const RepositoriesHook = Resource<RepositoriesHook>(
+  "GCP.SecureSourceManager.RepositoriesHook",
+)
+
+const resourceName = (repository: string, hookId: string): infer _ => `${repository}/hooks/${hookId}`
+
+const toEvents = (
+  events: readonly (ssm.HookEventsItemEnum | (string & {}))[] | undefined,
+): HookEvent[] => [...(events ?? [])].slice().sort()
+
+const toAttrs = effect (item: ssm.Hook, project: string, region: string) => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "hooks", region)
+  return {
+    name,
+    hookId: parsed.id,
+    repository: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    targetUri: try Effect.orDie(Effect.try({ try: () => stripAlchemyQuery(item.targetUri ?? ""), catch: (e) => e })),
+    events: toEvents(item.events),
+    disabled: item.disabled === true,
+    pushOption: item.pushOption === undefined ? undefined : { branchFilter: item.pushOption.branchFilter },
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : try catchMissing(ssm.getProjectsLocationsRepositoriesHooks({ name })))
+
+const listOnRepository = effect (repository: string) =>
+  try collectPages(
+    ssm.listProjectsLocationsRepositoriesHooks.pages({
+      parent: repository,
+      pageSize: PAGE_SIZE,
+    }),
+    (page) => page.hooks,
+  )
+
+const listOwned = effect (project: string, region: string) =>
+  try forEachRepository(
+    project,
+    region,
+    effect (repository) => {
+      const items = try listOnRepository(repository)
+      return try Effect.orDie(Effect.try({
+        try: () => items.filter((item) => hasTargetUriOwnership(item.targetUri)),
+        catch: (e) => e,
+      }))
+    },
+  )
+
+export const RepositoriesHookProvider = (): infer _ =>
+  Provider.succeed(RepositoriesHook, {
+    stables: ["name", "hookId", "repository", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
+        previousId: olds?.hookId ?? output?.hookId,
+        nextId: resolved.hookId ? rfc1035(resolved.hookId, "hook") : (olds?.hookId ?? output?.hookId),
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: location,
+        previousParent: olds?.repository ?? output?.repository,
+        nextParent: expandName(resolved.repository, env.project, location, "repositories"),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const hookId = try toPhysicalId(id, olds?.hookId, output?.hookId, "hook")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(Effect.try({
+        try: () =>
+          expandName(
+            olds?.repository ?? output?.repository ?? "",
+            env.project,
+            location,
+            "repositories",
+          ),
+        catch: (e) => e,
+      }))
+      const name = output?.name ?? (repository.length > 0 ? resourceName(repository, hookId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = try toAttrs(existing, env.project, env.region)
+      // A generated id embeds stack/stage/logical id, so finding it means we
+      // created it; an explicit id could name anyone's hook. Hooks created
+      // before ownership moved off the URI still carry query markers.
+      const owned = output !== undefined
+        || olds?.hookId === undefined
+        || (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => parseTargetUriOwnership(existing.targetUri), catch: (e) => e })),
+        ))
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return try Effect.forEach(items, (item: ssm.Hook) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const hookId = try toPhysicalId(id, news.hookId, output?.hookId, "hook")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const repository = try Effect.orDie(
+        Effect.try({ try: () => expandName(news.repository, env.project, location, "repositories"), catch: (e) => e }),
+      )
+      const name = resourceName(repository, hookId)
+      const targetUri = news.targetUri
+      const events = toEvents(news.events)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = ssm
+          .createProjectsLocationsRepositoriesHooks({
+            parent: repository,
+            hookId,
+            body: {
+              targetUri,
+              events: events.length > 0 ? events : undefined,
+              disabled: news.disabled === true ? true : undefined,
+              sensitiveQueryString: news.sensitiveQueryString,
+              pushOption: news.pushOption,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const fields = [
+        !sameText(current.targetUri, targetUri) && "targetUri",
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, toEvents(current.events)), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(events), catch: (e) => e }))) && "events",
+        (current.disabled === true) !== (news.disabled === true) && "disabled",
+        !sameText(current.sensitiveQueryString, news.sensitiveQueryString)
+        && "sensitiveQueryString",
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.pushOption), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.pushOption), catch: (e) => e })))
+        && "pushOption",
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
+
+      if (mask.length > 0) {
+        const operation = try ssm.patchProjectsLocationsRepositoriesHooks({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            targetUri,
+            events,
+            disabled: news.disabled === true,
+            sensitiveQueryString: news.sensitiveQueryString,
+            pushOption: news.pushOption,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return try toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = try retryConflict(
+        effect {
+          return ssm
+            .deleteProjectsLocationsRepositoriesHooks({ name: output.name }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" }: try Effect.undefined;
+              default: throw e;
+            }
+        },
+      )
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

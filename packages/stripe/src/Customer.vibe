@@ -1,0 +1,321 @@
+import { withRequestOptions } from "@distilled.cloud/stripe"
+import {
+  DeleteCustomer,
+  GetCustomers,
+  GetCustomer,
+  CreateCustomer,
+  UpdateCustomer,
+  type Customer as StripeCustomer,
+  type DeletedCustomer,
+} from "@distilled.cloud/stripe/stripe"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import {
+  alchemyMetadataKeys,
+  createInternalMetadata,
+  diffMetadata,
+  hasAlchemyMetadata,
+  stripInternalMetadata,
+  toMetadata,
+} from "./Metadata.vibe"
+import { isMissingStripeResource } from "./missing.ts"
+import type { Providers } from "./Providers.vibe"
+
+const LIST_PAGE_SIZE = 100
+const LIST_MAX_PAGES = 100
+
+export interface CustomerProps {
+  /**
+   * Customer's email address. Displayed in the Stripe dashboard and
+   * useful for searching. At most 512 characters.
+   */
+  email?: string
+  /**
+   * The customer's full name or business name.
+   */
+  name?: string
+  /**
+   * An arbitrary string attached to the customer. Displayed alongside
+   * the customer in the dashboard.
+   */
+  description?: string
+  /**
+   * The customer's phone number.
+   */
+  phone?: string
+  /**
+   * User-defined metadata. Alchemy ownership keys (`alchemy_stack` /
+   * `alchemy_stage` / `alchemy_id`) are merged in automatically. Keys may
+   * not contain `:`.
+   */
+  metadata?: Record<string, string>
+}
+
+export type Customer = Resource<
+  "Stripe.Customer",
+  CustomerProps,
+  {
+    /** Stripe customer id (`cus_…`). */
+    id: string
+    /** Customer's email address, if set. */
+    email: string | undefined
+    /** The customer's full name or business name, if set. */
+    name: string | undefined
+    /** Arbitrary description displayed in the dashboard, if set. */
+    description: string | undefined
+    /** The customer's phone number, if set. */
+    phone: string | undefined
+    /** User-defined metadata (Alchemy ownership keys stripped). */
+    metadata: Record<string, string>
+    /** Unix timestamp when the customer was created. */
+    created: number
+    /** Whether the customer exists in live mode. */
+    livemode: boolean
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Stripe Customer — the billing identity invoices, subscriptions, and
+ * Checkout sessions attach to. Email, name, description, phone, and
+ * metadata are updated in place. Deleting a customer is permanent and
+ * immediately cancels any active subscriptions.
+ *
+ * @see https://docs.stripe.com/api/customers
+ *
+ * ### Creating a Customer
+ * **Example:** Email and name
+ * ```typescript
+ * const customer = yield* Stripe.Customer("alice", {
+ *   email: "alice@example.com",
+ *   name: "Alice Example",
+ * });
+ * ```
+ *
+ * **Example:** Description, phone, and metadata
+ * ```typescript
+ * const customer = yield* Stripe.Customer("alice", {
+ *   email: "alice@example.com",
+ *   name: "Alice Example",
+ *   description: "Beta tester",
+ *   phone: "+15555550100",
+ *   metadata: { plan: "pro" },
+ * });
+ * ```
+ *
+ * ### Updating a Customer
+ * **Example:** Change email and metadata
+ * ```typescript
+ * const customer = yield* Stripe.Customer("alice", {
+ *   email: "alice+updated@example.com",
+ *   name: "Alice Example",
+ *   metadata: { plan: "enterprise" },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Customer
+ */
+export const Customer = Resource<Customer>("Stripe.Customer")
+
+const userMetadata = (
+  metadata: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalMetadata(tagRecord(metadata))
+
+const isDeletedCustomer = (value: StripeCustomer | DeletedCustomer): value is DeletedCustomer =>
+  "deleted" in value && value.deleted === true
+
+const asCustomer = (
+  value: StripeCustomer | DeletedCustomer | undefined,
+): StripeCustomer | undefined => {
+  if (value === undefined || isDeletedCustomer(value)) return undefined
+  return value
+}
+
+const toAttrs = (customer: StripeCustomer): infer _ => ({
+  id: customer.id,
+  email: customer.email ?? undefined,
+  name: customer.name ?? undefined,
+  description: customer.description ?? undefined,
+  phone: customer.phone ?? undefined,
+  metadata: userMetadata(customer.metadata),
+  created: customer.created,
+  livemode: customer.livemode,
+})
+
+const isMissingCustomer = isMissingStripeResource
+
+const getById = effect (customer: string) =>
+  try (effect {
+    return asCustomer(try GetCustomer({ customer }))
+  }
+    |> Effect.catchIf(%, isMissingCustomer, effect () => undefined))
+
+const listAllCustomers = effect () => {
+  const customers: StripeCustomer[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try GetCustomers({
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+    customers.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return customers
+}
+
+const findByAlchemyId = effect (id: string) => {
+  const customers = try listAllCustomers()
+  const matches: StripeCustomer[] = []
+  for (const customer of customers) {
+    if (
+      try hasAlchemyMetadata(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(customer.metadata), catch: (e) => e })),
+      )
+    ) {
+      matches.push(customer)
+    }
+  }
+  matches.sort((a, b) => b.created - a.created)
+  return matches[0]
+}
+
+const observe = effect (input: { id?: string; logicalId: string }) => {
+  if (input.id !== undefined) {
+    const byId = try getById(input.id)
+    if (byId !== undefined) return byId
+  }
+  return try findByAlchemyId(input.logicalId)
+}
+
+const desiredMetadata = effect (
+  id: string,
+  metadata: Record<string, string> | undefined,
+) => ({
+  ...toMetadata(metadata),
+  ...(try createInternalMetadata(id)),
+})
+
+export const CustomerProvider = (): infer _ =>
+  Provider.succeed(Customer, {
+    stables: ["id", "created", "livemode"],
+
+    diff: effect ({ news }) => {
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
+      return undefined
+    },
+
+    read: effect ({ id, output }) => {
+      const existing = try observe({
+        id: output?.id,
+        logicalId: id,
+      })
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      return (try hasAlchemyMetadata(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.metadata), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const customers = try listAllCustomers()
+      return customers
+        .filter((customer) => {
+          const metadata = tagRecord(customer.metadata)
+          return metadata[alchemyMetadataKeys.stack] !== undefined
+        })
+        .map(toAttrs)
+    },
+
+    reconcile: effect ({ id, news, output, instanceId }) => {
+      const metadata = try desiredMetadata(id, news.metadata)
+      const desiredEmail = news.email ?? ""
+      const desiredName = news.name ?? ""
+      const desiredDescription = news.description ?? ""
+      const desiredPhone = news.phone ?? ""
+
+      let current = try observe({
+        id: output?.id,
+        logicalId: id,
+      })
+
+      if (current === undefined) {
+        current = try (CreateCustomer({
+          ...(desiredEmail.length > 0 ? { email: desiredEmail } : {}),
+          ...(desiredName.length > 0 ? { name: desiredName } : {}),
+          ...(desiredDescription.length > 0 ? { description: desiredDescription } : {}),
+          ...(desiredPhone.length > 0 ? { phone: desiredPhone } : {}),
+          metadata,
+        })
+          |> (try Effect.orDie(Effect.try({
+            try: () =>
+              withRequestOptions({
+                idempotencyKey: `alchemy-customer-${instanceId}`,
+              }),
+            catch: (e) => e,
+          })))(%))
+      }
+
+      const observedMetadata = try Effect.orDie(
+        Effect.try({ try: () => tagRecord(current.metadata), catch: (e) => e }),
+      )
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffMetadata(observedMetadata, metadata), catch: (e) => e }),
+      )
+      const metadataChanged = upsert.length > 0 || removed.length > 0
+      const emailChanged = (current.email ?? "") !== desiredEmail
+      const nameChanged = (current.name ?? "") !== desiredName
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const phoneChanged = (current.phone ?? "") !== desiredPhone
+
+      if (
+        !emailChanged
+        && !nameChanged
+        && !descriptionChanged
+        && !phoneChanged
+        && !metadataChanged
+      ) {
+        return toAttrs(current)
+      }
+
+      const updated = try UpdateCustomer({
+        customer: current.id,
+        ...(emailChanged ? { email: desiredEmail } : {}),
+        ...(nameChanged ? { name: desiredName } : {}),
+        ...(descriptionChanged ? { description: desiredDescription } : {}),
+        ...(phoneChanged ? { phone: desiredPhone } : {}),
+        ...(metadataChanged
+          ? {
+            metadata: {
+              ...Object.fromEntries(upsert.map((tag) => [tag.Key, tag.Value])),
+              ...Object.fromEntries(removed.map((key) => [key, ""])),
+            },
+          }
+          : {}),
+      })
+      return toAttrs(updated)
+    },
+
+    delete: effect ({ output }) => {
+      try (DeleteCustomer({ customer: output.id })
+        |> Effect.catchIf(%, isMissingCustomer, effect () => (undefined as void)))
+    },
+  })

@@ -1,0 +1,248 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Discoverer } from "./Discoverer.vibe"
+import type { Registry } from "./Registry.vibe"
+import type { Schema } from "./Schema.vibe"
+
+/**
+ * Shared scaffolding for EventBridge Schemas HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the identifier resolver, and the
+ * IAM action list is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a Schemas operation scoped to a {@link Schema}:
+ * the deploy-time half grants `actions` on the bound schema's ARN, and the
+ * runtime half injects the schema's `RegistryName` + `SchemaName` into every
+ * request.
+ */
+export const makeSchemasSchemaHttpBinding = effect <
+  I extends { RegistryName: string; SchemaName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Schemas.DescribeSchema`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the schema ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (schema: Schema) => {
+    const RegistryName = try schema.registryName.asEffect()
+    const SchemaName = try schema.schemaName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${schema})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [schema.schemaArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "RegistryName" | "SchemaName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            RegistryName: try RegistryName,
+            SchemaName: try SchemaName,
+          } as I)
+        },
+        `${options.tag}(${schema.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a Schemas operation scoped to a {@link Registry}:
+ * the deploy-time half grants `actions` on the registry ARN and on the
+ * registry's schema-type ARN (`…:schema/{registryName}*` — the resource
+ * `schemas:SearchSchemas` authorizes against), and the runtime half injects
+ * the registry's `RegistryName` into every request.
+ */
+export const makeSchemasRegistryHttpBinding = effect <
+  I extends { RegistryName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Schemas.SearchSchemas`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the registry ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (registry: Registry) => {
+    const RegistryName = try registry.registryName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${registry})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              registry.registryArn,
+              // Registry-scoped reads (e.g. SearchSchemas) authorize
+              // against the schema-type ARN keyed by the registry name.
+              try Effect.orDie(Effect.try({
+                try: () =>
+                  Output.map(
+                    registry.registryArn,
+                    (arn) => `${arn.replace(":registry/", ":schema/")}*`,
+                  ),
+                catch: (e) => e,
+              })),
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "RegistryName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            RegistryName: try RegistryName,
+          } as I)
+        },
+        `${options.tag}(${registry.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a Schemas operation scoped to a
+ * {@link Discoverer}: the deploy-time half grants `actions` on the bound
+ * discoverer's ARN (plus `ruleActions` on the discoverer's managed
+ * EventBridge rule, which Start/StopDiscoverer flip behind the scenes), and
+ * the runtime half injects the `DiscovererId` into every request.
+ */
+export const makeSchemasDiscovererHttpBinding = effect <
+  I extends { DiscovererId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Schemas.StartDiscoverer`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the discoverer ARN. */
+  actions: readonly string[]
+  /**
+   * EventBridge actions granted on the discoverer's managed rule
+   * (`rule/{busName}/Schemas-{discovererId}`). StartDiscoverer enables the
+   * rule and StopDiscoverer disables it, so they additionally require
+   * `events:EnableRule` / `events:DisableRule`.
+   */
+  ruleActions?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (discoverer: Discoverer) => {
+    const DiscovererId = try discoverer.discovererId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      // The managed rule is named `Schemas-{discovererId}` but TRUNCATED
+      // to EventBridge's 64-char rule-name limit, so the grant wildcards
+      // the name under the `Schemas-` prefix instead of interpolating
+      // the full discoverer id.
+      const toRuleArn = (busSegment: string): infer _ =>
+        Output.map(
+          discoverer.discovererArn,
+          (arn) => `${arn.replace(":schemas:", ":events:").split(":discoverer/")[0]}:rule/${busSegment}Schemas-*`,
+        )
+      try bind`${options.tag}(${discoverer})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [discoverer.discovererArn],
+          },
+          ...(options.ruleActions !== undefined
+            ? [
+              {
+                Effect: "Allow" as const,
+                Action: [...options.ruleActions],
+                // The managed rule lives on the discovered bus
+                // (`rule/{busName}/Schemas-{id}`) or, for the default
+                // bus, directly under `rule/Schemas-{id}`.
+                Resource: [toRuleArn("*/"), toRuleArn("")],
+              },
+            ]
+            : []),
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "DiscovererId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            DiscovererId: try DiscovererId,
+          } as I)
+        },
+        `${options.tag}(${discoverer.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level Schemas operation (e.g.
+ * `GetDiscoveredSchema`, which infers a schema from sample events and is not
+ * scoped to any registry or schema resource). The deploy-time half grants
+ * `actions` on `*`.
+ */
+export const makeSchemasAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Schemas.GetDiscoveredSchema`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

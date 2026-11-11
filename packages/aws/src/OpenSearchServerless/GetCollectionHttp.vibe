@@ -1,0 +1,40 @@
+import * as aoss from "@distilled.cloud/aws/opensearchserverless"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Collection } from "./Collection.vibe"
+import { GetCollection } from "./GetCollection.vibe"
+
+// Bespoke (not the shared scaffolding): BatchGetCollection takes an `ids`
+// array rather than a single injected `id`, and the callable unwraps the
+// batch response to the bound collection's detail.
+export const GetCollectionHttp = Layer.effect(
+  GetCollection,
+  effect {
+    const bind = try AWSBindings.Bind
+    const op = try AWSBindings.withCredentials(aoss.batchGetCollection)
+
+    return effect (collection: Collection) => {
+      const CollectionId = try collection.collectionId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.OpenSearchServerless.GetCollection(${collection})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["aoss:BatchGetCollection"],
+              Resource: [Output.interpolate`${collection.collectionArn}`],
+            },
+          ],
+        })
+      }
+      return effect () =>
+        try withSpan(
+          effect {
+            const response = try op({ ids: [try CollectionId] })
+            return response.collectionDetails?.[0]
+          },
+          `AWS.OpenSearchServerless.GetCollection(${collection.LogicalId})`,
+        )
+    }
+  },
+)

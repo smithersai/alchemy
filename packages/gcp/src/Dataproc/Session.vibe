@@ -1,0 +1,367 @@
+import * as dataproc from "@distilled.cloud/gcp/dataproc_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  LIST_LOCATIONS,
+  MAX_POLLS,
+  MAX_WORKLOAD_ID_LENGTH,
+  emptyOnMissing,
+  hasAlchemyLabelMap,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+const READY = new Set(["ACTIVE", "TERMINATING", "TERMINATED", "FAILED"])
+
+export type SessionProps = {
+  /**
+   * Session id (the `{session}` segment of
+   * `projects/{project}/locations/{location}/sessions/{session}`). If
+   * omitted, a unique RFC1035 name is generated. Immutable — changing it
+   * replaces the session.
+   */
+  sessionId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * session. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Existing session template resource name. If omitted, `jupyterSession`
+   * (default PYTHON) is used.
+   */
+  sessionTemplate?: string
+  /**
+   * Jupyter kernel config.
+   */
+  jupyterSession?: dataproc.JupyterConfig
+  /**
+   * Spark Connect session config.
+   */
+  sparkConnectSession?: dataproc.SparkConnectConfig
+  /**
+   * Runtime configuration (version, properties, container image).
+   */
+  runtimeConfig?: dataproc.RuntimeConfig
+  /**
+   * Environment configuration (execution and peripherals).
+   */
+  environmentConfig?: dataproc.EnvironmentConfig
+  /**
+   * Email of the user who owns the session.
+   */
+  user?: string
+}
+
+export type Session = Resource<
+  "GCP.Dataproc.Session",
+  SessionProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/sessions/{session}`. */
+    name: string
+    /** Session id (last path segment). */
+    sessionId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-reported state (`ACTIVE`, `CREATING`, …). */
+    state: string | undefined
+    /** Extra status text, if any. */
+    stateMessage: string | undefined
+    /** Session template used, if any. */
+    sessionTemplate: string | undefined
+    /** Server-assigned uuid. */
+    uuid: string | undefined
+    /** Creator email. */
+    creator: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataproc serverless interactive session.
+ *
+ * Sessions are immutable after create. Changing identity or config
+ * replaces the session. Provisioning typically takes several minutes.
+ *
+ * ### Creating a Session
+ * **Example:** Jupyter session
+ * ```typescript
+ * const session = yield* GCP.Dataproc.Session("Notebook", {
+ *   jupyterSession: { kernel: "PYTHON" },
+ *   environmentConfig: { executionConfig: { idleTtl: "600s", ttl: "3600s" } },
+ * });
+ * ```
+ *
+ * **Example:** From a session template
+ * ```typescript
+ * const session = yield* GCP.Dataproc.Session("Notebook", {
+ *   sessionTemplate: template.name,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataproc
+ */
+export const Session = Resource<Session>("GCP.Dataproc.Session")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SessionNotResolved extends Data.TaggedError("GCP.Dataproc.SessionNotResolved")<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SessionFailed extends Data.TaggedError("GCP.Dataproc.SessionFailed")<{
+  resourceName: string
+  state: string | undefined
+  detail: string | undefined
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SessionNotReady extends Data.TaggedError("GCP.Dataproc.SessionNotReady")<{
+  resourceName: string
+  state: string | undefined
+}> {}
+
+const resourceName = (project: string, location: string, sessionId: string): infer _ =>
+  `${locationParent(project, location)}/sessions/${sessionId}`
+
+const defaultJupyter = (news: SessionProps): dataproc.JupyterConfig | undefined => {
+  if (news.sessionTemplate !== undefined) return news.jupyterSession
+  if (news.sparkConnectSession !== undefined) return undefined
+  return news.jupyterSession ?? { kernel: "PYTHON" }
+}
+
+const toAttrs = (session: dataproc.Session, project: string, location: string): infer _ => {
+  const name = session.name ?? ""
+  const parsed = parseResourceName(name, "sessions", location)
+  return {
+    name,
+    sessionId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || location,
+    labels: userLabels(session.labels),
+    state: session.state,
+    stateMessage: session.stateMessage,
+    sessionTemplate: session.sessionTemplate,
+    uuid: session.uuid,
+    creator: session.creator,
+    createTime: session.createTime,
+  }
+}
+
+// Dataproc rejects a session create whose body omits `name` with a bare
+// `INVALID_ARGUMENT`.
+const desiredBody = (
+  news: SessionProps,
+  name: string,
+  desiredLabels: Record<string, string>,
+): dataproc.Session => ({
+  name,
+  labels: desiredLabels,
+  sessionTemplate: news.sessionTemplate,
+  jupyterSession: defaultJupyter(news),
+  sparkConnectSession: news.sparkConnectSession,
+  runtimeConfig: news.runtimeConfig,
+  environmentConfig: news.environmentConfig ?? {
+    executionConfig: { idleTtl: "600s", ttl: "3600s" },
+  },
+  user: news.user,
+})
+
+const getByName = effect (name: string) =>
+  dataproc
+    .getProjectsLocationsSessions({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitUntilReady = effect (name: string) =>
+  try (effect {
+    return try effect {
+      const session = try getByName(name)
+      return (session ? session : throw new SessionNotResolved({ resourceName: name }))
+    }
+  }
+    |> Effect.filterOrFail(%, (session) => session.state !== "FAILED", (session) =>
+      new SessionFailed({
+        resourceName: name,
+        state: session.state,
+        detail: session.stateMessage,
+      }))
+    |> Effect.filterOrFail(%, (session) => READY.has(session.state ?? ""), (session) =>
+      new SessionNotReady({
+        resourceName: name,
+        state: session.state,
+      }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.Dataproc.SessionNotReady"
+        || error._tag === "GCP.Dataproc.SessionNotResolved",
+      times: MAX_POLLS,
+      schedule: Schedule.spaced("5 seconds"),
+    }))
+
+const listLocation = effect (project: string, location: string) =>
+  try emptyOnMissing(
+    effect {
+      return (try collectPages(
+        dataproc.listProjectsLocationsSessions.pages({
+          parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, location), catch: (e) => e })),
+          pageSize: 1000,
+        }),
+        (page) => page.sessions,
+      ))
+        .filter((session) => hasAlchemyLabelMap(session.labels))
+        .map((session) => toAttrs(session, project, location))
+    },
+  )
+
+export const SessionProvider = (): infer _ =>
+  Provider.succeed(Session, {
+    stables: ["name", "sessionId", "project", "location", "uuid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.sessionId ?? output?.sessionId
+      const nextId = resolved.sessionId ?? previousId
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      if (
+        (previousId !== undefined && nextId !== undefined && previousId !== nextId)
+        || (output !== undefined && previousLocation !== nextLocation)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const sessionId = try toPhysicalId(
+        id,
+        olds?.sessionId,
+        output?.sessionId,
+        MAX_WORKLOAD_ID_LENGTH,
+        "session",
+      )
+      const name = output?.name ?? resourceName(env.project, location, sessionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, location)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try Effect.forEach(
+        [...new Set([env.region, ...LIST_LOCATIONS])],
+        effect (location) => try listLocation(env.project, location),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const sessionId = try toPhysicalId(
+        id,
+        news.sessionId,
+        output?.sessionId,
+        MAX_WORKLOAD_ID_LENGTH,
+        "session",
+      )
+      const name = resourceName(env.project, location, sessionId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const desired = desiredBody(news, name, desiredLabels)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = dataproc
+          .createProjectsLocationsSessions({
+            parent: locationParent(env.project, location),
+            sessionId,
+            body: desired,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+        current = try waitUntilReady(name)
+      }
+
+      if (current === undefined) {
+        throw new SessionNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, location)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      const operation = dataproc
+        .deleteProjectsLocationsSessions({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

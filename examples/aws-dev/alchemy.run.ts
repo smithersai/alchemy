@@ -3,7 +3,7 @@ import * as S3 from "@alchemy.run/aws/S3";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import ApiFunction from "./src/ApiFunction.ts";
+import ApiFunction from "./src/ApiFunction.vibe";
 
 export default Alchemy.Stack(
   "aws-dev",

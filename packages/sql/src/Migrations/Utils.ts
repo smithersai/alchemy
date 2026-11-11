@@ -1,4 +1,4 @@
-import type { MigrationDialect } from "./Format.ts";
+import type { MigrationDialect } from "./Format.vibe";
 
 /** Matches drizzle-kit v1 migration directories: `YYYYMMDDHHMMSS_name`. */
 export const DRIZZLE_DIR_PATTERN = /^\d{14}_.+/;

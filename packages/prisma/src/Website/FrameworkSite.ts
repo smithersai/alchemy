@@ -9,11 +9,11 @@ import { Server, type ServerDevProps } from "alchemy/Website/Server";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import { Compute, type ComputeProps } from "../Compute.ts";
-import { CustomDomain } from "../CustomDomain.ts";
-import { Project } from "../Project.ts";
-import type { Providers } from "../Providers.ts";
+import { CustomDomain } from "../CustomDomain.vibe";
+import { Project } from "../Project.vibe";
+import type { Providers } from "../Providers.vibe";
 import type { PrismaRegionId } from "../Types.ts";
-import { WebsiteArtifact } from "./Artifact.ts";
+import { WebsiteArtifact } from "./Artifact.vibe";
 
 /** A Prisma Project resource, ID, or lightweight ID reference. */
 export type WebsiteProjectReference =

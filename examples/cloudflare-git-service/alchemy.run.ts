@@ -27,7 +27,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
  */
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import GitHost from "./src/api/host.ts";
+import GitHost from "./src/api/host.vibe";
 
 export default Alchemy.Stack(
   "GitServiceExample",

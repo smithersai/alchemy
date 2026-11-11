@@ -1,6 +1,6 @@
 import * as microvms from "@distilled.cloud/aws/lambda-microvms";
-import { CreateAuthToken } from "./CreateAuthToken.ts";
-import { makeImageBinding } from "./MicrovmBinding.ts";
+import { CreateAuthToken } from "./CreateAuthToken.vibe";
+import { makeImageBinding } from "./MicrovmBinding.vibe";
 
 export const CreateAuthTokenHttp = makeImageBinding({
   binding: CreateAuthToken,

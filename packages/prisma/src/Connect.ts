@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { identity } from "effect/Function";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import type { Connection } from "./Connection.ts";
+import type { Connection } from "./Connection.vibe";
 import { envName } from "./internal/EnvName.ts";
 
 /**

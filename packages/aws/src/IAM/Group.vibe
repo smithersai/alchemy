@@ -1,0 +1,385 @@
+import * as iam from "@distilled.cloud/aws/iam"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { parsePolicyDocument, stringifyPolicyDocument } from "./common.vibe"
+import type { PolicyDocument } from "./Policy.vibe"
+
+export interface GroupProps {
+  /**
+   * Group name. If omitted, a deterministic name is generated.
+   */
+  groupName?: string
+  /**
+   * Optional IAM path prefix.
+   * @default "/"
+   */
+  path?: string
+  /**
+   * Managed policy ARNs attached to the group.
+   */
+  managedPolicyArns?: string[]
+  /**
+   * Inline policies embedded in the group.
+   */
+  inlinePolicies?: Record<string, PolicyDocument>
+}
+
+export interface Group extends
+  Resource<
+    "AWS.IAM.Group",
+    GroupProps,
+    {
+      /** The ARN of the group. */
+      groupArn: string
+      /** The name of the group. */
+      groupName: string
+      /** The stable unique ID of the group. */
+      groupId: string | undefined
+      /** The IAM path of the group. */
+      path: string | undefined
+      /** Managed policy ARNs attached to the group. */
+      managedPolicyArns: string[]
+      /** Inline policies embedded in the group, keyed by policy name. */
+      inlinePolicies: Record<string, PolicyDocument>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An IAM group that can own managed and inline policies.
+ *
+ * `Group` manages a shared authorization container for IAM users, including
+ * attached managed policies and embedded inline policies.
+ * ### Creating IAM Groups
+ * **Example:** Group with an Inline Policy
+ * ```typescript
+ * const group = yield* Group("SupportGroup", {
+ *   groupName: "support",
+ *   inlinePolicies: {
+ *     SupportReadOnly: {
+ *       Version: "2012-10-17",
+ *       Statement: [{
+ *         Effect: "Allow",
+ *         Action: ["cloudwatch:Get*", "cloudwatch:List*"],
+ *         Resource: ["*"],
+ *       }],
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Group = Resource<Group>("AWS.IAM.Group")
+
+export const GroupProvider = (): infer _ =>
+  Provider.effect(
+    Group,
+    effect {
+      const toName = effect (
+        id: string,
+        props: GroupProps,
+      ) => (props.groupName ? props.groupName : try createPhysicalName({ id, maxLength: 128 }))
+
+      const readInlinePolicies = effect (groupName: string) => {
+        const policyNames = Array.from(
+          try (iam.listGroupPolicies.items({ GroupName: groupName })
+            |> Stream.runCollect(%)),
+        )
+        const entries = try Effect.forEach(policyNames, effect (policyName) =>
+          (effect {
+            return ([
+              policyName,
+              parsePolicyDocument(
+                (try iam
+                  .getGroupPolicy({
+                    GroupName: groupName,
+                    PolicyName: policyName,
+                  })).PolicyDocument,
+              ),
+            ] as const)
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: [policyName, undefined] as const;
+            default: throw e;
+          })
+        return Object.fromEntries(
+          entries.filter((entry): entry is [string, PolicyDocument] => entry[1] !== undefined),
+        )
+      }
+
+      const readManagedPolicies = effect (groupName: string) => {
+        const attached = Array.from(
+          try (iam.listAttachedGroupPolicies.items({ GroupName: groupName })
+            |> Stream.runCollect(%)),
+        )
+        return attached
+          .map((policy) => policy.PolicyArn)
+          .filter((policyArn): policyArn is string => typeof policyArn === "string")
+      }
+
+      const syncManagedPolicies = effect ({
+        groupName,
+        olds,
+        news,
+      }: {
+        groupName: string
+        olds: string[]
+        news: string[]
+      }) => {
+        const oldSet = new Set(olds)
+        const newSet = new Set(news)
+        for (const policyArn of news) {
+          if (!oldSet.has(policyArn)) {
+            try iam.attachGroupPolicy({
+              GroupName: groupName,
+              PolicyArn: policyArn,
+            })
+          }
+        }
+        for (const policyArn of olds) {
+          if (!newSet.has(policyArn)) {
+            iam
+              .detachGroupPolicy({
+                GroupName: groupName,
+                PolicyArn: policyArn,
+              }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchEntityException" }: undefined as void;
+                default: throw e;
+              }
+          }
+        }
+      }
+
+      const syncInlinePolicies = effect ({
+        groupName,
+        olds,
+        news,
+      }: {
+        groupName: string
+        olds: Record<string, PolicyDocument>
+        news: Record<string, PolicyDocument>
+      }) => {
+        for (const [policyName, document] of Object.entries(news)) {
+          if (JSON.stringify(olds[policyName] ?? null) !== JSON.stringify(document)) {
+            try iam.putGroupPolicy({
+              GroupName: groupName,
+              PolicyName: policyName,
+              PolicyDocument: stringifyPolicyDocument(document),
+            })
+          }
+        }
+        for (const policyName of Object.keys(olds)) {
+          if (!(policyName in news)) {
+            iam
+              .deleteGroupPolicy({
+                GroupName: groupName,
+                PolicyName: policyName,
+              }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchEntityException" }: undefined as void;
+                default: throw e;
+              }
+          }
+        }
+      }
+
+      return {
+        stables: ["groupArn", "groupName", "groupId"],
+        // IAM is global (no region). Enumerate every group via the paginated
+        // `listGroups`, then hydrate each into the full `read` Attributes shape
+        // by reading its attached managed policies and embedded inline policies.
+        list: effect () => {
+          const groups = Array.from(
+            try (iam.listGroups.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Groups ?? [])
+          const hydrated = try Effect.forEach(
+            groups,
+            effect (group) =>
+              (effect {
+                return (try effect {
+                  const [managedPolicyArns, inlinePolicies] = try Effect.all([
+                    readManagedPolicies(group.GroupName),
+                    readInlinePolicies(group.GroupName),
+                  ])
+                  return {
+                    groupArn: group.Arn,
+                    groupName: group.GroupName,
+                    groupId: group.GroupId,
+                    path: group.Path,
+                    managedPolicyArns,
+                    inlinePolicies,
+                  }
+                })
+              }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchEntityException" }: undefined;
+                default: throw e;
+              },
+            { concurrency: 10 },
+          )
+          return hydrated.filter((g) => g !== undefined)
+        },
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? ({} as GroupProps))) !== (try toName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+          if ((olds?.path ?? "/") !== (resolved.path ?? "/")) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const groupName = output?.groupName ?? (try toName(id, olds ?? ({} as GroupProps)))
+          const response = iam
+            .getGroup({
+              GroupName: groupName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: undefined;
+              default: throw e;
+            }
+          if (!response?.Group?.Arn) {
+            return undefined
+          }
+          const [managedPolicyArns, inlinePolicies] = try Effect.all([
+            readManagedPolicies(groupName),
+            readInlinePolicies(groupName),
+          ])
+          return {
+            groupArn: response.Group.Arn,
+            groupName: response.Group.GroupName,
+            groupId: response.Group.GroupId,
+            path: response.Group.Path,
+            managedPolicyArns,
+            inlinePolicies,
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const groupName = output?.groupName ?? (try toName(id, news))
+
+          // Observe — fetch the live group. `getGroup` returns
+          // `NoSuchEntityException` when the group has not been created or
+          // was deleted out-of-band, in which case we fall through to the
+          // ensure step below.
+          let observed = iam
+            .getGroup({ GroupName: groupName }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: undefined;
+              default: throw e;
+            }
+
+          // Ensure — create the group when it is missing. A concurrent
+          // peer reconciler may win the race, so tolerate
+          // `EntityAlreadyExistsException` and reload.
+          if (!observed?.Group?.Arn) {
+            observed = {
+              Group: (iam
+                .createGroup({
+                  GroupName: groupName,
+                  Path: news.path,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "EntityAlreadyExistsException" }: try iam.getGroup({ GroupName: groupName });
+                  default: throw e;
+                }).Group,
+              Users: [],
+              IsTruncated: false,
+            }
+          }
+
+          // Sync — for each mutable aspect, diff observed against desired
+          // and apply only the delta. We trust the cloud as the source of
+          // truth instead of relying on `olds`.
+          const [observedManagedPolicies, observedInlinePolicies] = try Effect.all([
+            readManagedPolicies(groupName),
+            readInlinePolicies(groupName),
+          ])
+
+          try syncManagedPolicies({
+            groupName,
+            olds: observedManagedPolicies,
+            news: news.managedPolicyArns ?? [],
+          })
+          try syncInlinePolicies({
+            groupName,
+            olds: observedInlinePolicies,
+            news: news.inlinePolicies ?? {},
+          })
+
+          const groupArn = observed.Group?.Arn ?? groupName
+          try session.note(groupArn)
+          return {
+            groupArn,
+            groupName,
+            groupId: observed.Group?.GroupId,
+            path: observed.Group?.Path ?? news.path ?? "/",
+            managedPolicyArns: news.managedPolicyArns ?? [],
+            inlinePolicies: news.inlinePolicies ?? {},
+          }
+        },
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (iam.getGroup.items({ GroupName: output.groupName })
+              |> Stream.mapEffect(%, effect (user) => (user.UserName
+                ? iam
+                  .removeUserFromGroup({
+                    GroupName: output.groupName,
+                    UserName: user.UserName,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: undefined as void;
+                    default: throw e;
+                  }
+                : (undefined as void)))
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined as void;
+            default: throw e;
+          }
+          ;(effect {
+            return (try (iam.listGroupPolicies.items({ GroupName: output.groupName })
+              |> Stream.mapEffect(%, effect (policyName) =>
+                iam
+                  .deleteGroupPolicy({
+                    GroupName: output.groupName,
+                    PolicyName: policyName,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: undefined as void;
+                    default: throw e;
+                  })
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined as void;
+            default: throw e;
+          }
+          ;(effect {
+            return (try (iam.listAttachedGroupPolicies.items({ GroupName: output.groupName })
+              |> Stream.mapEffect(%, effect (policy) => (policy.PolicyArn
+                ? iam
+                  .detachGroupPolicy({
+                    GroupName: output.groupName,
+                    PolicyArn: policy.PolicyArn,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "NoSuchEntityException" }: undefined as void;
+                    default: throw e;
+                  }
+                : (undefined as void)))
+              |> Stream.runDrain(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined as void;
+            default: throw e;
+          }
+          iam
+            .deleteGroup({
+              GroupName: output.groupName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

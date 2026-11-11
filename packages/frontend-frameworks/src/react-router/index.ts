@@ -29,7 +29,7 @@ import type * as FileSystem from "effect/FileSystem";
 import type * as Layer from "effect/Layer";
 import type * as Path from "effect/Path";
 import type { Framework } from "../core/index.ts";
-import { layer, type ReactRouterOptions } from "./ReactRouter.ts";
+import { layer, type ReactRouterOptions } from "./ReactRouter.vibe";
 
 export {
   captureOutDirPlugin,
@@ -57,7 +57,7 @@ export {
   type ReactRouterViteDevServer,
   type ReactRouterViteModule,
   type ResolvedViteBuildSlice,
-} from "./ReactRouter.ts";
+} from "./ReactRouter.vibe";
 
 /**
  * The structural subset of the e2e harness's `Options` this package reads.

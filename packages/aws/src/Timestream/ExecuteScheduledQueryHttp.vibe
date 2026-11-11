@@ -1,0 +1,54 @@
+import * as TSQ from "@distilled.cloud/aws/timestream-query"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { ExecuteScheduledQuery, type ExecuteScheduledQueryRequest } from "./ExecuteScheduledQuery.vibe"
+import { discover, withEndpoint } from "./internal.vibe"
+import type { ScheduledQuery } from "./ScheduledQuery.vibe"
+
+// Bespoke (not on the BindingHttp scaffold): the only Timestream binding
+// scoped to a ScheduledQuery rather than a Table or the account.
+export const ExecuteScheduledQueryHttp = Layer.effect(
+  ExecuteScheduledQuery,
+  effect {
+    const bind = try AWSBindings.Bind
+    // Yield-first captures the operations' services (Credentials/Region/
+    // HttpClient) at layer init so the runtime callable is requirement-free.
+    const executeScheduledQuery = try AWSBindings.withCredentials(TSQ.executeScheduledQuery)
+    const describeEndpoints = try AWSBindings.withCredentials(TSQ.describeEndpoints)
+    const withQueryEndpoint = withEndpoint(discover("query", describeEndpoints({})))
+    return effect (scheduledQuery: ScheduledQuery) => {
+      const ScheduledQueryArn = try scheduledQuery.scheduledQueryArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Timestream.ExecuteScheduledQuery(${scheduledQuery})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["timestream:ExecuteScheduledQuery"],
+              Resource: [Output.interpolate`${scheduledQuery.scheduledQueryArn}`],
+            },
+            // Endpoint discovery is required and is not scoped to a
+            // resource.
+            {
+              Effect: "Allow",
+              Action: ["timestream:DescribeEndpoints"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return effect (request: ExecuteScheduledQueryRequest) =>
+        try withSpan(
+          effect {
+            return try withQueryEndpoint(
+              executeScheduledQuery({
+                ...request,
+                ScheduledQueryArn: try ScheduledQueryArn,
+              }),
+            )
+          },
+          `AWS.Timestream.ExecuteScheduledQuery(${scheduledQuery.LogicalId})`,
+        )
+    }
+  },
+)

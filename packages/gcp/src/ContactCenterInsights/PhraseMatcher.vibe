@@ -1,0 +1,404 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  jsonEqual,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  sameText,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type PhraseMatcherType = "PHRASE_MATCHER_TYPE_UNSPECIFIED" | "ALL_OF" | "ANY_OF"
+
+export type PhraseMatcherRole =
+  | "ROLE_UNSPECIFIED"
+  | "HUMAN_AGENT"
+  | "AUTOMATED_AGENT"
+  | "END_USER"
+  | "ANY_AGENT"
+
+export type PhraseMatchRuleGroupType =
+  | "PHRASE_MATCH_RULE_GROUP_TYPE_UNSPECIFIED"
+  | "ALL_OF"
+  | "ANY_OF"
+
+export type ExactMatchConfig = {
+  /** Whether matching is case sensitive. */
+  caseSensitive?: boolean
+}
+
+export type PhraseMatchRule = {
+  /** Phrase or regex to match. */
+  query?: string
+  /** When true, the phrase must be absent from the transcript. */
+  negated?: boolean
+  /** Match configuration. */
+  config?: {
+    /** Exact-match options. */
+    exactMatchConfig?: ExactMatchConfig
+  }
+}
+
+export type PhraseMatchRuleGroup = {
+  /** How rules in this group combine (`ALL_OF` or `ANY_OF`). */
+  type?: PhraseMatchRuleGroupType
+  /** Phrase match rules in this group. */
+  phraseMatchRules?: PhraseMatchRule[]
+}
+
+export type PhraseMatcherProps = {
+  /**
+   * Phrase matcher id (the `{phrase_matcher}` segment of
+   * `projects/{project}/locations/{location}/phraseMatchers/{phrase_matcher}`).
+   * If omitted, a unique id is generated. Immutable — changing it replaces
+   * the matcher.
+   */
+  phraseMatcherId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * matcher. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Display name. Phrase matchers have no labels field, so Alchemy
+   * ownership is stored in a `[alchemy …]` prefix and stripped from
+   * attributes.
+   */
+  displayName?: string
+  /**
+   * How rule groups combine. Required by the API.
+   * @default "ALL_OF"
+   */
+  type?: PhraseMatcherType
+  /**
+   * When true, the matcher is applied to conversations.
+   * @default false
+   */
+  active?: boolean
+  /**
+   * Speaker role whose utterances this matcher evaluates.
+   */
+  roleMatch?: PhraseMatcherRole
+  /**
+   * Custom version tag. Defaults to the server revision id when omitted.
+   */
+  versionTag?: string
+  /**
+   * Phrase match rule groups.
+   */
+  phraseMatchRuleGroups?: PhraseMatchRuleGroup[]
+}
+
+export type PhraseMatcher = Resource<
+  "GCP.ContactCenterInsights.PhraseMatcher",
+  PhraseMatcherProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/phraseMatchers/{phrase_matcher}`. */
+    name: string
+    /** Phrase matcher id (last path segment). */
+    phraseMatcherId: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** How rule groups combine. */
+    type: string | undefined
+    /** Whether the matcher is active. */
+    active: boolean
+    /** Speaker role match. */
+    roleMatch: string | undefined
+    /** Custom version tag. */
+    versionTag: string | undefined
+    /** Phrase match rule groups. */
+    phraseMatchRuleGroups: PhraseMatchRuleGroup[] | undefined
+    /** Server revision id. */
+    revisionId: string | undefined
+    /** RFC3339 revision create timestamp. */
+    revisionCreateTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** RFC3339 last activation-status change. */
+    activationUpdateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Insights phrase matcher that flags conversations
+ * containing configured phrases.
+ *
+ * Phrase matchers have no labels field — Alchemy stamps ownership into
+ * the display name so `list` / nuke can find them. Location and id are
+ * immutable. Display name, type, active flag, role, version tag, and
+ * rule groups update in place.
+ *
+ * ### Creating a Phrase Matcher
+ * **Example:** Inactive exact-match matcher
+ * ```typescript
+ * const matcher = yield* GCP.ContactCenterInsights.PhraseMatcher("Refunds", {
+ *   displayName: "refunds",
+ *   type: "ALL_OF",
+ *   active: false,
+ *   phraseMatchRuleGroups: [
+ *     {
+ *       type: "ANY_OF",
+ *       phraseMatchRules: [
+ *         {
+ *           query: "refund",
+ *           config: { exactMatchConfig: { caseSensitive: false } },
+ *         },
+ *       ],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const PhraseMatcher = Resource<PhraseMatcher>("GCP.ContactCenterInsights.PhraseMatcher")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class PhraseMatcherNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.PhraseMatcherNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const DEFAULT_TYPE: PhraseMatcherType = "ALL_OF"
+
+const resourceName = (project: string, location: string, phraseMatcherId: string): infer _ =>
+  `${locationParent(project, location)}/phraseMatchers/${phraseMatcherId}`
+
+const groupsOf = (
+  groups: cci.GoogleCloudContactcenterinsightsV1PhraseMatchRuleGroupList | undefined,
+): PhraseMatchRuleGroup[] | undefined => {
+  if (groups === undefined) return undefined
+  return groups.map((group) => ({
+    type: group.type as PhraseMatchRuleGroupType | undefined,
+    phraseMatchRules: group.phraseMatchRules?.map((rule) => ({
+      query: rule.query,
+      negated: rule.negated,
+      config: rule.config
+        ? {
+          exactMatchConfig: rule.config.exactMatchConfig
+            ? {
+              caseSensitive: rule.config.exactMatchConfig.caseSensitive,
+            }
+            : undefined,
+        }
+        : undefined,
+    })),
+  }))
+}
+
+const toAttrs = (matcher: cci.GoogleCloudContactcenterinsightsV1PhraseMatcher, project: string): infer _ => {
+  const name = matcher.name ?? ""
+  const parsed = parseOwnership(matcher.displayName)
+  return {
+    name,
+    phraseMatcherId: lastSegment(name),
+    location: locationOf(name),
+    project,
+    displayName: parsed.text,
+    type: matcher.type,
+    active: matcher.active === true,
+    roleMatch: matcher.roleMatch,
+    versionTag: matcher.versionTag,
+    phraseMatchRuleGroups: groupsOf(matcher.phraseMatchRuleGroups),
+    revisionId: matcher.revisionId,
+    revisionCreateTime: matcher.revisionCreateTime,
+    updateTime: matcher.updateTime,
+    activationUpdateTime: matcher.activationUpdateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
+  .getProjectsLocationsPhraseMatchers({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsPhraseMatchers.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.phraseMatchers ?? []))
+        |> Stream.filter(%, (matcher) => hasOwnershipMarker(matcher.displayName))
+        |> Stream.map(%, (matcher) => toAttrs(matcher, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (effect {
+    return (try effect {
+      const option = try (cci.listProjectsLocationsPhraseMatchers.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.phraseMatchers ?? []))
+        |> Stream.filter(%, (matcher) => matcher.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+export const PhraseMatcherProvider = (): infer _ =>
+  Provider.succeed(PhraseMatcher, {
+    stables: ["name", "phraseMatcherId", "location", "project", "revisionCreateTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        previousLocation !== undefined
+        && resolved.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.phraseMatcherId ?? output?.phraseMatcherId
+      if (
+        previousId !== undefined
+        && resolved.phraseMatcherId !== undefined
+        && resolved.phraseMatcherId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const knownId = olds?.phraseMatcherId ?? output?.phraseMatcherId
+      const name = output?.name ?? (knownId ? resourceName(env.project, location, knownId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined) {
+        const ownership = try createInternalLabels(id)
+        existing = try findByDisplayName(
+          locationParent(env.project, location),
+          encodeOwnershipLine(ownership, olds?.displayName),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const parent = locationParent(env.project, location)
+      const knownId = news.phraseMatcherId ?? output?.phraseMatcherId
+      const name = output?.name ?? (knownId ? resourceName(env.project, location, knownId) : "")
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(ownership, news.displayName)
+      const type = news.type ?? DEFAULT_TYPE
+      const active = news.active === true
+      const phraseMatchRuleGroups = news.phraseMatchRuleGroups
+
+      let current = try getByName(name)
+      if (current === undefined) {
+        current = try findByDisplayName(parent, displayName)
+      }
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsPhraseMatchers({
+            parent,
+            body: {
+              displayName,
+              type,
+              active,
+              roleMatch: news.roleMatch,
+              versionTag: news.versionTag,
+              phraseMatchRuleGroups,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findByDisplayName(parent, displayName);
+            default: throw e;
+          }
+        current = created ?? (try findByDisplayName(parent, displayName))
+      }
+
+      if (current === undefined) {
+        throw new PhraseMatcherNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const typeChanged = (current.type ?? DEFAULT_TYPE) !== type
+      const activeChanged = (current.active === true) !== active
+      const roleChanged = !sameText(current.roleMatch, news.roleMatch)
+      const versionChanged = !sameText(current.versionTag, news.versionTag)
+      const groupsChanged = !jsonEqual(
+        groupsOf(current.phraseMatchRuleGroups),
+        phraseMatchRuleGroups,
+      )
+
+      if (
+        displayChanged
+        || typeChanged
+        || activeChanged
+        || roleChanged
+        || versionChanged
+        || groupsChanged
+      ) {
+        current = try cci.patchProjectsLocationsPhraseMatchers({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            typeChanged ? "type" : undefined,
+            activeChanged ? "active" : undefined,
+            roleChanged ? "role_match" : undefined,
+            versionChanged ? "version_tag" : undefined,
+            groupsChanged ? "phrase_match_rule_groups" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            type,
+            active,
+            roleMatch: news.roleMatch,
+            versionTag: news.versionTag,
+            phraseMatchRuleGroups,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsPhraseMatchers({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

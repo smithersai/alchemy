@@ -1,0 +1,79 @@
+import * as Drizzle from "@alchemy.run/drizzle/Postgres"
+import * as Hetzner from "@alchemy.run/hetzner"
+import { desc, sql } from "drizzle-orm"
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { ENSURE_NOTES_SQL, Notes } from "./schema.ts"
+import { API_PORT, Box, NeonBranch } from "./shared.vibe"
+
+const cors = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET,POST,OPTIONS",
+  "access-control-allow-headers": "content-type",
+}
+
+const json = (value: unknown, status = 200) => HttpServerResponse.json(value, { status, headers: cors })
+
+/**
+ * Effect HTTP API on the shared Hetzner Server. Reads `DATABASE_URL`
+ * (the Neon branch URI) and serves `/notes` for the Vite SPA.
+ */
+export default class Api extends Hetzner.Service<Api>()(
+  "Api",
+  effect {
+    const server = try Box
+    const branch = try NeonBranch
+    return {
+      server,
+      main: import.meta.url,
+      port: API_PORT,
+      env: {
+        DATABASE_URL: branch.connectionUri,
+      },
+    }
+  },
+  Effect.succeed({
+    fetch: effect {
+      const databaseUrl = try Config.Redacted("DATABASE_URL")
+      const db = try Drizzle.Postgres(Effect.succeed(databaseUrl))
+      const request = try HttpServerRequest
+      const path = new URL(request.url, "http://service").pathname
+      if (request.method === "OPTIONS") {
+        return try json({}, 204)
+      }
+      const ensure = try Effect.orDie(Effect.try({ try: () => sql.raw(ENSURE_NOTES_SQL), catch: (e) => e }))
+      try db.execute(ensure)
+      if (path === "/health") {
+        return try json({ ok: true })
+      }
+      if (path === "/notes" && request.method === "GET") {
+        const query = try Effect.orDie(
+          Effect.try({ try: () => db.select().from(Notes).orderBy(desc(Notes.createdAt)), catch: (e) => e }),
+        )
+        const notes = try query
+        return try json({ notes })
+      }
+      if (path === "/notes" && request.method === "POST") {
+        const raw = try request.text.pipe(Effect.orDie)
+        const payload = try Effect.orDie(
+          Effect.try({ try: () => JSON.parse(raw) as { body?: unknown }, catch: (e) => e }),
+        )
+        const body = typeof payload.body === "string" ? payload.body.trim() : ""
+        if (body.length === 0) {
+          return try json({ error: "body required" }, 400)
+        }
+        const query = try Effect.orDie(
+          Effect.try({ try: () => db.insert(Notes).values({ body }).returning(), catch: (e) => e }),
+        )
+        const [note] = try query
+        return try json({ note }, 201)
+      }
+      return try json({ error: "not found" }, 404)
+    }.pipe(
+      Effect.catch((cause: unknown) => json({ ok: false, error: String(cause) }, 500)),
+      Effect.orDie,
+    ),
+  }),
+) {}

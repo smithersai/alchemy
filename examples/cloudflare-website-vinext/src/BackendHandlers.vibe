@@ -1,0 +1,75 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder"
+import { BackendApi, Note, NotesList } from "./BackendApi.vibe"
+import { DB } from "./Bindings"
+import { randomUUID } from "./crypto.platform.ts"
+
+export const BackendHandlers = HttpApiBuilder.group(
+  BackendApi,
+  "Backend",
+  effect (handlers) => {
+    const db = try Cloudflare.D1.QueryDatabase(DB)
+
+    return handlers
+      .handle("listNotes", () =>
+        Effect.orDie(
+          Effect.try({
+            try: () => db.prepare("SELECT id, title, source, created_at FROM notes ORDER BY created_at DESC"),
+            catch: (e) => e,
+          }),
+        ).pipe(
+          Effect.flatMap((statement) =>
+            statement.all<{
+              id: string
+              title: string
+              source: string
+              created_at: number
+            }>()
+          ),
+          Effect.map(
+            ({ results }) =>
+              new NotesList({
+                notes: (results ?? []).map(
+                  (row) =>
+                    new Note({
+                      id: row.id,
+                      title: row.title,
+                      source: row.source,
+                      createdAt: row.created_at,
+                    }),
+                ),
+              }),
+          ),
+          Effect.orDie,
+        ))
+      .handle("createNote", ({ payload }) =>
+        effect {
+          const note = new Note({
+            id: try randomUUID(),
+            title: payload.title,
+            source: "effect-httpapi",
+            createdAt: Date.now(),
+          })
+          const statement = try Effect.orDie(
+            Effect.try({
+              try: () =>
+                db
+                  .prepare("INSERT INTO notes (id, title, source, created_at) VALUES (?, ?, ?, ?)")
+                  .bind(note.id, note.title, note.source, note.createdAt),
+              catch: (e) => e,
+            }),
+          )
+          try statement.run()
+          return note
+        }.pipe(Effect.orDie))
+      .handle("deleteNote", ({ params }) =>
+        Effect.orDie(
+          Effect.try({ try: () => db.prepare("DELETE FROM notes WHERE id = ?").bind(params.id), catch: (e) => e }),
+        ).pipe(
+          Effect.flatMap((statement) => statement.run()),
+          Effect.asVoid,
+          Effect.orDie,
+        ))
+  },
+)

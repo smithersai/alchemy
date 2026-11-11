@@ -1,0 +1,249 @@
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
+import * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { detectorIdentity, matchesDetectorIdentity, retryConcurrent } from "./common.vibe"
+
+class AnomalyDetectorNotVisible extends $MutableErrorBase("AnomalyDetectorNotVisible")<{
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "AnomalyDetectorNotVisible", true)
+  }
+}
+
+export interface AnomalyDetectorProps extends cloudwatch.PutAnomalyDetectorInput {}
+
+export interface AnomalyDetector extends
+  Resource<
+    "AWS.CloudWatch.AnomalyDetector",
+    AnomalyDetectorProps,
+    {
+      /** Synthetic identifier derived from the detector's metric identity. */
+      detectorId: string
+      /** The full AnomalyDetector description as last read from CloudWatch. */
+      anomalyDetector: cloudwatch.AnomalyDetector
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch anomaly detector — trains a model on a metric's historical
+ * data and computes an expected-value band, which alarms can use via the
+ * `ANOMALY_DETECTION_BAND` metric-math function.
+ * ### Creating Detectors
+ * **Example:** Single Metric Detector
+ * ```typescript
+ * const detector = yield* AnomalyDetector("ErrorsDetector", {
+ *   Namespace: "AWS/Lambda",
+ *   MetricName: "Errors",
+ *   Stat: "Sum",
+ * });
+ * ```
+ *
+ * **Example:** Detector on a Custom Metric
+ * ```typescript
+ * // pair with PutMetricData publishing to the same namespace/metric
+ * const detector = yield* AnomalyDetector("PaymentsDetector", {
+ *   Namespace: "MyApp/Payments",
+ *   MetricName: "PaymentProcessed",
+ *   Stat: "Sum",
+ * });
+ * ```
+ *
+ * ### Reading Detectors at Runtime
+ * **Example:** List Detectors from a Function
+ * ```typescript
+ * // init — see DescribeAnomalyDetectors
+ * const describeAnomalyDetectors = yield* AWS.CloudWatch.DescribeAnomalyDetectors();
+ *
+ * // runtime
+ * const result = yield* describeAnomalyDetectors({ Namespace: "MyApp/Payments" });
+ * ```
+ *
+ * @resource
+ */
+export const AnomalyDetector = Resource<AnomalyDetector>("AWS.CloudWatch.AnomalyDetector")
+
+const toDescribeRequest = (
+  input: cloudwatch.PutAnomalyDetectorInput,
+): cloudwatch.DescribeAnomalyDetectorsInput => {
+  if (input.MetricMathAnomalyDetector) {
+    return {
+      AnomalyDetectorTypes: ["METRIC_MATH"],
+    }
+  }
+
+  return {
+    Namespace: input.Namespace,
+    MetricName: input.MetricName,
+    Dimensions: input.Dimensions,
+    AnomalyDetectorTypes: ["SINGLE_METRIC"],
+  }
+}
+
+const toDeleteRequest = (
+  input: Pick<
+    cloudwatch.AnomalyDetector,
+    | "Namespace"
+    | "MetricName"
+    | "Dimensions"
+    | "Stat"
+    | "SingleMetricAnomalyDetector"
+    | "MetricMathAnomalyDetector"
+  >,
+): cloudwatch.DeleteAnomalyDetectorInput => {
+  if (input.MetricMathAnomalyDetector) {
+    return {
+      MetricMathAnomalyDetector: input.MetricMathAnomalyDetector,
+    }
+  }
+
+  if (input.SingleMetricAnomalyDetector) {
+    return {
+      SingleMetricAnomalyDetector: input.SingleMetricAnomalyDetector,
+    }
+  }
+
+  return {
+    Namespace: input.Namespace,
+    MetricName: input.MetricName,
+    Dimensions: input.Dimensions,
+    Stat: input.Stat,
+  }
+}
+
+const detectorReadinessSchedule = Schedule.max([Schedule.exponential(200), Schedule.recurs(8)])
+
+const describeDetector = effect (
+  props: cloudwatch.PutAnomalyDetectorInput,
+  options?: {
+    resourceId?: string
+    attempt?: number
+    logMisses?: boolean
+  },
+) => {
+  const request = toDescribeRequest(props)
+  // Stop paginating at the first identity match; a miss drains every page
+  // anyway, which is exactly what the miss diagnostics below need.
+  const detectors = Array.from(
+    try (cloudwatch.describeAnomalyDetectors.items(request)
+      |> Stream.takeUntil(%, (candidate) => matchesDetectorIdentity(candidate, props))
+      |> Stream.runCollect(%)),
+  )
+  const detector = detectors.find((candidate) => matchesDetectorIdentity(candidate, props))
+
+  if (!detector && options?.logMisses) {
+    const prefix = options.resourceId
+      ? `${options.resourceId}: anomaly detector not yet visible`
+      : "anomaly detector not yet visible"
+    const attempt = options.attempt === undefined ? "" : ` (attempt ${options.attempt})`
+
+    try Effect.logInfo(
+      `${prefix}${attempt}; request=${JSON.stringify(request)} candidates=${
+        JSON.stringify(
+          detectors.map((candidate) => ({
+            identity: detectorIdentity(candidate),
+            Namespace: candidate.Namespace,
+            MetricName: candidate.MetricName,
+            Stat: candidate.Stat,
+            SingleMetricAnomalyDetector: candidate.SingleMetricAnomalyDetector,
+            MetricMathAnomalyDetector: candidate.MetricMathAnomalyDetector,
+          })),
+        )
+      }`,
+    )
+  }
+
+  return detector
+}
+
+export const AnomalyDetectorProvider = (): infer _ =>
+  Provider.succeed(AnomalyDetector, {
+    stables: ["detectorId"],
+    list: effect () =>
+      Array.from(
+        try (cloudwatch.describeAnomalyDetectors.pages({})
+          |> Stream.runCollect(%)),
+      ).flatMap((page) =>
+        (page.AnomalyDetectors ?? []).map((detector) => ({
+          detectorId: detectorIdentity(detector),
+          anomalyDetector: detector,
+        }))
+      ),
+    diff: effect ({ olds = {}, news = {} }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (
+        (try Effect.orDie(Effect.try({ try: () => detectorIdentity(olds), catch: (e) => e })))
+        !== (try Effect.orDie(Effect.try({ try: () => detectorIdentity(resolved), catch: (e) => e })))
+      ) {
+        return { action: "replace" } as const
+      }
+    },
+    read: effect ({ olds, output }) => {
+      const props = output?.anomalyDetector ?? olds
+      if (!props) {
+        return undefined
+      }
+
+      const detector = try describeDetector(props)
+
+      if (!detector) {
+        return undefined
+      }
+
+      return {
+        detectorId: try Effect.orDie(Effect.try({ try: () => detectorIdentity(props), catch: (e) => e })),
+        anomalyDetector: detector,
+      }
+    },
+    reconcile: effect ({ news, session }) => {
+      // Ensure — `putAnomalyDetector` is an upsert keyed by the detector's
+      // identity (Namespace+MetricName+Dimensions+Stat or MetricMath
+      // expression). Sending desired props every reconcile converges the
+      // cloud regardless of whether this is first-create or an update.
+      try retryConcurrent(cloudwatch.putAnomalyDetector(news))
+      const detectorId = try Effect.orDie(Effect.try({ try: () => detectorIdentity(news), catch: (e) => e }))
+      try session.note(detectorId)
+
+      // Sync — describe the detector after the put. CloudWatch is
+      // eventually consistent for `DescribeAnomalyDetectors`, so we retry
+      // until the detector matching our identity is visible.
+      let attempt = 0
+      const state = try (Effect.suspend(effect () => {
+        attempt += 1
+        return try effect {
+          const state = try describeDetector(news, {
+            resourceId: "AnomalyDetector",
+            attempt,
+            logMisses: true,
+          })
+          return (state ? state : throw new AnomalyDetectorNotVisible({
+            message: "Anomaly detector not yet visible",
+          }))
+        }
+      })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "AnomalyDetectorNotVisible",
+          schedule: detectorReadinessSchedule,
+        }))
+
+      return {
+        detectorId,
+        anomalyDetector: state,
+      }
+    },
+    delete: effect ({ output }) => {
+      retryConcurrent(
+        cloudwatch.deleteAnomalyDetector(toDeleteRequest(output.anomalyDetector)),
+      ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined as void; default: throw e; }
+    },
+  })

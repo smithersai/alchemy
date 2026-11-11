@@ -1,6 +1,6 @@
 import { expect, test } from "@effect/vitest";
 import * as Story from "foldkit/story";
-import { UserId } from "../src/User.id.ts";
+import { UserId } from "../src/User.id.vibe";
 import { Message, type Model, SignIn, update, WriteNote } from "../src/web/Notes.ts";
 
 const signedOut: Model = { user: null, draft: "", notes: [], error: null };

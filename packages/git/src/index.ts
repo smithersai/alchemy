@@ -20,16 +20,16 @@
  * import them via `@alchemy.run/git/Protocol/Pkt` style paths when
  * needed.
  */
-export * from "./Api.ts";
-export { GitApi as Api } from "./Api.ts";
-export { Engine, EngineLive } from "./Engine.ts";
-export type { PushInput, PreparedPush, RefUpdate } from "./Push.ts";
+export * from "./Api.vibe";
+export { GitApi as Api } from "./Api.vibe";
+export { Engine, EngineLive } from "./Engine.vibe";
+export type { PushInput, PreparedPush, RefUpdate } from "./Push.vibe";
 export * as Http from "./Http.ts";
-export * as Push from "./PushInput.ts";
-export * from "./Server.ts";
-export { parseCommit, parseTree, ZERO_OID, ObjectType } from "./Protocol/ObjectCodec.ts";
-export { StoreError } from "./Protocol/Store.ts";
-export { WireProtocolError, PackIngestError } from "./RepoObject.ts";
+export * as Push from "./PushInput.vibe";
+export * from "./Server.vibe";
+export { parseCommit, parseTree, ZERO_OID, ObjectType } from "./Protocol/ObjectCodec.vibe";
+export { StoreError } from "./Protocol/Store.vibe";
+export { WireProtocolError, PackIngestError } from "./RepoObject.vibe";
 export {
   BlobStore,
   BlobStoreError,
@@ -37,10 +37,10 @@ export {
   type BlobMeta,
   type BlobMultipart,
   type BlobStoreShape,
-} from "./BlobStore.ts";
-export { BlobStoreR2 } from "./BlobStoreR2.ts";
-export { BlobStoreS3 } from "./BlobStoreS3.ts";
-export { RegistryD1 } from "./RegistryD1.ts";
+} from "./BlobStore.vibe";
+export { BlobStoreR2 } from "./BlobStoreR2.vibe";
+export { BlobStoreS3 } from "./BlobStoreS3.vibe";
+export { RegistryD1 } from "./RegistryD1.vibe";
 export {
   GitRepo,
   GitRepoLive,
@@ -52,7 +52,7 @@ export {
   RepoStore,
   type RepoStoreShape,
   type RepoStub,
-} from "./RepoObject.ts";
+} from "./RepoObject.vibe";
 export {
   Registry,
   RegistryDurableObject,
@@ -60,6 +60,6 @@ export {
   RegistryStore,
   REGISTRY_DO_NAME,
   RESERVED_OWNERS,
-} from "./RegistryObject.ts";
+} from "./RegistryObject.vibe";
 
-export { Hasher, HasherInline, HasherSelf, HASHER_BINDING } from "./Hasher/Hasher.ts";
+export { Hasher, HasherInline, HasherSelf, HASHER_BINDING } from "./Hasher/Hasher.vibe";

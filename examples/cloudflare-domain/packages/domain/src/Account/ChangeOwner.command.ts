@@ -1,8 +1,8 @@
 import * as Domain from "@alchemy.run/domain";
-import { Actor } from "../Actor.ts";
-import { CustomerId } from "../Customer/Customer.id.ts";
+import { Actor } from "../Actor.vibe";
+import { CustomerId } from "../Customer/Customer.id.vibe";
 import { Session } from "../Session.middleware.ts";
-import { AccountId } from "./Account.id.ts";
+import { AccountId } from "./Account.id.vibe";
 import { NotOpen } from "./NotOpen.rejection.ts";
 
 /** Only support agents may reassign accounts. */

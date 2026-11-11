@@ -1,0 +1,46 @@
+import * as oam from "@distilled.cloud/aws/oam"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { ListAttachedLinks, type ListAttachedLinksRequest } from "./ListAttachedLinks.vibe"
+import type { Sink } from "./Sink.vibe"
+
+/**
+ * HTTP implementation of {@link ListAttachedLinks}: grants
+ * `oam:ListAttachedLinks` on the bound sink and calls the OAM HTTP API with
+ * the function's IAM credentials, injecting the sink's ARN as the
+ * `SinkIdentifier`.
+ */
+export const ListAttachedLinksHttp = Layer.effect(
+  ListAttachedLinks,
+  effect {
+    const bind = try AWSBindings.Bind
+    const listAttachedLinks = try AWSBindings.withCredentials(oam.listAttachedLinks)
+
+    return effect (sink: Sink) => {
+      const SinkIdentifier = try sink.sinkArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.OAM.ListAttachedLinks(${sink})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["oam:ListAttachedLinks"],
+              Resource: [sink.sinkArn],
+            },
+          ],
+        })
+      }
+      return effect (
+        request?: ListAttachedLinksRequest | undefined,
+      ) =>
+        try withSpan(
+          effect {
+            return try listAttachedLinks({
+              ...request,
+              SinkIdentifier: try SinkIdentifier,
+            })
+          },
+          `AWS.OAM.ListAttachedLinks(${sink.LogicalId})`,
+        )
+    }
+  },
+)

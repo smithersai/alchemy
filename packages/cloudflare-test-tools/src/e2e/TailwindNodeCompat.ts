@@ -8,7 +8,7 @@ import Module from "node:module";
 // string ... for the "source" from the "load" hook but got undefined/null`,
 // killing every in-process vite build/dev server. Tailwind skips the
 // registration under bun (it is purely a config-import cache), so dropping
-// it is safe. Imported for its side effect from Playwright.ts so every
+// it is safe. Imported for its side effect from Playwright.vibe so every
 // playwright worker process is guarded before vite loads tailwind.
 let installed = false;
 

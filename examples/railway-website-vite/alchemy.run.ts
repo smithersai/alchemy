@@ -4,7 +4,7 @@ import * as Output from "alchemy/Output";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import Api from "./src/api.ts";
+import Api from "./src/api.vibe";
 import { Db, Site } from "./src/shared.ts";
 
 const RAILWAY_TEST_DOMAIN = Config.String("RAILWAY_TEST_DOMAIN").pipe(

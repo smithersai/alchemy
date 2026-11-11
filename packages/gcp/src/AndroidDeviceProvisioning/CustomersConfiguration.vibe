@@ -1,0 +1,407 @@
+import * as androiddeviceprovisioning from "@distilled.cloud/gcp/androiddeviceprovisioning_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_IS_DEFAULT,
+  encodeOwnershipLine,
+  findConfigurationByName,
+  findOwnedConfiguration,
+  getConfiguration,
+  hasOwnershipMarker,
+  lastSegment,
+  listOwnedConfigurations,
+  MAX_CONFIGURATION_NAME_LENGTH,
+  ownedByAlchemy,
+  ownershipLabels,
+  parentOf,
+  parseOwnership,
+  pickDpcName,
+  replaceOnIdentity,
+  sameBoolean,
+  sameText,
+  toConfigurationName,
+  toCustomerName,
+  toDisplayName,
+  toDpcName,
+  updateMaskOf,
+} from "./internal.vibe"
+
+export type CustomersConfigurationProps = {
+  /**
+   * Parent customer (`customers/{customer}` or `{customer}`). Immutable
+   * — changing it replaces the configuration.
+   */
+  parent: string
+  /**
+   * Server-assigned configuration id (last path segment). Immutable —
+   * changing it replaces the configuration.
+   */
+  configurationId?: string
+  /**
+   * DPC resource (`customers/{customer}/dpcs/{dpc}` or `{dpc}`). When
+   * omitted, Alchemy lists the customer's DPCs and prefers Android
+   * Device Policy.
+   */
+  dpcResourcePath?: string
+  /**
+   * Email shown to device users for help. Validated by the API.
+   */
+  contactEmail: string
+  /**
+   * Phone number shown to device users for help. Accepts numerals,
+   * spaces, `+`, hyphens, and parentheses.
+   */
+  contactPhone: string
+  /**
+   * Organization name shown during zero-touch setup.
+   */
+  companyName: string
+  /**
+   * Short admin-facing name. Configurations have no labels field, so
+   * Alchemy stores ownership in a `[alchemy …]` prefix and strips it
+   * from attributes.
+   */
+  configurationName?: string
+  /**
+   * JSON extras passed to the DPC at provisioning time.
+   */
+  dpcExtras?: string
+  /**
+   * Whether newly purchased devices receive this configuration.
+   * @default false
+   */
+  isDefault?: boolean
+  /**
+   * Help text shown to the device user before provisioning.
+   */
+  customMessage?: string
+  /**
+   * Factory-reset timeout when setup does not complete (for example
+   * `"7200s"`). The API default is two hours when unset.
+   */
+  forcedResetTime?: string
+}
+
+export type CustomersConfiguration = Resource<
+  "GCP.AndroidDeviceProvisioning.CustomersConfiguration",
+  CustomersConfigurationProps,
+  {
+    /** Resource name `customers/{customer}/configurations/{configuration}`. */
+    name: string
+    /** Configuration id (last path segment). */
+    configurationId: string
+    /** Parent customer name `customers/{customer}`. */
+    parent: string
+    /** Project id used when the configuration was reconciled. */
+    project: string
+    /** Admin-facing name with the Alchemy ownership prefix stripped. */
+    configurationName: string | undefined
+    /** DPC resource path applied to devices. */
+    dpcResourcePath: string | undefined
+    /** JSON extras passed to the DPC. */
+    dpcExtras: string | undefined
+    /** Organization name shown during setup. */
+    companyName: string | undefined
+    /** Help email shown to device users. */
+    contactEmail: string | undefined
+    /** Help phone shown to device users. */
+    contactPhone: string | undefined
+    /** Help message shown before provisioning. */
+    customMessage: string | undefined
+    /** Whether this is the customer's default configuration. */
+    isDefault: boolean | undefined
+    /** Factory-reset timeout duration. */
+    forcedResetTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A zero-touch enrollment configuration
+ * (`customers/{customer}/configurations/{configuration}`).
+ *
+ * Configurations have no labels field, so Alchemy stamps ownership into
+ * `configurationName` for `list` / nuke. Parent customer and
+ * configuration id are identity — changing either replaces the
+ * configuration. Contact fields, DPC, extras, default flag, custom
+ * message, and reset timeout update in place. Create requires a
+ * zero-touch customer the caller can administer.
+ *
+ * ### Creating a Configuration
+ * **Example:** Named sales profile
+ * ```typescript
+ * const config = yield* GCP.AndroidDeviceProvisioning.CustomersConfiguration(
+ *   "Sales",
+ *   {
+ *     parent: "customers/123456789",
+ *     dpcResourcePath: "customers/123456789/dpcs/abc",
+ *     companyName: "Acme",
+ *     contactEmail: "it@example.com",
+ *     contactPhone: "+1 555 0100",
+ *     configurationName: "Sales team",
+ *   },
+ * );
+ * ```
+ *
+ * **Example:** Default configuration for new devices
+ * ```typescript
+ * const config = yield* GCP.AndroidDeviceProvisioning.CustomersConfiguration(
+ *   "Default",
+ *   {
+ *     parent: customer,
+ *     dpcResourcePath: dpc,
+ *     companyName: "Acme",
+ *     contactEmail: "it@example.com",
+ *     contactPhone: "+1 555 0100",
+ *     isDefault: true,
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a Configuration
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Rename and change the help email
+ * ```typescript
+ * const config = yield* GCP.AndroidDeviceProvisioning.CustomersConfiguration(
+ *   "Sales",
+ *   {
+ *     parent: customer,
+ *     dpcResourcePath: dpc,
+ *     contactEmail: "help@example.com",
+ *     contactPhone: "+1 555 0100",
+ *     configurationName: "Field sales",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category AndroidDeviceProvisioning
+ */
+export const CustomersConfiguration = Resource<CustomersConfiguration>(
+  "GCP.AndroidDeviceProvisioning.CustomersConfiguration",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CustomersConfigurationNotResolved extends Data.TaggedError(
+  "GCP.AndroidDeviceProvisioning.CustomersConfigurationNotResolved",
+)<{
+  parent: string
+  resourceName: string
+}> {}
+
+const lookupName = (
+  parent: string,
+  configurationId: string | undefined,
+  existingName: string | undefined,
+): infer _ => {
+  if (existingName && existingName.length > 0) return existingName
+  return toConfigurationName(parent, configurationId)
+}
+
+const toAttrs = (row: androiddeviceprovisioning.Configuration, project: string): infer _ => {
+  const name = row.name ?? ""
+  return {
+    name,
+    configurationId: row.configurationId ?? lastSegment(name),
+    parent: parentOf(name) || toCustomerName(name),
+    project,
+    configurationName: parseOwnership(row.configurationName).text,
+    dpcResourcePath: row.dpcResourcePath,
+    dpcExtras: row.dpcExtras,
+    companyName: row.companyName,
+    contactEmail: row.contactEmail,
+    contactPhone: row.contactPhone,
+    customMessage: row.customMessage,
+    isDefault: row.isDefault,
+    forcedResetTime: row.forcedResetTime,
+  }
+}
+
+const desiredBody = (input: {
+  news: CustomersConfigurationProps
+  configurationName: string
+  dpcResourcePath: string
+  current?: androiddeviceprovisioning.Configuration
+}): androiddeviceprovisioning.Configuration => ({
+  configurationName: input.configurationName,
+  dpcResourcePath: input.dpcResourcePath,
+  contactEmail: input.news.contactEmail,
+  contactPhone: input.news.contactPhone,
+  companyName: input.news.companyName,
+  dpcExtras: input.news.dpcExtras ?? input.current?.dpcExtras,
+  isDefault: input.news.isDefault ?? input.current?.isDefault ?? DEFAULT_IS_DEFAULT,
+  customMessage: input.news.customMessage ?? input.current?.customMessage,
+  forcedResetTime: input.news.forcedResetTime ?? input.current?.forcedResetTime,
+})
+
+export const CustomersConfigurationProvider = (): infer _ =>
+  Provider.succeed(CustomersConfiguration, {
+    stables: ["name", "configurationId", "parent", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousParent: olds?.parent ?? output?.parent,
+            nextParent: resolved.parent,
+            previousId: olds?.configurationId ?? output?.configurationId,
+            nextId: resolved.configurationId,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => toCustomerName(olds?.parent ?? output?.parent ?? ""), catch: (e) => e }),
+      )
+      const name = lookupName(
+        parent,
+        olds?.configurationId ?? output?.configurationId,
+        output?.name,
+      )
+      let existing = try getConfiguration(name)
+      if (existing === undefined) {
+        existing = try findOwnedConfiguration(id, parent)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.configurationName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const rows = try listOwnedConfigurations()
+      return rows
+        .filter((row) => hasOwnershipMarker(row.configurationName))
+        .map((row) => toAttrs(row, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = try Effect.orDie(Effect.try({ try: () => toCustomerName(news.parent), catch: (e) => e }))
+      const ownership = try ownershipLabels(id)
+      const rawName = try toDisplayName(id, news.configurationName, output?.configurationName)
+      const configurationName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            rawName,
+            MAX_CONFIGURATION_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
+      const dpcResourcePath = news.dpcResourcePath
+        ? (try Effect.orDie(
+          Effect.try({ try: toDpcName.bind(undefined, parent, news.dpcResourcePath), catch: (e) => e }),
+        ))
+        : (output?.dpcResourcePath ?? (try pickDpcName(parent)) ?? "")
+      const name = lookupName(
+        parent,
+        news.configurationId ?? output?.configurationId,
+        output?.name,
+      )
+
+      let current = try getConfiguration(name)
+      if (current === undefined) {
+        current = try findOwnedConfiguration(id, parent)
+      }
+      if (current === undefined) {
+        current = try findConfigurationByName(configurationName, parent)
+      }
+
+      if (current === undefined) {
+        const created = androiddeviceprovisioning
+          .createCustomersConfigurations({
+            parent,
+            body: desiredBody({
+              news,
+              configurationName,
+              dpcResourcePath,
+            }),
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findConfigurationByName(configurationName, parent);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new CustomersConfigurationNotResolved({
+          parent,
+          resourceName: name || configurationName,
+        })
+      }
+
+      const desiredDpcResourcePath = dpcResourcePath.length > 0 ? dpcResourcePath : (current.dpcResourcePath ?? "")
+      const desired = desiredBody({
+        news,
+        configurationName,
+        dpcResourcePath: desiredDpcResourcePath,
+        current,
+      })
+      const currentName = current.name ?? name
+      const updateMask = updateMaskOf(
+        !sameText(current.configurationName, desired.configurationName)
+          ? "configurationName"
+          : undefined,
+        desiredDpcResourcePath.length > 0
+          && !sameText(current.dpcResourcePath, desiredDpcResourcePath)
+          ? "dpcResourcePath"
+          : undefined,
+        news.dpcExtras !== undefined && !sameText(current.dpcExtras, desired.dpcExtras)
+          ? "dpcExtras"
+          : undefined,
+        !sameText(current.companyName, desired.companyName) ? "companyName" : undefined,
+        !sameText(current.contactEmail, desired.contactEmail) ? "contactEmail" : undefined,
+        !sameText(current.contactPhone, desired.contactPhone) ? "contactPhone" : undefined,
+        news.customMessage !== undefined && !sameText(current.customMessage, desired.customMessage)
+          ? "customMessage"
+          : undefined,
+        news.isDefault !== undefined && !sameBoolean(current.isDefault, desired.isDefault)
+          ? "isDefault"
+          : undefined,
+        news.forcedResetTime !== undefined
+          && !sameText(current.forcedResetTime, desired.forcedResetTime)
+          ? "forcedResetTime"
+          : undefined,
+      )
+
+      if (updateMask.length > 0 && currentName.length > 0) {
+        current = try androiddeviceprovisioning.patchCustomersConfigurations({
+          name: currentName,
+          updateMask,
+          body: desired,
+        })
+      }
+
+      const fresh = (try getConfiguration(current.name ?? currentName)) ?? current
+      return toAttrs(fresh, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      androiddeviceprovisioning
+        .deleteCustomersConfigurations({
+          name: output.name,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "BadRequest" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

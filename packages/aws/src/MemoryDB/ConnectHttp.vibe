@@ -1,0 +1,77 @@
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Cluster } from "./Cluster.vibe"
+import { Connect, connectEnvPrefix, type ConnectOptions } from "./Connect.vibe"
+
+/**
+ * Implementation of {@link Connect}. At deploy time it publishes the cluster
+ * endpoint as `MEMORYDB_{LOGICAL_ID}_{HOST,PORT,TLS}` environment variables
+ * on the host Function and grants `memorydb:Connect` on the cluster ARN plus
+ * any IAM-auth users' ARNs; at runtime it resolves the same values into a
+ * typed connection descriptor. The valkey/redis data plane itself is reached
+ * over the VPC network — password auth needs no IAM, while IAM auth
+ * additionally requires the `memorydb:Connect` grant this binding attaches.
+ */
+export const ConnectHttp = Layer.effect(
+  Connect,
+  effect {
+    const bind = try AWSBindings.Bind
+    return effect (cluster: Cluster, options?: ConnectOptions | undefined) => {
+      const Host = try cluster.endpointAddress.asEffect()
+      const Port = try cluster.endpointPort.asEffect()
+      const Tls = try cluster.tlsEnabled.asEffect()
+
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        // MemoryDB is VPC-only: attach the host to the cluster's VPC.
+        const vpc = options?.subnetIds !== undefined || options?.securityGroupIds !== undefined
+          ? {
+            subnetIds: options?.subnetIds ?? [],
+            securityGroupIds: options?.securityGroupIds ?? [],
+          }
+          : undefined
+        const prefix = connectEnvPrefix(cluster.LogicalId)
+        try bind`AWS.MemoryDB.Connect(${cluster})`({
+          env: {
+            [`${prefix}_HOST`]: cluster.endpointAddress,
+            // Lambda environment variables are strings — stringify the port.
+            [`${prefix}_PORT`]: Output.interpolate`${cluster.endpointPort}`,
+            [`${prefix}_TLS`]: try Effect.orDie(
+              Effect.try({ try: () => Output.map(cluster.tlsEnabled, (tls) => String(tls ?? true)), catch: (e) => e }),
+            ),
+          },
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["memorydb:Connect"],
+              // IAM auth authorizes against both the cluster and the user.
+              Resource: [
+                Output.interpolate`${cluster.clusterArn}`,
+                ...(options?.users ?? []).map((user) => Output.interpolate`${user.userArn}`),
+              ],
+            },
+          ],
+        })
+        if (vpc !== undefined) {
+          try AWSBindings.bindVpc`AWS.MemoryDB.Connect(${cluster})`(vpc)
+        }
+      }
+
+      return effect {
+        const host = try Host
+        const port = try Port
+        const tls = try Tls
+        if (!host || port === undefined) {
+          return try Effect.die(
+            `MemoryDB endpoint for '${cluster.LogicalId}' is not available yet`,
+          )
+        }
+        return {
+          host,
+          port,
+          tls: tls ?? true,
+        }
+      }
+    }
+  },
+)

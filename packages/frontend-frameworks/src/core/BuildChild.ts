@@ -38,8 +38,8 @@ import * as SemVerRange from "effect/SemVerRange";
 import * as Stream from "effect/Stream";
 import { readBuildOutput } from "./BuildOutput.ts";
 import type { BuildOutput } from "./BuildOutput.ts";
-import { logChildOutput } from "./ChildOutput.ts";
-import { FrameworkError } from "./Framework.ts";
+import { logChildOutput } from "./ChildOutput.vibe";
+import { FrameworkError } from "./Framework.vibe";
 
 /**
  * The contract a framework source module fulfills to be buildable in a
@@ -78,6 +78,18 @@ const transformTypesFlags = (): Array<string> =>
     { includePrerelease: true },
   )
     ? ["--experimental-transform-types", "--no-warnings=ExperimentalWarning"]
+    : [];
+
+/**
+ * Flags that load `.vibe` modules from source in a child whose entry is a
+ * `src/` module: VibeLang's Bun preload, or its Node loader hooks. A built
+ * `dist/` entry is JavaScript and gets none.
+ */
+const vibeLangLoaderFlags = (entry: string, isBun: boolean): Array<string> =>
+  entry.endsWith(".ts")
+    ? isBun
+      ? ["--preload", fileURLToPath(import.meta.resolve("vibelang/bun"))]
+      : ["--import", import.meta.resolve("vibelang/register")]
     : [];
 
 export interface BuildChildOptions {
@@ -155,12 +167,12 @@ export const runBuildChild = (
       const errorPath = path.join(outputDir, "error.txt");
 
       // The runner entry lives beside this module's core/ directory in both
-      // layouts (src/{fw}/source.ts → src/core/BuildChildRunner.ts,
+      // layouts (src/{fw}/source.ts or source.vibe → src/core/BuildChildRunner.ts,
       // dist/{fw}/source.js → dist/core/BuildChildRunner.js), so it resolves
       // relative to the FRAMEWORK module's own stable URL.
       const entry = fileURLToPath(
         new URL(
-          options.module.endsWith(".ts")
+          options.module.endsWith(".ts") || options.module.endsWith(".vibe")
             ? "../core/BuildChildRunner.ts"
             : "../core/BuildChildRunner.js",
           options.module,
@@ -181,6 +193,7 @@ export const runBuildChild = (
           : entry.endsWith(".ts") && options.runtime !== "node"
             ? transformTypesFlags()
             : []),
+        ...vibeLangLoaderFlags(entry, isBun),
         entry,
         JSON.stringify(payload),
       ];

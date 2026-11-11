@@ -1,0 +1,87 @@
+import * as Namespace from "alchemy/Namespace"
+import * as Layer from "effect/Layer"
+import { sanitizeRuleName } from "../IoT/internal.vibe"
+import { TopicRule } from "../IoT/TopicRule.vibe"
+import {
+  type IoTMessage,
+  TopicRuleEventSource as IoTTopicRuleEventSource,
+  type TopicRuleEventSourceProps,
+  type TopicRuleEventSourceService,
+} from "../IoT/TopicRuleEventSource.vibe"
+import * as Lambda from "./Function.vibe"
+import { Permission as LambdaPermission } from "./Permission.vibe"
+
+/**
+ * An IoT rule action delivers the raw SQL `SELECT` payload as the Lambda
+ * event — an arbitrary JSON object. We discriminate it from the Records-based
+ * AWS events (SQS/S3/SNS/DynamoDB) and from HTTP invocations (function URL /
+ * API Gateway / ALB, which carry `requestContext`) so a single function can
+ * host an IoT source alongside its HTTP handler.
+ */
+export const isIoTMessage = (event: any): event is IoTMessage =>
+  event != null
+  && typeof event === "object"
+  && !Array.isArray(event)
+  && !("Records" in event)
+  && !("requestContext" in event)
+
+/** @binding */
+export const TopicRuleEventSource = Layer.effect(
+  IoTTopicRuleEventSource,
+  // @effect-diagnostics-next-line missingEffectContext:off
+  effect {
+    const host = try Lambda.eventSourceHost("AWS.Lambda.TopicRuleEventSource")
+    const Rule = try TopicRule
+    const Permission = try LambdaPermission
+
+    return (effect <Req = never>(
+      topicFilter: string,
+      props: TopicRuleEventSourceProps,
+      process: (stream: Stream.Stream<IoTMessage>) => void!never!Req,
+    ) => {
+      // Deploy-time: create the IoT topic rule with a Lambda action targeting
+      // this function, and grant iot.amazonaws.com permission to invoke it
+      // (scoped to the rule ARN). Skipped once running inside the deployed
+      // function, where the only work is registering the runtime handler.
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try Namespace.push(
+          host.LogicalId,
+          effect {
+            const ruleName = props.ruleName ?? sanitizeRuleName(`${host.LogicalId}_${topicFilter}`)
+            const rule = try Rule(`${host.LogicalId}-TopicRule`, {
+              ruleName,
+              sql: props.sql ?? `SELECT * FROM '${topicFilter}'`,
+              awsIotSqlVersion: props.awsIotSqlVersion,
+              actions: [{
+                lambda: {
+                  functionArn: try Effect.orDie(Effect.try({
+                    try: () => Lambda.qualifiedArnOf(host),
+                    catch: (e) => e,
+                  })),
+                },
+              }],
+            })
+
+            try Permission(`AWS.IoT.TopicRuleInvoke(${ruleName})`, {
+              action: "lambda:InvokeFunction",
+              functionName: try Effect.orDie(Effect.try({ try: () => Lambda.qualifiedNameOf(host), catch: (e) => e })),
+              principal: "iot.amazonaws.com",
+              sourceArn: rule.ruleArn,
+            })
+          },
+        )
+      }
+
+      try host.listen(
+        effect {
+          return effect (event: any) => {
+            if (isIoTMessage(event)) {
+              return try (process(Stream.fromArray([event]))
+                |> Effect.orDie(%))
+            }
+          }
+        },
+      )
+    }) as TopicRuleEventSourceService
+  },
+)

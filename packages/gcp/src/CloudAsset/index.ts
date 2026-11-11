@@ -1,2 +1,2 @@
-export * from "./Feed.ts";
-export * from "./SavedQuery.ts";
+export * from "./Feed.vibe";
+export * from "./SavedQuery.vibe";

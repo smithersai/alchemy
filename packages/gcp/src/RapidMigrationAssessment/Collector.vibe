@@ -1,0 +1,431 @@
+import * as rma from "@distilled.cloud/gcp/rapidmigrationassessment_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  expectedAssetCountOf,
+  fieldMask,
+  isGoneState,
+  isPausedState,
+  isRegisteredState,
+  listOwnedCollectors,
+  locationParent,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  sameNumber,
+  sameText,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+export type CollectorState = rma.CollectorStateEnum | (string & {})
+
+export type CollectorProps = {
+  /**
+   * Collector id (the `{collector}` segment of
+   * `projects/{project}/locations/{location}/collectors/{collector}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable —
+   * changing it replaces the collector.
+   */
+  collectorId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * collector. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-facing display name. Alchemy falls back to the generated
+   * collector id.
+   */
+  displayName?: string
+  /**
+   * User-specified description of the collector.
+   */
+  description?: string
+  /**
+   * How many days to collect data.
+   */
+  collectionDays?: number
+  /**
+   * Service account email used to ingest data to this collector.
+   */
+  serviceAccount?: string
+  /**
+   * User-specified expected asset count.
+   */
+  expectedAssetCount?: number | string
+  /**
+   * URI for the End User License Agreement accepted by the customer.
+   */
+  eulaUri?: string
+  /**
+   * When true, pause an active collector. When false, resume a paused
+   * collector. Omitted leaves pause state unchanged.
+   */
+  paused?: boolean
+  /**
+   * When true, register a collector that is ready to use. Registration
+   * is one-way; omitted or false leaves the collector unregistered.
+   */
+  registered?: boolean
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type Collector = Resource<
+  "GCP.RapidMigrationAssessment.Collector",
+  CollectorProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Collector id (last path segment). */
+    collectorId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-facing display name. */
+    displayName: string | undefined
+    /** User-specified description. */
+    description: string | undefined
+    /** How many days to collect data. */
+    collectionDays: number | undefined
+    /** Service account email used to ingest data. */
+    serviceAccount: string | undefined
+    /** Expected asset count. */
+    expectedAssetCount: string | undefined
+    /** EULA URI. */
+    eulaUri: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-reported collector state. */
+    state: string | undefined
+    /** Whether the collector is paused. */
+    paused: boolean
+    /** Whether the collector has been registered. */
+    registered: boolean
+    /** Client version reported by the appliance. */
+    clientVersion: string | undefined
+    /** Cloud Storage bucket created with this collector. */
+    bucket: string | undefined
+    /** Migration Center guest-OS scan reference. */
+    guestOsScan: rma.GuestOsScan | undefined
+    /** Migration Center vSphere scan reference. */
+    vsphereScan: rma.VSphereScan | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Rapid Migration Assessment collector that manages the on-prem
+ * appliance gathering customer asset information.
+ *
+ * `collectorId` and `location` are immutable. Display name, description,
+ * collection days, service account, expected asset count, EULA URI, and
+ * labels update in place. Set `paused` to pause or resume, and
+ * `registered` to register a collector that is ready to use.
+ *
+ * ### Creating a Collector
+ * **Example:** Generated name
+ * ```typescript
+ * const collector = yield* GCP.RapidMigrationAssessment.Collector("OnPrem", {
+ *   collectionDays: 30,
+ *   expectedAssetCount: 100,
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and service account
+ * ```typescript
+ * const collector = yield* GCP.RapidMigrationAssessment.Collector("OnPrem", {
+ *   collectorId: "dc-east",
+ *   location: "us-central1",
+ *   displayName: "east datacenter",
+ *   serviceAccount: "rma@my-project.iam.gserviceaccount.com",
+ *   collectionDays: 14,
+ * });
+ * ```
+ *
+ * ### Updating a Collector
+ * **Example:** Description, labels, and pause
+ * ```typescript
+ * const collector = yield* GCP.RapidMigrationAssessment.Collector("OnPrem", {
+ *   displayName: "east datacenter v2",
+ *   description: "paused for maintenance",
+ *   paused: true,
+ *   labels: { env: "prod", team: "migration" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category RapidMigrationAssessment
+ */
+export const Collector = Resource<Collector>("GCP.RapidMigrationAssessment.Collector")
+
+const resourceName = (project: string, location: string, collectorId: string): infer _ =>
+  `${locationParent(project, location)}/collectors/${collectorId}`
+
+const toAttrs = (item: rma.Collector, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name)
+  return {
+    name,
+    collectorId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: item.displayName,
+    description: item.description,
+    collectionDays: item.collectionDays,
+    serviceAccount: item.serviceAccount,
+    expectedAssetCount: item.expectedAssetCount,
+    eulaUri: item.eulaUri,
+    labels: userLabels(item.labels),
+    state: item.state,
+    paused: isPausedState(item.state),
+    registered: isRegisteredState(item.state),
+    clientVersion: item.clientVersion,
+    bucket: item.bucket,
+    guestOsScan: item.guestOsScan,
+    vsphereScan: item.vsphereScan,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : try effect {
+  const item = rma.getProjectsLocationsCollectors({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+  return (item === undefined || (try Effect.orDie(Effect.try({ try: () => isGoneState(item.state), catch: (e) => e })))
+    ? undefined
+    : item)
+})
+
+const ignoreConflict = effect <A, R>(
+  effect: A!(| rma.PauseProjectsLocationsCollectorsError
+    | rma.RegisterProjectsLocationsCollectorsError
+    | rma.ResumeProjectsLocationsCollectorsError)!R,
+) =>
+  (effect {
+    return (try effect)
+  }) catch effect (e) => match (e) {
+    when { _tag: "Conflict" } or { _tag: "BadRequest" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const applyDesiredState = effect (name: string, current: rma.Collector, news: CollectorProps) => {
+  let next = current
+  const state = next.state
+
+  if (
+    news.registered === true
+    && !(try Effect.orDie(Effect.try({ try: () => isRegisteredState(state), catch: (e) => e })))
+  ) {
+    const operation = try ignoreConflict(rma.registerProjectsLocationsCollectors({ name }))
+    if (operation !== undefined) {
+      try waitForOperation(operation)
+      next = try waitUntilExists(getByName(name), name)
+    }
+  }
+
+  if (
+    news.paused === true && !(try Effect.orDie(Effect.try({ try: () => isPausedState(next.state), catch: (e) => e })))
+  ) {
+    const operation = try ignoreConflict(rma.pauseProjectsLocationsCollectors({ name }))
+    if (operation !== undefined) {
+      try waitForOperation(operation)
+      next = try waitUntilExists(getByName(name), name)
+    }
+  }
+
+  if (
+    news.paused === false && (try Effect.orDie(Effect.try({ try: () => isPausedState(next.state), catch: (e) => e })))
+  ) {
+    const operation = try ignoreConflict(rma.resumeProjectsLocationsCollectors({ name }))
+    if (operation !== undefined) {
+      try waitForOperation(operation)
+      next = try waitUntilExists(getByName(name), name)
+    }
+  }
+
+  return next
+}
+
+export const CollectorProvider = (): infer _ =>
+  Provider.succeed(Collector, {
+    stables: ["name", "collectorId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.collectorId ?? output?.collectorId,
+            nextId: resolved.collectorId ?? olds?.collectorId ?? output?.collectorId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const collectorId = try toPhysicalId(id, olds?.collectorId, output?.collectorId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, collectorId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwnedCollectors(env.project, env.region)
+      return items
+        .filter((item) => !isGoneState(item.state))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const collectorId = try toPhysicalId(id, news.collectorId, output?.collectorId)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, collectorId)
+      const displayName = news.displayName ?? collectorId
+      const expectedAssetCount = try Effect.orDie(
+        Effect.try({ try: () => expectedAssetCountOf(news.expectedAssetCount), catch: (e) => e }),
+      )
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let observed = try getByName(output?.name ?? name)
+
+      if (observed === undefined) {
+        const created = rma
+          .createProjectsLocationsCollectors({
+            parent: locationParent(env.project, location),
+            collectorId,
+            body: {
+              displayName,
+              description: news.description,
+              collectionDays: news.collectionDays,
+              serviceAccount: news.serviceAccount,
+              expectedAssetCount,
+              eulaUri: news.eulaUri,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        observed = try waitUntilExists(getByName(name), name)
+      }
+
+      let current = observed ?? (try Effect.fail(new ResourceNotResolved({ resourceName: name })))
+      current = waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      ) catch effect (e) => match (e) {
+        when { _tag: "GCP.RapidMigrationAssessment.ResourceNotReady" }: current;
+        default: throw e;
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        !sameText(current.displayName, displayName) && "displayName",
+        news.description !== undefined
+        && !sameText(current.description, news.description)
+        && "description",
+        news.collectionDays !== undefined
+        && !sameNumber(current.collectionDays, news.collectionDays)
+        && "collectionDays",
+        news.serviceAccount !== undefined
+        && !sameText(current.serviceAccount, news.serviceAccount)
+        && "serviceAccount",
+        expectedAssetCount !== undefined
+        && !sameText(current.expectedAssetCount, expectedAssetCount)
+        && "expectedAssetCount",
+        news.eulaUri !== undefined && !sameText(current.eulaUri, news.eulaUri) && "eulaUri",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try rma.patchProjectsLocationsCollectors({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description: news.description,
+            collectionDays: news.collectionDays,
+            serviceAccount: news.serviceAccount,
+            expectedAssetCount,
+            eulaUri: news.eulaUri,
+            labels: desiredLabels,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      current = try applyDesiredState(current.name ?? name, current, news)
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (rma.deleteProjectsLocationsCollectors({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

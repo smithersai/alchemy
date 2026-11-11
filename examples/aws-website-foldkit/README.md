@@ -6,7 +6,7 @@ distribution, no CloudFormation templates. This integration supports
 client-only Foldkit apps, so the deployment is assets-only and never
 creates a server function.
 
-- `src/main.ts` holds the Elm-architecture model/update/view; the page
+- `src/main.vibe` holds the Elm-architecture model/update/view; the page
   renders a `card` view function (`src/components/Card.ts`) written in
   plain TypeScript with `foldkit/html`.
 - Tailwind CSS v4 is wired through `@tailwindcss/vite` in the project's
@@ -45,3 +45,13 @@ wiring work unchanged — and no AWS resources are created.
 ```sh
 bun run destroy
 ```
+
+## Typechecking
+
+Run from this example directory:
+
+```sh
+pnpm exec vibelang --noEmit -p tsconfig.json
+```
+
+The compiler enables JSX checking for imported library components; this does not change Foldkit's client rendering.

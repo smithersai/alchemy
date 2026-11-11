@@ -9,9 +9,9 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { durationToSeconds } from "../IAM/common.ts";
-import type { Providers } from "../Providers.ts";
-import { resolveHostedZoneId } from "./HostedZoneLookup.ts";
+import { durationToSeconds } from "../IAM/common.vibe";
+import type { Providers } from "../Providers.vibe";
+import { resolveHostedZoneId } from "./HostedZoneLookup.vibe";
 
 export interface RecordAliasTarget {
   /**
@@ -338,11 +338,12 @@ export interface Record extends Resource<
 export const Record = Resource<Record>("AWS.Route53.Record");
 
 /** @internal shared with `Records.ts` — not exported from the barrel. */
-export const normalizeHostedZoneId = (hostedZoneId: string) =>
+export const normalizeHostedZoneId = /** @throws {never} */ (hostedZoneId: string) =>
   hostedZoneId.replace(/^\/hostedzone\//, "");
 
 /** @internal shared with `Records.ts` — not exported from the barrel. */
-export const normalizeName = (name: string) => (name.endsWith(".") ? name : `${name}.`);
+export const normalizeName = /** @throws {never} */ (name: string) =>
+  name.endsWith(".") ? name : `${name}.`;
 
 /**
  * Route 53 returns record names in lowercase with special characters as

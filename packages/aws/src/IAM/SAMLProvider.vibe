@@ -1,0 +1,278 @@
+import * as iam from "@distilled.cloud/aws/iam"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasTags } from "alchemy/Tags"
+import * as Redacted from "effect/Redacted"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { toTagRecord, unwrapRedactedString } from "./common.vibe"
+
+export error SAMLProviderConflict {
+  message: string
+  cause?: unknown
+}
+
+export interface SAMLProviderProps {
+  /**
+   * The friendly SAML provider name. If omitted, a unique name is
+   * generated from the stack, stage, and logical id.
+   */
+  name?: string
+  /**
+   * The provider metadata document.
+   */
+  samlMetadataDocument: string
+  /**
+   * Optional assertion encryption mode.
+   */
+  assertionEncryptionMode?: iam.AssertionEncryptionModeType
+  /**
+   * Optional private key added during creation/update.
+   */
+  addPrivateKey?: Redacted.Redacted<string> | string
+  /**
+   * User-defined tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface SAMLProvider extends
+  Resource<
+    "AWS.IAM.SAMLProvider",
+    SAMLProviderProps,
+    {
+      /** The ARN of the SAML provider. */
+      samlProviderArn: string
+      /** The name of the SAML provider. */
+      name: string
+      /** The unique ID AWS assigns to the provider. */
+      samlProviderUUID: string | undefined
+      /** The SAML metadata document from the identity provider. */
+      samlMetadataDocument: string | undefined
+      /** Whether SAML assertions must be encrypted (`Required` / `Allowed`). */
+      assertionEncryptionMode: iam.AssertionEncryptionModeType | undefined
+      /** The tags applied to the provider. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An IAM SAML identity provider.
+ *
+ * `SAMLProvider` registers a SAML metadata document so IAM roles can trust an
+ * external workforce or application identity provider.
+ * ### Federating with SAML
+ * **Example:** Create a SAML Identity Provider
+ * ```typescript
+ * const provider = yield* SAMLProvider("WorkforceSaml", {
+ *   samlMetadataDocument: "<EntityDescriptor>...</EntityDescriptor>",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const SAMLProvider = Resource<SAMLProvider>("AWS.IAM.SAMLProvider")
+
+// IAM is eventually consistent. Recreating a SAML provider immediately after a
+// same-named one was deleted (the destroy-then-deploy test flow) can transiently
+// surface a content-less `ValidationError` (or `ConcurrentModificationException`)
+// until the prior delete settles. A bounded retry rides out that window; a
+// well-formed metadata document never fails persistently, so this never masks a
+// genuine bad-input error for longer than the small budget.
+const transientWriteSchedule = Schedule.max([
+  Schedule.exponential(500).pipe(Schedule.jittered),
+  Schedule.recurs(6),
+])
+const isEmptyUpdateError = (error: { _tag: string; message?: string }): infer _ =>
+  error._tag === "ValidationError" && (error.message?.includes("No updates are defined") ?? false)
+
+const isTransientWriteError = (error: {
+  _tag: "ValidationError" | "ConcurrentModificationException" | (string & {})
+  message?: string
+}): infer _ =>
+  error._tag === "ConcurrentModificationException"
+  || (error._tag === "ValidationError" && !isEmptyUpdateError(error))
+
+const toName = effect (
+  id: string,
+  props: { name?: string },
+) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 128 }))
+
+export const SAMLProviderProvider = (): infer _ =>
+  Provider.succeed(SAMLProvider, {
+    stables: ["samlProviderArn", "name"],
+    diff: effect ({ id, olds, news }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if ((try toName(id, olds ?? {})) !== (try toName(id, resolved))) {
+        return { action: "replace" } as const
+      }
+    },
+    read: effect ({ output }) => {
+      if (!output) {
+        return undefined
+      }
+      const response = iam
+        .getSAMLProvider({ SAMLProviderArn: output.samlProviderArn }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: undefined;
+          default: throw e;
+        }
+      if (!response) {
+        return undefined
+      }
+      const tags = try iam.listSAMLProviderTags({ SAMLProviderArn: output.samlProviderArn })
+      return {
+        samlProviderArn: output.samlProviderArn,
+        name: output.name,
+        samlProviderUUID: response.SAMLProviderUUID,
+        samlMetadataDocument: response.SAMLMetadataDocument,
+        assertionEncryptionMode: response.AssertionEncryptionMode,
+        tags: toTagRecord(tags.Tags),
+      }
+    },
+    list: effect () => {
+      // IAM is global; `listSAMLProviders` enumerates every provider in the
+      // account but only returns the ARN, so hydrate each via
+      // `getSAMLProvider` + `listSAMLProviderTags` for the full Attributes.
+      const { SAMLProviderList } = try iam.listSAMLProviders({})
+      const arns = (SAMLProviderList ?? []).flatMap((entry) => (entry.Arn ? [entry.Arn] : []))
+      const rows = try Effect.forEach(
+        arns,
+        effect (samlProviderArn) =>
+          (effect {
+            return (try effect {
+              const response = try iam.getSAMLProvider({ SAMLProviderArn: samlProviderArn })
+              const tags = try iam.listSAMLProviderTags({ SAMLProviderArn: samlProviderArn })
+              return {
+                samlProviderArn,
+                name: samlProviderArn.split("saml-provider/").pop() ?? "",
+                samlProviderUUID: response.SAMLProviderUUID,
+                samlMetadataDocument: response.SAMLMetadataDocument,
+                assertionEncryptionMode: response.AssertionEncryptionMode,
+                tags: toTagRecord(tags.Tags),
+              }
+            })
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined;
+            default: throw e;
+          },
+        { concurrency: 10 },
+      )
+      return rows.filter((row) => row !== undefined)
+    },
+    reconcile: effect ({ id, news, output, session }) => {
+      const internalTags = try createInternalTags(id)
+      const desiredTags = { ...internalTags, ...news.tags }
+      const name = output?.name ?? (try toName(id, news))
+      const accountId = (try AWSEnvironment.current).accountId
+      const samlProviderArn = output?.samlProviderArn ?? `arn:aws:iam::${accountId}:saml-provider/${name}`
+
+      // Observe — `getSAMLProvider` returns the metadata, encryption
+      // mode, and UUID; absence is `NoSuchEntityException`.
+      let observed = iam
+        .getSAMLProvider({ SAMLProviderArn: samlProviderArn }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: undefined;
+          default: throw e;
+        }
+
+      // Ensure — create when missing. Race with a peer is recovered by
+      // verifying alchemy ownership tags on the existing provider.
+      if (!observed) {
+        const created = effect {
+          return (try (iam
+            .createSAMLProvider({
+              Name: name,
+              SAMLMetadataDocument: news.samlMetadataDocument,
+              AssertionEncryptionMode: news.assertionEncryptionMode,
+              AddPrivateKey: news.addPrivateKey
+                ? unwrapRedactedString(news.addPrivateKey)
+                : undefined,
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({ Key, Value })),
+            })
+            |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule })))
+        } catch effect (
+          e,
+        ) => match (e) {
+          when { _tag: "EntityAlreadyExistsException" }: try effect {
+            const existingTags = try iam.listSAMLProviderTags({
+              SAMLProviderArn: samlProviderArn,
+            })
+            if (
+              !(try Effect.orDie(Effect.try({ try: () => hasTags(internalTags, existingTags.Tags), catch: (e) => e })))
+            ) {
+              throw new SAMLProviderConflict({
+                message: `SAML provider '${name}' already exists and is not managed by alchemy`,
+              })
+            }
+            return { SAMLProviderArn: samlProviderArn }
+          };
+          default: throw e;
+        }
+        observed = try iam.getSAMLProvider({
+          SAMLProviderArn: created.SAMLProviderArn ?? samlProviderArn,
+        })
+      } else {
+        // Sync metadata / encryption mode — `updateSAMLProvider` rejects
+        // a call with no fields set ("No updates are defined…"). Only
+        // send fields that actually changed; skip the API on a no-op
+        // (greenfield adopt of a leftover provider, or a tags-only
+        // reconcile).
+        const metadataChanged = (observed.SAMLMetadataDocument ?? undefined) !== news.samlMetadataDocument
+        const encryptionChanged = news.assertionEncryptionMode !== undefined
+          && observed.AssertionEncryptionMode !== news.assertionEncryptionMode
+        const addPrivateKey = news.addPrivateKey
+          ? unwrapRedactedString(news.addPrivateKey)
+          : undefined
+        if (metadataChanged || encryptionChanged || addPrivateKey !== undefined) {
+          try (iam
+            .updateSAMLProvider({
+              SAMLProviderArn: samlProviderArn,
+              SAMLMetadataDocument: metadataChanged ? news.samlMetadataDocument : undefined,
+              AssertionEncryptionMode: encryptionChanged ? news.assertionEncryptionMode : undefined,
+              AddPrivateKey: addPrivateKey,
+            })
+            |> Effect.retry(%, { while: isTransientWriteError, schedule: transientWriteSchedule })
+            |> Effect.catchIf(%, isEmptyUpdateError, effect () => (undefined as void)))
+        }
+      }
+
+      // Sync tags against the cloud's actual tags.
+      const observedTagsResp = try iam.listSAMLProviderTags({
+        SAMLProviderArn: samlProviderArn,
+      })
+      const observedTags = toTagRecord(observedTagsResp.Tags)
+      const { removed, upsert } = try Effect.orDie(
+        Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+      )
+      if (upsert.length > 0) {
+        try iam.tagSAMLProvider({ SAMLProviderArn: samlProviderArn, Tags: upsert })
+      }
+      if (removed.length > 0) {
+        try iam.untagSAMLProvider({ SAMLProviderArn: samlProviderArn, TagKeys: removed })
+      }
+
+      try session.note(samlProviderArn)
+      return {
+        samlProviderArn,
+        name,
+        samlProviderUUID: observed?.SAMLProviderUUID ?? output?.samlProviderUUID,
+        samlMetadataDocument: news.samlMetadataDocument,
+        assertionEncryptionMode: news.assertionEncryptionMode,
+        tags: desiredTags,
+      }
+    },
+    delete: effect ({ output }) => {
+      iam
+        .deleteSAMLProvider({ SAMLProviderArn: output.samlProviderArn }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

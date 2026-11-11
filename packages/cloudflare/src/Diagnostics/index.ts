@@ -9,4 +9,4 @@
 //   runs traceroutes from Cloudflare colos and returns hop data
 //   synchronously. It persists no state, so it is a data-API operation,
 //   not an IaC resource.
-export * from "./EndpointHealthcheck.ts";
+export * from "./EndpointHealthcheck.vibe";

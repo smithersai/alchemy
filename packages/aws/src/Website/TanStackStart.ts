@@ -1,6 +1,6 @@
 import type { InputProps } from "alchemy/Input";
 import * as Namespace from "alchemy/Namespace";
-import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /** The framework-integration package that drives the TanStack Start build. */
 export const TANSTACK_START_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/tanstack-start";

@@ -1,0 +1,112 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { GraphqlApi } from "./GraphqlApi.vibe"
+
+/**
+ * Shared scaffolding for AppSync HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every single-operation `{Op}Http.ts` in
+ * this service is a thin `Layer.effect(Cap, make…HttpBinding({ … }))` over
+ * one of the two builders below. Everything except the operation and the
+ * IAM action is boilerplate:
+ *
+ * - {@link makeAppSyncApiHttpBinding} — control-plane operations scoped to a
+ *   bound {@link GraphqlApi} (`FlushApiCache`, `GetIntrospectionSchema`).
+ *   The runtime callable injects the bound API's `apiId`.
+ * - {@link makeAppSyncAccountHttpBinding} — account-level pass-through
+ *   operations that bind to no resource (`EvaluateCode`).
+ *
+ * Both grant on `Resource: "*"` — these AppSync control-plane actions define
+ * no IAM resource types (per the Service Authorization Reference), so a
+ * scoped API ARN is AccessDenied. `GraphQLHttp` stays bespoke: the data
+ * plane has no SDK operation, each request is a SigV4-signed POST to the
+ * API's `graphqlUrl`.
+ */
+
+/**
+ * Build the impl Effect for a control-plane operation scoped to a bound
+ * {@link GraphqlApi}. The runtime callable injects the API's `apiId` into
+ * the request; the deploy-time half grants `actions` on `*` (these actions
+ * define no IAM resource types).
+ */
+export const makeAppSyncApiHttpBinding = effect <I extends { apiId: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.AppSync.FlushApiCache`. */
+  tag: string
+  /** The distilled operation; `apiId` is injected from the bound API. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (api: GraphqlApi) => {
+    // Outputs yield DEFERRED effects — resolving them here registers the
+    // attribute on the host environment; re-yield per invocation below.
+    const ApiId = try api.apiId.asEffect()
+
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${api})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            // These AppSync control-plane actions define no IAM resource
+            // types — IAM only authorizes them against "*" (a scoped API
+            // ARN is AccessDenied).
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+
+    return effect (request?: Omit<I, "apiId"> | undefined) =>
+      try withSpan(
+        effect {
+          return try op({ ...request, apiId: try ApiId } as I)
+        },
+        `${options.tag}(${api.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level AppSync operation that binds
+ * to no resource. The runtime callable passes the caller's request through
+ * unchanged; the deploy-time half grants `actions` on `*` (these actions
+ * define no IAM resource types).
+ */
+export const makeAppSyncAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.AppSync.EvaluateCode`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            // No IAM resource types defined for these actions.
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        options.tag,
+      )
+  }
+}

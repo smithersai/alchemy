@@ -1,0 +1,297 @@
+import * as Effect from "effect/Effect"
+import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import {
+  AgentCoreProvisioningFailed,
+  createAgentCoreName,
+  readAgentCoreTags,
+  retryWhileConflict,
+  retryWhileValidation,
+  syncAgentCoreTags,
+} from "./internal.vibe"
+
+export interface CodeInterpreterProps {
+  /**
+   * Name of the code interpreter. Must match `[a-zA-Z][a-zA-Z0-9_]{0,47}`
+   * (underscores, no hyphens). If omitted, a deterministic physical name is
+   * generated from the app, stage, and logical ID. Changing the name triggers
+   * a replacement.
+   */
+  name?: string
+  /**
+   * A description of the code interpreter. Changing it triggers a
+   * replacement (the API has no update operation).
+   */
+  description?: string
+  /**
+   * The ARN of an IAM role sessions assume to access AWS resources (e.g. S3
+   * buckets) from executed code. Changing it triggers a replacement.
+   */
+  executionRoleArn?: string
+  /**
+   * Network access for executed code: `SANDBOX` (no egress), `PUBLIC`
+   * (internet egress), or `VPC`. Changing it triggers a replacement.
+   * @default { networkMode: "SANDBOX" }
+   */
+  networkConfiguration?: control.CodeInterpreterNetworkConfiguration
+  /**
+   * Tags to apply to the code interpreter. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface CodeInterpreter extends
+  Resource<
+    "AWS.BedrockAgentCore.CodeInterpreter",
+    CodeInterpreterProps,
+    {
+      /**
+       * The unique identifier of the code interpreter.
+       */
+      codeInterpreterId: string
+      /**
+       * The ARN of the code interpreter.
+       */
+      codeInterpreterArn: string
+      /**
+       * Name of the code interpreter.
+       */
+      name: string
+      /**
+       * Current status of the code interpreter (e.g. `READY`).
+       */
+      status: string
+    }
+  >
+{}
+
+/**
+ * A custom Amazon Bedrock AgentCore Code Interpreter — an isolated sandbox
+ * where agents execute Python/JavaScript/TypeScript code.
+ *
+ * A custom interpreter controls the sandbox's network mode and execution
+ * role. All configuration is create-only (the API has no update operation);
+ * property changes trigger a replacement.
+ *
+ * ### Creating Code Interpreters
+ * **Example:** Sandboxed Interpreter (no network egress)
+ * ```typescript
+ * import * as AgentCore from "@alchemy.run/aws/BedrockAgentCore";
+ *
+ * const interpreter = yield* AgentCore.CodeInterpreter("Sandbox", {});
+ * ```
+ *
+ * **Example:** Interpreter with Public Egress
+ * ```typescript
+ * const interpreter = yield* AgentCore.CodeInterpreter("PublicSandbox", {
+ *   networkConfiguration: { networkMode: "PUBLIC" },
+ * });
+ * ```
+ *
+ * ### Executing Code from a Function
+ * **Example:** Start a Session and Run Code
+ * ```typescript
+ * // init
+ * const startSession = yield* AgentCore.StartCodeInterpreterSession(interpreter);
+ * const invoke = yield* AgentCore.InvokeCodeInterpreter(interpreter);
+ * const stopSession = yield* AgentCore.StopCodeInterpreterSession(interpreter);
+ *
+ * return {
+ *   fetch: Effect.gen(function* () {
+ *     // runtime
+ *     const session = yield* startSession({ sessionTimeout: "5 minutes" });
+ *     const result = yield* invoke({
+ *       sessionId: session.sessionId,
+ *       name: "executeCode",
+ *       arguments: { language: "python", code: "print(1 + 1)" },
+ *     });
+ *     const output = yield* Stream.runCollect(result.stream);
+ *     yield* stopSession({ sessionId: session.sessionId });
+ *     return HttpServerResponse.json({ output: Array.from(output) });
+ *   }),
+ * };
+ * ```
+ *
+ * @resource
+ */
+export const CodeInterpreter = Resource<CodeInterpreter>("AWS.BedrockAgentCore.CodeInterpreter")
+
+export const CodeInterpreterProvider = (): infer _ =>
+  Provider.effect(
+    CodeInterpreter,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<CodeInterpreterProps, "name">,
+      ) => props.name ?? (try createAgentCoreName(id))
+
+      // getCodeInterpreter still resolves soft-deleted interpreters —
+      // DELETED/DELETING count as gone.
+      const getLiveOrUndefined = effect (codeInterpreterId: string) => {
+        const found = control
+          .getCodeInterpreter({ codeInterpreterId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+        return found === undefined || found.status === "DELETED" || found.status === "DELETING"
+          ? undefined
+          : found
+      }
+
+      const findByName = effect (name: string) => {
+        const pages = try control.listCodeInterpreters.pages({}).pipe(Stream.runCollect)
+        const summary = Array.from(pages)
+          .flatMap((page) => page.codeInterpreterSummaries ?? [])
+          .find((s) => s.name === name && s.status !== "DELETED" && s.status !== "DELETING")
+        return summary === undefined
+          ? undefined
+          : try getLiveOrUndefined(summary.codeInterpreterId)
+      }
+
+      const toAttributes = (ci: control.GetCodeInterpreterResponse): infer _ => ({
+        codeInterpreterId: ci.codeInterpreterId,
+        codeInterpreterArn: ci.codeInterpreterArn,
+        name: ci.name,
+        status: ci.status,
+      })
+
+      return CodeInterpreter.Provider.of({
+        stables: ["codeInterpreterId", "codeInterpreterArn", "name"],
+
+        list: effect () => {
+          const pages = try control.listCodeInterpreters.pages({}).pipe(Stream.runCollect)
+          const summaries = Array.from(pages)
+            .flatMap((page) => page.codeInterpreterSummaries ?? [])
+            .filter((s) => s.status !== "DELETED" && s.status !== "DELETING")
+          const hydrated = try Effect.forEach(
+            summaries,
+            effect (s) => try getLiveOrUndefined(s.codeInterpreterId),
+            { concurrency: 5 },
+          )
+          return hydrated.filter((c) => c !== undefined).map(toAttributes)
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const ci = output?.codeInterpreterId
+            ? try getLiveOrUndefined(output.codeInterpreterId)
+            : try findByName(try createName(id, olds ?? ({} as CodeInterpreterProps)))
+          if (ci === undefined) return undefined
+          const attrs = toAttributes(ci)
+          const tags = try readAgentCoreTags(ci.codeInterpreterArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        // Everything except tags is create-only — any change replaces.
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldProps = olds ?? ({} as CodeInterpreterProps)
+          const newProps = news ?? ({} as CodeInterpreterProps)
+          const oldName = try createName(id, oldProps)
+          const newName = try createName(id, newProps)
+          if (
+            oldName !== newName
+            || (oldProps.description ?? undefined) !== (newProps.description ?? undefined)
+            || (oldProps.executionRoleArn ?? undefined) !== (newProps.executionRoleArn ?? undefined)
+            || JSON.stringify(oldProps.networkConfiguration ?? { networkMode: "SANDBOX" })
+              !== JSON.stringify(newProps.networkConfiguration ?? { networkMode: "SANDBOX" })
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const props = news ?? ({} as CodeInterpreterProps)
+          const name = output?.name ?? (try createName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...props.tags, ...internalTags }
+
+          // 1. OBSERVE
+          let ci = output?.codeInterpreterId
+            ? try getLiveOrUndefined(output.codeInterpreterId)
+            : undefined
+          if (ci === undefined) {
+            ci = try findByName(name)
+          }
+
+          // 2. ENSURE — creation is synchronous (READY on return); tolerate
+          // the name-exists race and transient IAM propagation.
+          if (ci === undefined) {
+            const created = (effect {
+              return (try (control
+                .createCodeInterpreter({
+                  name,
+                  description: props.description,
+                  executionRoleArn: props.executionRoleArn,
+                  networkConfiguration: props.networkConfiguration ?? {
+                    networkMode: "SANDBOX",
+                  },
+                  tags: desiredTags,
+                })
+                |> retryWhileValidation(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined;
+              default: throw e;
+            }
+            ci = created === undefined
+              ? try findByName(name)
+              : try getLiveOrUndefined(created.codeInterpreterId)
+          }
+          if (ci === undefined) {
+            throw new AgentCoreProvisioningFailed({
+              message: `code interpreter '${name}' was neither created nor found`,
+            })
+          }
+          if (ci.status === "CREATE_FAILED") {
+            throw new AgentCoreProvisioningFailed({
+              message: `code interpreter '${name}' failed: ${ci.failureReason ?? "unknown"}`,
+            })
+          }
+
+          // 3. SYNC — only tags are mutable.
+          try syncAgentCoreTags(ci.codeInterpreterArn, desiredTags)
+
+          // 4. RETURN fresh attributes.
+          try session.note(ci.codeInterpreterId)
+          return toAttributes(ci)
+        },
+
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (control
+              .deleteCodeInterpreter({
+                codeInterpreterId: output.codeInterpreterId,
+              })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+          // Deletion completes quickly (soft-delete to DELETED); wait until
+          // it is out of the live set so a re-create of the same name works.
+          try (effect {
+            return (effect {
+              return ((try control
+                .getCodeInterpreter({
+                  codeInterpreterId: output.codeInterpreterId,
+                })).status as string)
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: "DELETED" as string;
+              default: throw e;
+            }
+          }
+            |> Effect.repeat(%, {
+              schedule: Schedule.fixed("3 seconds"),
+              until: (status) => status === "DELETED" || status === "DELETE_FAILED",
+              times: 20,
+            }))
+        },
+      })
+    },
+  )

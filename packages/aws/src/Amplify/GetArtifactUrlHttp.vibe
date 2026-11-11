@@ -1,0 +1,40 @@
+import * as amplify from "@distilled.cloud/aws/amplify"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { App } from "./App.vibe"
+import { GetArtifactUrl, type GetArtifactUrlRequest } from "./GetArtifactUrl.vibe"
+
+// Bespoke (not via makeAmplifyHttpBinding): GetArtifactUrl addresses the
+// artifact by its globally-unique `artifactId` alone — there is no `appId`
+// to inject. The app is still bound for the IAM grant over its artifacts.
+export const GetArtifactUrlHttp = Layer.effect(
+  GetArtifactUrl,
+  effect {
+    const bind = try AWSBindings.Bind
+    const getArtifactUrl = try AWSBindings.withCredentials(amplify.getArtifactUrl)
+
+    return effect (app: App) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Amplify.GetArtifactUrl(${app})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["amplify:GetArtifactUrl"],
+              Resource: [Output.interpolate`${app.appArn}/branches/*/jobs/*/artifacts/*`],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: GetArtifactUrlRequest,
+      ) =>
+        try withSpan(
+          effect {
+            return try getArtifactUrl(request)
+          },
+          `AWS.Amplify.GetArtifactUrl(${app.LogicalId})`,
+        )
+    }
+  },
+)

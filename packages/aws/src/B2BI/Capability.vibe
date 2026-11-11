@@ -1,0 +1,207 @@
+import * as b2bi from "@distilled.cloud/aws/b2bi"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readB2biTags, syncB2biTags, toWireTags } from "./internal.vibe"
+
+export interface CapabilityProps {
+  /**
+   * The name of the capability.
+   */
+  name: string
+  /**
+   * The type of the capability. EDI is the only supported type today.
+   * @default "edi"
+   */
+  type?: "edi"
+  /**
+   * The capability configuration. For EDI capabilities this describes the
+   * X12 transaction set, direction, transformer, and the input/output S3
+   * locations. `configuration.edi.transformerId` may reference a
+   * {@link Transformer}'s `transformerId` output.
+   */
+  configuration: b2bi.CapabilityConfiguration
+  /**
+   * S3 locations of instruction documents (implementation guides) attached
+   * to the capability.
+   */
+  instructionsDocuments?: b2bi.S3Location[]
+  /**
+   * User-defined tags for the capability.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Capability extends
+  Resource<
+    "AWS.B2BI.Capability",
+    CapabilityProps,
+    {
+      /**
+       * Service-assigned unique ID of the capability.
+       */
+      capabilityId: string
+      /**
+       * ARN of the capability.
+       */
+      capabilityArn: string
+      /**
+       * Name of the capability.
+       */
+      name: string
+      /**
+       * Capability type (`edi`).
+       */
+      type: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS B2B Data Interchange (B2BI) capability. A capability contains the
+ * information required to transform incoming or outgoing EDI documents: the
+ * X12 transaction set, a transformer, and the S3 input/output locations.
+ * ### Creating a Capability
+ * **Example:** Inbound X12 850 Capability
+ * ```typescript
+ * const capability = yield* B2BI.Capability("Orders", {
+ *   name: "inbound-orders",
+ *   configuration: {
+ *     edi: {
+ *       capabilityDirection: "INBOUND",
+ *       type: { x12Details: { transactionSet: "X12_850", version: "VERSION_4010" } },
+ *       inputLocation: { bucketName: bucket.bucketName, key: "inbound/" },
+ *       outputLocation: { bucketName: bucket.bucketName, key: "processed/" },
+ *       transformerId: transformer.transformerId,
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Capability = Resource<Capability>("AWS.B2BI.Capability")
+
+const toAttrs = (
+  r: b2bi.GetCapabilityResponse | b2bi.CreateCapabilityResponse | b2bi.UpdateCapabilityResponse,
+): infer _ => ({
+  capabilityId: r.capabilityId,
+  capabilityArn: r.capabilityArn,
+  name: r.name,
+  type: r.type,
+})
+
+export const CapabilityProvider = (): infer _ =>
+  Provider.effect(
+    Capability,
+    effect {
+      const findByName = effect (name: string) =>
+        try effect {
+          const head = try (b2bi.listCapabilities.items({})
+            |> Stream.filter(%, (s) => s.name === name)
+            |> Stream.runHead(%))
+          return (head._tag === "Some"
+            ? b2bi
+              .getCapability({ capabilityId: head.value.capabilityId }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              }
+            : undefined)
+        }
+
+      return {
+        stables: ["capabilityId", "capabilityArn"],
+
+        read: effect ({ id, olds, output }) => {
+          const found = output?.capabilityId
+            ? b2bi
+              .getCapability({ capabilityId: output.capabilityId }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              }
+            : try findByName(olds?.name ?? "")
+          if (found === undefined) return undefined
+          const attrs = toAttrs(found)
+          const tags = try readB2biTags(attrs.capabilityArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe.
+          let live = output?.capabilityId
+            ? b2bi
+              .getCapability({ capabilityId: output.capabilityId }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              }
+            : try findByName(news.name)
+
+          // 2. Ensure.
+          if (live === undefined) {
+            const created = try b2bi.createCapability({
+              name: news.name,
+              type: news.type ?? "edi",
+              configuration: news.configuration,
+              instructionsDocuments: news.instructionsDocuments,
+              tags: toWireTags(desiredTags),
+            })
+            live = try b2bi.getCapability({
+              capabilityId: created.capabilityId,
+            })
+          } else {
+            // 3. Sync — converge name, configuration, and instruction docs.
+            const nameDrift = live.name !== news.name
+            const configDrift = JSON.stringify(live.configuration) !== JSON.stringify(news.configuration)
+            const docsDrift = JSON.stringify(live.instructionsDocuments ?? null)
+              !== JSON.stringify(news.instructionsDocuments ?? null)
+            if (nameDrift || configDrift || docsDrift) {
+              const updated = try b2bi.updateCapability({
+                capabilityId: live.capabilityId,
+                name: news.name,
+                configuration: news.configuration,
+                instructionsDocuments: news.instructionsDocuments,
+              })
+              live = { ...live, ...updated }
+            }
+          }
+
+          // 3b. Sync tags.
+          try syncB2biTags(live.capabilityArn, desiredTags)
+
+          try session.note(live.capabilityId)
+          return toAttrs(live)
+        },
+
+        delete: effect ({ output }) => {
+          b2bi
+            .deleteCapability({ capabilityId: output.capabilityId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (b2bi.listCapabilities.items({})
+              |> Stream.mapEffect(%, effect (s) =>
+                (effect {
+                  return (toAttrs(try b2bi.getCapability({ capabilityId: s.capabilityId })))
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: undefined;
+                  default: throw e;
+                })
+              |> Stream.filter(%, (item) => item !== undefined)
+              |> Stream.runCollect(%)),
+          ),
+      }
+    },
+  )

@@ -1,5 +1,5 @@
 import * as Namespace from "alchemy/Namespace";
-import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /** The framework-integration package that drives the SvelteKit build. */
 export const SVELTEKIT_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/sveltekit";

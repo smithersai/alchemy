@@ -20,13 +20,13 @@
  */
 import { useMemo, useSyncExternalStore } from "@alchemy.run/sigil/react";
 import type { JSX, ReactNode } from "react";
-import type { ApplyStatus } from "../../../Events.ts";
+import type { ApplyStatus } from "../../../Events.vibe";
 import type { Plan as AlchemyPlan } from "../../../Plan.ts";
 import { theme } from "../../../Util/Theme.ts";
 import { formatElapsed } from "../../Format.ts";
 import { formatModeNote } from "../../ModeTag.ts";
 import type { ActionVerb, PlanSummaryCounts } from "../../NamespaceTree.ts";
-import { matchYamlChange, matchYamlKey } from "../../PropertyDiff.ts";
+import { matchYamlChange, matchYamlKey } from "../../PropertyDiff.vibe";
 import {
   Box,
   KeyBar,

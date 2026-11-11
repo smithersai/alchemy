@@ -1,0 +1,177 @@
+import * as Effect from "effect/Effect"
+import * as securityhub from "@distilled.cloud/aws/securityhub"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+/**
+ * How linked Regions are selected for cross-Region finding aggregation.
+ */
+export type RegionLinkingMode =
+  | "ALL_REGIONS"
+  | "ALL_REGIONS_EXCEPT_SPECIFIED"
+  | "SPECIFIED_REGIONS"
+  | "NO_REGIONS"
+
+export interface FindingAggregatorProps {
+  /**
+   * How linked Regions are selected: `ALL_REGIONS` aggregates from every
+   * Region (including future ones), `ALL_REGIONS_EXCEPT_SPECIFIED` excludes
+   * `regions`, `SPECIFIED_REGIONS` includes only `regions`, and `NO_REGIONS`
+   * disables aggregation. Updatable in place.
+   */
+  regionLinkingMode: RegionLinkingMode
+
+  /**
+   * The Regions excluded from (`ALL_REGIONS_EXCEPT_SPECIFIED`) or included
+   * in (`SPECIFIED_REGIONS`) aggregation. Updatable in place.
+   */
+  regions?: string[]
+}
+
+/** @resource */
+export interface FindingAggregator extends
+  Resource<
+    "AWS.SecurityHub.FindingAggregator",
+    FindingAggregatorProps,
+    {
+      /** ARN of the finding aggregator (its identity). */
+      findingAggregatorArn: string
+      /** The home Region findings are aggregated into. */
+      findingAggregationRegion: string | undefined
+      /** The active Region-linking mode. */
+      regionLinkingMode: string | undefined
+      /** The Regions included in or excluded from aggregation. */
+      regions: string[] | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The Security Hub cross-Region finding aggregator — replicates findings
+ * from linked Regions into the home Region. Only one aggregator can exist
+ * per account, so this is a singleton: adopting a pre-existing aggregator
+ * that Alchemy did not create requires `--adopt`.
+ *
+ * ### Aggregating Findings Across Regions
+ * **Example:** Aggregate from All Regions
+ * ```typescript
+ * const aggregator = yield* AWS.SecurityHub.FindingAggregator("Aggregator", {
+ *   regionLinkingMode: "ALL_REGIONS",
+ * });
+ * ```
+ *
+ * **Example:** Aggregate from Specific Regions
+ * ```typescript
+ * const aggregator = yield* AWS.SecurityHub.FindingAggregator("Aggregator", {
+ *   regionLinkingMode: "SPECIFIED_REGIONS",
+ *   regions: ["us-east-1", "eu-west-1"],
+ * });
+ * ```
+ */
+const FindingAggregatorResource = Resource<FindingAggregator>("AWS.SecurityHub.FindingAggregator")
+
+export { FindingAggregatorResource as FindingAggregator }
+
+export const FindingAggregatorProvider = (): infer _ =>
+  Provider.effect(
+    FindingAggregatorResource,
+    effect {
+      const getAggregator = effect (arn: string) =>
+        (effect {
+          return ((try securityhub.getFindingAggregator({ FindingAggregatorArn: arn })) as
+            | securityhub.GetFindingAggregatorResponse
+            | undefined)
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          when { _tag: "InvalidAccessException" }: undefined;
+          default: throw e;
+        }
+
+      // At most one aggregator exists per account — a single page suffices.
+      const findAggregator = effect {
+        return (effect {
+          return ((try securityhub.listFindingAggregators({})).FindingAggregators?.[0]?.FindingAggregatorArn)
+        }) catch effect (
+          e,
+        ) => match (e) { when { _tag: "InvalidAccessException" }: undefined; default: throw e; }
+      }
+
+      const buildAttrs = (r: securityhub.GetFindingAggregatorResponse): infer _ => ({
+        findingAggregatorArn: r.FindingAggregatorArn!,
+        findingAggregationRegion: r.FindingAggregationRegion,
+        regionLinkingMode: r.RegionLinkingMode,
+        regions: r.Regions,
+      })
+
+      return {
+        stables: ["findingAggregatorArn", "findingAggregationRegion"],
+        read: effect ({ output }) => {
+          if (output?.findingAggregatorArn) {
+            const live = try getAggregator(output.findingAggregatorArn)
+            return live ? buildAttrs(live) : undefined
+          }
+          // Aggregators cannot be tagged; an existing one we have no state
+          // for is foreign until adopted.
+          const arn = try findAggregator
+          if (!arn) return undefined
+          const live = try getAggregator(arn)
+          return live
+            ? (try Effect.orDie(Effect.try({ try: () => Unowned(buildAttrs(live)), catch: (error) => error })))
+            : undefined
+        },
+        list: effect () => {
+          const arn = try findAggregator
+          if (!arn) return []
+          const live = try getAggregator(arn)
+          return live ? [buildAttrs(live)] : []
+        },
+        reconcile: effect ({ news, output, session }) => {
+          // 1. OBSERVE — the account's single aggregator is authoritative.
+          const arn = output?.findingAggregatorArn ?? (try findAggregator)
+          const live = arn ? try getAggregator(arn) : undefined
+
+          let final: securityhub.GetFindingAggregatorResponse
+          if (!live) {
+            // 2. ENSURE.
+            final = try securityhub.createFindingAggregator({
+              RegionLinkingMode: news.regionLinkingMode,
+              Regions: news.regions,
+            })
+          } else if (
+            live.RegionLinkingMode !== news.regionLinkingMode
+            // The API returns Regions in normalized order — compare as sets.
+            || JSON.stringify([...(live.Regions ?? [])].sort())
+              !== JSON.stringify([...(news.regions ?? [])].sort())
+          ) {
+            // 3. SYNC — observed ↔ desired.
+            final = try securityhub.updateFindingAggregator({
+              FindingAggregatorArn: live.FindingAggregatorArn!,
+              RegionLinkingMode: news.regionLinkingMode,
+              Regions: news.regions,
+            })
+          } else {
+            final = live
+          }
+
+          // 4. RETURN fresh attributes.
+          try session.note(final.FindingAggregatorArn!)
+          return buildAttrs(final)
+        },
+        delete: effect ({ output }) => {
+          // Idempotent — the aggregator (or the whole hub) may already be gone.
+          securityhub
+            .deleteFindingAggregator({
+              FindingAggregatorArn: output.findingAggregatorArn,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              when { _tag: "InvalidAccessException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

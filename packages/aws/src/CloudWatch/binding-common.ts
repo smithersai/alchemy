@@ -1,10 +1,10 @@
-import type { Alarm } from "./Alarm.ts";
-import type { AlarmMuteRule } from "./AlarmMuteRule.ts";
-import { sortByLogicalId } from "./common.ts";
-import type { CompositeAlarm } from "./CompositeAlarm.ts";
-import type { Dashboard } from "./Dashboard.ts";
-import type { InsightRule } from "./InsightRule.ts";
-import type { MetricStream } from "./MetricStream.ts";
+import type { Alarm } from "./Alarm.vibe";
+import type { AlarmMuteRule } from "./AlarmMuteRule.vibe";
+import { sortByLogicalId } from "./common.vibe";
+import type { CompositeAlarm } from "./CompositeAlarm.vibe";
+import type { Dashboard } from "./Dashboard.vibe";
+import type { InsightRule } from "./InsightRule.vibe";
+import type { MetricStream } from "./MetricStream.vibe";
 
 export type AlarmResource = Alarm | CompositeAlarm;
 

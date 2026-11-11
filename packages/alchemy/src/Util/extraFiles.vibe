@@ -1,0 +1,252 @@
+/**
+ * Extra files packed next to a Fly/Hetzner/Railway program (Docker
+ * context or unit zip).
+ *
+ * `dest: "."` means "this directory IS the image/unit root" (`COPY . /app`),
+ * not a subfolder. {@link contextRootOf} then treats that source as the
+ * context, and {@link posixRelUnder} places `main` relative to it so
+ * `isExternal` ENTRYPOINT is `node /app/serve-node.mjs` instead of
+ * bundling `index.mjs`. Hashing skips gitignore (a parent `dist` rule
+ * would empty the hash) but still excludes `node_modules` / `.git` /
+ * `.next/cache` / `.alchemy` so the glob stays bounded.
+ */
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import { dotAlchemyDirectory } from "../AlchemyContext.vibe"
+import { hashDirectory } from "../Command/Memo.vibe"
+import { isPathWithin } from "./isPathWithin.ts"
+import { initialCwd } from "./Node.ts"
+import { currentDirectory } from "./extraFiles.platform.ts"
+import { sha256 } from "./sha256.vibe"
+
+const ioConcurrency = 16
+
+/** Extra-file dest that means "merge this directory into the image/unit root". */
+export const CONTEXT_ROOT_DEST = "."
+
+export const isContextRootDest = (dest: string): boolean => dest === "." || dest === ""
+
+/**
+ * Hash extra-file trees without gitignore (a parent `dist` rule would
+ * empty the hash) but skip the directories that make a recursive glob
+ * unbounded.
+ */
+export const EXTRA_FILES_HASH_EXCLUDE = [
+  "**/node_modules/**",
+  "**/.git/**",
+  "**/.next/cache/**",
+  "**/.alchemy/**",
+]
+
+/**
+ * Extra file or directory copied next to a bundled program (Docker
+ * context, unit archive, …). `dest` is relative to the image/unit root.
+ */
+export interface ExtraFile {
+  /** Local file or directory (absolute, or relative to {@link initialCwd}). */
+  readonly source: string
+  /**
+   * Destination relative to the image/unit root (e.g. `"dist"`, `".next"`).
+   * `"."` means merge into the root.
+   */
+  readonly dest: string
+}
+
+const posix = (value: string): string => value.replaceAll("\\", "/")
+
+/**
+ * Path of `file` relative to `root`, POSIX. Empty string if they are the
+ * same directory. Returns `undefined` when `file` is not under `root`.
+ */
+export const posixRelUnder = (
+  root: string,
+  file: string,
+  path: {
+    readonly resolve: (...segments: string[]) => string
+    readonly relative: (from: string, to: string) => string
+    readonly isAbsolute: (value: string) => boolean
+  },
+): string | undefined => {
+  const from = posix(path.resolve(root))
+  const to = posix(path.resolve(file))
+  const rel = posix(path.relative(from, to))
+  if (rel === "") return ""
+  if (path.isAbsolute(rel) || rel === ".." || rel.startsWith("../")) {
+    return undefined
+  }
+  return rel
+}
+
+/**
+ * Docker/zip context root for an unbundled (`isExternal`) program. If
+ * some extraFile is `dest: "."`, that source is the context; otherwise
+ * the context is `dirname(main)`.
+ */
+export const contextRootOf = (
+  main: string,
+  extraFiles: ReadonlyArray<{ source: string; dest: string }>,
+  path: Path.Path,
+  resolveSource: (source: string) => string,
+): string => {
+  const root = extraFiles.find((file) => isContextRootDest(file.dest))
+  return root !== undefined ? resolveSource(root.source) : path.dirname(main)
+}
+
+/** Normalize a COPY destination so it cannot escape the root. `"."` is the root. */
+export const extraFileDestination = (destination: string): string => {
+  const normalized = destination.replaceAll("\\", "/").replace(/^\/+/, "")
+  if (isContextRootDest(normalized)) return CONTEXT_ROOT_DEST
+  const parts = normalized
+    .split("/")
+    .filter((part) => part.length > 0 && part !== "." && part !== "..")
+  return parts.length === 0 ? "dist" : parts.join("/")
+}
+
+export const resolveExtraSource = (
+  source: string,
+  path: {
+    readonly isAbsolute: (value: string) => boolean
+    readonly resolve: (...segments: string[]) => string
+  },
+) => (path.isAbsolute(source) ? source : path.resolve(initialCwd, source))
+
+const skipCopySegment = (segment: string) => segment === ".git" || segment === ".alchemy"
+
+export const hashExtraFiles = Effect.fn(effect (
+  extraFiles: ReadonlyArray<ExtraFile> | undefined,
+) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  const runtimeBase = try Effect.orDie(Effect.try({ try: () => currentDirectory(), catch: (e) => e }))
+  const dotAlchemy = try dotAlchemyDirectory
+  const entries = try Effect.forEach(
+    extraFiles ?? [],
+    (extra) =>
+      effect {
+        const dest = extraFileDestination(extra.dest)
+        const source = resolveExtraSource(extra.source, path)
+        const exists = try fs.exists(source).pipe(Effect.orElseSucceed(() => false))
+        if (
+          !exists
+          || (try Effect.orDie(Effect.try({
+            try: () => isPathWithin(dotAlchemy, source, runtimeBase),
+            catch: (e) => e,
+          })))
+        ) return [dest, ""] as const
+        const stat = try fs.stat(source)
+        const hash = stat.type === "Directory"
+          ? try hashDirectory({
+            cwd: source,
+            memo: {
+              exclude: EXTRA_FILES_HASH_EXCLUDE,
+              lockfile: false,
+            },
+          }).pipe(Effect.orElseSucceed(() => ""))
+          : try sha256(try fs.readFile(source))
+        return [dest, hash] as const
+      },
+    { concurrency: ioConcurrency },
+  )
+  return Object.fromEntries(entries) as Record<string, string>
+})
+
+/**
+ * Copy a file or directory without macOS `clonefile`. Nitro/Nuxt
+ * `.output/server` trees (and their nested `node_modules`) fail
+ * `fs.copy` with `EINVAL: invalid argument, clonefile`. Nested
+ * `node_modules` are copied — nitro's node preset emits runtime
+ * deps there (`solid-js`, `seroval`, …) and the host imports them.
+ */
+export const copyTree = effect (from: string, to: string) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  const runtimeBase = try Effect.orDie(Effect.try({ try: () => currentDirectory(), catch: (e) => e }))
+  const dotAlchemy = try dotAlchemyDirectory
+  if ((try Effect.orDie(Effect.try({ try: () => isPathWithin(dotAlchemy, from, runtimeBase), catch: (e) => e })))) {
+    return
+  }
+  const stat = try fs.stat(from).pipe(Effect.orElseSucceed(() => undefined))
+  if (stat === undefined) return
+  if (stat.type !== "Directory") {
+    if (stat.type !== "File") return
+    try fs.makeDirectory(path.dirname(to), { recursive: true })
+    const contents = try fs.readFile(from)
+    try fs.writeFile(to, contents)
+    return
+  }
+  try fs.makeDirectory(to, { recursive: true })
+  const names = try fs.readDirectory(from, { recursive: true })
+  try Effect.all(
+    names.flatMap((name) => {
+      if (
+        name.split(/[\\/]/).some(skipCopySegment)
+        || isPathWithin(dotAlchemy, path.join(from, name), runtimeBase)
+      ) {
+        return []
+      }
+      return [
+        effect {
+          const src = path.join(from, name)
+          const item = try fs.stat(src).pipe(Effect.orElseSucceed(() => undefined))
+          if (item === undefined || item.type !== "File") return
+          const dst = path.join(to, name)
+          try fs.makeDirectory(path.dirname(dst), { recursive: true })
+          const contents = try fs.readFile(src)
+          try fs.writeFile(dst, contents)
+        },
+      ]
+    }),
+    { concurrency: ioConcurrency },
+  )
+}
+
+export const copyExtraFiles = Effect.fn(effect (
+  contextDir: string,
+  extraFiles: ReadonlyArray<ExtraFile> | undefined,
+  options?: {
+    readonly onMissing?: (file: {
+      readonly source: string
+      readonly dest: string
+    }) => Effect.Effect<unknown, any>
+  },
+) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  try Effect.forEach(
+    extraFiles ?? [],
+    (extra) =>
+      effect {
+        const source = resolveExtraSource(extra.source, path)
+        const destName = extraFileDestination(extra.dest)
+        const exists = try fs.exists(source).pipe(Effect.orElseSucceed(() => false))
+        if (!exists) {
+          if (options?.onMissing !== undefined) {
+            try options.onMissing({ source, dest: destName })
+          }
+          return
+        }
+        if (isContextRootDest(destName)) {
+          const stat = try fs.stat(source)
+          if (stat.type === "Directory") {
+            const names = try fs.readDirectory(source)
+            try Effect.forEach(
+              names,
+              (name) => copyTree(path.join(source, name), path.join(contextDir, name)),
+              { concurrency: ioConcurrency },
+            )
+          } else {
+            try copyTree(source, path.join(contextDir, path.basename(source)))
+          }
+          return
+        }
+        const dest = path.join(contextDir, destName)
+        if (try fs.exists(dest).pipe(Effect.orElseSucceed(() => false))) {
+          try fs.remove(dest, { recursive: true })
+        }
+        try fs.makeDirectory(path.dirname(dest), { recursive: true })
+        try copyTree(source, dest)
+      },
+    { concurrency: ioConcurrency },
+  )
+})

@@ -1,0 +1,67 @@
+import * as kms from "@distilled.cloud/aws/kms"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { keyLabel, keyPolicyStatement, type KeyLike } from "./KeyBinding.ts"
+import { ReEncrypt, type ReEncryptRequest } from "./ReEncrypt.vibe"
+
+/**
+ * Bespoke (not scaffolded): ReEncrypt spans two keys — `kms:ReEncryptTo` on
+ * the destination and `kms:ReEncryptFrom` on the source — and injects
+ * `DestinationKeyId` (plus `SourceKeyId` when a source key is bound).
+ */
+export const ReEncryptHttp = Layer.effect(
+  ReEncrypt,
+  effect {
+    const bind = try (AWSBindings.Bind)
+    const reEncrypt = try (AWSBindings.withCredentials(kms.reEncrypt))
+
+    return effect function(destination: KeyLike, source?: KeyLike) {
+      const from = source ?? destination
+      const DestinationKeyId = typeof destination === "string"
+        ? Effect.succeed<string>(destination)
+        : try (destination.keyId.asEffect())
+      const SourceKeyId = typeof from === "string" ? Effect.succeed<string>(from) : try (from.keyId.asEffect())
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try (bind`AWS.KMS.ReEncrypt(${destination}, ${from})`({
+          policyStatements: source === undefined
+            ? [
+              try Effect.orDie(Effect.try({
+                try: () => keyPolicyStatement(["kms:ReEncryptFrom", "kms:ReEncryptTo"], destination),
+                catch: (error) => error,
+              })),
+            ]
+            : [
+              try Effect.orDie(
+                Effect.try({ try: () => keyPolicyStatement("kms:ReEncryptTo", destination), catch: (error) => error }),
+              ),
+              try Effect.orDie(
+                Effect.try({ try: () => keyPolicyStatement("kms:ReEncryptFrom", from), catch: (error) => error }),
+              ),
+            ],
+        }))
+      }
+      return (try Effect.orDie(
+        Effect.try({
+          try: () =>
+            Effect.fn(`AWS.KMS.ReEncrypt(${keyLabel(destination)})`)(function*(
+              request: ReEncryptRequest,
+            ) {
+              const destinationKeyId = yield* DestinationKeyId
+              // Always pin the source key (AWS best practice for symmetric
+              // ciphertexts) — and required for alias-bound IAM, where the
+              // `kms:RequestAlias` condition only matches when the alias appears
+              // in the request.
+              const sourceKeyId = yield* SourceKeyId
+              return yield* reEncrypt({
+                ...request,
+                SourceKeyId: sourceKeyId,
+                DestinationKeyId: destinationKeyId,
+              })
+            }),
+          catch: (error) => error,
+        }),
+      ))
+    }
+  },
+)

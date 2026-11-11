@@ -25,7 +25,7 @@ import type * as FileSystem from "effect/FileSystem";
 import type * as Layer from "effect/Layer";
 import type * as Path from "effect/Path";
 import type { Framework } from "../core/index.ts";
-import { layer, type SolidStartOptions } from "./SolidStart.ts";
+import { layer, type SolidStartOptions } from "./SolidStart.vibe";
 
 export {
   DEFAULT_TARGET_SPECIFIER,
@@ -44,7 +44,7 @@ export {
   type SolidStartViteBuilder,
   type SolidStartViteDevServer,
   type SolidStartViteModule,
-} from "./SolidStart.ts";
+} from "./SolidStart.vibe";
 
 export {
   findPresetConflict,

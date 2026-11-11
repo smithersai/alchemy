@@ -1,0 +1,111 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { ManagedThing } from "./ManagedThing.vibe"
+
+/**
+ * Shared scaffolding for the AWS IoT Managed Integrations HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action list, and (for the
+ * thing-scoped builder) the injected identifier field is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an operation scoped to one {@link ManagedThing}.
+ * The deploy-time half grants `iamActions` on the bound thing's ARN; the
+ * runtime half injects the thing's service-generated id into the request
+ * under `key` (the API is split between `Identifier` and `ManagedThingId`
+ * request fields).
+ */
+export const makeManagedThingHttpBinding = effect <
+  I extends object,
+  A,
+  E,
+  R,
+  K extends "Identifier" | "ManagedThingId",
+>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"SendManagedThingCommand"`.
+   */
+  capability: string
+  /** IAM actions granted on the bound managed thing's ARN. */
+  iamActions: readonly string[]
+  /** The distilled operation; the field named `key` is injected. */
+  operation: ((input: I) => A!E)!never!R
+  /** Request field that carries the bound thing's id. */
+  key: K
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (thing: ManagedThing) => {
+    // Output yields a DEFERRED effect — resolve again per invocation below.
+    const ManagedThingId = try thing.managedThingId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTManagedIntegrations.${options.capability}(${thing})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [thing.managedThingArn],
+          },
+        ],
+      })
+    }
+    return effect (request?: Omit<I, K> | undefined) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            [options.key]: try ManagedThingId,
+          } as I)
+        },
+        `AWS.IoTManagedIntegrations.${options.capability}(${thing.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level IoT Managed Integrations
+ * operation (device discovery, the schema catalog, the custom endpoint, and
+ * connector events — per the `iotmanagedintegrations` service authorization
+ * reference these authorize account-wide, so the grant is on
+ * `Resource: ["*"]`).
+ */
+export const makeManagedIntegrationsHttpBinding = effect <I extends object, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"StartDeviceDiscovery"`.
+   */
+  capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTManagedIntegrations.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        `AWS.IoTManagedIntegrations.${options.capability}`,
+      )
+  }
+}

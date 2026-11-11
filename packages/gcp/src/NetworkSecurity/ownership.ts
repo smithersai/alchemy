@@ -1,4 +1,4 @@
-import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe";
 
 export { createInternalLabels, hasAlchemyLabels };
 
@@ -42,7 +42,7 @@ export const hasOwnershipMarker = (description: string | undefined) =>
 export const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => JSON.stringify([...(left ?? [])]) === JSON.stringify([...(right ?? [])]);

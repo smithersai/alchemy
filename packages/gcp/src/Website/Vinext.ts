@@ -1,5 +1,5 @@
 import * as Namespace from "alchemy/Namespace";
-import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /**
  * The vinext-on-Node framework module (vinext's Vite build +

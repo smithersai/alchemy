@@ -1,0 +1,335 @@
+import * as Effect from "effect/Effect"
+import * as controltower from "@distilled.cloud/aws/controltower"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { canonicalParameters, observeControlTowerTags, syncControlTowerTags } from "./internal.vibe"
+
+export interface EnabledBaselineProps {
+  /**
+   * The ARN of the baseline to enable, e.g. the `AWSControlTowerBaseline`
+   * ARN from `ListBaselines`. Changing the baseline replaces the
+   * enablement.
+   */
+  baselineIdentifier: string
+  /**
+   * The baseline version to enable, e.g. `"4.0"`. Updated in place via
+   * `UpdateEnabledBaseline`.
+   */
+  baselineVersion: string
+  /**
+   * The ARN of the target (organizational unit) the baseline is enabled
+   * on. Changing the target replaces the enablement.
+   */
+  targetIdentifier: string
+  /**
+   * Parameters applied to the baseline, as `{ key, value }` pairs — e.g.
+   * `IdentityCenterEnabledBaselineArn` for the `AWSControlTowerBaseline`.
+   * Updated in place via `UpdateEnabledBaseline`.
+   */
+  parameters?: { key: string; value: any }[]
+  /**
+   * Tags to apply to the enabled baseline. Merged with internal Alchemy
+   * tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface EnabledBaseline extends
+  Resource<
+    "AWS.ControlTower.EnabledBaseline",
+    EnabledBaselineProps,
+    {
+      /**
+       * The ARN of the enabled baseline (the `EnabledBaseline` resource).
+       */
+      enabledBaselineArn: string
+      /**
+       * The ARN of the baseline that was enabled.
+       */
+      baselineIdentifier: string
+      /**
+       * The ARN of the target organizational unit.
+       */
+      targetIdentifier: string
+      /**
+       * The enabled baseline version.
+       */
+      baselineVersion: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Control Tower baseline enabled on a target organizational unit.
+ * Enabling a baseline (e.g. `AWSControlTowerBaseline`) starts an
+ * asynchronous operation that registers the OU with Control Tower and
+ * deploys the baseline's governance resources to its accounts.
+ *
+ * Requires an AWS Control Tower landing zone and can only be managed from
+ * the Organizations management account.
+ * ### Enabling Baselines
+ * **Example:** Register an OU with Control Tower
+ * ```typescript
+ * import * as ControlTower from "@alchemy.run/aws/ControlTower";
+ *
+ * const enabled = yield* ControlTower.EnabledBaseline("WorkloadsBaseline", {
+ *   baselineIdentifier:
+ *     "arn:aws:controltower:us-west-2::baseline/17BSJV3IGJ2QSGA2",
+ *   baselineVersion: "4.0",
+ *   targetIdentifier: "arn:aws:organizations::111122223333:ou/o-example/ou-example",
+ * });
+ * ```
+ *
+ * **Example:** Baseline with Identity Center parameter
+ * ```typescript
+ * const enabled = yield* ControlTower.EnabledBaseline("WorkloadsBaseline", {
+ *   baselineIdentifier: controlTowerBaselineArn,
+ *   baselineVersion: "4.0",
+ *   targetIdentifier: ouArn,
+ *   parameters: [
+ *     {
+ *       key: "IdentityCenterEnabledBaselineArn",
+ *       value: identityCenterEnabledBaselineArn,
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const EnabledBaseline = Resource<EnabledBaseline>("AWS.ControlTower.EnabledBaseline")
+
+/**
+ * An asynchronous baseline operation (ENABLE_BASELINE / DISABLE_BASELINE /
+ * UPDATE_ENABLED_BASELINE) converged to the terminal `FAILED` status.
+ */
+export error BaselineOperationFailed {
+  operationIdentifier: string
+  status: string
+  statusMessage: string | undefined
+}
+
+/**
+ * Internal signal that a baseline operation is still `IN_PROGRESS`,
+ * consumed by {@link waitForBaselineOperation}'s bounded schedule.
+ */
+error BaselineOperationPending {
+  operationIdentifier: string
+  status: string | undefined
+}
+
+// Explicitly-typed retry wrappers — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileBaselineOperationPending = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "BaselineOperationPending",
+    // Baseline enablement provisions accounts and typically takes several
+    // minutes; poll every 10s up to ~20 minutes.
+    schedule: Schedule.max([Schedule.spaced("10 seconds"), Schedule.recurs(120)]),
+  })
+
+// Control Tower serializes baseline operations per target — a concurrent
+// operation surfaces as a typed ConflictException. Retry through it on a
+// bounded schedule.
+const retryWhileBaselineConflict = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(40)]),
+  })
+
+const waitForBaselineOperation = effect (operationIdentifier: string) =>
+  try retryWhileBaselineOperationPending(
+    effect {
+      const { baselineOperation } = try controltower.getBaselineOperation({
+        operationIdentifier,
+      })
+      if (baselineOperation.status === "SUCCEEDED") {
+        return
+      }
+      if (baselineOperation.status === "FAILED") {
+        throw new BaselineOperationFailed({
+          operationIdentifier,
+          status: baselineOperation.status,
+          statusMessage: baselineOperation.statusMessage,
+        })
+      }
+      throw new BaselineOperationPending({
+        operationIdentifier,
+        status: baselineOperation.status,
+      })
+    },
+  )
+
+const readEnabledBaseline = effect (enabledBaselineArn: string) =>
+  (effect {
+    return (try controltower.getEnabledBaseline({ enabledBaselineIdentifier: enabledBaselineArn }))
+      .enabledBaselineDetails
+  }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; }
+
+// Find an enabled baseline by (baselineIdentifier, targetIdentifier) —
+// covers the create-race and lost-output cases where we don't have the
+// ARN cached.
+const findEnabledBaselineArn = effect (baselineIdentifier: string, targetIdentifier: string) =>
+  Array.from(
+    try (controltower.listEnabledBaselines
+      .pages({
+        filter: {
+          baselineIdentifiers: [baselineIdentifier],
+          targetIdentifiers: [targetIdentifier],
+        },
+      })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.enabledBaselines)[0]?.arn
+
+const toAttributes = (
+  arn: string,
+  details: controltower.EnabledBaselineDetails | undefined,
+  fallback: {
+    baselineIdentifier: string
+    targetIdentifier: string
+    baselineVersion?: string
+  },
+): EnabledBaseline["Attributes"] => ({
+  enabledBaselineArn: arn,
+  baselineIdentifier: details?.baselineIdentifier ?? fallback.baselineIdentifier,
+  targetIdentifier: details?.targetIdentifier ?? fallback.targetIdentifier,
+  baselineVersion: details?.baselineVersion ?? fallback.baselineVersion,
+})
+
+export const EnabledBaselineProvider = (): infer _ =>
+  Provider.effect(
+    EnabledBaseline,
+    effect {
+      return EnabledBaseline.Provider.of({
+        stables: ["enabledBaselineArn", "baselineIdentifier", "targetIdentifier"],
+        // Enumerate every enabled baseline in the ambient account (the
+        // filter-less listing is supported on management accounts; on
+        // non-Control-Tower accounts there is simply nothing to list).
+        list: effect () =>
+          Array.from(
+            try (controltower.listEnabledBaselines.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.enabledBaselines)
+            .map((summary) => ({
+              enabledBaselineArn: summary.arn,
+              baselineIdentifier: summary.baselineIdentifier,
+              targetIdentifier: summary.targetIdentifier,
+              baselineVersion: summary.baselineVersion,
+            })),
+        read: effect ({ id, olds, output }) => {
+          const arn = output?.enabledBaselineArn
+            ?? (olds !== undefined
+              ? try findEnabledBaselineArn(olds.baselineIdentifier, olds.targetIdentifier)
+              : undefined)
+          if (arn === undefined) return undefined
+          const details = try readEnabledBaseline(arn)
+          if (details === undefined) return undefined
+          const attrs = toAttributes(arn, details, {
+            baselineIdentifier: olds?.baselineIdentifier ?? "",
+            targetIdentifier: olds?.targetIdentifier ?? "",
+          })
+          const tags = try observeControlTowerTags(arn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          if (
+            news.baselineIdentifier !== olds.baselineIdentifier
+            || news.targetIdentifier !== olds.targetIdentifier
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          // 1. Observe — cloud state is authoritative; output is only an
+          //    ARN cache.
+          let arn = output?.enabledBaselineArn
+          let details = arn === undefined ? undefined : try readEnabledBaseline(arn)
+          if (details === undefined) {
+            arn = try findEnabledBaselineArn(news.baselineIdentifier, news.targetIdentifier)
+            details = arn === undefined ? undefined : try readEnabledBaseline(arn)
+          }
+
+          // 2. Ensure — enable if missing and wait for the asynchronous
+          //    operation to converge.
+          if (details === undefined || arn === undefined) {
+            const internalTags = try createInternalTags(id)
+            const enabled = try retryWhileBaselineConflict(
+              controltower.enableBaseline({
+                baselineIdentifier: news.baselineIdentifier,
+                baselineVersion: news.baselineVersion,
+                targetIdentifier: news.targetIdentifier,
+                parameters: news.parameters,
+                tags: { ...news.tags, ...internalTags },
+              }),
+            )
+            arn = enabled.arn
+            try session.note(`baseline operation ${enabled.operationIdentifier}`)
+            try waitForBaselineOperation(enabled.operationIdentifier)
+            details = try readEnabledBaseline(arn)
+          } else {
+            // 3. Sync — version and parameters are updated in place. Diff
+            //    observed state against desired; skip the API on a no-op.
+            //    Parameters cannot be cleared (only replaced), so an
+            //    absent `parameters` prop leaves observed parameters
+            //    alone.
+            const versionChanged = details.baselineVersion !== news.baselineVersion
+            const parametersChanged = news.parameters !== undefined
+              && canonicalParameters(details.parameters) !== canonicalParameters(news.parameters)
+            if (versionChanged || parametersChanged) {
+              const updated = try retryWhileBaselineConflict(
+                controltower.updateEnabledBaseline({
+                  enabledBaselineIdentifier: arn,
+                  baselineVersion: news.baselineVersion,
+                  parameters: news.parameters,
+                }),
+              )
+              try session.note(`baseline operation ${updated.operationIdentifier}`)
+              try waitForBaselineOperation(updated.operationIdentifier)
+              details = try readEnabledBaseline(arn)
+            }
+          }
+
+          // 3b. Sync tags against observed cloud tags.
+          try syncControlTowerTags(arn, id, news.tags)
+
+          // 4. Return fresh attributes.
+          return toAttributes(arn, details, {
+            baselineIdentifier: news.baselineIdentifier,
+            targetIdentifier: news.targetIdentifier,
+            baselineVersion: news.baselineVersion,
+          })
+        },
+        delete: effect ({ output, session }) => {
+          const result = retryWhileBaselineConflict(
+            controltower.disableBaseline({
+              enabledBaselineIdentifier: output.enabledBaselineArn,
+            }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+          if (result !== undefined) {
+            try session.note(`baseline operation ${result.operationIdentifier}`)
+            try waitForBaselineOperation(result.operationIdentifier)
+          }
+        },
+      })
+    },
+  )

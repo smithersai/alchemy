@@ -1,8 +1,8 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Api from "./src/Api.ts";
-import Indexer from "./src/Indexer.ts";
+import Api from "./src/Api.vibe";
+import Indexer from "./src/Indexer.vibe";
 import { Files, Uploads } from "./src/resources.ts";
 
 export default Alchemy.Stack(

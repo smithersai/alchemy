@@ -1,0 +1,269 @@
+import * as Effect from "effect/Effect"
+import * as signer from "@distilled.cloud/aws/signer"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface ProfilePermissionProps {
+  /**
+   * The name of the signing profile the permission is attached to.
+   * Changing it replaces the permission.
+   */
+  profileName: string
+
+  /**
+   * The Signer action the principal is allowed to perform on the profile:
+   * `signer:StartSigningJob`, `signer:SignPayload`,
+   * `signer:GetSigningProfile`, or `signer:RevokeSignature`.
+   */
+  action: string
+
+  /**
+   * The AWS principal (account id, or IAM user/role ARN) receiving
+   * cross-account permission to use the profile.
+   */
+  principal: string
+
+  /**
+   * A unique statement id identifying this permission inside the profile's
+   * resource policy. If omitted, a deterministic id is generated from the
+   * logical id. Changing it replaces the permission.
+   */
+  statementId?: string
+
+  /**
+   * The signing profile version the permission applies to. Omit to attach
+   * the permission to the profile as a whole.
+   */
+  profileVersion?: string
+}
+
+export interface ProfilePermission extends
+  Resource<
+    "AWS.Signer.ProfilePermission",
+    ProfilePermissionProps,
+    {
+      /** The name of the signing profile the permission is attached to. */
+      profileName: string
+      /** The statement id of the permission inside the profile's policy. */
+      statementId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A cross-account permission on an AWS Signer signing profile — one statement
+ * in the profile's resource policy granting another AWS account (or IAM
+ * identity) a Signer action such as `signer:StartSigningJob`. The Signer
+ * counterpart of CloudFormation's `AWS::Signer::ProfilePermission`.
+ *
+ * Permissions have no update API: changing the `action`, `principal`, or
+ * `profileVersion` converges by removing and re-adding the statement under
+ * the same statement id (revision-checked, so concurrent policy edits are
+ * retried); changing `profileName` or `statementId` replaces the permission.
+ *
+ * ### Sharing a Signing Profile
+ * **Example:** Allow Another Account to Sign
+ * ```typescript
+ * const profile = yield* Signer.SigningProfile("ReleaseProfile", {
+ *   platformId: "AWSLambda-SHA384-ECDSA",
+ * });
+ *
+ * const permission = yield* Signer.ProfilePermission("CiAccountCanSign", {
+ *   profileName: profile.profileName,
+ *   action: "signer:StartSigningJob",
+ *   principal: "123456789012",
+ * });
+ * ```
+ *
+ * **Example:** Pin the Permission to a Profile Version
+ * ```typescript
+ * const permission = yield* Signer.ProfilePermission("CiAccountCanSign", {
+ *   profileName: profile.profileName,
+ *   action: "signer:StartSigningJob",
+ *   principal: "123456789012",
+ *   profileVersion: profile.profileVersion,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ProfilePermission = Resource<ProfilePermission>("AWS.Signer.ProfilePermission")
+
+/**
+ * The profile policy is capped at 20 statements, but the list API still
+ * pages — walk it fully so revision ids and statement lookups are accurate.
+ * A profile that has never had a permission answers with a typed
+ * `ResourceNotFoundException` ("No policies associated with profile …") —
+ * observed as an empty policy. A genuinely missing profile surfaces on the
+ * subsequent `addProfilePermission` instead.
+ */
+const listAllPermissions = effect (profileName: string) => {
+  const permissions: signer.Permission[] = []
+  let revisionId: string | undefined
+  let nextToken: string | undefined
+  do {
+    const page = signer.listProfilePermissions({ profileName, nextToken }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: {
+        permissions: [] as signer.Permission[],
+        revisionId: undefined,
+        nextToken: undefined,
+      } as signer.ListProfilePermissionsResponse;
+      default: throw e;
+    }
+    permissions.push(...(page.permissions ?? []))
+    revisionId = page.revisionId ?? revisionId
+    nextToken = page.nextToken
+  } while (nextToken !== undefined)
+  return { permissions, revisionId }
+}
+
+/** Concurrent policy edits bump the revision id — re-observe and retry. */
+const conflictRetry = {
+  while: (e: { _tag: string }): boolean => e._tag === "ConflictException",
+  schedule: Schedule.exponential("500 millis"),
+  times: 5,
+} as const
+
+export const ProfilePermissionProvider = (): infer _ =>
+  Provider.effect(
+    ProfilePermission,
+    effect {
+      const createStatementId = effect (
+        id: string,
+        props: Pick<ProfilePermissionProps, "statementId">,
+      ) => (
+        props.statementId
+          // Signer rejects statement ids of 64+ characters.
+          ?? (try createPhysicalName({ id, delimiter: "-", maxLength: 63 }))
+      )
+
+      return ProfilePermission.Provider.of({
+        stables: ["profileName", "statementId"],
+
+        list: effect () => {
+          // A ProfilePermission is one statement inside a profile's
+          // resource policy — fan out: enumerate active profiles, list
+          // each policy, emit one Attributes per statement id.
+          const profileNames = Array.from(
+            try (signer.listSigningProfiles
+              .pages({ includeCanceled: false })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.profiles ?? [])
+              .map((p) => p.profileName)
+              .filter((name): name is string => name != null)
+          )
+          const perProfile = try Effect.forEach(
+            profileNames,
+            effect (profileName) =>
+              try effect {
+                const { permissions } = try listAllPermissions(profileName)
+                return permissions
+                  .filter(
+                    (p): p is signer.Permission & { statementId: string } => typeof p.statementId === "string",
+                  )
+                  .map((p) => ({
+                    profileName,
+                    statementId: p.statementId,
+                  }))
+              },
+            { concurrency: 5 },
+          )
+          return perProfile.flat()
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const profileName = output?.profileName ?? olds?.profileName
+          if (profileName === undefined) return undefined
+          const statementId = output?.statementId ?? (try createStatementId(id, olds ?? {}))
+          const { permissions } = try listAllPermissions(profileName)
+          const statement = permissions.find((p) => p.statementId === statementId)
+          if (statement === undefined) return undefined
+          return { profileName, statementId }
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldStatementId = try createStatementId(id, olds)
+          const newStatementId = try createStatementId(id, news)
+          // The statement id is the permission's identity within the policy
+          // and the profile is the policy's host — either change replaces.
+          // action/principal/profileVersion converge in reconcile via
+          // remove + re-add under the same statement id.
+          if (news.profileName !== olds.profileName || oldStatementId !== newStatementId) {
+            return { action: "replace" } as const
+          }
+          return undefined
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const statementId = output?.statementId ?? (try createStatementId(id, news))
+
+          try (effect {
+            // OBSERVE — the profile's policy is authoritative.
+            const { permissions, revisionId } = try listAllPermissions(news.profileName)
+            const existing = permissions.find((p) => p.statementId === statementId)
+
+            // SYNC — statements have no update API. If the existing statement
+            // differs from the desired one, remove it (revision-checked) and
+            // fall through to re-add.
+            if (existing !== undefined) {
+              const matches = existing.action === news.action
+                && existing.principal === news.principal
+                && (existing.profileVersion ?? undefined) === (news.profileVersion ?? undefined)
+              if (matches) return
+              signer
+                .removeProfilePermission({
+                  profileName: news.profileName,
+                  statementId,
+                  revisionId: revisionId!,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: undefined as void;
+                  default: throw e;
+                }
+            }
+
+            // ENSURE — add the desired statement. A ConflictException here is
+            // a revision race (or the remove above still propagating); the
+            // outer retry re-observes and converges.
+            try signer.addProfilePermission({
+              profileName: news.profileName,
+              action: news.action,
+              principal: news.principal,
+              statementId,
+              profileVersion: news.profileVersion,
+              revisionId: existing !== undefined ? undefined : revisionId,
+            })
+          }
+            |> Effect.retry(%, conflictRetry))
+
+          try session.note(`${statementId} on ${news.profileName}`)
+          return { profileName: news.profileName, statementId }
+        },
+
+        delete: effect ({ output }) => {
+          try (effect {
+            const { permissions, revisionId } = try listAllPermissions(output.profileName)
+            const existing = permissions.find((p) => p.statementId === output.statementId)
+            if (existing === undefined || revisionId === undefined) return
+            signer
+              .removeProfilePermission({
+                profileName: output.profileName,
+                statementId: output.statementId,
+                revisionId,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined as void;
+                default: throw e;
+              }
+          }
+            |> Effect.retry(%, conflictRetry))
+        },
+      })
+    },
+  )

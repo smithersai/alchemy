@@ -1,0 +1,396 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { toPhysicalSnake } from "./helpers.vibe"
+import {
+  createInternalLabels,
+  hasAlchemyPrefix,
+  labelsDiffer,
+  listLocations,
+  locationOf,
+  lastSegment,
+  projectOf,
+  toLabels,
+  userLabels,
+} from "./names.vibe"
+import { waitForOperation } from "./operations.vibe"
+
+export type FeaturestoresEntityTypesFeatureProps = {
+  /**
+   * Parent EntityType resource name
+   * `projects/{project}/locations/{location}/featurestores/{featurestore}/entityTypes/{entityType}`.
+   * Immutable — changing it replaces the feature.
+   */
+  entityType: string
+  /**
+   * Feature id (the `{feature}` segment). If omitted, a unique id is
+   * generated. Must match `[a-z0-9_]` and start with a letter. Immutable.
+   */
+  featureId?: string
+  /**
+   * Feature value type. Immutable — changing it replaces the feature.
+   * @default "STRING"
+   */
+  valueType?: aiplatform.GoogleCloudAiplatformV1FeatureValueTypeEnum | (string & {})
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Disable monitoring even when the parent EntityType enables it.
+   * @default false
+   */
+  disableMonitoring?: boolean
+  /**
+   * Contact emails or URIs for the feature owner.
+   */
+  pointOfContact?: string
+  /**
+   * BigQuery column hosting this feature version. Defaults to `featureId`.
+   */
+  versionColumnName?: string
+}
+
+export type FeaturestoresEntityTypesFeature = Resource<
+  "GCP.AIPlatform.FeaturestoresEntityTypesFeature",
+  FeaturestoresEntityTypesFeatureProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Feature id (last path segment). */
+    featureId: string
+    /** Parent EntityType resource name. */
+    entityType: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Feature value type. */
+    valueType: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Whether monitoring is disabled. */
+    disableMonitoring: boolean
+    /** Feature owner contacts. */
+    pointOfContact: string | undefined
+    /** BigQuery column name, if set. */
+    versionColumnName: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI Feature Store (legacy) Feature under an EntityType.
+ *
+ * Changing `entityType`, `featureId`, or `valueType` replaces the feature.
+ * Description, labels, monitoring, and point of contact update in place.
+ *
+ * ### Creating a Feature
+ * **Example:** INT64 feature
+ * ```typescript
+ * const feature = yield* GCP.AIPlatform.FeaturestoresEntityTypesFeature(
+ *   "Age",
+ *   {
+ *     entityType: entityType.name,
+ *     valueType: "INT64",
+ *     description: "customer age",
+ *     labels: { env: "prod" },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const FeaturestoresEntityTypesFeature = Resource<FeaturestoresEntityTypesFeature>(
+  "GCP.AIPlatform.FeaturestoresEntityTypesFeature",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FeaturestoresEntityTypesFeatureNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.FeaturestoresEntityTypesFeatureNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FeaturestoresEntityTypesFeatureStillExists extends Data.TaggedError(
+  "GCP.AIPlatform.FeaturestoresEntityTypesFeatureStillExists",
+)<{
+  resourceName: string
+}> {}
+
+const DEFAULT_VALUE_TYPE = "STRING"
+
+const parentOf = (name: string): infer _ => {
+  const at = name.lastIndexOf("/features/")
+  return at >= 0 ? name.slice(0, at) : name
+}
+
+const resourceName = (entityType: string, featureId: string): infer _ => `${entityType}/features/${featureId}`
+
+const toAttrs = (feature: aiplatform.GoogleCloudAiplatformV1Feature, project: string): infer _ => {
+  const name = feature.name ?? ""
+  return {
+    name,
+    featureId: lastSegment(name),
+    entityType: parentOf(name),
+    project: projectOf(name, project),
+    location: locationOf(name),
+    valueType: feature.valueType,
+    description: feature.description,
+    labels: userLabels(feature.labels),
+    disableMonitoring: feature.disableMonitoring === true,
+    pointOfContact: feature.pointOfContact,
+    versionColumnName: feature.versionColumnName,
+    createTime: feature.createTime,
+    updateTime: feature.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsFeaturestoresEntityTypesFeatures({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const listFeatures = effect (parent: string) =>
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsFeaturestoresEntityTypesFeatures
+        .pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.features ?? []))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Feature[];
+    default: throw e;
+  }
+
+const listEntityTypes = effect (parent: string) =>
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsFeaturestoresEntityTypes.pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.entityTypes ?? []))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1EntityType[];
+    default: throw e;
+  }
+
+const listFeaturestores = effect (parent: string) =>
+  (effect {
+    return (Array.from(
+      try (aiplatform.listProjectsLocationsFeaturestores.pages({ parent, pageSize: 100 })
+        |> Stream.runCollect(%)),
+    ).flatMap((page) => page.featurestores ?? []))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Featurestore[];
+    default: throw e;
+  }
+
+const waitUntilExists = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(
+      %,
+      (feature): feature is aiplatform.GoogleCloudAiplatformV1Feature => feature !== undefined,
+      () => new FeaturestoresEntityTypesFeatureNotResolved({ resourceName: name }),
+    )
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.FeaturestoresEntityTypesFeatureNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(
+      %,
+      (feature) => feature === undefined,
+      () => new FeaturestoresEntityTypesFeatureStillExists({ resourceName: name }),
+    )
+    |> Effect.asVoid(%)
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.FeaturestoresEntityTypesFeatureStillExists",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+export const FeaturestoresEntityTypesFeatureProvider = (): infer _ =>
+  Provider.succeed(FeaturestoresEntityTypesFeature, {
+    stables: ["name", "featureId", "entityType", "project", "location", "valueType", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousParent = olds?.entityType ?? output?.entityType
+      const nextParent = resolved.entityType ?? previousParent
+      const previousId = olds?.featureId ?? output?.featureId
+      const nextId = resolved.featureId ?? previousId
+      const previousType = (
+        olds?.valueType
+          ?? output?.valueType
+          ?? DEFAULT_VALUE_TYPE
+      ).toUpperCase()
+      const nextType = (resolved.valueType ?? previousType).toUpperCase()
+      if (
+        (previousParent !== undefined
+          && nextParent !== undefined
+          && nextParent !== previousParent)
+        || (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousType !== nextType
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousParent === nextParent && previousId !== undefined && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const featureId = try toPhysicalSnake(id, olds?.featureId, output?.featureId, 64)
+      const entityType = olds?.entityType ?? output?.entityType
+      const name = output?.name ?? (entityType !== undefined ? resourceName(entityType, featureId) : "")
+      if (name.length === 0) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const stores = try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listFeaturestores(`projects/${env.project}/locations/${location}`),
+        { concurrency: 4 },
+      )
+      const entityTypes = try Effect.forEach(
+        stores.flat().filter((store) => store.name !== undefined),
+        effect (store) => try listEntityTypes(store.name!),
+        { concurrency: 4 },
+      )
+      const features = try Effect.forEach(
+        entityTypes.flat().filter((entity) => entity.name !== undefined),
+        effect (entity) => try listFeatures(entity.name!),
+        { concurrency: 4 },
+      )
+      return features
+        .flat()
+        .filter((feature) => hasAlchemyPrefix(feature.labels))
+        .map((feature) => toAttrs(feature, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const featureId = try toPhysicalSnake(id, news.featureId, output?.featureId, 64)
+      const entityType = news.entityType
+      const name = resourceName(entityType, featureId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const valueType = (news.valueType ?? output?.valueType ?? DEFAULT_VALUE_TYPE).toUpperCase()
+      const disableMonitoring = news.disableMonitoring === true
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsFeaturestoresEntityTypesFeatures({
+            parent: entityType,
+            featureId,
+            body: {
+              valueType,
+              description: news.description,
+              labels: desiredLabels,
+              disableMonitoring,
+              pointOfContact: news.pointOfContact,
+              versionColumnName: news.versionColumnName,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(name)
+      }
+
+      if (current === undefined) {
+        throw new FeaturestoresEntityTypesFeatureNotResolved({
+          resourceName: name,
+        })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const labelsChanged = labelsDiffer(current.labels, desiredLabels)
+      const monitoringChanged = (current.disableMonitoring === true) !== disableMonitoring
+      const contactChanged = (current.pointOfContact ?? "") !== (news.pointOfContact ?? "")
+
+      if (descriptionChanged || labelsChanged || monitoringChanged || contactChanged) {
+        current = try aiplatform.patchProjectsLocationsFeaturestoresEntityTypesFeatures({
+          name,
+          updateMask: [
+            descriptionChanged ? "description" : undefined,
+            labelsChanged ? "labels" : undefined,
+            monitoringChanged ? "disable_monitoring" : undefined,
+            contactChanged ? "point_of_contact" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            description: news.description,
+            labels: desiredLabels,
+            disableMonitoring,
+            pointOfContact: news.pointOfContact,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (aiplatform
+          .deleteProjectsLocationsFeaturestoresEntityTypesFeatures({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

@@ -1,1 +1,1 @@
-export * from "./Binding.ts";
+export * from "./Binding.vibe";

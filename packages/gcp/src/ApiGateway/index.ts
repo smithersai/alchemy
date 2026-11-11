@@ -1,1 +1,1 @@
-export * from "./ApisConfig.ts";
+export * from "./ApisConfig.vibe";

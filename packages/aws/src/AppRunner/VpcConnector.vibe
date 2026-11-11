@@ -1,0 +1,310 @@
+import * as apprunner from "@distilled.cloud/aws/apprunner"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { isActiveStatus, readAppRunnerTags, syncAppRunnerTags, toWireTags } from "./internal.vibe"
+
+export error VpcConnectorUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface VpcConnectorProps {
+  /**
+   * Name of the VPC connector. Must be 4-40 characters. If omitted, a
+   * deterministic physical name is generated. Changing the name replaces
+   * the connector.
+   */
+  vpcConnectorName?: string
+  /**
+   * IDs of the VPC subnets App Runner uses for outgoing (egress) traffic.
+   * All subnets must belong to the same VPC. VPC connectors are
+   * immutable — changing subnets replaces the connector.
+   */
+  subnets: string[]
+  /**
+   * IDs of the security groups applied to the connector's network
+   * interfaces. Changing security groups replaces the connector.
+   * @default the VPC's default security group
+   */
+  securityGroups?: string[]
+  /**
+   * User-defined tags for the connector.
+   */
+  tags?: Record<string, string>
+}
+
+export interface VpcConnector extends
+  Resource<
+    "AWS.AppRunner.VpcConnector",
+    VpcConnectorProps,
+    {
+      /**
+       * Name of the VPC connector.
+       */
+      vpcConnectorName: string
+      /**
+       * ARN of this VPC connector revision.
+       */
+      vpcConnectorArn: string
+      /**
+       * Revision number of the connector (revisions are immutable).
+       */
+      vpcConnectorRevision: number
+      /**
+       * Subnets the connector attaches to.
+       */
+      subnets: string[]
+      /**
+       * Security groups applied to outbound traffic.
+       */
+      securityGroups: string[]
+      /**
+       * Current status of the connector (e.g. `ACTIVE`).
+       */
+      status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS App Runner VPC connector. Associating a connector with an App
+ * Runner service routes the service's outbound traffic through your VPC
+ * (e.g. to reach an RDS database in private subnets).
+ *
+ * VPC connectors are immutable: any change to subnets or security groups
+ * replaces the connector.
+ * ### Creating a VPC Connector
+ * **Example:** Connector over Two Subnets
+ * ```typescript
+ * const connector = yield* AppRunner.VpcConnector("Egress", {
+ *   subnets: [subnetA.subnetId, subnetB.subnetId],
+ *   securityGroups: [egressSecurityGroup.securityGroupId],
+ * });
+ * ```
+ *
+ * ### Routing a Service through the VPC
+ * **Example:** Service with VPC Egress
+ * ```typescript
+ * const service = yield* AppRunner.Service("Api", {
+ *   imageRepository: {
+ *     imageIdentifier: image.imageUri,
+ *     imageRepositoryType: "ECR",
+ *     port: "8080",
+ *   },
+ *   accessRoleArn: accessRole.roleArn,
+ *   networkConfiguration: {
+ *     egressType: "VPC",
+ *     vpcConnectorArn: connector.vpcConnectorArn,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const VpcConnector = Resource<VpcConnector>("AWS.AppRunner.VpcConnector")
+
+const sameStringSet = (
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean => {
+  const left = [...(a ?? [])].sort()
+  const right = [...(b ?? [])].sort()
+  return left.length === right.length && left.every((v, i) => v === right[i])
+}
+
+error VpcConnectorStillActive {
+  vpcConnectorArn: string
+  status: string
+}
+
+export const VpcConnectorProvider = (): infer _ =>
+  Provider.effect(
+    VpcConnector,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<VpcConnectorProps>,
+      ) => (props.vpcConnectorName ? props.vpcConnectorName : try createPhysicalName({ id, maxLength: 40 }))
+
+      const listConnectors = effect () =>
+        Array.from(
+          try (apprunner.listVpcConnectors.pages({})
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.VpcConnectors ?? [])
+
+      /**
+       * Find the latest ACTIVE revision of a connector by name. The list
+       * API has no name filter, so enumerate and filter client-side.
+       */
+      const findConnector = effect (name: string) => {
+        const connectors = try listConnectors()
+        return connectors
+          .filter((c) => c.VpcConnectorName === name && isActiveStatus(c.Status))
+          .sort((a, b) => (b.VpcConnectorRevision ?? 0) - (a.VpcConnectorRevision ?? 0))[0]
+      }
+
+      const toAttrs = effect (connector: apprunner.VpcConnector) => {
+        if (
+          !connector.VpcConnectorName
+          || !connector.VpcConnectorArn
+          || connector.VpcConnectorRevision === undefined
+        ) {
+          throw new VpcConnectorUnexpectedResponse({
+            message: "App Runner VPC connector is missing its name, ARN, or revision",
+          })
+        }
+        return {
+          vpcConnectorName: connector.VpcConnectorName,
+          vpcConnectorArn: connector.VpcConnectorArn,
+          vpcConnectorRevision: connector.VpcConnectorRevision,
+          subnets: [...(connector.Subnets ?? [])],
+          securityGroups: [...(connector.SecurityGroups ?? [])],
+          status: connector.Status ?? "ACTIVE",
+        }
+      }
+
+      return {
+        stables: ["vpcConnectorName"],
+
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
+            return { action: "replace" } as const
+          }
+          // VPC connectors are immutable — subnet or security group
+          // changes force a replacement.
+          if (
+            resolved?.subnets !== undefined
+            && olds?.subnets !== undefined
+            && !sameStringSet(resolved.subnets, olds.subnets)
+          ) {
+            return { action: "replace" } as const
+          }
+          if (
+            resolved?.securityGroups !== undefined
+            && olds?.securityGroups !== undefined
+            && !sameStringSet(resolved.securityGroups, olds.securityGroups)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.vpcConnectorName ?? (try toName(id, olds ?? {}))
+          const connector = try findConnector(name)
+          if (connector === undefined) return undefined
+          const attrs = try toAttrs(connector)
+          const tags = try readAppRunnerTags(attrs.vpcConnectorArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.vpcConnectorName ?? (try toName(id, news ?? {}))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news?.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try findConnector(name)
+
+          // 2. Ensure — the connector is immutable, so reconcile only
+          // ensures existence (diff handles replacement on any change).
+          if (observed === undefined) {
+            const created = try apprunner.createVpcConnector({
+              VpcConnectorName: name,
+              Subnets: news?.subnets ?? [],
+              SecurityGroups: news?.securityGroups,
+              Tags: toWireTags(desiredTags),
+            })
+            observed = created.VpcConnector
+          }
+
+          // 3. Sync tags — diff against OBSERVED cloud tags.
+          if (observed.VpcConnectorArn) {
+            try syncAppRunnerTags(observed.VpcConnectorArn, desiredTags)
+          }
+
+          // 4. Return fresh attributes.
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // A connector still associated with a service (App Runner
+          // releases the association asynchronously after the service
+          // finishes deleting) rejects with InvalidRequestException —
+          // retry through that window (bounded).
+          try (effect {
+            return apprunner
+              .deleteVpcConnector({
+                VpcConnectorArn: output.vpcConnectorArn,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined as void;
+                default: throw e;
+              }
+          }
+            |> Effect.retry(%, {
+              while: (e) =>
+                e._tag === "InvalidRequestException"
+                || e._tag === "InternalServiceErrorException",
+              schedule: Schedule.fixed("5 seconds"),
+              times: 8,
+            }))
+
+          // App Runner retains deleted connector revisions as INACTIVE, so
+          // INACTIVE is the service's terminal deleted state. Do not release
+          // Alchemy state while the connector is still ACTIVE: App Runner's
+          // managed ENIs would keep stack-owned subnets and security groups in
+          // use and make their bottom-up teardown flaky.
+          try (effect {
+            return (effect {
+              return (try effect {
+                const { VpcConnector } = try apprunner
+                  .describeVpcConnector({
+                    VpcConnectorArn: output.vpcConnectorArn,
+                  })
+
+                const status = (VpcConnector.Status ?? "ACTIVE").toUpperCase()
+                return (status === "INACTIVE" ? (undefined as void) : throw new VpcConnectorStillActive({
+                  vpcConnectorArn: output.vpcConnectorArn,
+                  status,
+                }))
+              })
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) =>
+                e._tag === "VpcConnectorStillActive"
+                || e._tag === "InternalServiceErrorException",
+              schedule: Schedule.fixed("3 seconds"),
+              times: 10,
+            }))
+        },
+
+        list: effect () =>
+          try (effect {
+            return (try listConnectors()).filter((c) => isActiveStatus(c.Status))
+          }
+            |> Effect.flatMap(
+              %,
+              Effect.forEach(effect (connector) => try toAttrs(connector), {
+                concurrency: 4,
+              }),
+            )),
+      }
+    },
+  )

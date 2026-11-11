@@ -1,0 +1,194 @@
+import * as appconfig from "@distilled.cloud/aws/appconfig"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface HostedConfigurationVersionProps {
+  /**
+   * ID of the application. Changing it replaces the version.
+   */
+  applicationId: string
+  /**
+   * ID of the (hosted) configuration profile. Changing it replaces the
+   * version.
+   */
+  configurationProfileId: string
+  /**
+   * The configuration content itself — the YAML/JSON/text document served to
+   * clients. Hosted configuration versions are immutable; changing the
+   * content creates a new version (a replacement).
+   */
+  content: string
+  /**
+   * MIME type of the content, e.g. `application/json`, `application/x-yaml`,
+   * or `text/plain`.
+   */
+  contentType: string
+  /**
+   * Description of the configuration version.
+   */
+  description?: string
+  /**
+   * A user-defined label for the version (e.g. a git SHA). Must be unique per
+   * profile.
+   */
+  versionLabel?: string
+}
+
+export interface HostedConfigurationVersion extends
+  Resource<
+    "AWS.AppConfig.HostedConfigurationVersion",
+    HostedConfigurationVersionProps,
+    {
+      applicationId: string
+      configurationProfileId: string
+      versionNumber: number
+      contentType: string
+      versionLabel: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS AppConfig hosted configuration version — the actual configuration
+ * content stored in the AppConfig hosted store. Versions are immutable: each
+ * change to the content produces a new version (a replacement), and its
+ * `versionNumber` is what you deploy through a {@link Deployment}.
+ *
+ * ### Creating a Hosted Configuration Version
+ * **Example:** JSON Configuration
+ * ```typescript
+ * const version = yield* AppConfig.HostedConfigurationVersion("V1", {
+ *   applicationId: app.applicationId,
+ *   configurationProfileId: profile.configurationProfileId,
+ *   content: JSON.stringify({ featureX: true }),
+ *   contentType: "application/json",
+ * });
+ * // version.versionNumber -> 1
+ * ```
+ *
+ * @resource
+ */
+export const HostedConfigurationVersion = Resource<HostedConfigurationVersion>(
+  "AWS.AppConfig.HostedConfigurationVersion",
+)
+
+export const HostedConfigurationVersionProvider = (): infer _ =>
+  Provider.effect(
+    HostedConfigurationVersion,
+    effect {
+      const readVersion = effect (
+        applicationId: string,
+        configurationProfileId: string,
+        versionNumber: number,
+      ) =>
+        appconfig
+          .getHostedConfigurationVersion({
+            ApplicationId: applicationId,
+            ConfigurationProfileId: configurationProfileId,
+            VersionNumber: versionNumber,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      return {
+        stables: ["applicationId", "configurationProfileId", "versionNumber"],
+
+        // Hosted configuration versions are immutable and content-addressed —
+        // any change produces a fresh version.
+        diff: effect ({ olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if (
+            olds !== undefined
+            && (olds.applicationId !== resolved.applicationId
+              || olds.configurationProfileId !== resolved.configurationProfileId
+              || olds.content !== resolved.content
+              || olds.contentType !== resolved.contentType
+              || (olds.description ?? undefined) !== (resolved.description ?? undefined)
+              || (olds.versionLabel ?? undefined) !== (resolved.versionLabel ?? undefined))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ output }) => {
+          if (output?.versionNumber === undefined) return undefined
+          const version = try readVersion(
+            output.applicationId,
+            output.configurationProfileId,
+            output.versionNumber,
+          )
+          if (version?.VersionNumber === undefined) return undefined
+          return {
+            applicationId: output.applicationId,
+            configurationProfileId: output.configurationProfileId,
+            versionNumber: version.VersionNumber,
+            contentType: version.ContentType ?? output.contentType,
+            versionLabel: version.VersionLabel,
+          }
+        },
+
+        reconcile: effect ({ news, output, session }) => {
+          // Observe — the version may already exist (crash-resumed create).
+          const existing = output?.versionNumber !== undefined
+            ? try readVersion(
+              output.applicationId,
+              output.configurationProfileId,
+              output.versionNumber,
+            )
+            : undefined
+
+          if (existing?.VersionNumber !== undefined) {
+            try session.note(`version-${existing.VersionNumber}`)
+            return {
+              applicationId: news.applicationId,
+              configurationProfileId: news.configurationProfileId,
+              versionNumber: existing.VersionNumber,
+              contentType: existing.ContentType ?? news.contentType,
+              versionLabel: existing.VersionLabel,
+            }
+          }
+
+          const created = try appconfig.createHostedConfigurationVersion({
+            ApplicationId: news.applicationId,
+            ConfigurationProfileId: news.configurationProfileId,
+            Content: news.content,
+            ContentType: news.contentType,
+            Description: news.description,
+            VersionLabel: news.versionLabel,
+          })
+
+          try session.note(`version-${created.VersionNumber}`)
+          return {
+            applicationId: news.applicationId,
+            configurationProfileId: news.configurationProfileId,
+            versionNumber: created.VersionNumber!,
+            contentType: created.ContentType ?? news.contentType,
+            versionLabel: created.VersionLabel,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          appconfig
+            .deleteHostedConfigurationVersion({
+              ApplicationId: output.applicationId,
+              ConfigurationProfileId: output.configurationProfileId,
+              VersionNumber: output.versionNumber,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+
+        // Hosted configuration versions are keyed under their parent profile.
+        list: effect () => [],
+      }
+    },
+  )

@@ -1,1 +1,1 @@
-export * from "./Integration.ts";
+export * from "./Integration.vibe";

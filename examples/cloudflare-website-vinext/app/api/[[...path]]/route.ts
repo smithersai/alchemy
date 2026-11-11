@@ -1,4 +1,4 @@
-import { handleApiRequest } from "../../../src/NextLive";
+import { handleApiRequest } from "../../../src/NextLive.vibe";
 
 export const GET = handleApiRequest;
 export const POST = handleApiRequest;

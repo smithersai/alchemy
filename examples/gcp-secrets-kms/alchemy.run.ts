@@ -1,8 +1,8 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Api from "./src/Api.ts";
-import { ApiKey, DataKey, Keys } from "./src/resources.ts";
+import Api from "./src/Api.vibe";
+import { ApiKey, DataKey, Keys } from "./src/resources.vibe";
 
 export default Alchemy.Stack(
   "GcpSecretsKmsExample",

@@ -1,6 +1,6 @@
-import type { Input } from "../Input.ts";
+import type { Input } from "../Input.vibe";
 import { type Output, isOutput } from "../Output.ts";
-import type { IsAny } from "./types.ts";
+import type { IsAny } from "./types.vibe";
 
 // @ts-expect-error - we want to allow any value to be checked for unknown
 export const isUnknown = <V>(value: V): value is Output<Input.Resolve<V>> => isOutput(value);

@@ -5,8 +5,8 @@ import {
 } from "@alchemy.run/docker/ImageSource";
 import * as ecr from "@distilled.cloud/aws/ecr";
 import * as Effect from "effect/Effect";
-import { roleHostBundle } from "../AWSBindings.ts";
-import { getEcrRegistryCredentials } from "./Image.ts";
+import { roleHostBundle } from "../AWSBindings.vibe";
+import { getEcrRegistryCredentials } from "./Image.vibe";
 
 /**
  * INTERNAL — the ECR target for the shared container image-source machinery
@@ -98,9 +98,11 @@ export interface ResolveImageOptions {
  * the consumer's project.
  */
 export const makeBunBootstrap =
+  /** @throws {never} */
   (handler: string) =>
-  (importPath: string): string =>
-    `
+    /** @throws {never} */
+    (importPath: string): string =>
+      `
 import { bootstrap } from "@alchemy.run/aws/Bootstrap/Ecs";
 import { ${handler} as entrypoint } from ${JSON.stringify(importPath)};
 

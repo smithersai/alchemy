@@ -1,0 +1,417 @@
+import * as logging from "@distilled.cloud/gcp/logging_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { encodeDescription, hasOwnershipMarker, jsonEqual, lastSegment, parseDescription } from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 100
+const DEFAULT_LOCATION = "global"
+const DEFAULT_VISIBILITY = "PRIVATE" as const
+
+export type SavedQuerySummaryField = {
+  /**
+   * LogEntry field to include in the Logs Explorer summary line
+   * (e.g. `resource.type`).
+   */
+  field: string
+}
+
+export type SavedQueryLoggingQuery = {
+  /**
+   * Logging Query Language filter. Maximum 20000 characters.
+   */
+  filter: string
+  /**
+   * Summary-field start character offset.
+   */
+  summaryFieldStart?: number
+  /**
+   * Summary-field end character offset.
+   */
+  summaryFieldEnd?: number
+  /**
+   * Fields shown in the Logs Explorer summary line.
+   */
+  summaryFields?: SavedQuerySummaryField[]
+}
+
+export type SavedQueryOpsAnalyticsQuery = {
+  /**
+   * Log Analytics SQL query text.
+   */
+  sqlQueryText: string
+}
+
+export type SavedQueryProps = {
+  /**
+   * Saved query id (the `{query}` segment of
+   * `projects/{project}/locations/{location}/savedQueries/{query}`). If
+   * omitted, a unique name is generated from the stack, stage, and
+   * logical id. Limited to 100 characters: letters, digits, underscores,
+   * hyphens, periods; first character must be alphanumeric. Immutable —
+   * changing it replaces the saved query.
+   */
+  savedQueryId?: string
+  /**
+   * Location that stores the saved query. Immutable after create —
+   * changing it replaces the query.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Title shown in Logs Explorer.
+   * @default the generated `savedQueryId`
+   */
+  displayName?: string
+  /**
+   * Who can see the query. `PRIVATE` is owned by the creating identity.
+   * @default "PRIVATE"
+   */
+  visibility?: "PRIVATE" | "SHARED"
+  /**
+   * Logs Explorer / Logging API query. At least one of `loggingQuery`
+   * or `opsAnalyticsQuery` is required.
+   */
+  loggingQuery?: SavedQueryLoggingQuery
+  /**
+   * Log Analytics SQL query. At least one of `loggingQuery` or
+   * `opsAnalyticsQuery` is required.
+   */
+  opsAnalyticsQuery?: SavedQueryOpsAnalyticsQuery
+  /**
+   * Human-readable description. Saved queries have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+}
+
+export type SavedQuery = Resource<
+  "GCP.Logging.SavedQuery",
+  SavedQueryProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/savedQueries/{savedQueryId}`. */
+    name: string
+    /** Saved query id (last path segment). */
+    savedQueryId: string
+    /** Project id. */
+    project: string
+    /** Location that stores the query. */
+    location: string
+    /** Title shown in Logs Explorer. */
+    displayName: string | undefined
+    /** Visibility (`PRIVATE` or `SHARED`). */
+    visibility: string | undefined
+    /** Logs Explorer query, if set. */
+    loggingQuery: SavedQueryLoggingQuery | undefined
+    /** Log Analytics query, if set. */
+    opsAnalyticsQuery: SavedQueryOpsAnalyticsQuery | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Logging saved query for Logs Explorer or Log Analytics.
+ *
+ * Saved queries have no labels field, so Alchemy stamps ownership into
+ * the description for `list` / nuke. `savedQueryId` and `location` are
+ * identity — changing either replaces the query. Display name, visibility,
+ * description, and query body update in place.
+ *
+ * ### Creating a Saved Query
+ * **Example:** Generated name, private Logs Explorer query
+ * ```typescript
+ * const query = yield* GCP.Logging.SavedQuery("Errors", {
+ *   displayName: "application errors",
+ *   loggingQuery: { filter: "severity>=ERROR" },
+ * });
+ * ```
+ *
+ * **Example:** Named shared query
+ * ```typescript
+ * const query = yield* GCP.Logging.SavedQuery("Errors", {
+ *   savedQueryId: "app-errors",
+ *   displayName: "application errors",
+ *   visibility: "SHARED",
+ *   loggingQuery: { filter: "severity>=ERROR" },
+ * });
+ * ```
+ *
+ * ### Updating a Saved Query
+ * **Example:** Change the filter
+ * ```typescript
+ * const query = yield* GCP.Logging.SavedQuery("Errors", {
+ *   displayName: "warnings and errors",
+ *   loggingQuery: { filter: "severity>=WARNING" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Logging
+ */
+export const SavedQuery = Resource<SavedQuery>("GCP.Logging.SavedQuery")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SavedQueryNotResolved extends Data.TaggedError("GCP.Logging.SavedQueryNotResolved")<{
+  resourceName: string
+}> {}
+
+const parseQueryName = (name: string): infer _ => {
+  const match = name.match(/^projects\/([^/]+)\/locations\/([^/]+)\/savedQueries\/([^/]+)$/)
+  if (!match) return undefined
+  return {
+    project: match[1]!,
+    location: match[2]!,
+    savedQueryId: match[3]!,
+  }
+}
+
+const resourceName = (project: string, location: string, savedQueryId: string): infer _ =>
+  `projects/${project}/locations/${location}/savedQueries/${savedQueryId}`
+
+const savedQueryIdOf = (query: logging.SavedQuery, fallback?: string): infer _ => {
+  const parsed = parseQueryName(query.name ?? "")
+  return parsed?.savedQueryId ?? fallback ?? lastSegment(query.name ?? "")
+}
+
+const toId = effect (id: string, savedQueryId: string | undefined, existing?: string) => {
+  if (savedQueryId !== undefined) return savedQueryId
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return /^[a-z0-9]/.test(generated) ? generated : `q${generated}`.slice(0, MAX_NAME_LENGTH)
+}
+
+const loggingQueryOf = (
+  query: logging.LoggingQuery | undefined,
+): SavedQueryLoggingQuery | undefined => {
+  if (query === undefined || query.filter === undefined) return undefined
+  const summaryFields = query.summaryFields
+    ?.filter((field) => field.field !== undefined)
+    .map((field) => ({ field: field.field! }))
+  return {
+    filter: query.filter,
+    summaryFieldStart: query.summaryFieldStart,
+    summaryFieldEnd: query.summaryFieldEnd,
+    summaryFields: summaryFields !== undefined && summaryFields.length > 0 ? summaryFields : undefined,
+  }
+}
+
+const opsAnalyticsQueryOf = (
+  query: logging.OpsAnalyticsQuery | undefined,
+): SavedQueryOpsAnalyticsQuery | undefined => {
+  if (query?.sqlQueryText === undefined) return undefined
+  return { sqlQueryText: query.sqlQueryText }
+}
+
+const toLoggingQueryBody = (
+  query: SavedQueryLoggingQuery | undefined,
+): logging.LoggingQuery | undefined => {
+  if (query === undefined) return undefined
+  return {
+    filter: query.filter,
+    summaryFieldStart: query.summaryFieldStart,
+    summaryFieldEnd: query.summaryFieldEnd,
+    summaryFields: query.summaryFields?.map((field) => ({
+      field: field.field,
+    })),
+  }
+}
+
+const toOpsAnalyticsQueryBody = (
+  query: SavedQueryOpsAnalyticsQuery | undefined,
+): logging.OpsAnalyticsQuery | undefined => {
+  if (query === undefined) return undefined
+  return { sqlQueryText: query.sqlQueryText }
+}
+
+const toAttrs = (query: logging.SavedQuery, project: string, location: string): infer _ => {
+  const savedQueryId = savedQueryIdOf(query)
+  const parsed = parseDescription(query.description)
+  const parsedName = parseQueryName(query.name ?? "")
+  const resolvedLocation = parsedName?.location ?? location
+  const resolvedProject = parsedName?.project ?? project
+  return {
+    name: query.name
+      ?? (savedQueryId ? resourceName(resolvedProject, resolvedLocation, savedQueryId) : ""),
+    savedQueryId,
+    project: resolvedProject,
+    location: resolvedLocation,
+    displayName: query.displayName,
+    visibility: query.visibility,
+    loggingQuery: loggingQueryOf(query.loggingQuery),
+    opsAnalyticsQuery: opsAnalyticsQueryOf(query.opsAnalyticsQuery),
+    description: parsed.description,
+    createTime: query.createTime,
+    updateTime: query.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  logging
+    .getProjectsLocationsSavedQueries({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+export const SavedQueryProvider = (): infer _ =>
+  Provider.succeed(SavedQuery, {
+    stables: ["name", "savedQueryId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.savedQueryId ?? output?.savedQueryId
+      const idChanged = previousId !== undefined
+        && resolved.savedQueryId !== undefined
+        && resolved.savedQueryId !== previousId
+      const previousLocation = olds?.location ?? output?.location
+      const locationChanged = previousLocation !== undefined
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
+      if (!idChanged && !locationChanged) return undefined
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = olds?.location ?? output?.location ?? DEFAULT_LOCATION
+      const savedQueryId = try toId(id, olds?.savedQueryId, output?.savedQueryId)
+      const name = output?.name ?? resourceName(env.project, location, savedQueryId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, location)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (logging.listProjectsLocationsSavedQueries
+          .pages({
+            parent: `projects/${env.project}/locations/-`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.savedQueries ?? []))
+          |> Stream.filter(%, (query) => hasOwnershipMarker(query.description))
+          |> Stream.map(%, (query) => {
+            const parsed = parseQueryName(query.name ?? "")
+            return toAttrs(
+              query,
+              parsed?.project ?? env.project,
+              parsed?.location ?? DEFAULT_LOCATION,
+            )
+          })
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = news.location ?? output?.location ?? DEFAULT_LOCATION
+      const savedQueryId = try toId(id, news.savedQueryId, output?.savedQueryId)
+      const name = resourceName(env.project, location, savedQueryId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const desiredDisplayName = news.displayName ?? savedQueryId
+      const desiredVisibility = news.visibility ?? DEFAULT_VISIBILITY
+      const desiredLogging = toLoggingQueryBody(news.loggingQuery)
+      const desiredOps = toOpsAnalyticsQueryBody(news.opsAnalyticsQuery)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = logging
+          .createProjectsLocationsSavedQueries({
+            parent: `projects/${env.project}/locations/${location}`,
+            savedQueryId,
+            body: {
+              displayName: desiredDisplayName,
+              visibility: desiredVisibility,
+              description: desiredDescription,
+              loggingQuery: desiredLogging,
+              opsAnalyticsQuery: desiredOps,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SavedQueryNotResolved({ resourceName: name })
+      }
+
+      const displayNameChanged = (current.displayName ?? "") !== desiredDisplayName
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const visibilityChanged = (current.visibility ?? DEFAULT_VISIBILITY) !== desiredVisibility
+      const loggingChanged = news.loggingQuery !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, loggingQueryOf(current.loggingQuery), news.loggingQuery),
+            catch: (e) => e,
+          }),
+        ))
+      const opsChanged = news.opsAnalyticsQuery !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, opsAnalyticsQueryOf(current.opsAnalyticsQuery), news.opsAnalyticsQuery),
+            catch: (e) => e,
+          }),
+        ))
+
+      const updateMask = [
+        displayNameChanged ? "displayName" : undefined,
+        descriptionChanged ? "description" : undefined,
+        visibilityChanged ? "visibility" : undefined,
+        loggingChanged ? "loggingQuery" : undefined,
+        opsChanged ? "opsAnalyticsQuery" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        const body: logging.SavedQuery = {}
+        if (displayNameChanged) body.displayName = desiredDisplayName
+        if (descriptionChanged) body.description = desiredDescription
+        if (visibilityChanged) body.visibility = desiredVisibility
+        if (loggingChanged) body.loggingQuery = desiredLogging
+        if (opsChanged) body.opsAnalyticsQuery = desiredOps
+        current = try logging.patchProjectsLocationsSavedQueries({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body,
+        })
+      }
+
+      return toAttrs(current, env.project, location)
+    },
+
+    delete: effect ({ output }) => {
+      logging
+        .deleteProjectsLocationsSavedQueries({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

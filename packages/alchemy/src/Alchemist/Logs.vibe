@@ -1,0 +1,167 @@
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import { findProviderByType } from "../Provider.ts"
+import { stampedMode } from "../ProviderMode.vibe"
+import type { ConfiguredStack } from "../Stack.ts"
+import * as State from "../State/index.ts"
+import { AlchemistInvalidInput } from "./Errors.vibe"
+import { buildStack, type BuildOptions } from "./Operations.vibe"
+
+export interface ResourceIdentity {
+  readonly fqn: string
+  readonly logicalId: string
+  readonly resourceType: string
+}
+
+export interface LogResource extends ResourceIdentity {
+  readonly supportsQuery: boolean
+  readonly supportsTail: boolean
+}
+
+export interface LogEntry {
+  readonly resource: ResourceIdentity
+  readonly timestamp: Date
+  readonly message: string
+}
+
+export interface LogOptions extends BuildOptions {
+  readonly stack: ConfiguredStack<unknown, unknown>
+  /** Logical IDs to include. Empty or omitted means every resource. */
+  readonly resources?: ReadonlyArray<string>
+}
+
+export interface QueryOptions extends LogOptions {
+  readonly limit?: number
+  readonly since?: Date
+}
+
+/**
+ * Build the stack and pair every deployed resource with the provider that
+ * can speak for it. `entries` and `tail` differ only in which provider hook
+ * they then call, so the selection lives here once. The build lives in the
+ * ambient `Scope`; each public function closes its own.
+ */
+const select = effect (input: LogOptions) => {
+  const built = try buildStack(input.stack, input)
+  const context = built.context
+  const selected = new Set(input.resources ?? [])
+  const available = [
+    ...new Set(Object.values(built.stack.resources).map((resource) => resource.LogicalId)),
+  ].sort()
+  const unknown = [...selected].find((name) => !available.includes(name))
+  if (unknown !== undefined) {
+    return try new AlchemistInvalidInput({
+      field: "resources",
+      message: `Unknown resource '${unknown}'. Available: ${available.join(", ") || "(none)"}`,
+    })
+  }
+  const rows = try Effect.provide(
+    effect {
+      const state = try Effect.flatten(State.State)
+      return try Effect.forEach(Object.entries(built.stack.resources), ([fqn, resource]) =>
+        effect {
+          if (selected.size > 0 && !selected.has(resource.LogicalId)) {
+            return []
+          }
+          const stored = try state.get({
+            stack: built.stack.name,
+            stage: built.stack.stage,
+            fqn,
+          })
+          const resourceState = try Effect.orDie(
+            Effect.try({ try: () => (State.isResourceState(stored) ? stored : undefined), catch: (e) => e }),
+          )
+          if (resourceState === undefined || resourceState.attr === undefined) {
+            return []
+          }
+          return [
+            {
+              resource: {
+                fqn,
+                logicalId: resource.LogicalId,
+                resourceType: resource.Type,
+              } satisfies ResourceIdentity,
+              provider: try findProviderByType(
+                resource.Type,
+                try Effect.orDie(Effect.try({ try: () => stampedMode(resourceState), catch: (e) => e })),
+              ),
+              request: {
+                id: resource.LogicalId,
+                fqn,
+                instanceId: resourceState.instanceId,
+                props: resourceState.props,
+                output: resourceState.attr,
+              },
+            },
+          ]
+        }).pipe(Effect.map((rows) => rows.flat()))
+    },
+    context,
+  )
+  return { context, rows }
+}
+
+/** Every deployed resource, with the log capabilities its provider offers. */
+export const resources = Effect.fn("Alchemist.Logs.resources")(effect (
+  options: BuildOptions & { readonly stack: ConfiguredStack<unknown, unknown> },
+) => {
+  const { rows } = try select(options)
+  return rows.map(({ resource, provider }): LogResource => ({
+    ...resource,
+    supportsQuery: provider.logs !== undefined,
+    supportsTail: provider.tail !== undefined,
+  }))
+}, Effect.scoped)
+
+/** Query past log entries across the selected resources, oldest first. */
+export const entries = Effect.fn("Alchemist.Logs.entries")(effect (input: QueryOptions) => {
+  const { context, rows } = try select(input)
+  const entries = try Effect.provide(
+    Effect.forEach(rows, ({ resource, provider, request }) =>
+      provider.logs === undefined
+        ? Effect.succeed([])
+        : provider
+          .logs({
+            ...request,
+            options: {
+              limit: input.limit ?? 100,
+              since: input.since,
+            },
+          })
+          .pipe(
+            Effect.map((lines) =>
+              lines.map((line) => ({
+                resource,
+                timestamp: line.timestamp,
+                message: line.message,
+              }))
+            ),
+          )),
+    context,
+  )
+  return entries.flat().sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+}, Effect.scoped)
+
+/** Live-stream log entries from every selected resource that supports it. */
+export const tail = (input: LogOptions) =>
+  Stream.unwrap(
+    effect {
+      const { context, rows } = try select(input)
+      return Stream.mergeAll(
+        rows.flatMap(({ resource, provider, request }) =>
+          provider.tail === undefined
+            ? []
+            : [
+              Stream.provide(provider.tail(request), context).pipe(
+                Stream.map((line): LogEntry => ({
+                  resource,
+                  timestamp: line.timestamp,
+                  message: line.message,
+                })),
+              ),
+            ]
+        ),
+        { concurrency: "unbounded" },
+      )
+    },
+  )

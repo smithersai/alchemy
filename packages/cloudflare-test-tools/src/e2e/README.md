@@ -201,7 +201,7 @@ bundles land on disk after the bundler (SvelteKit, Next.js) can use
   `dist/build.json` (framework-core's `readBuildOutput`), falling back to
   `Framework.build()` + persist when it is missing or unreadable; then hands
   the `BuildOutput` to the cloudflare deploy target's `serve`
-  (`src/e2e/CloudflareTarget.ts`, a framework-core `DeployTarget` value), which
+  (`src/e2e/CloudflareTarget.vibe`, a framework-core `DeployTarget` value), which
   boots miniflare (`@alchemy.run/cloudflare-test-tools/miniflare`) with the
   fixture's `target.cloudflare.preview` options. Serving built output is the
   target's concern; the framework implementation is only involved in

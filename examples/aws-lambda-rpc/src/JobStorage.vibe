@@ -1,0 +1,217 @@
+import * as DynamoDB from "@alchemy.run/aws/DynamoDB"
+import * as Lambda from "@alchemy.run/aws/Lambda"
+import * as S3 from "@alchemy.run/aws/S3"
+import * as SQS from "@alchemy.run/aws/SQS"
+import * as RemovalPolicy from "alchemy/RemovalPolicy"
+import { Stack } from "alchemy/Stack"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import type { Job } from "./Job.vibe"
+
+export error PutJobError {
+  message: string
+  cause?: unknown
+}
+
+export error GetJobError {
+  message: string
+  cause?: unknown
+}
+
+export service JobStorage: {
+  putJob(job: Job): Job!PutJobError;
+  getJob(jobId: string): (Job | undefined)!GetJobError;
+} {
+  static readonly key = "JobStorage"
+}
+
+export const JobStorageDynamoDB = Layer.provideMerge(
+  Layer.effect(
+    JobStorage,
+    effect {
+      const stack = try Stack
+      const table = try DynamoDB.Table("JobsTable", {
+        partitionKey: "id",
+        attributes: {
+          id: "S",
+        },
+      })
+      const queue = try (SQS.Queue("JobsQueue").pipe(
+        try Effect.orDie(Effect.try({ try: () => RemovalPolicy.retain(stack.stage === "prod"), catch: (e) => e })),
+      ))
+
+      const getItem = try DynamoDB.GetItem(table)
+      const putItem = try DynamoDB.PutItem(table)
+      const sink = try SQS.QueueSink(queue)
+
+      try DynamoDB.consumeTableChanges(
+        table,
+        {
+          streamViewType: "NEW_AND_OLD_IMAGES",
+          startingPosition: "LATEST",
+          batchSize: 10,
+        },
+        effect (event) => {
+          try Stream.fromIterable(event.Records).pipe(
+            Stream.map((record) => ({
+              MessageBody: JSON.stringify({
+                eventName: record.eventName,
+                keys: record.dynamodb.Keys,
+                newImage: record.dynamodb.NewImage,
+                oldImage: record.dynamodb.OldImage,
+              }),
+            })),
+            Stream.run(sink),
+          )
+        },
+      )
+
+      const putJob = (job: Job) =>
+        putItem({
+          Item: {
+            id: { S: job.id },
+            content: { S: job.content },
+          },
+        })
+        |> Effect.map(%, () => job)
+        |> Effect.tapError(%, Console.log)
+        |> Effect.catchCause(%, (cause) =>
+          Effect.fail(
+            new PutJobError({
+              message: `Failed to store job "${job.id}": ${cause}`,
+              cause,
+            }),
+          ))
+
+      const getJob = (jobId: string) =>
+        getItem({
+          Key: {
+            id: { S: jobId },
+          },
+        })
+        |> Effect.flatMap(%, (item) =>
+          item.Item
+            ? Effect.try({
+              try: () =>
+                ({
+                  id: item.Item?.id?.S ?? jobId,
+                  content: item.Item?.content?.S ?? "",
+                }) as Job,
+              catch: (cause) =>
+                new GetJobError({
+                  message: `Failed to parse job "${jobId}": ${cause}`,
+                  cause,
+                }),
+            })
+            : Effect.succeed(undefined))
+        |> Effect.tapError(%, Console.log)
+        |> Effect.catchCause(%, (cause) =>
+          Effect.fail(
+            new GetJobError({
+              message: `Failed to load job "${jobId}": ${cause}`,
+              cause,
+            }),
+          ))
+
+      return JobStorage.of({
+        putJob,
+        getJob,
+      })
+    },
+  ),
+  Layer.mergeAll(Lambda.TableEventSource, SQS.QueueSinkHttp).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(DynamoDB.GetItemHttp, DynamoDB.PutItemHttp, SQS.SendMessageBatchHttp),
+    ),
+  ),
+)
+
+export const JobStorageS3 = Layer.provideMerge(
+  Layer.effect(
+    JobStorage,
+    effect {
+      const stack = try Stack
+      const bucket = try S3.Bucket("JobsBucket")
+      const queue = try (SQS.Queue("JobsQueue").pipe(
+        try Effect.orDie(Effect.try({ try: () => RemovalPolicy.retain(stack.stage === "prod"), catch: (e) => e })),
+      ))
+
+      const getObject = try S3.GetObject(bucket)
+      const putObject = try S3.PutObject(bucket)
+      const sink = try SQS.QueueSink(queue)
+
+      const putJob = (job: Job) =>
+        putObject({
+          Key: job.id,
+          Body: JSON.stringify(job),
+        })
+        |> Effect.map(%, () => job)
+        |> Effect.tapError(%, Console.log)
+        |> Effect.catchCause(%, (cause) =>
+          Effect.fail(
+            new PutJobError({
+              message: `Failed to store job "${job.id}": ${cause}`,
+              cause,
+            }),
+          ))
+
+      const getJob = (jobId: string) =>
+        (do {
+          const catchProgram = getObject({
+            Key: jobId,
+          })
+          effect {
+            return catchProgram catch effect (e) => match (e) {
+              when { _tag: "NoSuchKey" }: undefined;
+              default: throw e;
+            }
+          }
+        })
+        |> Effect.flatMap(
+          %,
+          (item) =>
+            item?.Body?.pipe(
+              Stream.decodeText,
+              Stream.mkString,
+              Effect.flatMap((body) =>
+                Effect.try({
+                  try: () => JSON.parse(body) as Job,
+                  catch: (cause) =>
+                    new GetJobError({
+                      message: `Failed to parse job "${jobId}": ${cause}`,
+                      cause,
+                    }),
+                })
+              ),
+            ) ?? Effect.succeed(undefined),
+        )
+        |> Effect.tapError(%, Console.log)
+        |> Effect.catchCause(%, (cause) =>
+          Effect.fail(
+            new GetJobError({
+              message: `Failed to load job "${jobId}": ${cause}`,
+              cause,
+            }),
+          ))
+
+      try S3.consumeBucketEvents(bucket, (stream) =>
+        stream
+        |> Stream.flatMap(%, (item) => Stream.fromEffect(getJob(item.key) |> Effect.orDie(%)))
+        |> Stream.filter(%, (job): job is Job => job !== undefined)
+        |> Stream.map(%, (job) => ({ MessageBody: JSON.stringify(job) }))
+        |> Stream.run(%, sink)
+        |> Effect.orDie(%))
+
+      return JobStorage.of({
+        putJob,
+        getJob,
+      })
+    },
+  ),
+  Layer.mergeAll(Lambda.BucketEventSource, SQS.QueueSinkHttp).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(S3.GetObjectHttp, S3.PutObjectHttp, SQS.SendMessageBatchHttp),
+    ),
+  ),
+)

@@ -1,0 +1,42 @@
+import * as codedeploy from "@distilled.cloud/aws/codedeploy"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { BatchGetDeployments } from "./BatchGetDeployments.vibe"
+import type { DeploymentGroup } from "./DeploymentGroup.vibe"
+
+/**
+ * Bespoke IAM: `codedeploy:BatchGetDeployments` does not support
+ * resource-level permissions (a batch of deployment ids cannot be mapped to
+ * a deployment-group resource before authorization), so the grant must be
+ * on `*` — a group-scoped grant is denied with AccessDeniedException.
+ */
+export const BatchGetDeploymentsHttp = Layer.effect(
+  BatchGetDeployments,
+  effect {
+    const bind = try AWSBindings.Bind
+    const op = try AWSBindings.withCredentials(codedeploy.batchGetDeployments)
+
+    return effect <G extends DeploymentGroup>(group: G) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.CodeDeploy.BatchGetDeployments(${group})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["codedeploy:BatchGetDeployments"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: codedeploy.BatchGetDeploymentsInput,
+      ) =>
+        try withSpan(
+          effect {
+            return try op(request)
+          },
+          `AWS.CodeDeploy.BatchGetDeployments(${group.LogicalId})`,
+        )
+    }
+  },
+)

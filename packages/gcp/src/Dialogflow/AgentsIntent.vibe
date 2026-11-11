@@ -1,0 +1,475 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectionParent,
+  DEFAULT_LOCATION,
+  encodeOwnership,
+  encodeOwnershipLine,
+  expandAgent,
+  fingerprint,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  namedAgents,
+  normalizeLocation,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  projectOf,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+  retryQuota,
+} from "./internal.vibe"
+
+export type IntentTrainingPhrasePart = {
+  /** Parameter id this part annotates. */
+  parameterId?: string
+  /** Text of this part. */
+  text?: string
+}
+
+export type IntentTrainingPhrase = {
+  /** Ordered parts that concatenate to the phrase. */
+  parts?: IntentTrainingPhrasePart[]
+  /** Training phrase id. Output only when omitted. */
+  id?: string
+  /** How many times this phrase is repeated during training. */
+  repeatCount?: number
+}
+
+export type IntentParameter = {
+  /** Unique parameter id. */
+  id?: string
+  /** Entity type (`projects/-/locations/-/agents/-/entityTypes/sys.date`). */
+  entityType?: string
+  /** Redact the parameter in logs. */
+  redact?: boolean
+  /** Whether the parameter is a list. */
+  isList?: boolean
+}
+
+export type AgentsIntentProps = {
+  /**
+   * Parent agent resource name
+   * `projects/{project}/locations/{location}/agents/{agent}`.
+   * Immutable — changing it replaces the intent.
+   */
+  agent: string
+  /**
+   * Intent id (the `{intent}` segment). Server-assigned when omitted.
+   * Immutable — changing it replaces the intent.
+   */
+  intentId?: string
+  /**
+   * Location used when `agent` is an id rather than a resource name.
+   * Immutable — changing it replaces the intent.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Human-readable name unique within the agent. Alchemy stamps
+   * ownership into this field and strips it from attributes.
+   */
+  displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /** Training phrases. */
+  trainingPhrases?: IntentTrainingPhrase[]
+  /** Intent parameters. */
+  parameters?: IntentParameter[]
+  /**
+   * Matching priority. Higher values match first. `0` or negative
+   * disables the intent.
+   */
+  priority?: number
+  /**
+   * Whether this is the fallback intent.
+   * @default false
+   */
+  isFallback?: boolean
+  /**
+   * Human-readable description. Alchemy also stamps ownership here so
+   * `list` / nuke can find the intent if labels are stripped.
+   */
+  description?: string
+  /** DTMF pattern associated with this intent. */
+  dtmfPattern?: string
+  /** Language code for training phrases. */
+  languageCode?: string
+}
+
+export type AgentsIntent = Resource<
+  "GCP.Dialogflow.AgentsIntent",
+  AgentsIntentProps,
+  {
+    /** Full resource name `.../agents/{agent}/intents/{intent}`. */
+    name: string
+    /** Intent id (last path segment). */
+    intentId: string
+    /** Parent agent resource name. */
+    agent: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Training phrases. */
+    trainingPhrases: IntentTrainingPhrase[] | undefined
+    /** Intent parameters. */
+    parameters: IntentParameter[] | undefined
+    /** Matching priority. */
+    priority: number | undefined
+    /** Whether this is the fallback intent. */
+    isFallback: boolean
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** DTMF pattern. */
+    dtmfPattern: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX intent (training phrases plus parameters).
+ *
+ * Alchemy ownership is stored in labels, `displayName`, and
+ * `description` so `list` / nuke can find the intent. Parent agent and
+ * id are immutable. Display name, labels, training phrases, parameters,
+ * priority, fallback flag, description, and DTMF pattern update in
+ * place.
+ *
+ * ### Creating an Intent
+ * **Example:** Greeting intent
+ * ```typescript
+ * const intent = yield* GCP.Dialogflow.AgentsIntent("Hello", {
+ *   agent: agentName,
+ *   displayName: "hello",
+ *   trainingPhrases: [
+ *     { parts: [{ text: "hello" }], repeatCount: 1 },
+ *     { parts: [{ text: "hi there" }], repeatCount: 1 },
+ *   ],
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * ### Updating an Intent
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Add a training phrase
+ * ```typescript
+ * const intent = yield* GCP.Dialogflow.AgentsIntent("Hello", {
+ *   agent: agentName,
+ *   displayName: "hello",
+ *   trainingPhrases: [
+ *     { parts: [{ text: "hello" }], repeatCount: 1 },
+ *     { parts: [{ text: "good morning" }], repeatCount: 1 },
+ *   ],
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsIntent = Resource<AgentsIntent>("GCP.Dialogflow.AgentsIntent")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsIntentNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsIntentNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (agent: string, intentId: string): infer _ => `${agent}/intents/${intentId}`
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const phrasesOf = (
+  phrases: dialogflow.GoogleCloudDialogflowCxV3IntentTrainingPhraseList | undefined,
+): IntentTrainingPhrase[] | undefined => {
+  if (phrases === undefined) return undefined
+  return phrases.map((phrase) => ({
+    parts: phrase.parts?.map((part) => ({
+      parameterId: part.parameterId,
+      text: part.text,
+    })),
+    repeatCount: phrase.repeatCount,
+  }))
+}
+
+const parametersOf = (
+  parameters: dialogflow.GoogleCloudDialogflowCxV3IntentParameterList | undefined,
+): IntentParameter[] | undefined => {
+  if (parameters === undefined) return undefined
+  return parameters.map((parameter) => ({
+    id: parameter.id,
+    entityType: parameter.entityType,
+    redact: parameter.redact,
+    isList: parameter.isList,
+  }))
+}
+
+const toAttrs = (
+  intent: dialogflow.GoogleCloudDialogflowCxV3Intent,
+  project: string,
+  agentHint?: string,
+): infer _ => {
+  const name = intent.name ?? ""
+  return {
+    name,
+    intentId: lastSegment(name),
+    agent: name.includes("/intents/")
+      ? collectionParent(name, "agents")
+      : (agentHint ?? parentOf(name)),
+    location: locationOf(name),
+    project: projectOf(name) || project,
+    displayName: parseOwnership(intent.displayName).text,
+    labels: userLabels(intent.labels),
+    trainingPhrases: phrasesOf(intent.trainingPhrases),
+    parameters: parametersOf(intent.parameters),
+    priority: intent.priority,
+    isFallback: intent.isFallback === true,
+    description: parseOwnership(intent.description).text,
+    dtmfPattern: intent.dtmfPattern,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsIntents({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const isOwnedIntent = (intent: dialogflow.GoogleCloudDialogflowCxV3Intent): infer _ =>
+  hasOwnershipMarker(intent.displayName)
+  || hasOwnershipMarker(intent.description)
+  || Object.keys(intent.labels ?? {}).some((key) => key.startsWith("alchemy-"))
+
+const listAt = effect (parent: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsIntents
+        .pages({ parent, pageSize: 100, intentView: "INTENT_VIEW_FULL" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.intents ?? []))
+        |> Stream.filter(%, isOwnedIntent)
+        |> Stream.map(%, (intent) => toAttrs(intent, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsIntents
+        .pages({ parent, pageSize: 100, intentView: "INTENT_VIEW_PARTIAL" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.intents ?? []))
+        |> Stream.filter(%, (intent) => intent.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const AgentsIntentProvider = (): infer _ =>
+  Provider.succeed(AgentsIntent, {
+    stables: ["name", "intentId", "agent", "location", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousAgent = olds?.agent ?? output?.agent
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.intentId ?? output?.intentId
+      if (previousId !== undefined && resolved.intentId !== undefined && resolved.intentId !== previousId) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
+      const intentId = try toResourceId(id, olds?.intentId, output?.intentId)
+      const name = output?.name ?? (agent !== undefined ? resourceName(agent, intentId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined && agent !== undefined) {
+        const ownership = try createInternalLabels(id)
+        existing = try findByDisplayName(
+          agent,
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, agent)
+      const labeled = try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+      )
+      const named = try ownedByAlchemy(id, existing.displayName)
+      const described = try ownedByAlchemy(id, existing.description)
+      return labeled || named || described
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const agents = try namedAgents(env.project)
+      const pages = try Effect.forEach(agents, effect (agent) => try listAt(agent.name, env.project), {
+        concurrency: 4,
+      })
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
+        const intentId = try toResourceId(id, news.intentId, output?.intentId)
+        const name = output?.name ?? resourceName(agent, intentId)
+        const ownership = try createInternalLabels(id)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
+        const desiredLabels = {
+          ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+          ...ownership,
+        }
+        const isFallback = news.isFallback === true
+        const body: dialogflow.GoogleCloudDialogflowCxV3Intent = {
+          displayName,
+          labels: desiredLabels,
+          trainingPhrases: news.trainingPhrases,
+          parameters: news.parameters,
+          priority: news.priority,
+          isFallback,
+          description,
+          dtmfPattern: news.dtmfPattern,
+        }
+
+        let current = try getByName(output?.name ?? name)
+        if (current === undefined) {
+          current = try findByDisplayName(agent, displayName)
+        }
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsIntents({
+              parent: agent,
+              languageCode: news.languageCode,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findByDisplayName(agent, displayName);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsIntentNotResolved({ resourceName: name })
+        }
+
+        const currentName = current.name ?? name
+        const displayChanged = (current.displayName ?? "") !== displayName
+        const observedLabels = tagRecord(current.labels)
+        const { upsert, removed } = try Effect.orDie(
+          Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+        )
+        const labelsChanged = upsert.length > 0 || removed.length > 0
+        const value = phrasesOf(current.trainingPhrases)
+        const phrasesChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.trainingPhrases), catch: (e) => e })))
+        const value2 = parametersOf(current.parameters)
+        const parametersChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value2),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.parameters), catch: (e) => e })))
+        const priorityChanged = (current.priority ?? 0) !== (news.priority ?? 0)
+        const fallbackChanged = (current.isFallback === true) !== isFallback
+        const descriptionChanged = (current.description ?? "") !== description
+        const dtmfChanged = !sameText(current.dtmfPattern, news.dtmfPattern)
+
+        if (
+          displayChanged
+          || labelsChanged
+          || phrasesChanged
+          || parametersChanged
+          || priorityChanged
+          || fallbackChanged
+          || descriptionChanged
+          || dtmfChanged
+        ) {
+          current = try dialogflow.patchProjectsLocationsAgentsIntents({
+            name: currentName,
+            languageCode: news.languageCode,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  labelsChanged ? "labels" : undefined,
+                  phrasesChanged ? "training_phrases" : undefined,
+                  parametersChanged ? "parameters" : undefined,
+                  priorityChanged ? "priority" : undefined,
+                  fallbackChanged ? "is_fallback" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  dtmfChanged ? "dtmf_pattern" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project, agent)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsIntents({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+      }
+        |> retryQuota(%)),
+  })

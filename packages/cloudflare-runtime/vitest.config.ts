@@ -1,5 +1,6 @@
 import path from "node:path";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import vibelang from "vibelang-vite";
 import { loadEnv } from "vite";
 import { configDefaults, defineConfig } from "vitest/config";
 
@@ -26,10 +27,13 @@ const linuxContainerSuites = [
 ];
 
 export default defineConfig({
+  plugins: [vibelang()],
   test: {
     maxWorkers: process.platform === "win32" ? 2 : undefined,
+    // Each project sets `extends: true` to inherit the root vibelang() plugin, which loads .vibe sources.
     projects: [
       {
+        extends: true,
         root: coreRoot,
         test: {
           name: "core",
@@ -45,6 +49,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         root: rolldownRoot,
         test: {
           name: "rolldown",
@@ -58,6 +63,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         root: viteRoot,
         resolve: {
           alias: {
@@ -76,6 +82,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         root: workersSharedRoot,
         test: {
           name: "workers-shared-node",
@@ -84,6 +91,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         root: workersSharedRoot,
         plugins: [
           cloudflareTest({
@@ -100,6 +108,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         root: workersSharedRoot,
         plugins: [
           cloudflareTest({
@@ -117,6 +126,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         root: workflowsSharedRoot,
         plugins: [
           cloudflareTest({

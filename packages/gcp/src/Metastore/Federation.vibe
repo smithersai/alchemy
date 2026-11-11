@@ -1,0 +1,388 @@
+import * as metastore from "@distilled.cloud/gcp/metastore_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_HIVE_VERSION,
+  fieldMask,
+  fingerprint,
+  listAtLocation,
+  listLabeledPages,
+  locationParent,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+export type BackendMetastore = {
+  /**
+   * Relative resource name of the backend. BigQuery uses
+   * `projects/{project}`. Dataproc Metastore uses
+   * `projects/{project}/locations/{location}/services/{service}`.
+   */
+  name: string
+  /**
+   * Backend type (`BIGQUERY` or `DATAPROC_METASTORE`).
+   */
+  metastoreType?: metastore.BackendMetastoreMetastoreTypeEnum | (string & {})
+}
+
+export type FederationProps = {
+  /**
+   * Federation id (the `{federation}` segment of
+   * `projects/{project}/locations/{location}/federations/{federation}`).
+   * If omitted, a unique RFC1035 name is generated. Must be 2-63
+   * characters, start with a letter, and end with a letter or number.
+   * Immutable — changing it replaces the federation.
+   */
+  federationId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * federation. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Apache Hive metastore version of the federation. All backends must
+   * be compatible. Immutable — changing it replaces the federation.
+   * @default "3.1.2"
+   */
+  version?: string
+  /**
+   * Ranked backends used to resolve database names at query time. Keys
+   * are ranks (`0`, `1`, …); lower ranks are evaluated first. When
+   * omitted, a BigQuery backend for the current project is used.
+   */
+  backendMetastores?: Record<string, BackendMetastore>
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type Federation = Resource<
+  "GCP.Metastore.Federation",
+  FederationProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Federation id (last path segment). */
+    federationId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Hive metastore version. */
+    version: string | undefined
+    /** Ranked backend metastores. */
+    backendMetastores: Record<string, BackendMetastore>
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Federation endpoint URI. */
+    endpointUri: string | undefined
+    /** Server-reported state. */
+    state: string | undefined
+    /** Extra status text, if any. */
+    stateMessage: string | undefined
+    /** Server-generated resource uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataproc Metastore federation that serves metadata from ranked
+ * BigQuery and Dataproc Metastore backends.
+ *
+ * Changing `federationId`, `location`, or `version` replaces the
+ * federation. Labels and `backendMetastores` update in place.
+ *
+ * ### Creating a Federation
+ * **Example:** BigQuery backend
+ * ```typescript
+ * const federation = yield* GCP.Metastore.Federation("Lakehouse", {
+ *   version: "3.1.2",
+ *   backendMetastores: {
+ *     "1": {
+ *       name: "projects/my-project",
+ *       metastoreType: "BIGQUERY",
+ *     },
+ *   },
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * **Example:** Generated name
+ * ```typescript
+ * const federation = yield* GCP.Metastore.Federation("Lakehouse", {
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * ### Updating a Federation
+ * **Example:** Labels and backends
+ * ```typescript
+ * // Same logical id, changed props: the engine updates it in place.
+ * const federation = yield* GCP.Metastore.Federation("Lakehouse", {
+ *   version: "3.1.2",
+ *   backendMetastores: {
+ *     "1": {
+ *       name: "projects/my-project",
+ *       metastoreType: "BIGQUERY",
+ *     },
+ *   },
+ *   labels: { env: "prod", team: "data" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Metastore
+ */
+export const Federation = Resource<Federation>("GCP.Metastore.Federation")
+
+const resourceName = (project: string, location: string, federationId: string): infer _ =>
+  `${locationParent(project, location)}/federations/${federationId}`
+
+const toBackends = (
+  value: Record<string, metastore.BackendMetastore | undefined> | undefined,
+): Record<string, BackendMetastore> => {
+  const next: Record<string, BackendMetastore> = {}
+  for (const [rank, item] of Object.entries(value ?? {})) {
+    if (item === undefined) continue
+    next[rank] = {
+      name: item.name ?? "",
+      metastoreType: item.metastoreType,
+    }
+  }
+  return next
+}
+
+const desiredBackends = (
+  project: string,
+  value: Record<string, BackendMetastore> | undefined,
+): Record<string, BackendMetastore> => {
+  if (value !== undefined) return toBackends(value)
+  return {
+    "1": {
+      name: `projects/${project}`,
+      metastoreType: "BIGQUERY",
+    },
+  }
+}
+
+const toAttrs = (item: metastore.Federation, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "federations", region)
+  return {
+    name,
+    federationId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    version: item.version,
+    backendMetastores: toBackends(item.backendMetastores),
+    labels: userLabels(item.labels),
+    endpointUri: item.endpointUri,
+    state: item.state,
+    stateMessage: item.stateMessage,
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : metastore
+  .getProjectsLocationsFederations({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string) =>
+  try listAtLocation(project, effect (parent) =>
+    try listLabeledPages(
+      metastore.listProjectsLocationsFederations.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.federations,
+      (item) => item.labels,
+    ))
+
+export const FederationProvider = (): infer _ =>
+  Provider.succeed(Federation, {
+    stables: ["name", "federationId", "project", "location", "version", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousVersion = olds?.version ?? output?.version
+      const nextVersion = resolved.version ?? olds?.version ?? output?.version ?? DEFAULT_HIVE_VERSION
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.federationId ?? output?.federationId,
+            nextId: resolved.federationId ?? olds?.federationId ?? output?.federationId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: previousVersion !== undefined && nextVersion !== previousVersion,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const federationId = try toPhysicalId(
+        id,
+        olds?.federationId,
+        output?.federationId,
+        "federation",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, federationId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const federationId = try toPhysicalId(
+        id,
+        news.federationId,
+        output?.federationId,
+        "federation",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, federationId)
+      const version = news.version ?? output?.version ?? DEFAULT_HIVE_VERSION
+      const backends = desiredBackends(env.project, news.backendMetastores)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = metastore
+          .createProjectsLocationsFederations({
+            parent: locationParent(env.project, location),
+            federationId,
+            body: {
+              version,
+              backendMetastores: backends,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
+            default: throw error;
+          }
+        }
+        current = try waitUntilExists(getByName(name), name)
+        current = try waitUntilReady(
+          getByName(name),
+          name,
+          (item) => item.state,
+          (item) => item.stateMessage,
+        )
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const backendsChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, toBackends(current.backendMetastores)), catch: (e) => e }),
+      )) !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, backends), catch: (e) => e })))
+      const mask = fieldMask([labelsChanged && "labels", backendsChanged && "backendMetastores"])
+
+      if (mask.length > 0) {
+        const operation = try metastore.patchProjectsLocationsFederations({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            labels: desiredLabels,
+            backendMetastores: backends,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+          (item) => item.stateMessage,
+        )
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (metastore
+          .deleteProjectsLocationsFederations({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

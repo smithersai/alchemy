@@ -1,0 +1,367 @@
+import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_GLOBAL,
+  canonicalizeLink,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  linkKey,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  rfc1035,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const COLLECTION = "interceptDeploymentGroups"
+
+export type InterceptDeploymentGroupState =
+  | networksecurity.InterceptDeploymentGroupStateEnum
+  | (string & {})
+
+export type InterceptDeploymentGroupNestedDeployment = {
+  /** Nested InterceptDeployment resource name. */
+  name: string | undefined
+  /** Nested deployment state. */
+  state: string | undefined
+}
+
+export type InterceptLocation = {
+  /** Cloud location (`us-central1-a`, `asia-south1`, …). */
+  location: string | undefined
+  /** Association state in this location. */
+  state: string | undefined
+}
+
+export type InterceptConnectedEndpointGroup = {
+  /** Connected InterceptEndpointGroup resource name. */
+  name: string | undefined
+}
+
+export type InterceptDeploymentGroupProps = {
+  /**
+   * Deployment group id (the `{interceptDeploymentGroup}` segment of
+   * `projects/{project}/locations/global/interceptDeploymentGroups/{interceptDeploymentGroup}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Immutable — changing it replaces the group.
+   */
+  interceptDeploymentGroupId?: string
+  /**
+   * Location. Intercept deployment groups are global. Immutable —
+   * changing it replaces the group.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * VPC network used by every child deployment, e.g.
+   * `projects/{project}/global/networks/{network}`. Immutable — changing
+   * it replaces the group.
+   */
+  network: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type InterceptDeploymentGroup = Resource<
+  "GCP.NetworkSecurity.InterceptDeploymentGroup",
+  InterceptDeploymentGroupProps,
+  {
+    /** Full resource name `projects/{project}/locations/global/interceptDeploymentGroups/{interceptDeploymentGroup}`. */
+    name: string
+    /** Deployment group id (last path segment). */
+    interceptDeploymentGroupId: string
+    /** Project id. */
+    project: string
+    /** Location id — always `"global"`. */
+    location: string
+    /** VPC network resource name. */
+    network: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-reported lifecycle state (`ACTIVE`, `CREATING`, …). */
+    state: string | undefined
+    /** Whether reconciling is in progress. */
+    reconciling: boolean
+    /** Nested zonal deployments. */
+    nestedDeployments: InterceptDeploymentGroupNestedDeployment[]
+    /** Locations where the group is present. */
+    locations: InterceptLocation[]
+    /** Connected intercept endpoint groups. */
+    connectedEndpointGroups: InterceptConnectedEndpointGroup[]
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A global intercept deployment group — aggregates zonal intercept
+ * backends into a single intercept service that consumers attach via
+ * an endpoint group.
+ *
+ * Changing `interceptDeploymentGroupId`, `location`, or `network`
+ * replaces the group. Description and labels update in place.
+ *
+ * ### Creating an InterceptDeploymentGroup
+ * **Example:** Attach to a VPC
+ * ```typescript
+ * const group = yield* GCP.NetworkSecurity.InterceptDeploymentGroup("Inspect", {
+ *   network: `projects/${vpc.project}/global/networks/${vpc.networkName}`,
+ *   description: "prod intercept",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkSecurity
+ */
+export const InterceptDeploymentGroup = Resource<InterceptDeploymentGroup>(
+  "GCP.NetworkSecurity.InterceptDeploymentGroup",
+)
+
+const resourceName = (project: string, location: string, interceptDeploymentGroupId: string): infer _ =>
+  `projects/${project}/locations/${location}/interceptDeploymentGroups/${interceptDeploymentGroupId}`
+
+const toAttrs = (group: networksecurity.InterceptDeploymentGroup, project: string): infer _ => {
+  const name = group.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_GLOBAL)
+  return {
+    name,
+    interceptDeploymentGroupId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || DEFAULT_GLOBAL,
+    network: group.network ? canonicalizeLink(group.network) : undefined,
+    description: group.description,
+    labels: userLabels(group.labels),
+    state: group.state,
+    reconciling: group.reconciling === true,
+    nestedDeployments: (group.nestedDeployments ?? []).map((deployment) => ({
+      name: deployment.name,
+      state: deployment.state,
+    })),
+    locations: (group.locations ?? []).map((location) => ({
+      location: location.location,
+      state: location.state,
+    })),
+    connectedEndpointGroups: (group.connectedEndpointGroups ?? []).map((endpointGroup) => ({
+      name: endpointGroup.name,
+    })),
+    createTime: group.createTime,
+    updateTime: group.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networksecurity
+    .getProjectsLocationsInterceptDeploymentGroups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const InterceptDeploymentGroupProvider = (): infer _ =>
+  Provider.succeed(InterceptDeploymentGroup, {
+    stables: ["name", "interceptDeploymentGroupId", "project", "location", "network", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.interceptDeploymentGroupId ?? output?.interceptDeploymentGroupId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.interceptDeploymentGroupId
+            ? rfc1035(resolved.interceptDeploymentGroupId, "intercept-deployment-group")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const previousNetwork = try Effect.orDie(
+        Effect.try({ try: () => linkKey(olds?.network ?? output?.network), catch: (e) => e }),
+      )
+      const nextNetwork = try Effect.orDie(Effect.try({ try: () => linkKey(resolved.network), catch: (e) => e }))
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || (previousNetwork.length > 0 && previousNetwork !== nextNetwork)
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const interceptDeploymentGroupId = try toPhysicalId(
+        id,
+        olds?.interceptDeploymentGroupId,
+        output?.interceptDeploymentGroupId,
+        "intercept-deployment-group",
+      )
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, interceptDeploymentGroupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networksecurity.listProjectsLocationsInterceptDeploymentGroups.pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
+          pageSize: 1000,
+        }),
+        (page) => page.interceptDeploymentGroups,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const interceptDeploymentGroupId = try toPhysicalId(
+        id,
+        news.interceptDeploymentGroupId,
+        output?.interceptDeploymentGroupId,
+        "intercept-deployment-group",
+      )
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = resourceName(env.project, location, interceptDeploymentGroupId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const network = try Effect.orDie(Effect.try({ try: () => canonicalizeLink(news.network), catch: (e) => e }))
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (networksecurity
+            .createProjectsLocationsInterceptDeploymentGroups({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              interceptDeploymentGroupId,
+              body: {
+                network,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilReady(getByName(name), name)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+          ]),
+        catch: (e) => e,
+      }))
+
+      if (updateMask.length > 0) {
+        const operation = try networksecurity.patchProjectsLocationsInterceptDeploymentGroups({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (networksecurity
+          .deleteProjectsLocationsInterceptDeploymentGroups({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

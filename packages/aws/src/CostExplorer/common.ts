@@ -2,7 +2,7 @@ import * as ce from "@distilled.cloud/aws/cost-explorer";
 import { diffTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { Region } from "../Region.ts";
+import { Region } from "../Region.vibe";
 
 // Cost Explorer is a global service served exclusively from the us-east-1
 // endpoint. Every control-plane call must target that region regardless of

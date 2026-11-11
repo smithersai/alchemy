@@ -1,0 +1,236 @@
+import * as gmailpostmastertools from "@distilled.cloud/gcp/gmailpostmastertools_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_PERMISSION,
+  findUser,
+  fullUserName,
+  ignoreMissing,
+  isAlchemyEmail,
+  isPatchablePermission,
+  listOwnedUsers,
+  normalize,
+  parentOfUserName,
+  sameText,
+  toDomainName,
+  toGeneratedUserId,
+  toUserName,
+  userEmailOf,
+} from "./internal.vibe"
+
+export type DomainsUserProps = {
+  /**
+   * Parent domain (`domains/{domain}` or the FQDN). Immutable —
+   * changing it replaces the user.
+   */
+  parent: string
+  /**
+   * User email. If omitted, a unique `alchemy-*@example.com` address is
+   * generated. Immutable — changing it replaces the user. Users have no
+   * labels field, so Alchemy stamps ownership into the generated local
+   * part for `list` / nuke.
+   */
+  userId?: string
+  /**
+   * Permission on the parent domain. Updates in place for `READER` and
+   * `ADMIN`. `OWNER` and `NONE` cannot be patched.
+   * @default "READER"
+   */
+  permission?: gmailpostmastertools.UserPermissionEnum | (string & {})
+}
+
+export type DomainsUser = Resource<
+  "GCP.GmailPostmasterTools.DomainsUser",
+  DomainsUserProps,
+  {
+    /** Full resource name `domains/{domain}/users/{user}`. */
+    name: string
+    /** Parent domain name `domains/{domain}`. */
+    parent: string
+    /** User email. */
+    userId: string
+    /** Project id used when the user was reconciled. */
+    project: string
+    /** Permission on the parent domain. */
+    permission: string | undefined
+    /** RFC3339 time access was granted. */
+    createTime: string | undefined
+    /** Email of the user that granted access. */
+    accessGranter: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Gmail Postmaster Tools domain user.
+ *
+ * Users have no labels or description, so identity is `(parent, userId)`
+ * and `list` / nuke returns rows whose email local-part starts with
+ * `alchemy-`. Permission updates in place (`READER` / `ADMIN`). Changing
+ * parent or email replaces the user.
+ *
+ * ### Creating a User
+ * **Example:** Generated email
+ * ```typescript
+ * const user = yield* GCP.GmailPostmasterTools.DomainsUser("Ada", {
+ *   parent: domain.name,
+ * });
+ * ```
+ *
+ * **Example:** Explicit email and permission
+ * ```typescript
+ * const user = yield* GCP.GmailPostmasterTools.DomainsUser("Ada", {
+ *   parent: domain.name,
+ *   userId: "ada@example.com",
+ *   permission: "ADMIN",
+ * });
+ * ```
+ *
+ * ### Updating a User
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Change permission
+ * ```typescript
+ * const user = yield* GCP.GmailPostmasterTools.DomainsUser("Ada", {
+ *   parent: domain.name,
+ *   userId: "ada@example.com",
+ *   permission: "READER",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Gmail Postmaster Tools
+ */
+export const DomainsUser = Resource<DomainsUser>("GCP.GmailPostmasterTools.DomainsUser")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DomainsUserNotResolved extends Data.TaggedError(
+  "GCP.GmailPostmasterTools.DomainsUserNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toAttrs = (user: gmailpostmastertools.User, parent: string, project: string): infer _ => {
+  const resolvedParent = parentOfUserName(user.name ?? "") || toDomainName(parent)
+  const name = fullUserName(resolvedParent, user)
+  return {
+    name,
+    parent: resolvedParent,
+    userId: userEmailOf(user),
+    project,
+    permission: user.permission,
+    createTime: user.createTime,
+    accessGranter: user.accessGranter,
+  }
+}
+
+export const DomainsUserProvider = (): infer _ =>
+  Provider.succeed(DomainsUser, {
+    stables: ["name", "parent", "userId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (
+        previousParent !== undefined
+        && (try Effect.orDie(Effect.try({ try: () => toDomainName(resolved.parent), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => toDomainName(previousParent), catch: (e) => e })))
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousUser = olds?.userId ?? output?.userId
+      if (
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousUser !== undefined
+            && resolved.userId !== undefined
+            && normalize(resolved.userId) !== normalize(previousUser),
+          catch: (e) => e,
+        }))
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.parent ?? output?.parent ?? ""
+      const userId = olds?.userId ?? output?.userId ?? ""
+      const existing = try findUser(
+        parent,
+        userId,
+        output?.name ?? (try Effect.orDie(Effect.try({ try: () => toUserName(parent, userId), catch: (e) => e }))),
+      )
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, parent, env.project)
+      return output !== undefined
+          || (try Effect.orDie(Effect.try({ try: () => isAlchemyEmail(attrs.userId), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const users = try listOwnedUsers()
+      return users.map((user) => toAttrs(user, parentOfUserName(user.name ?? "") || "", env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = try Effect.orDie(Effect.try({ try: () => toDomainName(news.parent), catch: (e) => e }))
+      const userId = try toGeneratedUserId(id, news.userId, output?.userId)
+      const name = try Effect.orDie(Effect.try({ try: () => toUserName(parent, userId), catch: (e) => e }))
+      const permission = news.permission ?? DEFAULT_PERMISSION
+
+      let current = try findUser(parent, userId, output?.name ?? name)
+
+      if (current === undefined) {
+        const created = gmailpostmastertools
+          .createDomainsUsers({
+            parent,
+            body: { userId, permission },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findUser(parent, userId, name);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DomainsUserNotResolved({ resourceName: name })
+      }
+
+      const resourceName = try Effect.orDie(
+        Effect.try({ try: fullUserName.bind(undefined, parent, current), catch: (e) => e }),
+      )
+      if (
+        (try Effect.orDie(Effect.try({ try: () => isPatchablePermission(permission), catch: (e) => e })))
+        && !sameText(current.permission, permission)
+      ) {
+        current = try gmailpostmastertools.patchDomainsUsers({
+          name: resourceName,
+          updateMask: "permission",
+          body: { permission },
+        })
+      }
+
+      const fresh = (try findUser(parent, userId, resourceName)) ?? current
+      return toAttrs(fresh, parent, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const name = output.name
+        || (try Effect.orDie(Effect.try({ try: () => toUserName(output.parent, output.userId), catch: (e) => e })))
+      if (name.length === 0) return
+      try ignoreMissing(gmailpostmastertools.deleteDomainsUsers({ name }))
+    },
+  })

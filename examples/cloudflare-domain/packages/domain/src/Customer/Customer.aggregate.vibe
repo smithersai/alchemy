@@ -1,0 +1,58 @@
+import * as Domain from "@alchemy.run/domain"
+import * as Schema from "effect/Schema"
+import { CurrentActor } from "../CurrentActor.context.ts"
+import { ConfirmRegistration, CustomerRegistered } from "./ConfirmRegistration.command.vibe"
+import { CustomerId } from "./Customer.id.vibe"
+import {
+  AlreadyRegistered,
+  NotTheCustomer,
+  RegisterCustomer,
+  RegistrationRequested,
+} from "./RegisterCustomer.command.vibe"
+import { RegistrationRejected, RejectRegistration } from "./RejectRegistration.command.vibe"
+import { Username } from "./Username.vibe"
+
+const Profile = { name: Schema.String, username: Username }
+
+/**
+ * A customer. Registration is a small saga: the request records the profile,
+ * `UsernameReservation` claims the username, then the registration is
+ * confirmed or rejected.
+ */
+export class Customer extends Domain.Aggregate("Customer", {
+  id: CustomerId,
+  state: Schema.Union([
+    Schema.TaggedStruct("New", {}),
+    Schema.TaggedStruct("Pending", Profile),
+    Schema.TaggedStruct("Registered", Profile),
+  ]),
+  initial: { _tag: "New" },
+  commands: [RegisterCustomer, ConfirmRegistration, RejectRegistration],
+  decide: {
+    RegisterCustomer: effect (s, cmd, { id }) => {
+      const actor = try Effect.service(CurrentActor)
+      if (actor._tag === "Customer" && actor.customerId !== id) throw new NotTheCustomer()
+      if (s._tag !== "New") throw new AlreadyRegistered()
+      return [new RegistrationRequested({ name: cmd.name, username: cmd.username })]
+    },
+    ConfirmRegistration: (s) =>
+      s._tag === "Pending" ? [new CustomerRegistered({ name: s.name, username: s.username })] : [],
+    RejectRegistration: (s, cmd) =>
+      s._tag === "Pending"
+        ? [new RegistrationRejected({ username: s.username, reason: cmd.reason })]
+        : [],
+  },
+  evolve: {
+    RegistrationRequested: (_, e) => ({
+      _tag: "Pending" as const,
+      name: e.name,
+      username: e.username,
+    }),
+    CustomerRegistered: (_, e) => ({
+      _tag: "Registered" as const,
+      name: e.name,
+      username: e.username,
+    }),
+    RegistrationRejected: () => ({ _tag: "New" as const }),
+  },
+}) {}

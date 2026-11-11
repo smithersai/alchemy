@@ -1,0 +1,229 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import * as HttpServerRequest from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Redacted from "effect/Redacted"
+import * as Stream from "effect/Stream"
+import { KV } from "./KV.ts"
+import NotifyWorkflow from "./NotifyWorkflow.vibe"
+import SandboxDO from "./SandboxDO.vibe"
+import { signHmac, verifyHmac } from "./crypto.platform.ts"
+import { instantiateWasmExample } from "./wasm.platform.ts"
+
+/**
+ * Analytics Engine dataset — a plain binding value, not a cloud resource.
+ * In local dev `writeDataPoint` is accepted and discarded (Miniflare
+ * parity); on a live deploy the points land in the real dataset.
+ */
+export const Events = Cloudflare.AnalyticsEngine.Dataset("Events", {
+  dataset: "cloudflare_dev_events",
+})
+
+/**
+ * Checked-in HMAC key material for the `secret_key` binding (32 bytes,
+ * base64) — never generate key material at deploy time.
+ */
+const HMAC_KEY_BASE64 = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+interface Message {
+  id: string
+  body: {
+    text: string
+    sentAt: number
+  }
+}
+
+export default class EffectWorker extends Cloudflare.Worker<EffectWorker>()(
+  "EffectWorker",
+  {
+    main: import.meta.url,
+    dev: {
+      port: Config.Number("PORT").pipe(Config.withDefault(1338)),
+    },
+    build: {
+      bundleAnalyzer: true,
+    },
+  },
+  effect {
+    const publicUrl = try Cloudflare.Worker.URL
+    const kv = try Cloudflare.KV.ReadWriteNamespace(KV)
+    const queue = try Cloudflare.Queues.Queue("EffectWorkerQueue")
+    const queueBinding = try Cloudflare.Queues.WriteQueue(queue)
+    const sandbox = try SandboxDO
+    const queueMessages = try QueueMessages
+    const workflow = try NotifyWorkflow
+    const cronFires = try CronFires
+    const analytics = try Cloudflare.AnalyticsEngine.WriteDataset(Events)
+    // `secret_key` binding: workerd imports the key material as a
+    // non-extractable CryptoKey. The accessor is deferred — `yield*` it
+    // again inside the handler to get the CryptoKey.
+    const hmacKey = try (try Effect.orDie(Effect.try({
+      try: () =>
+        Cloudflare.Workers.SecretKey("HMAC_KEY", {
+          format: "raw",
+          algorithm: { name: "HMAC", hash: "SHA-256" },
+          usages: ["sign", "verify"],
+          keyBase64: Redacted.make(HMAC_KEY_BASE64),
+        }),
+      catch: (e) => e,
+    }))).asEffect()
+
+    // Cron trigger: registered at init; locally you can fire it on demand
+    // via `POST /cdn-cgi/handler/scheduled?cron=* * * * *&time=<ms>` instead
+    // of waiting for the minute boundary.
+    try Cloudflare.Workers.cron(
+      "* * * * *",
+      effect (controller) => {
+        return try (try Effect.orDie(Effect.try({ try: () => cronFires.getByName("default"), catch: (e) => e })))
+          .record(controller.scheduledTime)
+      },
+    )
+
+    try Cloudflare.Queues.consumeQueueMessages<Message["body"]>(
+      queue,
+      (stream) =>
+        Stream.runForEach(
+          stream,
+          effect (msg) => {
+            try (try Effect.orDie(Effect.try({ try: () => queueMessages.getByName("global"), catch: (e) => e }))).put(
+              { id: msg.id, body: msg.body },
+            )
+          },
+        ),
+    )
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest.HttpServerRequest
+        const url = new URL(request.url, "http://internal")
+        if (url.pathname.startsWith("/sandbox")) {
+          const stub = try Effect.orDie(Effect.try({ try: () => sandbox.getByName("sandbox-test"), catch: (e) => e }))
+          return try stub.fetch(request).pipe(Effect.orDie)
+        } else if (url.pathname === "/wasm") {
+          const instance = try instantiateWasmExample()
+          return try HttpServerResponse.json({
+            result: try Effect.orDie(Effect.try({ try: () => instance.exports.add(3, 4), catch: (e) => e })),
+          })
+        } else if (url.pathname.startsWith("/workflow/start/")) {
+          const roomId = url.pathname.split("/workflow/start/")[1]
+          if (!roomId) {
+            return try HttpServerResponse.json({ error: "roomId is required" }, { status: 400 })
+          }
+          const instance = try workflow.create({
+            params: {
+              roomId,
+              message: "hello from workflow",
+            },
+          })
+          return try HttpServerResponse.json({ instanceId: instance.id })
+        } else if (url.pathname.startsWith("/workflow/status/")) {
+          const instanceId = url.pathname.split("/workflow/status/")[1]
+          if (!instanceId) {
+            return try HttpServerResponse.json(
+              { error: "instanceId is required" },
+              { status: 400 },
+            )
+          }
+          const instance = try workflow.get(instanceId)
+          const status = try instance.status()
+          return try HttpServerResponse.json(status)
+        } else if (url.pathname.startsWith("/queue/send")) {
+          const body = try request.json
+          try queueBinding.send(body).pipe(Effect.orDie)
+          return try HttpServerResponse.json({ sent: body })
+        } else if (url.pathname.startsWith("/queue/messages")) {
+          const messages = try (try Effect.orDie(Effect.try({
+            try: () => queueMessages.getByName("global"),
+            catch: (e) => e,
+          }))).list()
+          return try HttpServerResponse.json(messages)
+        } else if (url.pathname.startsWith("/url")) {
+          return try HttpServerResponse.json({ url: try publicUrl })
+        } else if (url.pathname.startsWith("/cron/times")) {
+          const snapshot = try (try Effect.orDie(Effect.try({
+            try: () => cronFires.getByName("default"),
+            catch: (e) => e,
+          }))).snapshot()
+          return try HttpServerResponse.json(snapshot)
+        } else if (url.pathname.startsWith("/secret-key")) {
+          const key = try hmacKey
+          const data = new TextEncoder().encode(url.searchParams.get("message") ?? "hello")
+          const signature = try signHmac(key, data)
+          const verified = try verifyHmac(key, signature, data)
+          return try HttpServerResponse.json({
+            verified,
+            algorithm: key.algorithm.name,
+            // Bound keys are never extractable — local lowering matches.
+            extractable: key.extractable,
+            signatureBase64: btoa(String.fromCharCode(...new Uint8Array(signature))),
+          })
+        } else if (url.pathname.startsWith("/analytics")) {
+          // A documented no-op in local dev — the write succeeding (not
+          // throwing) is the observable behavior.
+          try analytics
+            .writeDataPoint({
+              indexes: ["example"],
+              blobs: ["visit"],
+              doubles: [1],
+            })
+            .pipe(Effect.orDie)
+          return try HttpServerResponse.json({ ok: true })
+        }
+        const value = try kv.list().pipe(Effect.orDie)
+        return try HttpServerResponse.json(value)
+      },
+    }
+  }.pipe(
+    Effect.provide([
+      Cloudflare.KV.ReadWriteNamespaceBinding,
+      Cloudflare.Queues.WriteQueueBinding,
+      Cloudflare.Queues.EventSourceLive,
+      Cloudflare.Workers.CronEventSourceLive,
+      Cloudflare.Workers.SecretKeyBinding,
+      Cloudflare.AnalyticsEngine.WriteDatasetBinding,
+    ]),
+  ),
+) {}
+
+/**
+ * Records each `scheduledTime` the cron handler observes; the integ test
+ * fires the trigger route and polls `GET /cron/times` until it shows up.
+ */
+export class CronFires extends Cloudflare.DurableObject<CronFires>()(
+  "CronFires",
+  Effect.succeed(
+    effect {
+      const state = try Cloudflare.DurableObjectState
+      return {
+        record: effect (time: number) => {
+          const times = (try state.storage.get<number[]>("times")) ?? []
+          try state.storage.put("times", [...times, time])
+        },
+        snapshot: effect () => {
+          return { times: (try state.storage.get<number[]>("times")) ?? [] }
+        },
+      }
+    },
+  ),
+) {}
+
+export class QueueMessages extends Cloudflare.DurableObject<QueueMessages>()(
+  "QueueMessages",
+  Effect.succeed(
+    effect {
+      const state = try Cloudflare.DurableObjectState
+      return {
+        put: effect (message: Message) => {
+          try state.storage.put(message.id, message)
+        },
+        list: effect () => {
+          const messages = new Map<string, Message>(
+            try Effect.orDie(Effect.try({ try: () => state.storage.kv.list<Message>(), catch: (e) => e })),
+          )
+          return Array.from(messages.values())
+        },
+      }
+    },
+  ),
+) {}

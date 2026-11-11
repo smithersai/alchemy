@@ -1,0 +1,50 @@
+import * as Hetzner from "@alchemy.run/hetzner"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { API_PORT, Box, Data, MARKER_FILE, VOLUME_PATH } from "./shared.vibe"
+
+/**
+ * HTTP Service: mounts the shared Volume and serves the marker file
+ * {@link Worker} writes.
+ */
+export default class Api extends Hetzner.Service<Api>()(
+  "Api",
+  {
+    server: Box,
+    main: import.meta.url,
+    port: API_PORT,
+  },
+  effect {
+    return try effect {
+      provide Hetzner.MountVolumeLive {
+        return try effect {
+          const volume = try Data
+          const mount = try Hetzner.MountVolume(volume, { path: VOLUME_PATH })
+
+          return {
+            fetch: effect {
+              const request = try Effect.service(HttpServerRequest)
+              const url = new URL(request.url, "http://service")
+              if (url.pathname === "/health") {
+                return try HttpServerResponse.json({
+                  ok: true,
+                  path: mount.path,
+                })
+              }
+              const fs = try Effect.service(FileSystem.FileSystem)
+              const text = try (fs.readFileString(MARKER_FILE)
+                |> Effect.orDie(%))
+              return try HttpServerResponse.json({
+                path: mount.path,
+                device: mount.device,
+                text,
+              })
+            },
+          }
+        }
+      }
+    }
+  },
+) {}

@@ -1,7 +1,7 @@
 import * as apprunner from "@distilled.cloud/aws/apprunner";
-import { AssociateCustomDomain } from "./AssociateCustomDomain.ts";
-import { makeAppRunnerHttpBinding } from "./BindingHttp.ts";
-import type { Service } from "./Service.ts";
+import { AssociateCustomDomain } from "./AssociateCustomDomain.vibe";
+import { makeAppRunnerHttpBinding } from "./BindingHttp.vibe";
+import type { Service } from "./Service.vibe";
 
 /**
  * HTTP implementation of the {@link AssociateCustomDomain} binding. Calls

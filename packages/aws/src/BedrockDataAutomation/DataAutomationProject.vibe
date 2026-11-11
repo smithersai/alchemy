@@ -1,0 +1,375 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
+import * as bda from "@distilled.cloud/aws/bedrock-data-automation"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { bdaConfigEquals, readBdaTags, syncBdaTags, toBdaTagList, unredact } from "./internal.vibe"
+
+// Explicitly-typed pipeable repeat helper. Inlining `Effect.repeat` in a
+// provider lifecycle op leaks its conditional return type into declaration
+// emit and widens the provider layer for every consumer of `AWS.providers()`.
+const repeatUntilProjectSettled = effect <E, R>(
+  self: (bda.DataAutomationProject | undefined)!E!R,
+): (bda.DataAutomationProject | undefined)!E!R =>
+  try Effect.repeat(self, {
+    schedule: Schedule.fixed("3 seconds"),
+    until: (project) => project === undefined || project.status !== "IN_PROGRESS",
+    times: 25,
+  })
+
+export interface DataAutomationProjectProps {
+  /**
+   * Name of the project. Must match `[a-zA-Z0-9-_]+` and be at most 128
+   * characters. Changing the name replaces the project.
+   * @default ${app}-${stage}-${id}
+   */
+  projectName?: string
+  /**
+   * Human-readable description of the project.
+   */
+  projectDescription?: string
+  /**
+   * The stage of the project: `DEVELOPMENT` or `LIVE`. Stages are distinct
+   * addressable copies, so changing the stage replaces the project.
+   * @default LIVE
+   */
+  projectStage?: bda.DataAutomationProjectStage
+  /**
+   * Whether the project processes files asynchronously (`ASYNC`) or
+   * synchronously (`SYNC`). Immutable — changing it replaces the project.
+   * @default ASYNC
+   */
+  projectType?: bda.DataAutomationProjectType
+  /**
+   * The standard (default) output the project produces per modality —
+   * document, image, video, and audio extraction settings. Pass `{}` to use
+   * the service defaults.
+   */
+  standardOutputConfiguration: bda.StandardOutputConfiguration
+  /**
+   * Custom output configuration — the list of `Blueprint`s the project
+   * applies to matched files.
+   */
+  customOutputConfiguration?: bda.CustomOutputConfiguration
+  /**
+   * Overrides for the project (e.g. document splitter and modality routing).
+   */
+  overrideConfiguration?: bda.OverrideConfiguration
+  /**
+   * Data automation library (entity/vocabulary) configuration.
+   */
+  dataAutomationLibraryConfiguration?: bda.DataAutomationLibraryConfiguration
+  /**
+   * Customer-managed KMS encryption for the project. When omitted, the
+   * service uses an AWS-owned key.
+   */
+  encryptionConfiguration?: bda.EncryptionConfiguration
+  /**
+   * Tags to apply to the project. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DataAutomationProject extends
+  Resource<
+    "AWS.BedrockDataAutomation.DataAutomationProject",
+    DataAutomationProjectProps,
+    {
+      /**
+       * The ARN of the project.
+       */
+      projectArn: string
+      /**
+       * Name of the project.
+       */
+      projectName: string
+      /**
+       * The stage (`DEVELOPMENT` or `LIVE`) of the project.
+       */
+      projectStage: string
+      /**
+       * Current status of the project (e.g. `COMPLETED`).
+       */
+      status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Bedrock Data Automation Project — the configuration unit that
+ * turns documents, images, audio, and video into structured output, with
+ * optional custom output driven by `Blueprint`s.
+ *
+ * ### Creating Projects
+ * **Example:** Project with default standard output
+ * ```typescript
+ * import * as BDA from "@alchemy.run/aws/BedrockDataAutomation";
+ *
+ * const project = yield* BDA.DataAutomationProject("Docs", {
+ *   standardOutputConfiguration: {},
+ * });
+ * ```
+ *
+ * **Example:** Document project with granular extraction
+ * ```typescript
+ * const project = yield* BDA.DataAutomationProject("Docs", {
+ *   projectDescription: "invoice pipeline",
+ *   standardOutputConfiguration: {
+ *     document: {
+ *       extraction: {
+ *         granularity: { types: ["DOCUMENT", "PAGE"] },
+ *         boundingBox: { state: "DISABLED" },
+ *       },
+ *       generativeField: { state: "DISABLED" },
+ *       outputFormat: {
+ *         textFormat: { types: ["MARKDOWN"] },
+ *         additionalFileFormat: { state: "DISABLED" },
+ *       },
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * ### Custom Output
+ * **Example:** Attach blueprints for custom output
+ * ```typescript
+ * const blueprint = yield* BDA.Blueprint("InvoiceBlueprint", {
+ *   type: "DOCUMENT",
+ *   schema: invoiceSchemaJson,
+ * });
+ *
+ * const project = yield* BDA.DataAutomationProject("Docs", {
+ *   standardOutputConfiguration: {},
+ *   customOutputConfiguration: {
+ *     blueprints: [{ blueprintArn: blueprint.blueprintArn }],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DataAutomationProject = Resource<DataAutomationProject>(
+  "AWS.BedrockDataAutomation.DataAutomationProject",
+)
+
+/**
+ * Raised when a Data Automation project reaches the terminal `FAILED` status
+ * during provisioning or update.
+ */
+export class DataAutomationProjectFailed extends $MutableErrorBase("DataAutomationProjectFailed")<{
+  projectArn: string
+
+  message: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "DataAutomationProjectFailed", true)
+  }
+}
+
+export const DataAutomationProjectProvider = (): infer _ =>
+  Provider.effect(
+    DataAutomationProject,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<DataAutomationProjectProps, "projectName">,
+      ) => props.projectName ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      const toAttributes = (project: bda.DataAutomationProject): infer _ => ({
+        projectArn: project.projectArn,
+        projectName: unredact(project.projectName),
+        projectStage: project.projectStage ?? "LIVE",
+        status: project.status as string,
+      })
+
+      const observeProject = effect (
+        projectArn: string,
+        projectStage?: bda.DataAutomationProjectStage | undefined,
+      ) =>
+        (effect {
+          return (try bda.getDataAutomationProject({ projectArn, projectStage })).project
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      const findProjectArn = effect (name: string) => {
+        const summaries = try bda.listDataAutomationProjects
+          .items({ resourceOwner: "ACCOUNT" })
+          .pipe(Stream.runCollect)
+        return Array.from(summaries).find(
+          (s) => s.projectName !== undefined && unredact(s.projectName) === name,
+        )?.projectArn
+      }
+
+      // Project create/update settle asynchronously (status IN_PROGRESS →
+      // COMPLETED | FAILED). Bounded poll: 25 × 3s ≈ 75s worst case.
+      const waitForSettled = effect (
+        projectArn: string,
+        projectStage?: bda.DataAutomationProjectStage | undefined,
+      ) => {
+        const settled = try (observeProject(projectArn, projectStage)
+          |> repeatUntilProjectSettled(%))
+        if (settled !== undefined && settled.status === "FAILED") {
+          throw new DataAutomationProjectFailed({
+            projectArn,
+            message: `Data Automation project '${projectArn}' reached status FAILED`,
+          })
+        }
+        return settled
+      }
+
+      return DataAutomationProject.Provider.of({
+        stables: ["projectArn", "projectName"],
+
+        list: effect () => {
+          const summaries = try bda.listDataAutomationProjects
+            .items({ resourceOwner: "ACCOUNT" })
+            .pipe(Stream.runCollect)
+          const attrs = try Effect.forEach(
+            Array.from(summaries),
+            effect (s) =>
+              try effect {
+                const project = try observeProject(s.projectArn, s.projectStage)
+                return (project === undefined ? [] : [toAttributes(project)])
+              },
+            { concurrency: 5 },
+          )
+          return attrs.flat()
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const projectArn = output?.projectArn ?? (try findProjectArn(try createName(id, olds ?? {})))
+          if (projectArn === undefined) return undefined
+          const found = try observeProject(projectArn, olds?.projectStage)
+          if (found === undefined) return undefined
+          const attrs = toAttributes(found)
+          const tags = try readBdaTags(projectArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news ?? {})
+          if (
+            oldName !== newName
+            || olds?.projectStage !== news.projectStage
+            || olds?.projectType !== news.projectType
+          ) {
+            return { action: "replace" } as const
+          }
+          // fall through: engine default update logic for mutable fields
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const projectName = output?.projectName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative; output caches the ARN.
+          const cachedArn = output?.projectArn ?? (try findProjectArn(projectName))
+          let live = cachedArn === undefined
+            ? undefined
+            : try observeProject(cachedArn, news.projectStage)
+
+          // 2. ENSURE — create when missing; a concurrent create surfaces as
+          //    the typed ConflictException, which we treat as a race and
+          //    re-observe by name. Wait for the async provisioning to settle.
+          if (live === undefined) {
+            const projectArn = (effect {
+              return (try bda
+                .createDataAutomationProject({
+                  projectName,
+                  projectDescription: news.projectDescription,
+                  projectStage: news.projectStage,
+                  projectType: news.projectType,
+                  standardOutputConfiguration: news.standardOutputConfiguration,
+                  customOutputConfiguration: news.customOutputConfiguration,
+                  overrideConfiguration: news.overrideConfiguration,
+                  dataAutomationLibraryConfiguration: news.dataAutomationLibraryConfiguration,
+                  encryptionConfiguration: news.encryptionConfiguration,
+                  tags: try Effect.orDie(Effect.try({ try: () => toBdaTagList(desiredTags), catch: (e) => e })),
+                })).projectArn
+            }) catch effect (conflict) => match (conflict) {
+              when { _tag: "ConflictException" }: try effect {
+                const arn = try findProjectArn(projectName)
+                return arn === undefined ? throw conflict : arn
+              };
+              default: throw conflict;
+            }
+            live = try waitForSettled(projectArn, news.projectStage)
+          }
+          if (live === undefined) {
+            throw new DataAutomationProjectFailed({
+              projectArn: cachedArn ?? projectName,
+              message: `Data Automation project '${projectName}' was not observable after create`,
+            })
+          }
+
+          // 3. SYNC — diff OBSERVED configuration against desired; apply the
+          //    idempotent PUT only on drift. The server may fill defaulted
+          //    fields, in which case the PUT re-applies harmlessly.
+          const currentProject = live
+          const drift = (try Effect.orDie(Effect.try({
+            try: () => unredact(currentProject.projectDescription ?? ""),
+            catch: (e) => e,
+          }))) !== (news.projectDescription ?? "")
+            || !(try Effect.orDie(Effect.try({
+              try: () => bdaConfigEquals(currentProject.standardOutputConfiguration, news.standardOutputConfiguration),
+              catch: (e) => e,
+            })))
+            || (news.customOutputConfiguration !== undefined
+              && !(try Effect.orDie(Effect.try({
+                try: () => bdaConfigEquals(currentProject.customOutputConfiguration, news.customOutputConfiguration),
+                catch: (e) => e,
+              }))))
+            || (news.overrideConfiguration !== undefined
+              && !(try Effect.orDie(Effect.try({
+                try: () => bdaConfigEquals(currentProject.overrideConfiguration, news.overrideConfiguration),
+                catch: (e) => e,
+              }))))
+            || (news.encryptionConfiguration !== undefined
+              && live.kmsKeyId !== news.encryptionConfiguration.kmsKeyId)
+          if (drift) {
+            try bda.updateDataAutomationProject({
+              projectArn: live.projectArn,
+              projectStage: news.projectStage,
+              projectDescription: news.projectDescription,
+              standardOutputConfiguration: news.standardOutputConfiguration,
+              customOutputConfiguration: news.customOutputConfiguration,
+              overrideConfiguration: news.overrideConfiguration,
+              dataAutomationLibraryConfiguration: news.dataAutomationLibraryConfiguration,
+              encryptionConfiguration: news.encryptionConfiguration,
+            })
+            live = (try waitForSettled(live.projectArn, news.projectStage)) ?? live
+          }
+
+          // 3b. SYNC TAGS against observed cloud tags.
+          try syncBdaTags(live.projectArn, desiredTags)
+
+          try session.note(projectName)
+          return toAttributes(live)
+        },
+
+        delete: effect ({ output }) => {
+          bda
+            .deleteDataAutomationProject({ projectArn: output.projectArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

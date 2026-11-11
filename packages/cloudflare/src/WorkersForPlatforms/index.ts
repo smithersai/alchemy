@@ -1,3 +1,3 @@
-export * from "./DispatchNamespace.ts";
-export * from "./Get.ts";
-export * from "./GetBinding.ts";
+export * from "./DispatchNamespace.vibe";
+export * from "./Get.vibe";
+export * from "./GetBinding.vibe";

@@ -1,0 +1,378 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  hasAlchemyLabelKeys,
+  isJobTerminal,
+  normalizeLocation,
+  parentOf,
+  parseResourceName,
+  rfc1035,
+  userLabels,
+  waitForOperation,
+} from "./internal.ts"
+import { listLocations } from "./names.vibe"
+import type { EncryptionSpec } from "./shared.vibe"
+
+export type ActiveLearningConfig = aiplatform.GoogleCloudAiplatformV1ActiveLearningConfig
+
+export type DataLabelingJobProps = {
+  /**
+   * Region. Immutable — changing it replaces the job.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-facing display name. Defaults to a generated id. Immutable after
+   * create — DataLabelingJob has no update API.
+   */
+  displayName?: string
+  /**
+   * Dataset resource names to label. Currently a single dataset.
+   * Format `projects/{project}/locations/{location}/datasets/{dataset}`.
+   */
+  datasets: string[]
+  /**
+   * Number of labelers per DataItem.
+   */
+  labelerCount: number
+  /**
+   * GCS URI of the instruction PDF shared with labelers.
+   */
+  instructionUri: string
+  /**
+   * GCS URI of the YAML schema describing the job config. Schema files
+   * live under
+   * `https://storage.googleapis.com/google-cloud-aiplatform/schema/datalabelingjob/inputs/`.
+   */
+  inputsSchemaUri: string
+  /**
+   * Input config parameters for the job (schema-specific).
+   */
+  inputs: unknown
+  /**
+   * Specialist pool resource names associated with this job.
+   */
+  specialistPools?: string[]
+  /**
+   * Labels applied to annotations created by this job.
+   */
+  annotationLabels?: Record<string, string>
+  /**
+   * Active learning pipeline configuration.
+   */
+  activeLearningConfig?: ActiveLearningConfig
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Customer-managed encryption.
+   */
+  encryptionSpec?: EncryptionSpec
+}
+
+export type DataLabelingJob = Resource<
+  "GCP.AIPlatform.DataLabelingJob",
+  DataLabelingJobProps,
+  {
+    /** Full resource name `.../dataLabelingJobs/{job}`. */
+    name: string
+    /** Job id (last path segment). */
+    dataLabelingJobId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Dataset resource names. */
+    datasets: string[]
+    /** Labelers per DataItem. */
+    labelerCount: number | undefined
+    /** Instruction PDF URI. */
+    instructionUri: string | undefined
+    /** Inputs schema URI. */
+    inputsSchemaUri: string | undefined
+    /** Detailed job state. */
+    state: string | undefined
+    /** Labeling progress in `[0, 100]`. */
+    labelingProgress: number | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Customer-managed KMS key, if any. */
+    kmsKeyName: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Failure/cancel status, if any. */
+    error: { code?: number; message?: string } | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI DataLabelingJob — human labeling of Dataset DataItems.
+ *
+ * Creating a job starts labeling immediately. There is no update API, so
+ * reconcile is observe-ensure. Delete cancels a running job, then deletes
+ * it. Alchemy ownership labels are merged into `labels` so `list` / nuke
+ * can find the job.
+ *
+ * ### Creating a Data Labeling Job
+ * **Example:** Single-label image classification
+ * ```typescript
+ * const job = yield* GCP.AIPlatform.DataLabelingJob("Label", {
+ *   datasets: [dataset.name],
+ *   displayName: "label-images",
+ *   labelerCount: 1,
+ *   instructionUri: "gs://bucket/instructions.pdf",
+ *   inputsSchemaUri:
+ *     "gs://google-cloud-aiplatform/schema/datalabelingjob/inputs/image_classification_1.0.0.yaml",
+ *   inputs: { annotationSpecs: ["cat", "dog"] },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const DataLabelingJob = Resource<DataLabelingJob>("GCP.AIPlatform.DataLabelingJob")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DataLabelingJobNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.DataLabelingJobNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toId = effect (id: string, existing?: string) => {
+  if (existing !== undefined) return existing
+  const name = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  return try Effect.orDie(Effect.try({
+    try: () =>
+      rfc1035(
+        name,
+      ),
+    catch: (e) => e,
+  }))
+}
+
+const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1DataLabelingJob, project: string): infer _ => {
+  const name = job.name ?? ""
+  const parsed = parseResourceName(name, "dataLabelingJobs")
+  return {
+    name,
+    dataLabelingJobId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: job.displayName,
+    datasets: job.datasets ?? [],
+    labelerCount: job.labelerCount,
+    instructionUri: job.instructionUri,
+    inputsSchemaUri: job.inputsSchemaUri,
+    state: job.state,
+    labelingProgress: job.labelingProgress,
+    labels: userLabels(job.labels),
+    kmsKeyName: job.encryptionSpec?.kmsKeyName,
+    createTime: job.createTime,
+    updateTime: job.updateTime,
+    error: job.error ? { code: job.error.code, message: job.error.message } : undefined,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsDataLabelingJobs({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listJobs = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    Array.from(
+      try (aiplatform.listProjectsLocationsDataLabelingJobs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dataLabelingJobs ?? []))
+        |> Stream.filter(%, (job) => hasAlchemyLabelKeys(job.labels))
+        |> Stream.runCollect(%)),
+    )
+  const fallback = effect {
+    return (try Effect.forEach(
+      listLocations(region),
+      effect (location) => try collect(`projects/${project}/locations/${location}`),
+    )).flat()
+  }
+  // Vertex AI has no `locations/-` wildcard; scan known locations.
+  return (effect {
+    return (try fallback)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+}
+
+const findOwned = effect (id: string, project: string, region: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const jobs = try listJobs(project, region)
+  for (const job of jobs) {
+    if (
+      try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(job.labels), catch: (e) => e })),
+      )
+    ) return job
+  }
+  return undefined as aiplatform.GoogleCloudAiplatformV1DataLabelingJob | undefined
+}
+
+const cancelAndDelete = effect (name: string) => {
+  const existing = try getByName(name)
+  if (existing === undefined) return
+  if (!(try Effect.orDie(Effect.try({ try: () => isJobTerminal(existing.state), catch: (e) => e })))) {
+    aiplatform
+      .cancelProjectsLocationsDataLabelingJobs({ name }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+    ;(effect {
+      return (try (getByName(name)
+        |> Effect.filterOrFail(
+          %,
+          (job) => job === undefined || isJobTerminal(job.state),
+          () => new DataLabelingJobNotResolved({ resourceName: name }),
+        )
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "GCP.AIPlatform.DataLabelingJobNotResolved",
+          times: 8,
+          schedule: Schedule.spaced("4 seconds"),
+        })))
+    }) catch effect (e) => match (e) {
+      when { _tag: "GCP.AIPlatform.DataLabelingJobNotResolved" }: try Effect.void;
+      default: throw e;
+    }
+  }
+  const operation = (effect {
+    return (try (aiplatform.deleteProjectsLocationsDataLabelingJobs({ name })
+      |> Effect.retry(%, {
+        while: (error) => error._tag === "Conflict",
+        times: 8,
+        schedule: Schedule.spaced("3 seconds"),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "Conflict" }: try Effect.undefined;
+    default: throw e;
+  }
+  if (operation !== undefined) {
+    try waitForOperation(operation, { notFoundOk: true })
+  }
+}
+
+export const DataLabelingJobProvider = (): infer _ =>
+  Provider.succeed(DataLabelingJob, {
+    stables: ["name", "dataLabelingJobId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      if (previousLocation !== nextLocation) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try findOwned(id, env.project, env.region, output?.name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const jobs = try listJobs(env.project, env.region)
+      return jobs.map((job) => toAttrs(job, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const displayName = news.displayName ?? (try toId(id, output?.dataLabelingJobId))
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try findOwned(id, env.project, env.region, output?.name)
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsDataLabelingJobs({
+            parent: parentOf(env.project, location),
+            body: {
+              displayName,
+              datasets: news.datasets,
+              labelerCount: news.labelerCount,
+              instructionUri: news.instructionUri,
+              inputsSchemaUri: news.inputsSchemaUri,
+              inputs: news.inputs,
+              specialistPools: news.specialistPools,
+              annotationLabels: news.annotationLabels,
+              activeLearningConfig: news.activeLearningConfig,
+              labels: desiredLabels,
+              encryptionSpec: news.encryptionSpec,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findOwned(id, env.project, env.region);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DataLabelingJobNotResolved({
+          resourceName: output?.name ?? parentOf(env.project, location),
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      try cancelAndDelete(output.name)
+    },
+  })

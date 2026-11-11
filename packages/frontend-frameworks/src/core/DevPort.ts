@@ -2,7 +2,7 @@ import * as NodeNet from "node:net";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as SemVer from "effect/SemVer";
-import { FrameworkError } from "./Framework.ts";
+import { FrameworkError } from "./Framework.vibe";
 
 /**
  * Whether the given Vite version treats `server.port: 0` as a true

@@ -1,0 +1,44 @@
+import * as agentcore from "@distilled.cloud/aws/bedrock-agentcore"
+import { toWireSeconds } from "alchemy/Util/Duration"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { BrowserCustom } from "./BrowserCustom.vibe"
+import { StartBrowserSession, type StartBrowserSessionRequest } from "./StartBrowserSession.vibe"
+
+// Bespoke (not the shared scaffold): converts the ergonomic `sessionTimeout`
+// Duration.Input to the wire `sessionTimeoutSeconds` field.
+export const StartBrowserSessionHttp = Layer.effect(
+  StartBrowserSession,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startBrowserSession = try AWSBindings.withCredentials(agentcore.startBrowserSession)
+
+    return effect <R extends BrowserCustom>(browser: R) => {
+      const Identifier = try browser.browserId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.BedrockAgentCore.StartBrowserSession(${browser})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["bedrock-agentcore:StartBrowserSession"],
+              Resource: [browser.browserArn],
+            },
+          ],
+        })
+      }
+      return effect ({ sessionTimeout, ...request }: StartBrowserSessionRequest) =>
+        try withSpan(
+          effect {
+            return try startBrowserSession({
+              ...request,
+              sessionTimeoutSeconds: try Effect.orDie(
+                Effect.try({ try: () => toWireSeconds(sessionTimeout), catch: (e) => e }),
+              ),
+              browserIdentifier: try Identifier,
+            })
+          },
+          `AWS.BedrockAgentCore.StartBrowserSession(${browser.LogicalId})`,
+        )
+    }
+  },
+)

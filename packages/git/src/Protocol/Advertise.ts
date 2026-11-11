@@ -18,9 +18,9 @@
  * `Cache-Control: no-cache` (the client validates the first five bytes match
  * `^[0-9a-f]{4}#`).
  */
-import { concatBytes, utf8Encode, ZERO_OID } from "./ObjectCodec.ts";
-import { flushPkt, pktLine } from "./Pkt.ts";
-import type { RefRecord, RefsSnapshot } from "./Store.ts";
+import { concatBytes, utf8Encode, ZERO_OID } from "./ObjectCodec.vibe";
+import { flushPkt, pktLine } from "./Pkt.vibe";
+import type { RefRecord, RefsSnapshot } from "./Store.vibe";
 
 /** The agent string advertised by both services. */
 export const AGENT = "git-service/1";

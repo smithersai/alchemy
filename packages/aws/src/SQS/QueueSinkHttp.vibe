@@ -1,0 +1,81 @@
+import * as Effect from "effect/Effect"
+import type * as sqs from "@distilled.cloud/aws/sqs"
+import * as Output from "alchemy/Output"
+import { makeBatchedSink } from "alchemy/Util/BatchedSink"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Queue } from "./Queue.vibe"
+import { QueueSink, type QueueSinkEntry } from "./QueueSink.vibe"
+import { SendMessageBatch } from "./SendMessageBatch.vibe"
+
+const encoder = new TextEncoder()
+
+/**
+ * Select the original entries referenced by `Failed` results with the given
+ * `SenderFault` classification, preserving input order. The sink assigns
+ * `Id = String(index)` per call, so failed ids map back positionally.
+ */
+const selectFailed = (
+  failed: readonly sqs.BatchResultErrorEntry[] | undefined,
+  batch: readonly QueueSinkEntry[],
+  senderFault: boolean,
+): readonly QueueSinkEntry[] => {
+  if (failed === undefined || failed.length === 0) {
+    return []
+  }
+  const indices = new Set(
+    failed.filter((entry) => entry.SenderFault === senderFault).map((entry) => Number(entry.Id)),
+  )
+  return batch.filter((_, index) => indices.has(index))
+}
+
+export const QueueSinkHttp = Layer.effect(
+  QueueSink,
+  effect {
+    const bind = try AWSBindings.Bind
+    const sendMessageBatch = try SendMessageBatch
+
+    return effect (queue: Queue) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.SQS.QueueSink(${queue})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["sqs:SendMessage", "sqs:SendMessageBatch"],
+              Resource: [Output.interpolate`${queue.queueArn}`],
+            },
+          ],
+        })
+      }
+      const sendBatch = try sendMessageBatch(queue)
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<QueueSinkEntry, sqs.SendMessageBatchResult, sqs.SendMessageBatchError>
+        >[0] = {
+          maxRecords: 10,
+          maxBytes: 262_144,
+          sizeOf: (entry): infer _ => encoder.encode(entry.MessageBody).length,
+          send: effect (batch) =>
+            try sendBatch({
+              Entries: batch.map((entry, index) => ({
+                ...entry,
+                Id: `${index}`,
+              })),
+            }),
+          // SenderFault=false failures (throttling, internal errors) are
+          // transient — re-submit them on the bounded schedule.
+          unprocessed: (out, batch): infer _ => selectFailed(out.Failed, batch, false),
+          // SenderFault=true failures are permanent — drop and surface.
+          rejected: (out, batch): infer _ => selectFailed(out.Failed, batch, true),
+        }
+        return try Effect.orDie(
+          Effect.try({
+            try: () =>
+              makeBatchedSink<QueueSinkEntry, sqs.SendMessageBatchResult, sqs.SendMessageBatchError>(sinkOptions),
+            catch: (error) => error,
+          }),
+        )
+      })
+    }
+  },
+)

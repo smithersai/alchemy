@@ -5,7 +5,7 @@
 import * as Layer from "effect/Layer";
 import type * as RpcServer from "../Local/RpcServer.ts";
 import { CommandExecutorLive } from "./Command.ts";
-import { DevProviderLocal } from "./Dev.ts";
+import { DevProviderLocal } from "./Dev.vibe";
 
 export default DevProviderLocal().pipe(
   Layer.provide(CommandExecutorLive()),

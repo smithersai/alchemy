@@ -2,7 +2,7 @@ export {
   resolveVinextRoot,
   runVinextPrerenderIfConfigured,
   type VinextPrerenderResult,
-} from "./Prerender.ts";
+} from "./Prerender.vibe";
 export {
   buildVinextPrerenderKVPairs,
   vinextCacheNamespaceFromEnv,

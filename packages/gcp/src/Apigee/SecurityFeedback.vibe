@@ -1,0 +1,325 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { lastSegment, orgParent, organizationFromName, sameJson, toResourceId } from "./names.vibe"
+import {
+  createInternalLabels,
+  encodeOwnership,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  parseOwnership,
+} from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 63
+const DEFAULT_FEEDBACK_TYPE = "EXCLUDED_DETECTION"
+
+export type SecurityFeedbackContext = {
+  /**
+   * Attribute the feedback constrains.
+   */
+  attribute: apigee.GoogleCloudApigeeV1SecurityFeedbackFeedbackContextAttributeEnum | (string & {})
+  /**
+   * Values of that attribute.
+   */
+  values: string[]
+}
+
+export type SecurityFeedbackProps = {
+  /**
+   * Apigee organization id. Defaults to the current GCP project id.
+   * Immutable — changing it replaces the feedback report.
+   */
+  organization?: string
+  /**
+   * Feedback id (the `{feedback}` segment of
+   * `organizations/{org}/securityFeedback/{feedback}`). If omitted, a
+   * unique name is generated from the stack, stage, and logical id.
+   * Immutable — changing it replaces the report.
+   */
+  securityFeedbackId?: string
+  /**
+   * Display name.
+   */
+  displayName?: string
+  /**
+   * Feedback type.
+   * @default "EXCLUDED_DETECTION"
+   */
+  feedbackType?: apigee.GoogleCloudApigeeV1SecurityFeedbackFeedbackTypeEnum | (string & {})
+  /**
+   * Reason for the feedback.
+   */
+  reason?: apigee.GoogleCloudApigeeV1SecurityFeedbackReasonEnum | (string & {})
+  /**
+   * Attribute/value pairs constraining the feedback.
+   */
+  feedbackContexts: SecurityFeedbackContext[]
+  /**
+   * Free-form comment. Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and stripped from attributes. Feedback reports have no
+   * labels field.
+   */
+  comment?: string
+}
+
+export type SecurityFeedback = Resource<
+  "GCP.Apigee.SecurityFeedback",
+  SecurityFeedbackProps,
+  {
+    /** Full resource name `organizations/{org}/securityFeedback/{feedback}`. */
+    name: string
+    /** Feedback id (last path segment). */
+    securityFeedbackId: string
+    /** Apigee organization id. */
+    organization: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Feedback type. */
+    feedbackType: string | undefined
+    /** Reason. */
+    reason: string | undefined
+    /** Constraining contexts. */
+    feedbackContexts: SecurityFeedbackContext[]
+    /** User comment with the Alchemy ownership prefix stripped. */
+    comment: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Advanced API Security customer feedback report.
+ *
+ * Feedback reports have no labels field, so Alchemy stamps ownership
+ * into the comment for `list` / nuke. Name and organization are
+ * identity — changing them replaces the report. Display name, type,
+ * reason, contexts, and comment update in place.
+ *
+ * ### Creating Feedback
+ * **Example:** Exclude detections from an environment
+ * ```typescript
+ * const feedback = yield* GCP.Apigee.SecurityFeedback("PenTest", {
+ *   reason: "PENETRATION_TEST",
+ *   feedbackContexts: [{
+ *     attribute: "ATTRIBUTE_ENVIRONMENTS",
+ *     values: ["eval"],
+ *   }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const SecurityFeedback = Resource<SecurityFeedback>("GCP.Apigee.SecurityFeedback")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SecurityFeedbackNotResolved extends Data.TaggedError(
+  "GCP.Apigee.SecurityFeedbackNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (organization: string, feedbackId: string): infer _ =>
+  `${orgParent(organization)}/securityFeedback/${feedbackId}`
+
+const feedbackIdOf = (feedback: apigee.GoogleCloudApigeeV1SecurityFeedback): infer _ => lastSegment(feedback.name ?? "")
+
+const contextsOf = (
+  contexts:
+    | readonly {
+      attribute?: SecurityFeedbackContext["attribute"]
+      values?: readonly string[]
+    }[]
+    | undefined,
+): SecurityFeedbackContext[] =>
+  (contexts ?? [])
+    .filter(
+      (
+        context,
+      ): context is {
+        attribute: SecurityFeedbackContext["attribute"]
+        values?: readonly string[]
+      } => context.attribute !== undefined,
+    )
+    .map((context) => ({
+      attribute: context.attribute,
+      values: [...(context.values ?? [])],
+    }))
+
+const toAttrs = (feedback: apigee.GoogleCloudApigeeV1SecurityFeedback, organization: string): infer _ => {
+  const securityFeedbackId = feedbackIdOf(feedback)
+  const name = feedback.name?.includes("/")
+    ? feedback.name
+    : resourceName(organization, securityFeedbackId)
+  const parsed = parseOwnership(feedback.comment)
+  return {
+    name,
+    securityFeedbackId,
+    organization: organizationFromName(name) ?? organization,
+    displayName: feedback.displayName,
+    feedbackType: feedback.feedbackType,
+    reason: feedback.reason,
+    feedbackContexts: contextsOf(feedback.feedbackContexts),
+    comment: parsed.text,
+    createTime: feedback.createTime,
+    updateTime: feedback.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsSecurityFeedback({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined;
+      default: throw e;
+    }
+
+const toBody = (
+  news: SecurityFeedbackProps,
+  comment: string,
+): apigee.GoogleCloudApigeeV1SecurityFeedback => ({
+  displayName: news.displayName,
+  feedbackType: news.feedbackType ?? DEFAULT_FEEDBACK_TYPE,
+  reason: news.reason,
+  comment,
+  feedbackContexts: contextsOf(news.feedbackContexts),
+})
+
+export const SecurityFeedbackProvider = (): infer _ =>
+  Provider.succeed(SecurityFeedback, {
+    stables: ["name", "securityFeedbackId", "organization", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.securityFeedbackId ?? output?.securityFeedbackId
+      const previousOrg = olds?.organization ?? output?.organization
+      if (
+        (previousId !== undefined
+          && resolved.securityFeedbackId !== undefined
+          && resolved.securityFeedbackId !== previousId)
+        || (previousOrg !== undefined
+          && resolved.organization !== undefined
+          && resolved.organization !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = organizationFromName(output?.name) ?? olds?.organization ?? env.project
+      const securityFeedbackId = try toResourceId(
+        id,
+        olds?.securityFeedbackId,
+        output?.securityFeedbackId,
+        MAX_NAME_LENGTH,
+      )
+      const name = output?.name ?? resourceName(organization, securityFeedbackId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization)
+      const { labels } = try Effect.orDie(Effect.try({ try: () => parseOwnership(existing.comment), catch: (e) => e }))
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsSecurityFeedback
+            .pages({
+              parent: orgParent(env.project),
+              pageSize: 100,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityFeedback ?? []))
+            |> Stream.filter(%, (feedback) => hasOwnershipMarker(feedback.comment))
+            |> Stream.map(%, (feedback) => toAttrs(feedback, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as SecurityFeedback["Attributes"][];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = news.organization ?? output?.organization ?? env.project
+      const securityFeedbackId = try toResourceId(
+        id,
+        news.securityFeedbackId,
+        output?.securityFeedbackId,
+        MAX_NAME_LENGTH,
+      )
+      const name = resourceName(organization, securityFeedbackId)
+      const ownership = try createInternalLabels(id)
+      const desiredComment = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.comment), catch: (e) => e }),
+      )
+      const desiredType = news.feedbackType ?? DEFAULT_FEEDBACK_TYPE
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsSecurityFeedback({
+            parent: orgParent(organization),
+            securityFeedbackId,
+            body: toBody(news, desiredComment),
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecurityFeedbackNotResolved({ resourceName: name })
+      }
+
+      const displayChanged = (current.displayName ?? "") !== (news.displayName ?? "")
+      const typeChanged = (current.feedbackType ?? "") !== desiredType
+      const reasonChanged = (current.reason ?? "") !== (news.reason ?? "")
+      const commentChanged = (current.comment ?? "") !== desiredComment
+      const contextsChanged = !sameJson(
+        contextsOf(current.feedbackContexts),
+        contextsOf(news.feedbackContexts),
+      )
+
+      const updateMask = [
+        displayChanged ? "displayName" : undefined,
+        typeChanged ? "feedbackType" : undefined,
+        reasonChanged ? "reason" : undefined,
+        commentChanged ? "comment" : undefined,
+        contextsChanged ? "feedbackContexts" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try apigee.patchOrganizationsSecurityFeedback({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: toBody(news, desiredComment),
+        })
+      }
+
+      return toAttrs(current, organization)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsSecurityFeedback({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

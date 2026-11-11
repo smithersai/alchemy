@@ -2,7 +2,7 @@ import * as Telemetry from "alchemy/Telemetry";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { ObservabilityLive as Axiom } from "./Observability.ts";
+import { ObservabilityLive as Axiom } from "./Observability.vibe";
 
 // #region show
 export const Honeycomb = Layer.unwrap(

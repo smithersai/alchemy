@@ -1,0 +1,296 @@
+import * as integrations from "@distilled.cloud/gcp/integrations_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type IntegrationsVersionsTestCasesProps = {
+  /**
+   * Parent integration version resource name
+   * `projects/{project}/locations/{location}/integrations/{integration}/versions/{version}`.
+   * Immutable — changing it replaces the test case.
+   */
+  version: string
+  /**
+   * Test case id (the `{testCase}` segment). If omitted, a unique id is
+   * generated. Immutable — changing it replaces the test case.
+   */
+  testCaseId?: string
+  /**
+   * Location used when `version` is a bare id. Immutable — changing it
+   * replaces the test case.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Display name.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Test cases have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+  /**
+   * Trigger id in the parent version that starts this test case
+   * (`api_trigger/{name}`).
+   */
+  triggerId: string
+}
+
+export type IntegrationsVersionsTestCases = Resource<
+  "GCP.Integrations.IntegrationsVersionsTestCases",
+  IntegrationsVersionsTestCasesProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Test case id (last path segment). */
+    testCaseId: string
+    /** Parent version resource name. */
+    version: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Trigger id this test case starts from. */
+    triggerId: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A functional test case attached to an Application Integration version.
+ *
+ * Test cases have no labels field — Alchemy stamps ownership into the
+ * description. Parent version and test case id are immutable. Display
+ * name, description, and trigger id update in place.
+ *
+ * ### Creating a Test Case
+ * **Example:** Exercise an API trigger
+ * ```typescript
+ * const testCase = yield* GCP.Integrations.IntegrationsVersionsTestCases("HappyPath", {
+ *   version: version.name,
+ *   triggerId: "api_trigger/orders",
+ *   displayName: "happy-path",
+ *   description: "fires the API trigger",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Integrations
+ */
+export const IntegrationsVersionsTestCases = Resource<IntegrationsVersionsTestCases>(
+  "GCP.Integrations.IntegrationsVersionsTestCases",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IntegrationsVersionsTestCasesNotResolved extends Data.TaggedError(
+  "GCP.Integrations.IntegrationsVersionsTestCasesNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const expandVersion = (value: string, project: string, location: string): infer _ =>
+  value.includes("/versions/")
+    ? value
+    : `${locationParent(project, location)}/integrations/${value}/versions/${value}`
+
+const resourceName = (version: string, testCaseId: string): infer _ => `${version}/testCases/${testCaseId}`
+
+const toAttrs = (
+  testCase: integrations.GoogleCloudIntegrationsV1alphaTestCase,
+  project: string,
+  region: string,
+  version: string,
+): infer _ => {
+  const name = testCase.name ?? ""
+  const parsed = parseOwnership(testCase.description)
+  return {
+    name,
+    testCaseId: lastSegment(name),
+    version,
+    location: locationOf(name, region),
+    project,
+    displayName: testCase.displayName,
+    description: parsed.text,
+    triggerId: testCase.triggerId,
+    createTime: testCase.createTime,
+    updateTime: testCase.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
+  .getProjectsLocationsIntegrationsVersionsTestCases({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsIntegrationsVersionsTestCases
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.testCases ?? []))
+        |> Stream.filter(%, (testCase) => hasOwnershipMarker(testCase.description))
+        |> Stream.map(%, (testCase) => toAttrs(testCase, project, region, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) =>
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsIntegrationsVersionsTestCases
+        .pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.testCases ?? []))
+        |> Stream.filterEffect(%, effect (testCase) => try ownedByAlchemy(id, testCase.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+const listWildcard = effect (project: string, location: string) =>
+  try listAt(`${locationParent(project, location)}/integrations/-/versions/-`, project, location)
+
+export const IntegrationsVersionsTestCasesProvider = (): infer _ =>
+  Provider.succeed(IntegrationsVersionsTestCases, {
+    stables: ["name", "testCaseId", "version", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousVersion = olds?.version ?? output?.version
+      if (
+        previousVersion !== undefined
+        && resolved.version !== previousVersion
+        && !resolved.version.endsWith(`/${lastSegment(previousVersion)}`)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.testCaseId ?? output?.testCaseId
+      if (
+        previousId !== undefined
+        && resolved.testCaseId !== undefined
+        && resolved.testCaseId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const version = expandVersion(olds?.version ?? output?.version ?? "", env.project, location)
+      const testCaseId = try toResourceId(id, olds?.testCaseId, output?.testCaseId)
+      const name = output?.name ?? resourceName(version, testCaseId)
+      let existing = try getByName(name)
+      if (existing === undefined && version.length > 0) {
+        existing = try findOwned(version, id)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region, version)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listWildcard(env.project, env.region)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const version = expandVersion(news.version, env.project, location)
+      const testCaseId = try toResourceId(id, news.testCaseId, output?.testCaseId)
+      const name = output?.name ?? resourceName(version, testCaseId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? testCaseId
+
+      let current = try getByName(output?.name ?? name)
+      if (current === undefined) {
+        current = try findOwned(version, id)
+      }
+
+      if (current === undefined) {
+        const created = integrations
+          .createProjectsLocationsIntegrationsVersionsTestCases({
+            parent: version,
+            testCaseId,
+            body: {
+              displayName,
+              description,
+              triggerId: news.triggerId,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try findOwned(version, id); default: throw e; }
+        current = created ?? (try findOwned(version, id))
+      }
+
+      if (current === undefined) {
+        throw new IntegrationsVersionsTestCasesNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+      const triggerChanged = !sameText(current.triggerId, news.triggerId)
+
+      if (displayChanged || descriptionChanged || triggerChanged) {
+        current = try integrations.patchProjectsLocationsIntegrationsVersionsTestCases({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            triggerChanged ? "trigger_id" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            description,
+            triggerId: news.triggerId,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region, version)
+    },
+
+    delete: effect ({ output }) => {
+      integrations
+        .deleteProjectsLocationsIntegrationsVersionsTestCases({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+    },
+  })

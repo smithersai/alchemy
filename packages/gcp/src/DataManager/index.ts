@@ -1,1 +1,1 @@
-export * from "./AccountTypesUserList.ts";
+export * from "./AccountTypesUserList.vibe";

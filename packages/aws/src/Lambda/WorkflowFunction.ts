@@ -27,15 +27,15 @@ import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { Workflow, WorkflowEngine } from "effect/workflow";
-import * as AWSBindings from "../AWSBindings.ts";
-import { DurableStep } from "./Durable.ts";
+import * as AWSBindings from "../AWSBindings.vibe";
+import { DurableStep } from "./Durable.vibe";
 import {
   DurableFunction,
   type DurableFunctionImpl,
   type DurableFunctionInitServices,
   type DurableFunctionProps,
-} from "./DurableFunction.ts";
-import { Function } from "./Function.ts";
+} from "./DurableFunction.vibe";
+import { Function } from "./Function.vibe";
 import { qualifierOf } from "./QualifiedArn.ts";
 
 type WorkflowNames<W> = W extends Workflow.Workflow<infer Name, any, any, any> ? Name : never;

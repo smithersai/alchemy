@@ -1,3 +1,3 @@
-export * from "./ObservationJob.ts";
-export * from "./ObservationSource.ts";
+export * from "./ObservationJob.vibe";
+export * from "./ObservationSource.vibe";
 export * from "./operations.ts";

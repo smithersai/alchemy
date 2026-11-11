@@ -33,9 +33,9 @@ import * as Railway from "@alchemy.run/railway";
 import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import Api from "./src/api.ts";
+import Api from "./src/api.vibe";
 import { Echo } from "./src/echo.ts";
-import Ping from "./src/ping.ts";
+import Ping from "./src/ping.vibe";
 import {
   Cache,
   Cleanup,
@@ -48,7 +48,7 @@ import {
   Site,
   Staging,
 } from "./src/shared.ts";
-import Worker from "./src/worker.ts";
+import Worker from "./src/worker.vibe";
 
 export default Alchemy.Stack(
   "RailwayService",

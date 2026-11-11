@@ -1,0 +1,486 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectionParent,
+  DEFAULT_LOCATION,
+  encodeOwnershipLine,
+  expandAgent,
+  fingerprint,
+  hasOwnershipMarker,
+  internalLabels,
+  lastSegment,
+  locationOf,
+  namedAgents,
+  normalizeLocation,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  projectOf,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+  retryQuota,
+} from "./internal.vibe"
+
+export type WebhookHttpMethod =
+  | "HTTP_METHOD_UNSPECIFIED"
+  | "POST"
+  | "GET"
+  | "HEAD"
+  | "PUT"
+  | "DELETE"
+  | "PATCH"
+  | "OPTIONS"
+
+export type WebhookType = "WEBHOOK_TYPE_UNSPECIFIED" | "STANDARD" | "FLEXIBLE"
+
+export type WebhookServiceAgentAuth =
+  | "SERVICE_AGENT_AUTH_UNSPECIFIED"
+  | "NONE"
+  | "ID_TOKEN"
+  | "ACCESS_TOKEN"
+
+export type WebhookOAuthConfig = {
+  /** OAuth token endpoint. */
+  tokenEndpoint?: string
+  /** OAuth client id. */
+  clientId?: string
+  /** OAuth client secret. Prefer `secretVersionForClientSecret`. */
+  clientSecret?: string
+  /** Secret Manager version holding the client secret. */
+  secretVersionForClientSecret?: string
+  /** OAuth scopes. */
+  scopes?: string[]
+}
+
+export type WebhookGenericWebService = {
+  /** HTTPS URI of the webhook. Required for generic web service. */
+  uri?: string
+  /** HTTP method. Defaults to POST for STANDARD webhooks. */
+  httpMethod?: WebhookHttpMethod | (string & {})
+  /** Webhook type. */
+  webhookType?: WebhookType | (string & {})
+  /** Request headers. */
+  requestHeaders?: Record<string, string>
+  /** Secret Manager versions used as request headers. */
+  secretVersionsForRequestHeaders?: Record<string, { secretVersion?: string } | undefined>
+  /** Allowed CA certificates (DER, base64). */
+  allowedCaCerts?: string[]
+  /** OAuth client-credentials config. */
+  oauthConfig?: WebhookOAuthConfig
+  /** Auth token minted from the Dialogflow service agent. */
+  serviceAgentAuth?: WebhookServiceAgentAuth | (string & {})
+  /** Service account used to generate ID tokens. */
+  serviceAccountAuthConfig?: { serviceAccount?: string }
+  /** Custom request body (FLEXIBLE webhooks). */
+  requestBody?: string
+  /** Map webhook response fields onto session parameters (FLEXIBLE). */
+  parameterMapping?: Record<string, string>
+  /** Secret Manager version holding username:password. */
+  secretVersionForUsernamePassword?: string
+}
+
+export type WebhookServiceDirectoryConfig = {
+  /** Service Directory service resource name. */
+  service?: string
+  /** Generic web service settings used with Service Directory. */
+  genericWebService?: WebhookGenericWebService
+}
+
+export type AgentsWebhookProps = {
+  /**
+   * Parent agent resource name
+   * `projects/{project}/locations/{location}/agents/{agent}` or a bare
+   * agent id (combined with `location`). Immutable — changing it
+   * replaces the webhook.
+   */
+  agent: string
+  /**
+   * Webhook id (the `{webhook}` segment). Server-assigned on create.
+   * Immutable — changing it replaces the webhook.
+   */
+  webhookId?: string
+  /**
+   * Location used when `agent` is a bare id.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Human-readable name, unique within the agent. Webhooks have no
+   * labels field, so Alchemy stamps ownership into this field for
+   * `list` / nuke.
+   */
+  displayName?: string
+  /**
+   * Webhook execution timeout (e.g. `"5s"`). Execution fails if
+   * Dialogflow does not receive a response before the timeout.
+   */
+  timeout?: string
+  /**
+   * When true, the webhook is not called.
+   * @default false
+   */
+  disabled?: boolean
+  /**
+   * Generic HTTPS webhook configuration. Mutually exclusive with
+   * `serviceDirectory`.
+   */
+  genericWebService?: WebhookGenericWebService
+  /**
+   * Service Directory webhook configuration. Mutually exclusive with
+   * `genericWebService`.
+   */
+  serviceDirectory?: WebhookServiceDirectoryConfig
+}
+
+export type AgentsWebhook = Resource<
+  "GCP.Dialogflow.AgentsWebhook",
+  AgentsWebhookProps,
+  {
+    /** Full resource name `.../agents/{agent}/webhooks/{webhook}`. */
+    name: string
+    /** Webhook id (last path segment). */
+    webhookId: string
+    /** Parent agent resource name. */
+    agent: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** Execution timeout. */
+    timeout: string | undefined
+    /** Whether the webhook is disabled. */
+    disabled: boolean
+    /** Generic HTTPS webhook configuration. */
+    genericWebService: WebhookGenericWebService | undefined
+    /** Service Directory webhook configuration. */
+    serviceDirectory: WebhookServiceDirectoryConfig | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX webhook that hosts fulfillment business logic.
+ *
+ * Webhooks have no labels field, so Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. Parent agent and id are immutable.
+ * Display name, timeout, disabled flag, and webhook config update in
+ * place.
+ *
+ * ### Creating a Webhook
+ * **Example:** Generic HTTPS webhook
+ * ```typescript
+ * const webhook = yield* GCP.Dialogflow.AgentsWebhook("Fulfillment", {
+ *   agent: agent.name,
+ *   displayName: "orders",
+ *   genericWebService: { uri: "https://example.com/dialogflow" },
+ * });
+ * ```
+ *
+ * ### Updating a Webhook
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Disable and retarget
+ * ```typescript
+ * const webhook = yield* GCP.Dialogflow.AgentsWebhook("Fulfillment", {
+ *   agent: agent.name,
+ *   displayName: "orders-v2",
+ *   disabled: true,
+ *   genericWebService: { uri: "https://example.com/dialogflow-v2" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsWebhook = Resource<AgentsWebhook>("GCP.Dialogflow.AgentsWebhook")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsWebhookNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsWebhookNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (agent: string, webhookId: string): infer _ => `${agent}/webhooks/${webhookId}`
+
+const stringMapOf = (
+  value: Record<string, string | undefined> | undefined,
+): Record<string, string> | undefined => {
+  if (value === undefined) return undefined
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+}
+
+const genericOf = (
+  service: dialogflow.GoogleCloudDialogflowCxV3WebhookGenericWebService | undefined,
+): WebhookGenericWebService | undefined => {
+  if (service === undefined) return undefined
+  return {
+    uri: service.uri,
+    httpMethod: service.httpMethod,
+    webhookType: service.webhookType,
+    requestHeaders: stringMapOf(service.requestHeaders),
+    secretVersionsForRequestHeaders: service.secretVersionsForRequestHeaders,
+    allowedCaCerts: service.allowedCaCerts ? [...service.allowedCaCerts] : undefined,
+    oauthConfig: service.oauthConfig
+      ? {
+        tokenEndpoint: service.oauthConfig.tokenEndpoint,
+        clientId: service.oauthConfig.clientId,
+        clientSecret: service.oauthConfig.clientSecret,
+        secretVersionForClientSecret: service.oauthConfig.secretVersionForClientSecret,
+        scopes: service.oauthConfig.scopes ? [...service.oauthConfig.scopes] : undefined,
+      }
+      : undefined,
+    serviceAgentAuth: service.serviceAgentAuth,
+    serviceAccountAuthConfig: service.serviceAccountAuthConfig
+      ? { serviceAccount: service.serviceAccountAuthConfig.serviceAccount }
+      : undefined,
+    requestBody: service.requestBody,
+    parameterMapping: stringMapOf(service.parameterMapping),
+    secretVersionForUsernamePassword: service.secretVersionForUsernamePassword,
+  }
+}
+
+const directoryOf = (
+  config: dialogflow.GoogleCloudDialogflowCxV3WebhookServiceDirectoryConfig | undefined,
+): WebhookServiceDirectoryConfig | undefined => {
+  if (config === undefined) return undefined
+  return {
+    service: config.service,
+    genericWebService: genericOf(config.genericWebService),
+  }
+}
+
+const toAttrs = (
+  webhook: dialogflow.GoogleCloudDialogflowCxV3Webhook,
+  project: string,
+  agentHint?: string,
+): infer _ => {
+  const name = webhook.name ?? ""
+  return {
+    name,
+    webhookId: lastSegment(name),
+    agent: name.includes("/webhooks/")
+      ? collectionParent(name, "agents")
+      : (agentHint ?? parentOf(name)),
+    project: projectOf(name) || project,
+    location: locationOf(name),
+    displayName: parseOwnership(webhook.displayName).text,
+    timeout: webhook.timeout,
+    disabled: webhook.disabled === true,
+    genericWebService: genericOf(webhook.genericWebService),
+    serviceDirectory: directoryOf(webhook.serviceDirectory),
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsWebhooks({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsWebhooks.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.webhooks ?? []))
+        |> Stream.filter(%, (webhook) => hasOwnershipMarker(webhook.displayName))
+        |> Stream.map(%, (webhook) => toAttrs(webhook, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsWebhooks.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.webhooks ?? []))
+        |> Stream.filter(%, (webhook) => webhook.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const AgentsWebhookProvider = (): infer _ =>
+  Provider.succeed(AgentsWebhook, {
+    stables: ["name", "webhookId", "agent", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousAgent = olds?.agent ?? output?.agent
+      if (previousAgent !== undefined && resolved.agent !== previousAgent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.webhookId ?? output?.webhookId
+      if (
+        previousId !== undefined
+        && resolved.webhookId !== undefined
+        && resolved.webhookId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previousLocation !== undefined
+            && resolved.location !== undefined
+            && normalizeLocation(previousLocation) !== normalizeLocation(resolved.location),
+          catch: (e) => e,
+        }))
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const agent = olds?.agent
+        ? try Effect.orDie(Effect.try({ try: () => expandAgent(olds.agent, env.project, location), catch: (e) => e }))
+        : output?.agent
+      const webhookId = try toResourceId(id, olds?.webhookId, output?.webhookId)
+      const name = output?.name ?? (agent !== undefined ? resourceName(agent, webhookId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined && agent !== undefined) {
+        const ownership = try internalLabels(id)
+        existing = try findByDisplayName(
+          agent,
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, agent)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const agents = try namedAgents(env.project)
+      const pages = try Effect.forEach(agents, effect (agent) => try listAt(agent.name, env.project), {
+        concurrency: 4,
+      })
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const location = try Effect.orDie(
+          Effect.try({
+            try: () => normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION),
+            catch: (e) => e,
+          }),
+        )
+        const agent = try Effect.orDie(
+          Effect.try({ try: () => expandAgent(news.agent, env.project, location), catch: (e) => e }),
+        )
+        const webhookId = try toResourceId(id, news.webhookId, output?.webhookId)
+        const name = output?.name ?? resourceName(agent, webhookId)
+        const ownership = try internalLabels(id)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
+        const disabled = news.disabled === true
+        const body: dialogflow.GoogleCloudDialogflowCxV3Webhook = {
+          displayName,
+          timeout: news.timeout,
+          disabled,
+          genericWebService: news.genericWebService,
+          serviceDirectory: news.serviceDirectory,
+        }
+
+        let current = try getByName(output?.name ?? name)
+        if (current === undefined) {
+          current = try findByDisplayName(agent, displayName)
+        }
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsWebhooks({
+              parent: agent,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findByDisplayName(agent, displayName);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsWebhookNotResolved({ resourceName: name })
+        }
+
+        const currentName = current.name ?? name
+        const displayChanged = !sameText(current.displayName, displayName)
+        const timeoutChanged = !sameText(current.timeout, news.timeout)
+        const disabledChanged = (current.disabled === true) !== disabled
+        const value = genericOf(current.genericWebService)
+        const genericChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.genericWebService), catch: (e) => e })))
+        const value2 = directoryOf(current.serviceDirectory)
+        const directoryChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value2),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.serviceDirectory), catch: (e) => e })))
+
+        if (
+          displayChanged
+          || timeoutChanged
+          || disabledChanged
+          || genericChanged
+          || directoryChanged
+        ) {
+          current = try dialogflow.patchProjectsLocationsAgentsWebhooks({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  timeoutChanged ? "timeout" : undefined,
+                  disabledChanged ? "disabled" : undefined,
+                  genericChanged ? "generic_web_service" : undefined,
+                  directoryChanged ? "service_directory" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project, agent)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsWebhooks({
+            name: output.name,
+            force: true,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> retryQuota(%)),
+  })

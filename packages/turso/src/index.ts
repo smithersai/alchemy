@@ -1,6 +1,6 @@
-export * from "./ApiToken.ts";
-export * from "./AuthProvider.ts";
-export * from "./Connect.ts";
+export * from "./ApiToken.vibe";
+export * from "./AuthProvider.vibe";
+export * from "./Connect.vibe";
 export {
   Credentials,
   CredentialsFromEnv,
@@ -8,13 +8,13 @@ export {
   fromAuthProvider,
   fromToken,
   Organization,
-} from "./Credentials.ts";
-export * from "./Database.ts";
-export * from "./DatabaseToken.ts";
-export * from "./Group.ts";
-export * from "./GroupToken.ts";
-export * from "./ManageDatabases.ts";
-export * from "./OrganizationInvite.ts";
-export * from "./OrganizationMember.ts";
-export * from "./OrganizationSettings.ts";
-export * from "./Providers.ts";
+} from "./Credentials.vibe";
+export * from "./Database.vibe";
+export * from "./DatabaseToken.vibe";
+export * from "./Group.vibe";
+export * from "./GroupToken.vibe";
+export * from "./ManageDatabases.vibe";
+export * from "./OrganizationInvite.vibe";
+export * from "./OrganizationMember.vibe";
+export * from "./OrganizationSettings.vibe";
+export * from "./Providers.vibe";

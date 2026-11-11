@@ -1,0 +1,298 @@
+import * as cw from "@distilled.cloud/gcp/contentwarehouse_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  LIST_LOCATIONS,
+  appendProperties,
+  collectPages,
+  defaultTextProperty,
+  encodeOwnership,
+  ensureProject,
+  hasOwnershipMarker,
+  ignoreList,
+  lastSegment,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  sameText,
+  toPhysicalId,
+  waitUntilExists,
+  waitUntilGone,
+  ResourceNotResolved,
+} from "./internal.vibe"
+
+export type PropertyDefinition = cw.GoogleCloudContentwarehouseV1PropertyDefinition
+
+export type DocumentSchemaProps = {
+  /**
+   * Document schema id (the `{documentSchema}` segment of
+   * `projects/{project}/locations/{location}/documentSchemas/{documentSchema}`).
+   * Assigned by the API on create. Immutable — changing it replaces the
+   * schema. Supply it to adopt an existing schema.
+   */
+  documentSchemaId?: string
+  /**
+   * Multi-region location (`us` or `eu`). Immutable — changing it
+   * replaces the schema. `US` is accepted and normalized to `us`.
+   * @default "us"
+   */
+  location?: string
+  /**
+   * Unique display name within the project. Defaults to a generated id.
+   */
+  displayName?: string
+  /**
+   * Schema description. Document schemas have no labels field, so Alchemy
+   * stamps ownership into a `[alchemy …]` prefix and strips it from
+   * attributes.
+   */
+  description?: string
+  /**
+   * When true the schema describes a folder rather than a document.
+   * @default false
+   */
+  documentIsFolder?: boolean
+  /**
+   * Property definitions. Updates may only append new properties — existing
+   * definitions cannot be mutated in place.
+   */
+  propertyDefinitions?: PropertyDefinition[]
+}
+
+export type DocumentSchema = Resource<
+  "GCP.ContentWarehouse.DocumentSchema",
+  DocumentSchemaProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Document schema id (last path segment). */
+    documentSchemaId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Whether this schema describes a folder. */
+    documentIsFolder: boolean
+    /** Property definitions. */
+    propertyDefinitions: PropertyDefinition[] | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Document AI Warehouse document schema describing document structure.
+ *
+ * Schemas have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Location is immutable.
+ * Description and newly appended properties update in place; existing
+ * property definitions cannot be rewritten.
+ *
+ * The project must be initialized for Document AI Warehouse in `us` or
+ * `eu` before schemas can be created.
+ *
+ * ### Creating a Document Schema
+ * **Example:** Text document schema
+ * ```typescript
+ * const schema = yield* GCP.ContentWarehouse.DocumentSchema("Invoice", {
+ *   displayName: "invoice",
+ *   propertyDefinitions: [
+ *     { name: "title", isSearchable: true, textTypeOptions: {} },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContentWarehouse
+ */
+export const DocumentSchema = Resource<DocumentSchema>("GCP.ContentWarehouse.DocumentSchema")
+
+const resourceName = (project: string, location: string, documentSchemaId: string) =>
+  `${locationParent(project, location)}/documentSchemas/${documentSchemaId}`
+
+const toAttrs = (item: cw.GoogleCloudContentwarehouseV1DocumentSchema, project: string) => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "documentSchemas")
+  return {
+    name,
+    documentSchemaId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: item.displayName,
+    description: parseOwnership(item.description).text,
+    documentIsFolder: item.documentIsFolder === true,
+    propertyDefinitions: item.propertyDefinitions,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = (name: string) =>
+  name.length === 0
+    ? Effect.undefined
+    : cw
+      .getProjectsLocationsDocumentSchemas({ name })
+      .pipe(Effect.catchTag("NotFound", () => Effect.undefined))
+
+const listAt = (parent: string) =>
+  collectPages(
+    cw.listProjectsLocationsDocumentSchemas.pages({
+      parent,
+      pageSize: 1000,
+    }),
+    (page) => page.documentSchemas,
+  ).pipe(ignoreList([] as cw.GoogleCloudContentwarehouseV1DocumentSchema[]))
+
+const findOwned = (id: string, items: readonly cw.GoogleCloudContentwarehouseV1DocumentSchema[]) =>
+  effect {
+    for (const item of items) {
+      if (try ownedByAlchemy(id, item.description)) return item
+    }
+    return undefined as cw.GoogleCloudContentwarehouseV1DocumentSchema | undefined
+  }
+
+const listOwned = (project: string) =>
+  Effect.forEach(LIST_LOCATIONS, (location) => listAt(locationParent(project, location)), {
+    concurrency: 2,
+  }).pipe(
+    Effect.map((groups) => groups.flat().filter((item) => hasOwnershipMarker(item.description))),
+  )
+
+export const DocumentSchemaProvider = () =>
+  Provider.succeed(DocumentSchema, {
+    stables: ["name", "documentSchemaId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const props = try Effect.orDie(Effect.try({ try: () => (isResolved(news) ? news : undefined), catch: (e) => e }))
+      if (props === undefined) return undefined
+      const folderChanged = (olds?.documentIsFolder ?? output?.documentIsFolder ?? false)
+        !== (props.documentIsFolder ?? false)
+      return replaceOnIdentity({
+        previousId: olds?.documentSchemaId ?? output?.documentSchemaId,
+        nextId: props.documentSchemaId,
+        previousLocation: olds?.location ?? output?.location,
+        nextLocation: props.location ?? olds?.location ?? output?.location,
+        extra: folderChanged,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const documentSchemaId = olds?.documentSchemaId ?? output?.documentSchemaId
+      const name = output?.name
+        ?? (documentSchemaId ? resourceName(env.project, location, documentSchemaId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined) {
+        const listed = try listAt(locationParent(env.project, location))
+        existing = try findOwned(id, listed)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e })))
+    },
+
+    list: () =>
+      effect {
+        const env = try GcpEnvironment.current
+        const items = try listOwned(env.project)
+        return items.map((item) => toAttrs(item, env.project))
+      },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location)
+      const parent = locationParent(env.project, location)
+      try ensureProject(parent)
+      const documentSchemaId = try toPhysicalId(
+        id,
+        news.documentSchemaId,
+        output?.documentSchemaId,
+        "schema",
+      )
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? documentSchemaId
+      const propertyDefinitions = news.propertyDefinitions ?? [defaultTextProperty()]
+      const documentIsFolder = news.documentIsFolder === true
+
+      const findInParent = listAt(parent).pipe(Effect.flatMap((items) => findOwned(id, items)))
+      let current = (try getByName(output?.name ?? "")) ?? (try findInParent)
+
+      if (current === undefined) {
+        const created = try cw
+          .createProjectsLocationsDocumentSchemas({
+            parent,
+            body: {
+              displayName,
+              description,
+              documentIsFolder,
+              propertyDefinitions,
+            },
+          })
+          .pipe(Effect.catchTag("Conflict", () => Effect.undefined))
+        current = created ?? (try findInParent)
+        if (current === undefined) {
+          current = try waitUntilExists(
+            Effect.flatMap(listAt(parent), (items) => findOwned(id, items)),
+            `${parent}/documentSchemas/${documentSchemaId}`,
+          )
+        }
+      }
+
+      if (current === undefined) {
+        return try new ResourceNotResolved({
+          resourceName: output?.name ?? resourceName(env.project, location, documentSchemaId),
+        })
+      }
+
+      const currentName = current.name ?? ""
+      const appended = appendProperties(current.propertyDefinitions, propertyDefinitions)
+      const descriptionChanged = !sameText(current.description, description)
+      const displayChanged = !sameText(current.displayName, displayName)
+      if (descriptionChanged || displayChanged || appended.appended) {
+        current = try cw.patchProjectsLocationsDocumentSchemas({
+          name: currentName,
+          body: {
+            documentSchema: {
+              name: currentName,
+              displayName,
+              description,
+              documentIsFolder,
+              propertyDefinitions: appended.properties,
+            },
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      try cw
+        .deleteProjectsLocationsDocumentSchemas({ name: output.name })
+        .pipe(Effect.catchTag("NotFound", () => Effect.void))
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })
+
+export const documentSchemaIdOf = lastSegment

@@ -20,7 +20,7 @@ import { DEFAULT_COMPATIBILITY_DATE } from "../core/internal/constants.ts";
 import { loadInternalWorker } from "../core/internal/internal-worker.ts";
 import * as Runtime from "../core/Runtime.ts";
 import * as RuntimeServices from "../core/RuntimeServices.ts";
-import { PlatformServices } from "../Platform.ts";
+import { PlatformServices } from "../Platform.vibe";
 import type { ExportTypes } from "../rolldown/export-types.ts";
 import { EXPORT_TYPES_MODULE_ID } from "../rolldown/export-types.ts";
 import { MODULE_REFERENCE_REGEX } from "../rolldown/plugins/index.ts";
@@ -31,7 +31,7 @@ const ModuleRunnerWorker = {
 const WrapperWorker = {
   worker: () => loadInternalWorker("#cloudflare-runtime-vite-worker/module-runner/wrapper.worker"),
 };
-import * as ViteAssets from "./assets/ViteAssets.ts";
+import * as ViteAssets from "./assets/ViteAssets.vibe";
 import { renderExportWrappers } from "./export-types.ts";
 import type { EntryEnvironment } from "./module-runner/constants.shared.ts";
 import {

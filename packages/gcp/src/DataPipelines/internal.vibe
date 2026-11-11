@@ -1,0 +1,249 @@
+import * as datapipelines from "@distilled.cloud/gcp/datapipelines_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import { tagRecord } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import { alchemyLabelKeys, hasAlchemyLabels, stripInternalLabels } from "../Labels.vibe"
+
+export const DEFAULT_TYPE = "PIPELINE_TYPE_BATCH"
+export const DEFAULT_STATE = "STATE_ACTIVE"
+export const MAX_ID_LENGTH = 63
+export const MAX_DISPLAY_NAME_LENGTH = 64
+// Data Pipelines rejects the `-` location wildcard on list with a bare
+// INVALID_ARGUMENT, so enumerate regions explicitly.
+export const LIST_LOCATIONS = [
+  "us-central1",
+  "us-east1",
+  "us-west1",
+  "europe-west1",
+  "asia-east1",
+] as const
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+// Key-order-insensitive: the API echoes maps (e.g. launch `parameters`) in
+// its own order, which would otherwise read as a workload change.
+const canonical = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(canonical)
+    : value !== null && typeof value === "object"
+    ? Object.fromEntries(
+      Object.entries(value)
+        .filter(([, entry]) => entry !== undefined)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, entry]) => [key, canonical(entry)]),
+    )
+    : value
+
+export const jsonEqual = (left: unknown, right: unknown): infer _ =>
+  JSON.stringify(canonical(left ?? null)) === JSON.stringify(canonical(right ?? null))
+
+export const updateMaskOf = (...fields: Array<string | undefined>): infer _ =>
+  fields.filter((field): field is string => field !== undefined).join(",")
+
+export const normalizeLocation = (location: string | undefined, fallback: string): infer _ =>
+  lastSegment(location ?? fallback).toLowerCase()
+
+export const locationParent = (project: string, location: string): infer _ =>
+  `projects/${project}/locations/${location}`
+
+export const resourceName = (project: string, location: string, pipelineId: string): infer _ =>
+  `${locationParent(project, location)}/pipelines/${pipelineId}`
+
+export const parseName = (name: string, fallbackLocation: string): infer _ => {
+  const parts = name.split("/").filter((part) => part.length > 0)
+  const projectsAt = parts.lastIndexOf("projects")
+  const locationsAt = parts.lastIndexOf("locations")
+  const pipelinesAt = parts.lastIndexOf("pipelines")
+  return {
+    project: projectsAt >= 0 && parts[projectsAt + 1] ? parts[projectsAt + 1]! : "",
+    location: locationsAt >= 0 && parts[locationsAt + 1] ? parts[locationsAt + 1]! : fallbackLocation,
+    pipelineId: pipelinesAt >= 0 && parts[pipelinesAt + 1] ? parts[pipelinesAt + 1]! : lastSegment(name),
+    parent: pipelinesAt > 0
+      ? parts.slice(0, pipelinesAt).join("/")
+      : parts.slice(0, Math.max(0, parts.length - 1)).join("/"),
+  }
+}
+
+export const rfc1035 = (name: string, maxLength = MAX_ID_LENGTH, fallback = "pipeline"): string => {
+  let next = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  if (!/^[a-z]/.test(next)) next = `p${next}`
+  next = next.slice(0, maxLength).replace(/-+$/g, "")
+  if (next.length === 0) return fallback.slice(0, maxLength)
+  if (!/[a-z0-9]$/.test(next)) {
+    next = `${next.slice(0, maxLength - 1)}0`
+  }
+  return next.slice(0, maxLength)
+}
+
+export const sanitizeDisplayName = (value: string): infer _ => {
+  let next = value
+    .replace(/[^A-Za-z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, MAX_DISPLAY_NAME_LENGTH)
+  if (next.length === 0) return "pipeline"
+  if (!/^[A-Za-z]/.test(next)) {
+    next = `p${next}`.slice(0, MAX_DISPLAY_NAME_LENGTH)
+  }
+  return next
+}
+
+export const toPipelineId = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+) => {
+  if (requested !== undefined && requested.length > 0) {
+    return rfc1035(requested)
+  }
+  if (existing !== undefined && existing.length > 0) return existing
+  return rfc1035(
+    try createPhysicalName({
+      id,
+      maxLength: MAX_ID_LENGTH,
+      lowercase: true,
+    }),
+  )
+}
+
+export const toDisplayName = (requested: string | undefined, fallback: string): infer _ =>
+  requested !== undefined && requested.length > 0
+    ? sanitizeDisplayName(requested)
+    : sanitizeDisplayName(fallback)
+
+export const stringMapOf = (
+  value: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => tagRecord(value)
+
+export const userSources = (
+  sources: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(stringMapOf(sources))
+
+export const ownershipSources = (
+  labels: Record<string, string>,
+  user?: Record<string, string>,
+): Record<string, string> => ({
+  ...user,
+  [alchemyLabelKeys.stack]: labels[alchemyLabelKeys.stack] ?? "x",
+  [alchemyLabelKeys.stage]: labels[alchemyLabelKeys.stage] ?? "x",
+  [alchemyLabelKeys.id]: labels[alchemyLabelKeys.id] ?? "x",
+})
+
+export const hasOwnershipMarker = (
+  sources: Record<string, string | undefined> | null | undefined,
+): infer _ => Object.keys(sources ?? {}).some((key) => key.startsWith("alchemy-"))
+
+export const ownedByAlchemy = effect (
+  id: string,
+  sources: Record<string, string | undefined> | null | undefined,
+) => try hasAlchemyLabels(id, stringMapOf(sources))
+
+export const scheduleKey = (
+  info: datapipelines.GoogleCloudDatapipelinesV1ScheduleSpec | undefined,
+): infer _ => ({
+  schedule: info?.schedule ?? "",
+  timeZone: info?.timeZone ?? "",
+})
+
+export const replaceOnIdentity = (input: {
+  previousId?: string
+  nextId?: string
+  previousLocation?: string
+  nextLocation?: string
+  previousType?: string
+  nextType?: string
+}): infer _ => {
+  if (
+    input.previousId !== undefined
+    && input.nextId !== undefined
+    && input.previousId !== input.nextId
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousLocation !== undefined
+    && input.nextLocation !== undefined
+    && input.previousLocation !== input.nextLocation
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousType !== undefined
+    && input.nextType !== undefined
+    && input.previousType !== input.nextType
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  return undefined
+}
+
+export const getPipeline = effect (name: string) => (name.length === 0 ? undefined : datapipelines
+  .getProjectsLocationsPipelines({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+export const ignoreMissing = effect <A, R>(
+  effect: A!datapipelines.DeleteProjectsLocationsPipelinesError!R,
+) =>
+  (effect {
+    return (try effect)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+
+const emptyList = effect <A>() => [] as A[]
+
+export const listPipelinesAt = effect (parent: string) =>
+  (effect {
+    return (Array.from(
+      try (datapipelines.listProjectsLocationsPipelines
+        .pages({
+          parent,
+          pageSize: 200,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.pipelines ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<datapipelines.GoogleCloudDatapipelinesV1Pipeline>();
+    default: throw e;
+  }
+
+export const listOwnedPipelines = effect (project: string, region: string) => {
+  const pages = try Effect.forEach(
+    [...new Set([region, ...LIST_LOCATIONS])],
+    effect (location) => try listPipelinesAt(locationParent(project, location)),
+    { concurrency: 2 },
+  )
+  const seen = new Set<string>()
+  const owned: datapipelines.GoogleCloudDatapipelinesV1Pipeline[] = []
+  for (const row of pages.flat()) {
+    const name = row.name ?? ""
+    if (name.length > 0 && seen.has(name)) continue
+    if (!hasOwnershipMarker(row.pipelineSources)) continue
+    if (name.length > 0) seen.add(name)
+    owned.push(row)
+  }
+  return owned
+}
+
+export const findOwnedPipeline = effect (id: string, project: string, region: string, name?: string) => {
+  const existing = try getPipeline(name ?? "")
+  if (existing !== undefined) return existing
+  const rows = try listOwnedPipelines(project, region)
+  for (const row of rows) {
+    if (try ownedByAlchemy(id, row.pipelineSources)) {
+      return row
+    }
+  }
+  return undefined
+}

@@ -1,0 +1,64 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Http from "alchemy/Http"
+import * as Effect from "effect/Effect"
+import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder"
+import * as HttpRouter from "effect/http/HttpRouter"
+import * as Layer from "effect/Layer"
+import { Order, OrderNotFound, OrdersApi, Product, ProductNotFound } from "./Api.ts"
+import { Catalog, HOSTNAME, OrderBook } from "./Store.ts"
+import { randomUUID } from "./crypto.platform.ts"
+
+/** `/orders/*` — reads the catalog, reads and writes orders. */
+export default class Orders extends Cloudflare.Worker<Orders>()(
+  "Orders",
+  {
+    main: import.meta.url,
+    routes: [{ pattern: `${HOSTNAME}/orders*` }],
+  },
+  effect {
+    const catalog = try Cloudflare.KV.ReadNamespace(Catalog)
+    const orders = try Cloudflare.KV.ReadWriteNamespace(OrderBook)
+
+    return {
+      fetch: try HttpRouter.toHttpEffect(
+        HttpApiBuilder.layer(OrdersApi).pipe(
+          Layer.provide(Http.Platform),
+          Layer.provide(
+            HttpApiBuilder.group(OrdersApi, "orders", (handlers) =>
+              handlers
+                .handle("create", ({ payload }) =>
+                  effect {
+                    const product = try catalog
+                      .get<Product>(payload.productId, "json")
+                      .pipe(Effect.orDie)
+                    if (!product) {
+                      return try new ProductNotFound({ id: payload.productId })
+                    }
+                    const order = new Order({
+                      id: try randomUUID(),
+                      productId: product.id,
+                      quantity: payload.quantity,
+                      total: product.price * payload.quantity,
+                    })
+                    try orders.put(order.id, JSON.stringify(order)).pipe(Effect.orDie)
+                    return order
+                  })
+                .handle("get", ({ params }) =>
+                  orders.get<Order>(params.id, "json").pipe(
+                    Effect.orDie,
+                    Effect.flatMap((order) =>
+                      order
+                        ? Effect.succeed(new Order(order))
+                        : Effect.fail(new OrderNotFound({ id: params.id }))
+                    ),
+                  ))),
+          ),
+        ),
+      ),
+    }
+  }.pipe(
+    Effect.provide(
+      Layer.mergeAll(Cloudflare.KV.ReadNamespaceBinding, Cloudflare.KV.ReadWriteNamespaceBinding),
+    ),
+  ),
+) {}

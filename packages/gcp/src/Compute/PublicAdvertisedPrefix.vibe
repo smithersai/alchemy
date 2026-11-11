@@ -1,0 +1,309 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeDescription,
+  hasOwnershipMarker,
+  lastSegment,
+  parseDescription,
+  runGlobalOp,
+  toPhysicalName,
+} from "./internal.vibe"
+
+export type PublicAdvertisedPrefixPdpScope =
+  | compute.PublicAdvertisedPrefixPdpScopeEnum
+  | (string & {})
+export type PublicAdvertisedPrefixIpv6AccessType =
+  | compute.PublicAdvertisedPrefixIpv6AccessTypeEnum
+  | (string & {})
+
+export type PublicAdvertisedPrefixProps = {
+  /**
+   * Prefix name (RFC1035, 1-63 characters). If omitted, a unique name is
+   * generated from the stack, stage, and logical id. Changing it replaces
+   * the prefix.
+   */
+  prefixName?: string
+  /**
+   * The address range in CIDR format represented by this public advertised
+   * prefix. Immutable — changing it replaces the prefix.
+   */
+  ipCidrRange: string
+  /**
+   * Address used for reverse DNS verification. Immutable — changing it
+   * replaces the prefix.
+   */
+  dnsVerificationIp?: string
+  /**
+   * How child public delegated prefixes are scoped (`REGIONAL` or
+   * `GLOBAL`). Immutable — changing it replaces the prefix.
+   */
+  pdpScope?: PublicAdvertisedPrefixPdpScope
+  /**
+   * Internet access type for IPv6 prefixes (`EXTERNAL` or `INTERNAL`).
+   * Immutable — changing it replaces the prefix.
+   */
+  ipv6AccessType?: PublicAdvertisedPrefixIpv6AccessType
+  /**
+   * Optional description. Public advertised prefixes have no labels
+   * field, so Alchemy ownership is stored in a `[alchemy …]` prefix for
+   * `list` / nuke.
+   */
+  description?: string
+}
+
+export type PublicAdvertisedPrefix = Resource<
+  "GCP.Compute.PublicAdvertisedPrefix",
+  PublicAdvertisedPrefixProps,
+  {
+    /** Prefix name. */
+    prefixName: string
+    /** Project id. */
+    project: string
+    /** Advertised CIDR range. */
+    ipCidrRange: string
+    /** Reverse-DNS verification address. */
+    dnsVerificationIp: string | undefined
+    /** Child PDP scope. */
+    pdpScope: string | undefined
+    /** IPv6 access type. */
+    ipv6AccessType: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Provisioning status. */
+    status: string | undefined
+    /** Shared secret for reverse DNS verification. */
+    sharedSecret: string | undefined
+    /** Child public delegated prefixes. */
+    publicDelegatedPrefixs: compute.PublicAdvertisedPrefixPublicDelegatedPrefix[]
+    /** BYOIP API version. */
+    byoipApiVersion: string | undefined
+    /** Optimistic-locking fingerprint. */
+    fingerprint: string | undefined
+    /** Server-defined URL. */
+    selfLink: string | undefined
+    /** Server-assigned numeric id. */
+    prefixId: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+    /** Resource kind. */
+    kind: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A global public advertised prefix (BYOIP).
+ *
+ * A public advertised prefix is an aggregated IP prefix you bring to
+ * Google Cloud. Creating one requires a prefix you own and reverse-DNS
+ * verification. Name, CIDR, verification IP, and PDP scope are immutable.
+ * Description updates in place via `publicAdvertisedPrefixes.patch`.
+ *
+ * ### Creating a Public Advertised Prefix
+ * **Example:** Regional-scope IPv4 prefix
+ * ```typescript
+ * const prefix = yield* GCP.Compute.PublicAdvertisedPrefix("Byoip", {
+ *   ipCidrRange: "203.0.113.0/24",
+ *   dnsVerificationIp: "203.0.113.1",
+ *   pdpScope: "REGIONAL",
+ *   description: "lab prefix",
+ * });
+ * ```
+ *
+ * **Example:** Explicit name
+ * ```typescript
+ * const prefix = yield* GCP.Compute.PublicAdvertisedPrefix("Byoip", {
+ *   prefixName: "lab-pap",
+ *   ipCidrRange: "203.0.113.0/24",
+ *   pdpScope: "REGIONAL",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const PublicAdvertisedPrefix = Resource<PublicAdvertisedPrefix>(
+  "GCP.Compute.PublicAdvertisedPrefix",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class PublicAdvertisedPrefixNotResolved extends Data.TaggedError(
+  "GCP.Compute.PublicAdvertisedPrefixNotResolved",
+)<{
+  prefixName: string
+}> {}
+
+const toAttrs = (
+  prefix: compute.PublicAdvertisedPrefix,
+  project: string,
+): PublicAdvertisedPrefix["Attributes"] => {
+  const parsed = parseDescription(prefix.description)
+  return {
+    prefixName: prefix.name ?? lastSegment(prefix.selfLink),
+    project,
+    ipCidrRange: prefix.ipCidrRange ?? "",
+    dnsVerificationIp: prefix.dnsVerificationIp,
+    pdpScope: prefix.pdpScope,
+    ipv6AccessType: prefix.ipv6AccessType,
+    description: parsed.description,
+    status: prefix.status,
+    sharedSecret: prefix.sharedSecret,
+    publicDelegatedPrefixs: prefix.publicDelegatedPrefixs ?? [],
+    byoipApiVersion: prefix.byoipApiVersion,
+    fingerprint: prefix.fingerprint,
+    selfLink: prefix.selfLink,
+    prefixId: prefix.id,
+    creationTimestamp: prefix.creationTimestamp,
+    kind: prefix.kind,
+  }
+}
+
+const getByName = effect (project: string, publicAdvertisedPrefix: string) =>
+  compute
+    .getPublicAdvertisedPrefixes({ project, publicAdvertisedPrefix }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const awaitResource = effect (project: string, prefixName: string) =>
+  try (effect {
+    return try effect {
+      const prefix = try getByName(project, prefixName)
+      return (prefix !== undefined ? prefix : throw new PublicAdvertisedPrefixNotResolved({ prefixName }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Compute.PublicAdvertisedPrefixNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+export const PublicAdvertisedPrefixProvider = (): infer _ =>
+  Provider.succeed(PublicAdvertisedPrefix, {
+    stables: ["prefixName", "project", "ipCidrRange", "prefixId", "selfLink", "creationTimestamp"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousName = olds?.prefixName ?? output?.prefixName
+      const nextName = resolved.prefixName ?? previousName
+      const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
+      const cidrChanged = (olds?.ipCidrRange ?? output?.ipCidrRange) !== undefined
+        && resolved.ipCidrRange !== (olds?.ipCidrRange ?? output?.ipCidrRange)
+      const dnsChanged = resolved.dnsVerificationIp !== undefined
+        && (olds?.dnsVerificationIp ?? output?.dnsVerificationIp) !== undefined
+        && resolved.dnsVerificationIp !== (olds?.dnsVerificationIp ?? output?.dnsVerificationIp)
+      const scopeChanged = resolved.pdpScope !== undefined
+        && (olds?.pdpScope ?? output?.pdpScope) !== undefined
+        && resolved.pdpScope !== (olds?.pdpScope ?? output?.pdpScope)
+      if (nameChanged || cidrChanged || dnsChanged || scopeChanged) {
+        return {
+          action: "replace" as const,
+          deleteFirst: !nameChanged || nextName === undefined || nextName === previousName,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const prefixName = try toPhysicalName(id, olds?.prefixName, output?.prefixName, "prefix")
+      const existing = try getByName(env.project, prefixName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (effect {
+        return (Array.from(
+          try (compute.listPublicAdvertisedPrefixes
+            .items({
+              project: env.project,
+              maxResults: 500,
+              returnPartialSuccess: true,
+            })
+            |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+            |> Stream.map(%, (item) => toAttrs(item, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as PublicAdvertisedPrefix["Attributes"][];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const prefixName = try toPhysicalName(id, news.prefixName, output?.prefixName, "prefix")
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+
+      let current = try getByName(env.project, prefixName)
+
+      if (current === undefined) {
+        runGlobalOp(
+          env.project,
+          compute.insertPublicAdvertisedPrefixes({
+            project: env.project,
+            body: {
+              name: prefixName,
+              description: desiredDescription,
+              ipCidrRange: news.ipCidrRange,
+              dnsVerificationIp: news.dnsVerificationIp,
+              pdpScope: news.pdpScope,
+              ipv6AccessType: news.ipv6AccessType,
+            },
+          }),
+          { ignoreAlreadyExists: true },
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        current = try awaitResource(env.project, prefixName)
+      }
+
+      if (current === undefined) {
+        throw new PublicAdvertisedPrefixNotResolved({ prefixName })
+      }
+
+      if ((current.description ?? "") !== desiredDescription) {
+        try runGlobalOp(
+          env.project,
+          compute.patchPublicAdvertisedPrefixes({
+            project: env.project,
+            publicAdvertisedPrefix: prefixName,
+            body: {
+              description: desiredDescription,
+              fingerprint: current.fingerprint,
+            },
+          }),
+        )
+        current = (try getByName(env.project, prefixName)) ?? current
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      runGlobalOp(
+        env.project,
+        compute.deletePublicAdvertisedPrefixes({
+          project: env.project,
+          publicAdvertisedPrefix: output.prefixName,
+        }),
+        { ignoreNotFound: true },
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+    },
+  })

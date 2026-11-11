@@ -1,2 +1,2 @@
-export * from "./Detection.ts";
-export * from "./LeakedCredentialCheck.ts";
+export * from "./Detection.vibe";
+export * from "./LeakedCredentialCheck.vibe";
