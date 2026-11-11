@@ -16,7 +16,7 @@ export * from "./DurableObjectStorage.vibe";
 export * from "./EmailEventSource.vibe";
 export * from "./Fetch.vibe";
 export * from "./HttpServer.vibe";
-export * from "./InferEnv.vibe";
+export * from "./InferEnv.ts";
 export * from "./IssueAutomation.vibe";
 export * from "./LocalWorkerProvider.vibe";
 export * from "./ObservabilityDestination.vibe";
