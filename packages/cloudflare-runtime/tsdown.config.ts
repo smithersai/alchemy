@@ -93,6 +93,9 @@ export default defineConfig([
       "!src/core/**/*.worker.{ts,vibe}",
       "!src/core/globals.d.ts",
       "!src/core/**/*.d.vibe.ts",
+      // VibeLang writes an X.d.ts declaration sidecar beside each X.vibe
+      // source; it is not a module of its own.
+      "!src/core/**/*.d.ts",
       "!src/core/**/*.platform.ts",
       "!src/core/scripts/**/*.ts",
       "!src/core/test/**/*.ts",
