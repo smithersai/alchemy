@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { CommandError, UrlMissing } from "./Errors.vibe";
-import { command, commandPipeline } from "./Protocol.vibe";
+import type { CommandError, UrlMissing } from "./Errors.ts";
+import { command, commandPipeline } from "./Protocol.ts";
 import type { Arg, Reply } from "./Resp.ts";
 import type { RuntimeContext } from "./RuntimeContext.vibe";
 
