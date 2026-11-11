@@ -22,6 +22,6 @@
  * ```
  */
 export * from "./Client.ts";
-export * from "./Errors.ts";
-export * from "./Protocol.ts";
+export * from "./Errors.vibe";
+export * from "./Protocol.vibe";
 export * from "./Resp.ts";
