@@ -1,17 +1,17 @@
-import { RuntimeContext } from "alchemy/RuntimeContext";
+import { RuntimeContext } from "alchemy/RuntimeContext"
 /** Git operations without HTTP requests, user services, or authorization callbacks. */
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
-import * as Semaphore from "effect/Semaphore";
-import { PushDenied, RefConflict, RepoNotFound } from "./Api/Schema.vibe";
-import { BlobStore } from "./BlobStore.vibe";
-import { Hasher } from "./Hasher/Hasher.vibe";
-import { Operations, OperationsLive } from "./Operations.vibe";
-import { StoreError } from "./Protocol/Store.vibe";
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import * as Semaphore from "effect/Semaphore"
+import { PushDenied, RefConflict, RepoNotFound } from "./Api/Schema.vibe"
+import { BlobStore } from "./BlobStore.vibe"
+import { Hasher } from "./Hasher/Hasher.vibe"
+import { Operations, OperationsLive } from "./Operations.vibe"
+import { StoreError } from "./Protocol/Store.vibe"
 import {
   incomingStates,
   invalidPush,
@@ -19,9 +19,9 @@ import {
   type PreparedPush,
   type PushInput,
   type RefUpdate,
-} from "./Push.vibe";
-import { encodeStagedBatch } from "./PushWire.ts";
-import { ulid } from "./RegistryObject.ts";
+} from "./Push.vibe"
+import { encodeStagedBatch } from "./PushWire.ts"
+import { ulid } from "./RegistryObject.vibe"
 import {
   MAX_PACK_BYTES,
   PUSH_WAIT_TIMEOUT,
@@ -33,146 +33,155 @@ import {
   type IngestResult,
   type IngestStore,
   type RepoMetaData,
-} from "./RepoObject.ts";
-import { incomingKey, wirePackId } from "./Store/Keys.ts";
-import { sliceRandomAccess } from "./Store/PackSource.vibe";
+} from "./RepoObject.vibe"
+import { incomingKey, wirePackId } from "./Store/Keys.ts"
+import { sliceRandomAccess } from "./Store/PackSource.vibe"
 
-const path = (repo: RepoMetaData) => ({ owner: repo.owner, repo: repo.name });
+const path = (repo: RepoMetaData) => ({ owner: repo.owner, repo: repo.name })
 
 const asStoreError = (error: { readonly _tag: string; readonly reason?: string }) =>
   Schema.is(StoreError)(error)
     ? error
     : StoreError.make({
-        reason: `${error._tag}${error.reason === undefined ? "" : `: ${error.reason}`}`,
-      });
+      reason: `${error._tag}${error.reason === undefined ? "" : `: ${error.reason}`}`,
+    })
 
 const scopedMutation = <A, E, R>(
   updates: ReadonlyArray<RefUpdate>,
   commit: Effect.Effect<A, E, R>,
 ) =>
-  Effect.gen(function* () {
-    let active = true;
-    yield* Effect.addFinalizer(() =>
+  effect {
+    let active = true
+    try Effect.addFinalizer(() =>
       Effect.sync(() => {
-        active = false;
-      }),
-    );
+        active = false
+      })
+    )
     return Object.freeze({
       updates: Object.freeze(updates.map((update) => Object.freeze({ ...update }))),
       commit: Effect.suspend<A, E | StoreError, R>(() => {
-        if (!active) return Effect.fail(invalidPush());
-        active = false;
-        return commit;
+        if (!active) return Effect.fail(invalidPush())
+        active = false
+        return commit
       }),
-    });
-  });
+    })
+  }
 
-const make = Effect.gen(function* () {
-  const operations = yield* Operations;
-  const repos = yield* RepoStore;
-  const blobs = yield* BlobStore;
-  const hasher = yield* Hasher;
-  const gate = yield* isolatePushGate;
-  const owner = {};
+const make = effect {
+  const operations = try Operations
+  const repos = try RepoStore
+  const blobs = try BlobStore
+  const hasher = try Hasher
+  const gate = try isolatePushGate
+  const owner = {}
 
   const get = (path: { readonly owner: string; readonly repo: string }) =>
-    Effect.gen(function* () {
+    effect {
       const name = {
         owner: path.owner.toLowerCase(),
         repo: path.repo.toLowerCase().replace(/\.git$/, ""),
-      };
-      const entry = yield* operations.resolveCached(name.owner, name.repo);
-      if (entry === undefined || entry.deletedAt !== null) return yield* RepoNotFound.make(name);
-      return yield* repos.getByName(entry.repoId).getRepoMeta();
-    });
+      }
+      const entry = try operations.resolveCached(name.owner, name.repo)
+      if (entry === undefined || entry.deletedAt !== null) return try RepoNotFound.make(name)
+      return try repos.getByName(entry.repoId).getRepoMeta()
+    }
 
   const preparePush = (repo: RepoMetaData, input: PushInput) =>
-    Effect.gen(function* () {
-      const source = incomingStates.get(input);
-      if (source === undefined || !source.active || source.claimed) return yield* invalidPush();
-      source.claimed = true;
-      const { feeder, receiving, packStart } = source;
-      const stub = repos.getByName(repo.repoId);
-      const staging: Array<Fiber.Fiber<void, StoreError>> = [];
-      let active = true;
-      let committed = false;
-      let ingest: IngestResult | undefined;
-      const receiveId = yield* ulid();
-      const parkedKey = incomingKey(repo.repoId, receiveId);
+    effect {
+      const source = incomingStates.get(input)
+      if (source === undefined || !source.active || source.claimed) return try invalidPush()
+      source.claimed = true
+      const { feeder, receiving, packStart } = source
+      const stub = repos.getByName(repo.repoId)
+      const staging: Array<Fiber.Fiber<void, StoreError>> = []
+      let active = true
+      let committed = false
+      let ingest: IngestResult | undefined
+      const receiveId = try ulid()
+      const parkedKey = try Effect.orDie(
+        Effect.try({ try: () => incomingKey(repo.repoId, receiveId), catch: (e) => e }),
+      )
       // Registered before ingest: cancellation and policy failure share the same owner.
-      const begun = yield* Effect.acquireRelease(
+      const begun = try Effect.acquireRelease(
         stub.beginPush({ commands: input.updates }),
         (begun) =>
-          Effect.gen(function* () {
-            active = false;
-            if (begun._tag === "denied") return;
-            yield* Fiber.interruptAll(staging.splice(0));
-            if (committed) return;
+          effect {
+            active = false
+            if (begun._tag === "denied") return
+            try Fiber.interruptAll(staging.splice(0))
+            if (committed) return
             // Ask durable state before deleting bytes: an interrupted RPC may have committed.
-            const keys = [parkedKey, ...(ingest?.resolvedKey?.split(",") ?? [])].filter(Boolean);
-            const packIds = keys.map((key) => wirePackId(key.slice(key.lastIndexOf("/") + 1, -5)));
-            const aborted = yield* stub
+            const keys = [parkedKey, ...(ingest?.resolvedKey?.split(",") ?? [])].filter(Boolean)
+            const packIds = keys.map((key) => wirePackId(key.slice(key.lastIndexOf("/") + 1, -5)))
+            const aborted = try stub
               .abortPush(begun.pushId, packIds)
-              .pipe(Effect.orElseSucceed(() => false));
+              .pipe(Effect.orElseSucceed(() => false))
             if (aborted) {
-              yield* blobs.delete(keys).pipe(Effect.ignore);
+              try blobs.delete(keys).pipe(Effect.ignore)
             }
-          }),
-      );
-      if (begun._tag === "denied")
-        return yield* PushDenied.make({
+          },
+      )
+      if (begun._tag === "denied") {
+        return try PushDenied.make({
           ref: input.updates[0]?.ref ?? "",
           reason: begun.reason,
-        });
-      const pushId = begun.pushId;
-      const permits = pushPermitsFor(source.declaredBytes);
-      const acquired = yield* Effect.acquireRelease(
+        })
+      }
+      const pushId = begun.pushId
+      const permits = pushPermitsFor(source.declaredBytes)
+      const acquired = try Effect.acquireRelease(
         Semaphore.take(gate, permits).pipe(Effect.timeoutOption(PUSH_WAIT_TIMEOUT)),
         (acquired) => (Option.isSome(acquired) ? Semaphore.release(gate, permits) : Effect.void),
-      );
-      if (Option.isNone(acquired))
-        return yield* StoreError.make({ reason: "push admission timed out" });
-      const started = Date.now();
-      const stageGate = yield* Semaphore.make(6);
-      const bases = new Map<string, Effect.Success<ReturnType<typeof stub.readPushBase>>>();
+      )
+      if (Option.isNone(acquired)) {
+        return try StoreError.make({ reason: "push admission timed out" })
+      }
+      const started = Date.now()
+      const stageGate = try Semaphore.make(6)
+      const bases = new Map<string, Effect.Success<ReturnType<typeof stub.readPushBase>>>()
       const store: IngestStore = {
         insertStagedBatch: (id, objects) =>
-          Effect.gen(function* () {
-            const encoded = encodeStagedBatch(objects);
-            const fiber = yield* stub
+          effect {
+            const encoded = try Effect.orDie(
+              Effect.try({ try: () => encodeStagedBatch(objects), catch: (e) => e }),
+            )
+            const fiber = try stub
               .stagePush(id, encoded)
               .pipe(
                 Effect.mapError(asStoreError),
                 Effect.provide(RuntimeContext.phantom),
                 Semaphore.withPermits(stageGate, 1),
                 Effect.forkDetach,
-              );
-            staging.push(fiber);
-          }),
-        settle: Effect.gen(function* () {
-          for (const fiber of staging) yield* Fiber.join(fiber);
-          staging.length = 0;
-        }),
+              )
+            staging.push(fiber)
+          },
+        settle: effect {
+          for (const fiber of staging) try Fiber.join(fiber)
+          staging.length = 0
+        },
         readBase: (oid) =>
           bases.has(oid)
             ? Effect.succeed(bases.get(oid))
             : stub.readPushBase(oid).pipe(
-                Effect.mapError(asStoreError),
-                Effect.tap((value) =>
-                  Effect.sync(() => {
-                    bases.set(oid, value);
-                  }),
-                ),
-                Effect.provide(RuntimeContext.phantom),
+              Effect.mapError(asStoreError),
+              Effect.tap((value) =>
+                Effect.sync(() => {
+                  bases.set(oid, value)
+                })
               ),
-      };
-      const probe = yield* feeder.source.read(packStart, 12);
-      if (probe.length > 0 && probe.length < 12) {
-        return yield* StoreError.make({ reason: "truncated pack header" });
+              Effect.provide(RuntimeContext.phantom),
+            ),
       }
-      const hasPack = probe.length === 12;
+      const probe = try feeder.source.read(packStart, 12)
+      if (probe.length > 0 && probe.length < 12) {
+        return try StoreError.make({ reason: "truncated pack header" })
+      }
+      const hasPack = probe.length === 12
       if (hasPack) {
-        ingest = yield* ingestPackFrom(sliceRandomAccess(feeder.source, packStart), {
+        const packId = try Effect.orDie(
+          Effect.try({ try: () => wirePackId(receiveId), catch: (e) => e }),
+        )
+        ingest = try ingestPackFrom(sliceRandomAccess(feeder.source, packStart), {
           store,
           pushId,
           hasher,
@@ -182,14 +191,14 @@ const make = Effect.gen(function* () {
             packStart,
             blobs,
             key: parkedKey,
-            packId: wirePackId(receiveId),
+            packId,
             repoId: repo.repoId,
             threshold: MAX_PACK_BYTES,
           },
-        });
+        })
       }
-      if (store.settle) yield* store.settle;
-      const received = yield* Fiber.join(receiving).pipe(Effect.flatMap(Effect.fromResult));
+      if (store.settle) try store.settle
+      const received = try Fiber.join(receiving).pipe(Effect.flatMap(Effect.fromResult))
       const commitInput: CommitPushInput = {
         pushId,
         commands: input.updates,
@@ -205,9 +214,9 @@ const make = Effect.gen(function* () {
           stageMs: ingest?.stageMs ?? 0,
           phases: ingest?.phases,
         },
-      };
+      }
       // Connectivity is checked before application validation, then again at commit.
-      yield* stub.validatePush(commitInput).pipe(Effect.mapError(asStoreError));
+      try stub.validatePush(commitInput).pipe(Effect.mapError(asStoreError))
       const prepared: PreparedPush = Object.freeze({
         repo: Object.freeze({ ...repo }),
         updates: input.updates,
@@ -215,90 +224,92 @@ const make = Effect.gen(function* () {
           Effect.suspend(() =>
             !active || !source.active
               ? Effect.fail(invalidPush())
-              : stub.readPreparedObject(pushId, oid, maxBytes).pipe(Effect.mapError(asStoreError)),
+              : stub.readPreparedObject(pushId, oid, maxBytes).pipe(Effect.mapError(asStoreError))
           ),
-      });
+      })
       preparedStates.set(prepared, {
         owner,
         commit: Effect.suspend(() => {
-          if (!active || !source.active) return Effect.fail(invalidPush());
-          active = false;
+          if (!active || !source.active) return Effect.fail(invalidPush())
+          active = false
           return stub.commitPush(commitInput).pipe(
             Effect.mapError(asStoreError),
             Effect.tap((result) =>
               Effect.sync(() => {
-                committed = result.results.some((ref) => ref.ok);
-              }),
+                committed = result.results.some((ref) => ref.ok)
+              })
             ),
-          );
+          )
         }),
-      });
-      return prepared;
-    });
+      })
+      return prepared
+    }
 
   const commitPush = (prepared: PreparedPush) =>
     Effect.suspend(() => {
-      const state = preparedStates.get(prepared);
-      return state?.owner === owner ? state.commit : Effect.fail(invalidPush());
-    });
+      const state = preparedStates.get(prepared)
+      return state?.owner === owner ? state.commit : Effect.fail(invalidPush())
+    })
 
   const prepareRefUpdate = (
     repo: RepoMetaData,
     input: {
-      readonly ref: string;
-      readonly newOid: string;
-      readonly expectedOid?: string | null;
+      readonly ref: string
+      readonly newOid: string
+      readonly expectedOid?: string | null
     },
   ) =>
-    Effect.gen(function* () {
-      const stub = repos.getByName(repo.repoId);
-      const current = yield* stub.getRef(input.ref).pipe(
+    effect {
+      const stub = repos.getByName(repo.repoId)
+      const current = try stub.getRef(input.ref).pipe(
         Effect.map((ref) => ref.oid),
         Effect.catchTag("RefNotFound", () => Effect.succeed("0".repeat(40))),
-      );
-      if (
-        input.expectedOid !== undefined &&
-        input.expectedOid !== (current === "0".repeat(40) ? null : current)
       )
-        return yield* RefConflict.make({
+      if (
+        input.expectedOid !== undefined
+        && input.expectedOid !== (current === "0".repeat(40) ? null : current)
+      ) {
+        return try RefConflict.make({
           ref: input.ref,
           currentOid: current as import("./Api.vibe").Oid,
-        });
-      const update = { ref: input.ref, oldOid: current, newOid: input.newOid };
+        })
+      }
+      const update = { ref: input.ref, oldOid: current, newOid: input.newOid }
       const commit = stub.updateRef({
         name: input.ref,
         newOid: input.newOid,
         expectedOid: current === "0".repeat(40) ? null : current,
-      });
-      return yield* scopedMutation([update], commit);
-    });
+      })
+      return try scopedMutation([update], commit)
+    }
 
   const prepareRefRemoval = (
     repo: RepoMetaData,
     input: { readonly ref: string; readonly expectedOid?: string },
   ) =>
-    Effect.gen(function* () {
-      const stub = repos.getByName(repo.repoId);
-      const current = yield* stub.getRef(input.ref);
-      if (input.expectedOid !== undefined && input.expectedOid !== current.oid)
-        return yield* RefConflict.make({
+    effect {
+      const stub = repos.getByName(repo.repoId)
+      const current = try stub.getRef(input.ref)
+      if (input.expectedOid !== undefined && input.expectedOid !== current.oid) {
+        return try RefConflict.make({
           ref: input.ref,
           currentOid: current.oid as import("./Api.vibe").Oid,
-        });
-      return yield* scopedMutation(
+        })
+      }
+      return try scopedMutation(
         [{ ref: input.ref, oldOid: current.oid, newOid: "0".repeat(40) }],
         stub.removeRef({ name: input.ref, expectedOid: current.oid }),
-      );
-    });
+      )
+    }
 
   const prepareMerge = (
     repo: RepoMetaData,
     input: Parameters<ReturnType<typeof repos.getByName>["mergePull"]>[0],
   ) =>
-    Effect.gen(function* () {
-      const stub = repos.getByName(repo.repoId);
-      const pull = yield* stub.getPull(input.number);
-      return yield* scopedMutation(
+    effect {
+      const stub = repos.getByName(repo.repoId)
+      const pull = try stub.getPull(input.number)
+      return try scopedMutation(
         [
           {
             ref: pull.baseRef,
@@ -311,8 +322,8 @@ const make = Effect.gen(function* () {
           expectedBaseOid: pull.baseOid ?? "0".repeat(40),
           expectedHeadOid: input.expectedHeadOid ?? pull.headOid ?? "0".repeat(40),
         }),
-      );
-    });
+      )
+    }
 
   // These operate on repository data; authorization is composed by the caller.
   return {
@@ -320,8 +331,7 @@ const make = Effect.gen(function* () {
       get,
       create: (payload: Parameters<typeof operations.repos.create>[0]["payload"]) =>
         operations.repos.create({ payload }),
-      list: (query: Parameters<typeof operations.repos.list>[0]["query"]) =>
-        operations.repos.list({ query }),
+      list: (query: Parameters<typeof operations.repos.list>[0]["query"]) => operations.repos.list({ query }),
       update: (
         repo: RepoMetaData,
         payload: Parameters<typeof operations.repos.update>[0]["payload"],
@@ -393,8 +403,8 @@ const make = Effect.gen(function* () {
     prepareRefUpdate,
     prepareRefRemoval,
     prepareMerge,
-  };
-});
+  }
+}
 
 /** Git operations usable from HTTP handlers, jobs, and ordinary Effects. */
 export class Engine extends Context.Service<Engine, Effect.Success<typeof make>>()(
@@ -407,4 +417,4 @@ export class Engine extends Context.Service<Engine, Effect.Success<typeof make>>
  * @layer
  * @provides Git.Engine
  */
-export const EngineLive = Layer.effect(Engine, make).pipe(Layer.provideMerge(OperationsLive));
+export const EngineLive = Layer.effect(Engine, make).pipe(Layer.provideMerge(OperationsLive))

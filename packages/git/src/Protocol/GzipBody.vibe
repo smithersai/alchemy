@@ -12,11 +12,24 @@
  * This module is the only place `DecompressionStream` is used; the pack-entry
  * zlib boundary lives in `Zlib.ts`.
  */
-import * as Effect from "effect/Effect";
-import * as Pull from "effect/Pull";
-import * as Schema from "effect/Schema";
-import * as Stream from "effect/Stream";
-import { concatBytes } from "./ObjectCodec.ts";
+import * as Effect from "effect/Effect"
+import * as Pull from "effect/Pull"
+import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
+import { concatBytes } from "./ObjectCodec.vibe"
+
+// Host access: `DecompressionStream` is a web platform global.
+module web {
+  /** Pipes a web byte stream through `DecompressionStream("gzip")`. */
+  export const pipeThroughGunzip = (input: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> =>
+    input.pipeThrough(
+      // dom.d.ts types DecompressionStream's writable as BufferSource; the
+      // runtime accepts Uint8Array chunks — bridge the variance mismatch.
+      new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
+    ) as ReadableStream<Uint8Array>
+}
+
+import { pipeThroughGunzip } from web
 
 /**
  * Error raised when a request body declared (or sniffed) as gzip fails to
@@ -30,22 +43,20 @@ export class GzipBodyError extends Schema.TaggedError<GzipBodyError>()("GzipBody
 /**
  * Returns `true` when the bytes start with the gzip magic `1f 8b`.
  */
-export const sniffGzip = (bytes: Uint8Array): boolean =>
-  bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+export const sniffGzip = (bytes: Uint8Array): boolean => bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
 
 /**
  * Returns `true` when a `Content-Encoding` header value declares gzip
  * (handles `gzip`, `x-gzip`, and comma-separated lists).
  */
 export const isGzipContentEncoding = (value: string | undefined): boolean =>
-  value !== undefined &&
-  value.split(",").some((token) => {
-    const t = token.trim().toLowerCase();
-    return t === "gzip" || t === "x-gzip";
-  });
+  value !== undefined
+  && value.split(",").some((token) => {
+    const t = token.trim().toLowerCase()
+    return t === "gzip" || t === "x-gzip"
+  })
 
-const errorReason = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+const errorReason = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 /**
  * Pipes a byte stream through `DecompressionStream("gzip")`.
@@ -58,14 +69,9 @@ export const gunzipStream = <E>(
   input: Stream.Stream<Uint8Array, E>,
 ): Stream.Stream<Uint8Array, GzipBodyError> =>
   Stream.fromReadableStream({
-    evaluate: () =>
-      Stream.toReadableStream(input).pipeThrough(
-        // dom.d.ts types DecompressionStream's writable as BufferSource; the
-        // runtime accepts Uint8Array chunks — bridge the variance mismatch.
-        new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
-      ) as ReadableStream<Uint8Array>,
+    evaluate: () => pipeThroughGunzip(Stream.toReadableStream(input)),
     onError: (error) => GzipBodyError.make({ reason: `gunzip failed: ${errorReason(error)}` }),
-  });
+  })
 
 /**
  * One-shot gunzip of a fully buffered body.
@@ -74,7 +80,7 @@ export const gunzipBuffer = (data: Uint8Array): Effect.Effect<Uint8Array, GzipBo
   gunzipStream(Stream.succeed(data)).pipe(
     Stream.runCollect,
     Effect.map((chunks) => concatBytes(chunks)),
-  );
+  )
 
 /**
  * Decodes a fully buffered git request body: gunzips when `Content-Encoding`
@@ -88,7 +94,7 @@ export const decodeGitBodyBuffer = (
 ): Effect.Effect<Uint8Array, GzipBodyError> =>
   isGzipContentEncoding(contentEncoding) || sniffGzip(data)
     ? gunzipBuffer(data)
-    : Effect.succeed(data);
+    : Effect.succeed(data)
 
 /**
  * Decodes a streaming git request body: when `Content-Encoding` declares
@@ -102,40 +108,41 @@ export const decodeGitBodyStream = <E>(
   contentEncoding: string | undefined,
 ): Stream.Stream<Uint8Array, E | GzipBodyError> => {
   if (isGzipContentEncoding(contentEncoding)) {
-    return gunzipStream(input);
+    return gunzipStream(input)
   }
   return Stream.unwrap(
-    Effect.gen(function* () {
-      const pull = yield* Stream.toPull(input);
-      const head: Array<Uint8Array> = [];
-      let length = 0;
-      let ended = false;
+    effect {
+      const pull = try Stream.toPull(input)
+      const head: Array<Uint8Array> = []
+      let length = 0
+      let ended = false
       while (length < 2 && !ended) {
-        yield* pull.pipe(
+        try pull.pipe(
           Effect.map((chunks) => {
             for (const chunk of chunks) {
-              head.push(chunk);
-              length += chunk.length;
+              head.push(chunk)
+              length += chunk.length
             }
           }),
           Pull.catchDone(() =>
             Effect.sync(() => {
-              ended = true;
-            }),
+              ended = true
+            })
           ),
-        );
+        )
       }
-      const headBytes = concatBytes(head, length);
+      const headBytes = concatBytes(head, length)
       const remainder: Stream.Stream<Uint8Array, E> = ended
         ? Stream.empty
-        : // `toPull`'s error channel is already Done-free, so ExcludeDone<E> = E;
-          // TS cannot reduce the conditional for a generic E, hence the cast.
-          (pull.pipe(Effect.succeed, Stream.fromPull) as Stream.Stream<Uint8Array, E>);
-      const full: Stream.Stream<Uint8Array, E> =
-        length === 0 ? remainder : Stream.concat(Stream.succeed(headBytes), remainder);
+        // `toPull`'s error channel is already Done-free, so ExcludeDone<E> = E;
+        // TS cannot reduce the conditional for a generic E, hence the cast.
+        : (pull.pipe(Effect.succeed, Stream.fromPull) as Stream.Stream<Uint8Array, E>)
+      const full: Stream.Stream<Uint8Array, E> = length === 0
+        ? remainder
+        : Stream.concat(Stream.succeed(headBytes), remainder)
       return sniffGzip(headBytes)
         ? (gunzipStream(full) as Stream.Stream<Uint8Array, E | GzipBodyError>)
-        : full;
-    }),
-  );
-};
+        : full
+    },
+  )
+}

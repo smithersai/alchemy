@@ -1,4 +1,4 @@
-import type { ObjectType } from "./Protocol/ObjectCodec.ts";
+import type { ObjectType } from "./Protocol/ObjectCodec.vibe";
 /**
  * The Worker ↔ Repo DO push protocol (DESIGN §22.10): the pack never
  * enters the Durable Object. The Worker receives the body, spills it,

@@ -3,7 +3,7 @@ import { WorkerLoader } from "@alchemy.run/cloudflare/Workers/WorkerLoader";
 /**
  * `Hasher` over dynamically loaded Workers (DESIGN §22.12). A
  * `WorkerLoader` binding on the Git Worker instantiates the hasher module
- * (`WorkerLoaderModule.ts`, bundled into a string at build time by the `?worker`
+ * (`WorkerLoaderModule.vibe`, bundled into a string at build time by the `?worker`
  * import) under a few fixed names; each name is its own isolate with its
  * own 128 MB, and — measured — distinct isolates run in parallel with
  * the caller, up to the runtime's four concurrent dynamic invocations per
@@ -38,8 +38,8 @@ import {
   encodeDeltaBatch,
   HASH_ROUTE,
   HashError,
-} from "./Protocol.ts";
-import hasherSource from "./WorkerLoaderModule.ts?worker";
+} from "./Protocol.vibe";
+import hasherSource from "./WorkerLoaderModule.vibe?worker";
 
 /** The runtime allows four concurrent dynamic-worker invocations per request. */
 export const LOADER_MAX_CONCURRENCY = 4;

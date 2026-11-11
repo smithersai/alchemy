@@ -20,38 +20,35 @@
  * for previously-shallow client tips now complete), then a flush, before the
  * ACK/NAK section; the pack is depth-truncated.
  */
-import * as Effect from "effect/Effect";
-import * as Stream from "effect/Stream";
-import { concatBytes, isOid, type Oid } from "./ObjectCodec.ts";
-import { packDataBytes, type PackEvent, writePack } from "./PackWriter.vibe";
-import {
-  decodePktLines,
-  flushPkt,
-  PktLineError,
-  pktPayloadText,
-  pktText,
-  ProtocolError,
-} from "./Pkt.ts";
-import { progressMessage, sidebandFrames } from "./Sideband.vibe";
-import type { ClosureResult, ClosureSource, ObjectSource } from "./Store.vibe";
-import { StoreError } from "./Store.vibe";
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import { concatBytes, isOid, type Oid } from "./ObjectCodec.vibe"
+import { packDataBytes, type PackEvent, writePack } from "./PackWriter.vibe"
+import { decodePktLines, flushPkt, PktLineError, pktPayloadText, pktText, ProtocolError } from "./Pkt.vibe"
+import { progressMessage, sidebandFrames } from "./Sideband.vibe"
+import type { ClosureResult, ClosureSource, ObjectSource } from "./Store.vibe"
+import { StoreError } from "./Store.vibe"
+
+// `pktText` throws on an oversize line; as in a generator, that throw is a defect.
+const pktTextOrDie = (line: string): Uint8Array!! =>
+  Effect.orDie(Effect.try({ try: () => pktText(line), catch: (e) => e }))
 
 /**
  * A parsed `git-upload-pack` request body.
  */
 export interface UploadPackRequest {
   /** Requested tips, in request order (first `want` carried the caps). */
-  readonly wants: ReadonlyArray<Oid>;
+  readonly wants: ReadonlyArray<Oid>
   /** The client's `have` lines, in request order. */
-  readonly haves: ReadonlyArray<Oid>;
+  readonly haves: ReadonlyArray<Oid>
   /** Whether the request ended with `done` (vs a bare flush). */
-  readonly done: boolean;
+  readonly done: boolean
   /** Capabilities requested on the first `want` line (space-separated). */
-  readonly capabilities: ReadonlySet<string>;
+  readonly capabilities: ReadonlySet<string>
   /** Depth bound from `deepen <n>`, when present. */
-  readonly depth: number | undefined;
+  readonly depth: number | undefined
   /** The client's existing shallow tips (`shallow <oid>` lines). */
-  readonly clientShallow: ReadonlyArray<Oid>;
+  readonly clientShallow: ReadonlyArray<Oid>
 }
 
 const parseOidLine = (
@@ -59,13 +56,13 @@ const parseOidLine = (
   keyword: string,
 ): Effect.Effect<{ readonly oid: Oid; readonly rest: string }, ProtocolError> =>
   Effect.suspend(() => {
-    const body = text.slice(keyword.length + 1);
-    const oid = body.slice(0, 40);
+    const body = text.slice(keyword.length + 1)
+    const oid = body.slice(0, 40)
     if (!isOid(oid)) {
-      return Effect.fail(ProtocolError.make({ reason: `malformed ${keyword} line: ${text}` }));
+      return Effect.fail(ProtocolError.make({ reason: `malformed ${keyword} line: ${text}` }))
     }
-    return Effect.succeed({ oid, rest: body.slice(40).trim() });
-  });
+    return Effect.succeed({ oid, rest: body.slice(40).trim() })
+  })
 
 /**
  * Parses a `git-upload-pack` request body (already gunzipped) into a
@@ -73,78 +70,78 @@ const parseOidLine = (
  * (`deepen-since`, `deepen-not`, `filter`) with a typed
  * {@link ProtocolError}.
  */
-export const parseUploadPackRequest = Effect.fn(function* (body: Uint8Array) {
-  const pkts = yield* decodePktLines(body);
-  const wants: Array<Oid> = [];
-  const haves: Array<Oid> = [];
-  const clientShallow: Array<Oid> = [];
-  const capabilities = new Set<string>();
-  let depth: number | undefined;
-  let done = false;
-  let inHaves = false;
+export const parseUploadPackRequest = effect (body: Uint8Array) => {
+  const pkts = try decodePktLines(body)
+  const wants: Array<Oid> = []
+  const haves: Array<Oid> = []
+  const clientShallow: Array<Oid> = []
+  const capabilities = new Set<string>()
+  let depth: number | undefined
+  let done = false
+  let inHaves = false
 
   for (const pkt of pkts) {
     if (pkt._tag === "flush") {
-      inHaves = true;
-      continue;
+      inHaves = true
+      continue
     }
     if (pkt._tag !== "data") {
-      return yield* ProtocolError.make({
+      return try ProtocolError.make({
         reason: `unexpected ${pkt._tag} packet in upload-pack request`,
-      });
+      })
     }
-    const text = pktPayloadText(pkt.payload);
+    const text = pktPayloadText(pkt.payload)
     if (!inHaves) {
       if (text.startsWith("want ")) {
-        const { oid, rest } = yield* parseOidLine(text, "want");
-        wants.push(oid);
+        const { oid, rest } = try parseOidLine(text, "want")
+        wants.push(oid)
         if (rest.length > 0) {
           for (const cap of rest.split(" ")) {
-            if (cap.length > 0) capabilities.add(cap);
+            if (cap.length > 0) capabilities.add(cap)
           }
         }
       } else if (text.startsWith("shallow ")) {
-        const { oid } = yield* parseOidLine(text, "shallow");
-        clientShallow.push(oid);
+        const { oid } = try parseOidLine(text, "shallow")
+        clientShallow.push(oid)
       } else if (text.startsWith("deepen ")) {
-        const n = Number.parseInt(text.slice(7), 10);
+        const n = Number.parseInt(text.slice(7), 10)
         if (!Number.isInteger(n) || n <= 0) {
-          return yield* ProtocolError.make({
+          return try ProtocolError.make({
             reason: `invalid deepen depth: ${text}`,
-          });
+          })
         }
-        depth = n;
+        depth = n
       } else if (
-        text.startsWith("deepen-since ") ||
-        text.startsWith("deepen-not ") ||
-        text.startsWith("filter ")
+        text.startsWith("deepen-since ")
+        || text.startsWith("deepen-not ")
+        || text.startsWith("filter ")
       ) {
-        return yield* ProtocolError.make({
+        return try ProtocolError.make({
           reason: `unsupported argument: ${text.split(" ")[0]}`,
-        });
+        })
       } else {
-        return yield* ProtocolError.make({
+        return try ProtocolError.make({
           reason: `unexpected line in want section: ${text}`,
-        });
+        })
       }
     } else {
       if (text.startsWith("have ")) {
-        const { oid } = yield* parseOidLine(text, "have");
-        haves.push(oid);
+        const { oid } = try parseOidLine(text, "have")
+        haves.push(oid)
       } else if (text === "done") {
-        done = true;
+        done = true
       } else {
-        return yield* ProtocolError.make({
+        return try ProtocolError.make({
           reason: `unexpected line in have section: ${text}`,
-        });
+        })
       }
     }
   }
 
   if (wants.length === 0) {
-    return yield* ProtocolError.make({
+    return try ProtocolError.make({
       reason: "upload-pack request has no want lines",
-    });
+    })
   }
   const request: UploadPackRequest = {
     wants,
@@ -153,22 +150,22 @@ export const parseUploadPackRequest = Effect.fn(function* (body: Uint8Array) {
     capabilities,
     depth,
     clientShallow,
-  };
-  return request;
-});
+  }
+  return request
+}
 
 /**
  * The outcome of one negotiation round.
  */
 export interface Negotiation {
   /** Haves that exist in the store, in the client's request order. */
-  readonly common: ReadonlyArray<Oid>;
+  readonly common: ReadonlyArray<Oid>
   /** Whether the server declared `ready` (lazy-ready: any common found). */
-  readonly ready: boolean;
+  readonly ready: boolean
   /** Whether this response continues into a pack. */
-  readonly sendPack: boolean;
+  readonly sendPack: boolean
   /** The encoded ACK/NAK pkt-line section. */
-  readonly ackSection: Uint8Array;
+  readonly ackSection: Uint8Array
 }
 
 /**
@@ -177,80 +174,80 @@ export interface Negotiation {
  * as soon as any common exists, and decides whether the pack follows in this
  * response (`done` received, or `ready` under `no-done`).
  */
-export const negotiate = Effect.fn(function* (request: UploadPackRequest, objects: ObjectSource) {
-  const existing = new Set(yield* objects.filterExisting(request.haves));
-  const common = request.haves.filter((oid) => existing.has(oid));
-  const noDone = request.capabilities.has("no-done");
-  const multiAckDetailed = request.capabilities.has("multi_ack_detailed");
-  const last = common[common.length - 1];
+export const negotiate = effect (request: UploadPackRequest, objects: ObjectSource) => {
+  const existing = new Set(try objects.filterExisting(request.haves))
+  const common = request.haves.filter((oid) => existing.has(oid))
+  const noDone = request.capabilities.has("no-done")
+  const multiAckDetailed = request.capabilities.has("multi_ack_detailed")
+  const last = common[common.length - 1]
 
-  const lines: Array<Uint8Array> = [];
-  let ready = false;
-  let sendPack: boolean;
+  const lines: Array<Uint8Array> = []
+  let ready = false
+  let sendPack: boolean
   if (request.done) {
     // final round: single ACK of the last common oid, else NAK, then pack
-    lines.push(last !== undefined ? pktText(`ACK ${last}`) : pktText("NAK"));
-    sendPack = true;
+    lines.push(last !== undefined ? try pktTextOrDie(`ACK ${last}`) : try pktTextOrDie("NAK"))
+    sendPack = true
   } else if (last === undefined) {
-    lines.push(pktText("NAK"));
-    sendPack = false;
+    lines.push(try pktTextOrDie("NAK"))
+    sendPack = false
   } else if (multiAckDetailed) {
     for (const oid of common) {
-      lines.push(pktText(`ACK ${oid} common`));
+      lines.push(try pktTextOrDie(`ACK ${oid} common`))
     }
-    lines.push(pktText(`ACK ${last} ready`));
-    ready = true;
+    lines.push(try pktTextOrDie(`ACK ${last} ready`))
+    ready = true
     if (noDone) {
       // continue straight into the pack after `ready`
-      sendPack = true;
+      sendPack = true
     } else {
       // every non-final round ends with NAK; the client sends `done` next
-      lines.push(pktText("NAK"));
-      sendPack = false;
+      lines.push(try pktTextOrDie("NAK"))
+      sendPack = false
     }
   } else {
     // legacy single-ack fallback: ack the last common, wait for `done`
-    lines.push(pktText(`ACK ${last}`));
-    ready = true;
-    sendPack = false;
+    lines.push(try pktTextOrDie(`ACK ${last}`))
+    ready = true
+    sendPack = false
   }
   const negotiation: Negotiation = {
     common,
     ready,
     sendPack,
     ackSection: concatBytes(lines),
-  };
-  return negotiation;
-});
+  }
+  return negotiation
+}
 
 /**
  * A fully assembled upload-pack response.
  */
 export interface UploadPackResponse {
   /** The response body, streamed chunked (`HttpServerResponse.stream`). */
-  readonly body: Stream.Stream<Uint8Array, StoreError>;
+  readonly body: Stream.Stream<Uint8Array, StoreError>
   /** Whether side-band-64k framing was negotiated. */
-  readonly sideband: boolean;
+  readonly sideband: boolean
   /** Whether this response carries a pack (vs a negotiation-only round). */
-  readonly packSent: boolean;
+  readonly packSent: boolean
   /** Number of objects in the pack (0 when `packSent` is false). */
-  readonly objectCount: number;
+  readonly objectCount: number
 }
 
 /** Emit a progress event on band 2 every N pack entries. */
-const PROGRESS_EVERY = 1000;
+const PROGRESS_EVERY = 1000
 
-const shallowSection = (closure: ClosureResult): Uint8Array =>
-  concatBytes([
-    ...closure.shallow.map((oid) => pktText(`shallow ${oid}`)),
-    ...closure.unshallow.map((oid) => pktText(`unshallow ${oid}`)),
-    flushPkt,
-  ]);
+const shallowSection = effect (closure: ClosureResult) => {
+  const lines: Array<Uint8Array> = []
+  for (const oid of closure.shallow) lines.push(try pktTextOrDie(`shallow ${oid}`))
+  for (const oid of closure.unshallow) lines.push(try pktTextOrDie(`unshallow ${oid}`))
+  return concatBytes([...lines, flushPkt])
+}
 
 const muxPackEvent = (event: PackEvent): Stream.Stream<Uint8Array> =>
   event._tag === "data"
     ? Stream.fromArray(sidebandFrames(1, event.bytes))
-    : Stream.succeed(progressMessage(`Counting objects: ${event.written}/${event.total}\r`));
+    : Stream.succeed(progressMessage(`Counting objects: ${event.written}/${event.total}\r`))
 
 /**
  * Runs one full upload-pack round: validates the wants, negotiates, computes
@@ -263,81 +260,81 @@ const muxPackEvent = (event: PackEvent): Stream.Stream<Uint8Array> =>
  * pkt / HTTP status. Mid-stream `StoreError`s surface on the body stream for
  * the caller to translate into a band-3 fatal.
  */
-export const uploadPack = Effect.fn(function* (
+export const uploadPack = effect (
   request: UploadPackRequest,
   objects: ObjectSource,
   closure: ClosureSource,
-) {
-  const sideband = request.capabilities.has("side-band-64k");
+) => {
+  const sideband = request.capabilities.has("side-band-64k")
 
-  const existingWants = new Set(yield* objects.filterExisting(request.wants));
+  const existingWants = new Set(try objects.filterExisting(request.wants))
   for (const want of request.wants) {
     if (!existingWants.has(want)) {
-      return yield* ProtocolError.make({ reason: `not our ref ${want}` });
+      return try ProtocolError.make({ reason: `not our ref ${want}` })
     }
   }
 
-  const negotiation = yield* negotiate(request, objects);
-  const shallowRequested = request.depth !== undefined || request.clientShallow.length > 0;
+  const negotiation = try negotiate(request, objects)
+  const shallowRequested = request.depth !== undefined || request.clientShallow.length > 0
 
   if (!negotiation.sendPack) {
     // negotiation-only round: shallow section (when requested) + acks
-    const sections: Array<Uint8Array> = [];
+    const sections: Array<Uint8Array> = []
     if (shallowRequested) {
-      const result = yield* closure.commitClosure({
+      const result = try closure.commitClosure({
         wants: request.wants,
         haves: negotiation.common,
         depth: request.depth,
         clientShallow: request.clientShallow,
-      });
-      sections.push(shallowSection(result));
+      })
+      sections.push(try shallowSection(result))
     }
-    sections.push(negotiation.ackSection);
+    sections.push(negotiation.ackSection)
     const response: UploadPackResponse = {
       body: Stream.fromArray(sections),
       sideband,
       packSent: false,
       objectCount: 0,
-    };
-    return response;
+    }
+    return response
   }
 
-  const result = yield* closure.commitClosure({
+  const result = try closure.commitClosure({
     wants: request.wants,
     haves: negotiation.common,
     depth: request.depth,
     clientShallow: request.clientShallow,
-  });
+  })
 
-  const prelude: Array<Uint8Array> = [];
-  if (shallowRequested) prelude.push(shallowSection(result));
-  prelude.push(negotiation.ackSection);
+  const prelude: Array<Uint8Array> = []
+  if (shallowRequested) prelude.push(try shallowSection(result))
+  prelude.push(negotiation.ackSection)
 
   const events = writePack(result.entries, objects, {
     progressEvery: sideband ? PROGRESS_EVERY : undefined,
-  });
+  })
 
   const body = sideband
     ? Stream.concat(
-        Stream.concat(
-          Stream.fromArray([
-            ...prelude,
-            progressMessage(`Enumerating objects: ${result.entries.length}, done.`),
-          ]),
-          Stream.flatMap(events, muxPackEvent),
-        ),
-        Stream.succeed(flushPkt),
-      )
-    : Stream.concat(Stream.fromArray(prelude), packDataBytes(events));
+      Stream.concat(
+        Stream.fromArray([
+          ...prelude,
+          progressMessage(`Enumerating objects: ${result.entries.length}, done.`),
+        ]),
+        Stream.flatMap(events, muxPackEvent),
+      ),
+      Stream.succeed(flushPkt),
+    )
+    : Stream.concat(Stream.fromArray(prelude), packDataBytes(events))
 
   const response: UploadPackResponse = {
     body,
     sideband,
     packSent: true,
     objectCount: result.entries.length,
-  };
-  return response;
-});
+  }
+  return response
+}
 
 /**
  * Convenience: parses the request body and runs {@link uploadPack} in one
@@ -350,4 +347,4 @@ export const handleUploadPack = (
 ): Effect.Effect<UploadPackResponse, PktLineError | ProtocolError | StoreError> =>
   parseUploadPackRequest(body).pipe(
     Effect.flatMap((request) => uploadPack(request, objects, closure)),
-  );
+  )

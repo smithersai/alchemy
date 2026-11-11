@@ -25,9 +25,8 @@
  * {@link checkConnectivity} → DO `transactionSync` CAS →
  * {@link reportStatus}.
  */
-import * as Effect from "effect/Effect";
+import * as Effect from "effect/Effect"
 import {
-  concatBytes,
   isOid,
   ObjectParseError,
   type ObjectType,
@@ -37,7 +36,7 @@ import {
   parseTree,
   treeEntryKind,
   ZERO_OID,
-} from "./ObjectCodec.ts";
+} from "./ObjectCodec.vibe"
 import {
   bufferRandomAccess,
   ingestPack,
@@ -45,17 +44,76 @@ import {
   type PackIngestError,
   type ResolvedEntry,
   type ThinBaseSource,
-} from "./PackParser.ts";
-import {
-  flushPkt,
-  PktLineError,
-  pktPayloadText,
-  pktText,
-  ProtocolError,
-  readPktLineAt,
-} from "./Pkt.ts";
-import { sidebandFrames } from "./Sideband.vibe";
-import { StoreError } from "./Store.vibe";
+} from "./PackParser.vibe"
+import { PktLineError, pktPayloadText, ProtocolError, readPktLineAt } from "./Pkt.vibe"
+import { StoreError } from "./Store.vibe"
+
+// The report renderers throw `PktLineError` from `pktText` on an oversize line,
+// so they live in this body with that contract.
+module report {
+  import { concatBytes } from "./ObjectCodec.vibe"
+  import { flushPkt, pktText, type PktLineError } from "./Pkt.vibe"
+  import { sidebandFrames } from "./Sideband.vibe"
+  import type { CommandResult, RefCommand, ReportStatusOptions } from "./ReceivePack.vibe"
+
+  /**
+   * Builds an `ng <ref> <reason>` result.
+   *
+   * @throws {never}
+   */
+  export const ngResult = (ref: string, reason: string): CommandResult => ({
+    ref,
+    ok: false,
+    reason,
+  })
+
+  /**
+   * Renders the `report-status` (and `report-status-v2` — implemented
+   * identically, with no `option` lines, which is valid) response:
+   *
+   * ```
+   * unpack ok|<error>
+   * ok <ref> | ng <ref> <reason>   (per command)
+   * flush
+   * ```
+   *
+   * When the client negotiated `side-band-64k` the entire report (including
+   * its flush) is wrapped in band-1 frames followed by the outer flush —
+   * sending it unmuxed while side-band is active breaks the client.
+   *
+   * @throws {PktLineError} when a line exceeds the pkt-line payload limit.
+   */
+  export const reportStatus = (options: ReportStatusOptions): Uint8Array => {
+    const inner = concatBytes([
+      pktText(`unpack ${options.unpack}`),
+      ...options.results.map((result) =>
+        pktText(result.ok ? `ok ${result.ref}` : `ng ${result.ref} ${result.reason ?? "failed"}`)
+      ),
+      flushPkt,
+    ])
+    return options.sideband ? concatBytes([...sidebandFrames(1, inner), flushPkt]) : inner
+  }
+
+  /**
+   * Renders the all-failed report used for whole-push rejections: pack too
+   * large, checksum mismatch, missing objects, read-only repo. `unpack` carries
+   * the reason and every command gets an `ng` with the same reason.
+   *
+   * @throws {PktLineError} when a line exceeds the pkt-line payload limit.
+   */
+  export const failAllReport = (
+    commands: ReadonlyArray<RefCommand>,
+    reason: string,
+    sideband: boolean,
+  ): Uint8Array =>
+    reportStatus({
+      unpack: reason,
+      results: commands.map((command) => ngResult(command.ref, reason)),
+      sideband,
+    })
+}
+
+export { failAllReport, ngResult, reportStatus } from report
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Commands
@@ -67,41 +125,41 @@ import { StoreError } from "./Store.vibe";
  * ⇒ delete.
  */
 export interface RefCommand {
-  readonly oldOid: Oid;
-  readonly newOid: Oid;
-  readonly ref: string;
+  readonly oldOid: Oid
+  readonly newOid: Oid
+  readonly ref: string
 }
 
 /** The kind of a ref command derived from its zero-id sides. */
-export type CommandKind = "create" | "update" | "delete";
+export type CommandKind = "create" | "update" | "delete"
 
 /**
  * Classifies a command: zero old-oid ⇒ `create`, zero new-oid ⇒ `delete`,
  * else `update`.
  */
 export const commandKind = (command: RefCommand): CommandKind =>
-  command.oldOid === ZERO_OID ? "create" : command.newOid === ZERO_OID ? "delete" : "update";
+  command.oldOid === ZERO_OID ? "create" : command.newOid === ZERO_OID ? "delete" : "update"
 
 /**
  * A parsed `git-receive-pack` request.
  */
 export interface ReceivePackRequest {
   /** Ref update commands, in request order. */
-  readonly commands: ReadonlyArray<RefCommand>;
+  readonly commands: ReadonlyArray<RefCommand>
   /** Capabilities chosen by the client (after the NUL on the first command). */
-  readonly capabilities: ReadonlySet<string>;
+  readonly capabilities: ReadonlySet<string>
   /** `shallow` lines from shallow clients (v1: parsed, not honored). */
-  readonly shallow: ReadonlyArray<Oid>;
+  readonly shallow: ReadonlyArray<Oid>
   /** Byte offset of the raw pack in the body (position after the flush). */
-  readonly packOffset: number;
+  readonly packOffset: number
   /** Whether raw pack bytes follow the flush. */
-  readonly hasPack: boolean;
+  readonly hasPack: boolean
   /** `atomic` requested: all-or-nothing ref updates. */
-  readonly atomic: boolean;
+  readonly atomic: boolean
   /** `side-band-64k` requested: the report must be muxed on band 1. */
-  readonly sideband: boolean;
+  readonly sideband: boolean
   /** `report-status` or `report-status-v2` requested. */
-  readonly reportStatus: boolean;
+  readonly reportStatus: boolean
 }
 
 /**
@@ -110,42 +168,42 @@ export interface ReceivePackRequest {
  */
 export type ParsedReceivePack =
   | { readonly _tag: "probe" }
-  | { readonly _tag: "request"; readonly request: ReceivePackRequest };
+  | { readonly _tag: "request"; readonly request: ReceivePackRequest }
 
 // control chars, space, DEL, and git's forbidden refname metacharacters
 // oxlint-disable-next-line no-control-regex
-const REFNAME_FORBIDDEN = new RegExp("[\\x00-\\x20\\x7f\\\\~^:?*\\[]");
+const REFNAME_FORBIDDEN = new RegExp("[\\x00-\\x20\\x7f\\\\~^:?*\\[]")
 
 const validRefName = (name: string): boolean =>
-  name.startsWith("refs/") &&
-  name.length > "refs/".length &&
-  !name.endsWith("/") &&
-  !name.includes("..") &&
-  !name.endsWith(".lock") &&
-  !REFNAME_FORBIDDEN.test(name);
+  name.startsWith("refs/")
+  && name.length > "refs/".length
+  && !name.endsWith("/")
+  && !name.includes("..")
+  && !name.endsWith(".lock")
+  && !REFNAME_FORBIDDEN.test(name)
 
 const parseCommandLine = (line: string): Effect.Effect<RefCommand, ProtocolError> =>
   Effect.suspend(() => {
-    const oldOid = line.slice(0, 40);
-    const newOid = line.slice(41, 81);
-    const ref = line.slice(82);
+    const oldOid = line.slice(0, 40)
+    const newOid = line.slice(41, 81)
+    const ref = line.slice(82)
     if (
-      !isOid(oldOid) ||
-      line[40] !== " " ||
-      !isOid(newOid) ||
-      line[81] !== " " ||
-      ref.length === 0
+      !isOid(oldOid)
+      || line[40] !== " "
+      || !isOid(newOid)
+      || line[81] !== " "
+      || ref.length === 0
     ) {
-      return Effect.fail(ProtocolError.make({ reason: `malformed command line: ${line}` }));
+      return Effect.fail(ProtocolError.make({ reason: `malformed command line: ${line}` }))
     }
     if (!validRefName(ref)) {
-      return Effect.fail(ProtocolError.make({ reason: `invalid refname: ${ref}` }));
+      return Effect.fail(ProtocolError.make({ reason: `invalid refname: ${ref}` }))
     }
     if (oldOid === ZERO_OID && newOid === ZERO_OID) {
-      return Effect.fail(ProtocolError.make({ reason: `zero-to-zero command for ${ref}` }));
+      return Effect.fail(ProtocolError.make({ reason: `zero-to-zero command for ${ref}` }))
     }
-    return Effect.succeed({ oldOid, newOid, ref });
-  });
+    return Effect.succeed({ oldOid, newOid, ref })
+  })
 
 /**
  * Parses a `git-receive-pack` request body (already gunzipped): shallow
@@ -153,56 +211,56 @@ const parseCommandLine = (line: string): Effect.Effect<RefCommand, ProtocolError
  * flush, and the position of the raw pack payload. A body containing no
  * commands is the **empty-flush probe**.
  */
-export const parseReceivePackRequest = Effect.fn(function* (body: Uint8Array) {
-  const commands: Array<RefCommand> = [];
-  const capabilities = new Set<string>();
-  const shallow: Array<Oid> = [];
-  let pos = 0;
+export const parseReceivePackRequest = effect (body: Uint8Array) => {
+  const commands: Array<RefCommand> = []
+  const capabilities = new Set<string>()
+  const shallow: Array<Oid> = []
+  let pos = 0
 
   for (;;) {
-    const result = readPktLineAt(body, pos);
+    const result = readPktLineAt(body, pos)
     if (result._tag === "incomplete") {
-      return yield* PktLineError.make({
+      return try PktLineError.make({
         reason: `truncated receive-pack request at offset ${pos}`,
-      });
+      })
     }
     if (result._tag === "invalid") {
-      return yield* PktLineError.make({ reason: result.reason });
+      return try PktLineError.make({ reason: result.reason })
     }
-    const pkt = result.pkt;
+    const pkt = result.pkt
     if (pkt._tag === "flush") {
-      pos = result.next;
-      break;
+      pos = result.next
+      break
     }
     if (pkt._tag !== "data") {
-      return yield* ProtocolError.make({
+      return try ProtocolError.make({
         reason: `unexpected ${pkt._tag} packet in receive-pack request`,
-      });
+      })
     }
-    const text = pktPayloadText(pkt.payload);
+    const text = pktPayloadText(pkt.payload)
     if (text.startsWith("shallow ")) {
-      const oid = text.slice(8);
+      const oid = text.slice(8)
       if (!isOid(oid)) {
-        return yield* ProtocolError.make({
+        return try ProtocolError.make({
           reason: `malformed shallow line: ${text}`,
-        });
+        })
       }
-      shallow.push(oid);
+      shallow.push(oid)
     } else {
-      const nul = text.indexOf("\0");
-      const line = nul === -1 ? text : text.slice(0, nul);
+      const nul = text.indexOf("\0")
+      const line = nul === -1 ? text : text.slice(0, nul)
       if (nul !== -1) {
         for (const cap of text.slice(nul + 1).split(" ")) {
-          if (cap.length > 0) capabilities.add(cap);
+          if (cap.length > 0) capabilities.add(cap)
         }
       }
-      commands.push(yield* parseCommandLine(line));
+      commands.push(try parseCommandLine(line))
     }
-    pos = result.next;
+    pos = result.next
   }
 
   if (commands.length === 0) {
-    return { _tag: "probe" } as ParsedReceivePack;
+    return { _tag: "probe" } as ParsedReceivePack
   }
 
   const request: ReceivePackRequest = {
@@ -214,9 +272,9 @@ export const parseReceivePackRequest = Effect.fn(function* (body: Uint8Array) {
     atomic: capabilities.has("atomic"),
     sideband: capabilities.has("side-band-64k"),
     reportStatus: capabilities.has("report-status") || capabilities.has("report-status-v2"),
-  };
-  return { _tag: "request", request } as ParsedReceivePack;
-});
+  }
+  return { _tag: "request", request } as ParsedReceivePack
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ingest driver
@@ -227,15 +285,15 @@ export const parseReceivePackRequest = Effect.fn(function* (body: Uint8Array) {
  */
 export interface IngestPushOptions<E, R> {
   /** The full (gunzipped, buffered) request body. */
-  readonly body: Uint8Array;
+  readonly body: Uint8Array
   /** `request.packOffset` from {@link parseReceivePackRequest}. */
-  readonly packOffset: number;
+  readonly packOffset: number
   /** Live objects — resolves thin REF_DELTA bases. */
-  readonly store: ThinBaseSource;
+  readonly store: ThinBaseSource
   /** Receives each resolved entry (the DO stages it under the push id). */
-  readonly sink: (entry: ResolvedEntry) => Effect.Effect<void, E, R>;
+  readonly sink: (entry: ResolvedEntry) => Effect.Effect<void, E, R>
   /** Per-object uncompressed cap; defaults to the parser's 64 MiB. */
-  readonly maxObjectSize?: number | undefined;
+  readonly maxObjectSize?: number | undefined
 }
 
 /**
@@ -249,11 +307,11 @@ export const ingestPushPack = <E, R>(
   options.packOffset >= options.body.length
     ? Effect.succeed({ count: 0, oids: [] })
     : ingestPack({
-        source: bufferRandomAccess(options.body.subarray(options.packOffset)),
-        store: options.store,
-        sink: options.sink,
-        maxObjectSize: options.maxObjectSize,
-      });
+      source: bufferRandomAccess(options.body.subarray(options.packOffset)),
+      store: options.store,
+      sink: options.sink,
+      maxObjectSize: options.maxObjectSize,
+    })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Connectivity check
@@ -263,8 +321,8 @@ export const ingestPushPack = <E, R>(
  * A staged object's identity, as needed by the connectivity walk.
  */
 export interface StagedObjectRef {
-  readonly oid: Oid;
-  readonly type: ObjectType;
+  readonly oid: Oid
+  readonly type: ObjectType
 }
 
 /**
@@ -273,14 +331,14 @@ export interface StagedObjectRef {
  */
 export interface ConnectivityDeps {
   /** Reads a staged object's inflated content. */
-  readonly readStagedContent: (oid: Oid) => Effect.Effect<Uint8Array, StoreError>;
+  readonly readStagedContent: (oid: Oid) => Effect.Effect<Uint8Array, StoreError>
   /**
    * Filters oids down to those existing among **live** objects (batched,
    * chunked `IN` lists; order not guaranteed).
    */
   readonly filterLiveExisting: (
     oids: ReadonlyArray<Oid>,
-  ) => Effect.Effect<ReadonlyArray<Oid>, StoreError>;
+  ) => Effect.Effect<ReadonlyArray<Oid>, StoreError>
 }
 
 /**
@@ -293,53 +351,53 @@ export interface ConnectivityDeps {
  * This is the difference between "corrupt client" and "corrupt repo": any
  * miss fails the push with `unpack missing objects` + all-`ng`.
  */
-export const checkConnectivity = Effect.fn(function* (
+export const checkConnectivity = effect (
   staged: ReadonlyArray<StagedObjectRef>,
   commandNewOids: ReadonlyArray<Oid>,
   deps: ConnectivityDeps,
-) {
-  const stagedSet = new Set(staged.map((s) => s.oid));
-  const referenced = new Set<Oid>();
+) => {
+  const stagedSet = new Set(staged.map((s) => s.oid))
+  const referenced = new Set<Oid>()
 
   for (const object of staged) {
     switch (object.type) {
       case 1: {
-        const content = yield* deps.readStagedContent(object.oid);
-        const commit = yield* parseCommit(content);
-        referenced.add(commit.tree);
-        for (const parent of commit.parents) referenced.add(parent);
-        break;
+        const content = try deps.readStagedContent(object.oid)
+        const commit = try parseCommit(content)
+        referenced.add(commit.tree)
+        for (const parent of commit.parents) referenced.add(parent)
+        break
       }
       case 2: {
-        const content = yield* deps.readStagedContent(object.oid);
-        const entries = yield* parseTree(content);
+        const content = try deps.readStagedContent(object.oid)
+        const entries = try parseTree(content)
         for (const entry of entries) {
           // gitlinks (mode 160000) reference commits in other repos — skip
           if (treeEntryKind(entry.mode) !== "commit") {
-            referenced.add(entry.oid);
+            referenced.add(entry.oid)
           }
         }
-        break;
+        break
       }
       case 4: {
-        const content = yield* deps.readStagedContent(object.oid);
-        const tag = yield* parseTag(content);
-        referenced.add(tag.object);
-        break;
+        const content = try deps.readStagedContent(object.oid)
+        const tag = try parseTag(content)
+        referenced.add(tag.object)
+        break
       }
       default:
-        break; // blobs reference nothing
+        break // blobs reference nothing
     }
   }
   for (const oid of commandNewOids) {
-    if (oid !== ZERO_OID) referenced.add(oid);
+    if (oid !== ZERO_OID) referenced.add(oid)
   }
 
-  const candidates = [...referenced].filter((oid) => !stagedSet.has(oid));
-  if (candidates.length === 0) return [] as ReadonlyArray<Oid>;
-  const live = new Set(yield* deps.filterLiveExisting(candidates));
-  return candidates.filter((oid) => !live.has(oid)).sort();
-});
+  const candidates = [...referenced].filter((oid) => !stagedSet.has(oid))
+  if (candidates.length === 0) return [] as ReadonlyArray<Oid>
+  const live = new Set(try deps.filterLiveExisting(candidates))
+  return candidates.filter((oid) => !live.has(oid)).sort()
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // report-status
@@ -350,77 +408,29 @@ export const checkConnectivity = Effect.fn(function* (
  * rendered by {@link reportStatus}.
  */
 export interface CommandResult {
-  readonly ref: string;
-  readonly ok: boolean;
+  readonly ref: string
+  readonly ok: boolean
   /** Failure reason for `ng` lines (e.g. `fetch first`). */
-  readonly reason?: string | undefined;
+  readonly reason?: string | undefined
 }
 
 /** Builds an `ok <ref>` result. */
-export const okResult = (ref: string): CommandResult => ({ ref, ok: true });
-
-/** Builds an `ng <ref> <reason>` result. */
-export const ngResult = (ref: string, reason: string): CommandResult => ({
-  ref,
-  ok: false,
-  reason,
-});
+export const okResult = (ref: string): CommandResult => ({ ref, ok: true })
 
 /**
  * Options for {@link reportStatus}.
  */
 export interface ReportStatusOptions {
   /** `"ok"` when the pack ingested cleanly, else the unpack error message. */
-  readonly unpack: string;
+  readonly unpack: string
   /** Per-ref results in command order. */
-  readonly results: ReadonlyArray<CommandResult>;
+  readonly results: ReadonlyArray<CommandResult>
   /** Wrap the report in side-band band 1 (mandatory when negotiated). */
-  readonly sideband: boolean;
+  readonly sideband: boolean
 }
 
-/**
- * Renders the `report-status` (and `report-status-v2` — implemented
- * identically, with no `option` lines, which is valid) response:
- *
- * ```
- * unpack ok|<error>
- * ok <ref> | ng <ref> <reason>   (per command)
- * flush
- * ```
- *
- * When the client negotiated `side-band-64k` the entire report (including
- * its flush) is wrapped in band-1 frames followed by the outer flush —
- * sending it unmuxed while side-band is active breaks the client.
- */
-export const reportStatus = (options: ReportStatusOptions): Uint8Array => {
-  const inner = concatBytes([
-    pktText(`unpack ${options.unpack}`),
-    ...options.results.map((result) =>
-      pktText(result.ok ? `ok ${result.ref}` : `ng ${result.ref} ${result.reason ?? "failed"}`),
-    ),
-    flushPkt,
-  ]);
-  return options.sideband ? concatBytes([...sidebandFrames(1, inner), flushPkt]) : inner;
-};
-
-/**
- * Renders the all-failed report used for whole-push rejections: pack too
- * large, checksum mismatch, missing objects, read-only repo. `unpack` carries
- * the reason and every command gets an `ng` with the same reason.
- */
-export const failAllReport = (
-  commands: ReadonlyArray<RefCommand>,
-  reason: string,
-  sideband: boolean,
-): Uint8Array =>
-  reportStatus({
-    unpack: reason,
-    results: commands.map((command) => ngResult(command.ref, reason)),
-    sideband,
-  });
-
 /** Errors the parse phase of receive-pack can produce. */
-export type ReceivePackParseError = PktLineError | ProtocolError;
+export type ReceivePackParseError = PktLineError | ProtocolError
 
 /** Errors the connectivity check can produce. */
-export type ConnectivityError = StoreError | ObjectParseError;
+export type ConnectivityError = StoreError | ObjectParseError

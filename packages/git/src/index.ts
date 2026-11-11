@@ -22,14 +22,14 @@
  */
 export * from "./Api.vibe";
 export { GitApi as Api } from "./Api.vibe";
-export { Engine, EngineLive } from "./Engine.ts";
+export { Engine, EngineLive } from "./Engine.vibe";
 export type { PushInput, PreparedPush, RefUpdate } from "./Push.vibe";
 export * as Http from "./Http.ts";
 export * as Push from "./PushInput.vibe";
-export * from "./Server.ts";
-export { parseCommit, parseTree, ZERO_OID, ObjectType } from "./Protocol/ObjectCodec.ts";
+export * from "./Server.vibe";
+export { parseCommit, parseTree, ZERO_OID, ObjectType } from "./Protocol/ObjectCodec.vibe";
 export { StoreError } from "./Protocol/Store.vibe";
-export { WireProtocolError, PackIngestError } from "./RepoObject.ts";
+export { WireProtocolError, PackIngestError } from "./RepoObject.vibe";
 export {
   BlobStore,
   BlobStoreError,
@@ -52,7 +52,7 @@ export {
   RepoStore,
   type RepoStoreShape,
   type RepoStub,
-} from "./RepoObject.ts";
+} from "./RepoObject.vibe";
 export {
   Registry,
   RegistryDurableObject,
@@ -60,6 +60,6 @@ export {
   RegistryStore,
   REGISTRY_DO_NAME,
   RESERVED_OWNERS,
-} from "./RegistryObject.ts";
+} from "./RegistryObject.vibe";
 
 export { Hasher, HasherInline, HasherSelf, HASHER_BINDING } from "./Hasher/Hasher.vibe";
