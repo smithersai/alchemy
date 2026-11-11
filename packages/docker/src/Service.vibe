@@ -1,26 +1,108 @@
-import { Unowned } from "alchemy/AdoptPolicy";
-import { deepEqual, isResolved } from "alchemy/Diff";
-import { Platform, type Main, type PlatformProps } from "alchemy/Platform";
-import * as Provider from "alchemy/Provider";
-import type { Resource } from "alchemy/Resource";
-import {
-  createContainerRuntimeContext,
-  type HostRuntimeContext,
-  type ServerHost,
-} from "alchemy/Runtime/Process";
-import { Stack } from "alchemy/Stack";
-import { createInternalTags, hasAlchemyTags } from "alchemy/Tags";
-import * as Data from "effect/Data";
-import * as Effect from "effect/Effect";
-import * as Equal from "effect/Equal";
-import type { PlatformError } from "effect/PlatformError";
-import * as Redacted from "effect/Redacted";
-import * as Schedule from "effect/Schedule";
-import type * as rolldown from "rolldown";
-import { Docker, dockerEngineContextName, dockerPhysicalName } from "./Docker.ts";
-import { healthcheckCommand, isHealthcheckDisabled } from "./HealthcheckCommand.ts";
-import type { Providers } from "./Providers.vibe";
-import { makeServiceImage } from "./ServiceImage.vibe";
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { Platform, type Main, type PlatformProps } from "alchemy/Platform"
+import * as Provider from "alchemy/Provider"
+import type { Resource } from "alchemy/Resource"
+import { createContainerRuntimeContext, type HostRuntimeContext, type ServerHost } from "alchemy/Runtime/Process"
+import { Stack } from "alchemy/Stack"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Equal from "effect/Equal"
+import type { PlatformError } from "effect/PlatformError"
+import * as Redacted from "effect/Redacted"
+import * as Schedule from "effect/Schedule"
+import type * as rolldown from "rolldown"
+import { Docker, dockerEngineContextName, dockerPhysicalName } from "./Docker.vibe"
+import { healthcheckCommand, isHealthcheckDisabled } from "./HealthcheckCommand.ts"
+import type { Providers } from "./Providers.vibe"
+import { makeServiceImage } from "./ServiceImage.vibe"
+
+// Throws by design: an invalid replica count, a global-mode service and an
+// empty or malformed `docker inspect` result are defects of the provider call.
+module guards {
+  export type ServiceInspect = {
+    ID: string
+    CreatedAt?: string
+    UpdatedAt?: string
+    UpdateStatus?: {
+      State?: string
+      Message?: string
+    }
+    Spec: {
+      Name: string
+      Labels?: Record<string, string> | null
+      TaskTemplate?: {
+        ContainerSpec?: {
+          Image?: string
+          Env?: string[] | null
+          Mounts?: Array<{ Target?: string }> | null
+          Secrets?: Array<{ SecretName?: string }> | null
+          Configs?: Array<{ ConfigName?: string }> | null
+        }
+        Networks?: Array<{ Target?: string }>
+        Placement?: {
+          Constraints?: string[]
+        }
+      }
+      Mode?: {
+        Replicated?: {
+          Replicas?: number
+        }
+        Global?: Record<string, never>
+      }
+      EndpointSpec?: {
+        Mode?: "vip" | "dnsrr"
+        Ports?: Array<{
+          PublishedPort?: number
+          TargetPort?: number
+          Protocol?: "tcp" | "udp"
+          PublishMode?: "ingress" | "host"
+        }>
+      }
+    }
+  }
+
+  /** @throws {Error} */
+  export const normalizeReplicas = (replicas: number | undefined): number => {
+    const value = replicas ?? 1
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error("Service.replicas must be an integer >= 0")
+    }
+    return value
+  }
+
+  /** @throws {Error} */
+  export const ensureReplicatedMode = (service: ServiceInspect): void => {
+    if (service.Spec.Mode?.Global !== undefined) {
+      throw new Error(
+        `Docker.Service only supports replicated services. Service "${service.Spec.Name}" is global.`,
+      )
+    }
+  }
+
+  /** @throws {Error} */
+  const parseInspectArray = <T>(json: string): T => {
+    const parsed = JSON.parse(json) as T[]
+    if (parsed.length === 0) {
+      throw new Error("docker inspect returned no objects")
+    }
+    return parsed[0]!
+  }
+
+  /** @throws {Error} */
+  export const normalizeServiceInspect = (value: unknown): ServiceInspect => {
+    if (typeof value === "object" && value !== null && "stdout" in value) {
+      const stdout = (value as { stdout?: unknown }).stdout
+      if (typeof stdout === "string") {
+        return parseInspectArray<ServiceInspect>(stdout)
+      }
+    }
+    return value as ServiceInspect
+  }
+}
+
+import { ensureReplicatedMode, normalizeReplicas, normalizeServiceInspect, type ServiceInspect } from guards
 
 export interface ServicePropsBase extends PlatformProps {
   /**
@@ -28,71 +110,71 @@ export interface ServicePropsBase extends PlatformProps {
    *
    * @default Generated from stack, stage, logical id, and instance id.
    */
-  name?: string;
+  name?: string
   /**
    * The engine the service is deployed to: a Docker context name, a
    * `Docker.Context` resource, or a `Docker.Swarm` — passing the swarm also
    * orders the service after the swarm is initialized.
    */
-  context?: Docker.EngineRef;
+  context?: Docker.EngineRef
   /** Entrypoint command passed after the image. */
-  command?: string[];
+  command?: string[]
   /** Additional args appended after `command`. */
-  args?: string[];
+  args?: string[]
   /** Environment variables. Use Redacted for secrets. */
-  environment?: Record<string, string | Redacted.Redacted<string>>;
+  environment?: Record<string, string | Redacted.Redacted<string>>
   /**
    * Environment variables injected by the platform (bound `Config` values and
    * future bindings). Merged after `environment`; usually not set directly.
    */
-  env?: Record<string, any>;
+  env?: Record<string, any>
   /** Overlay networks attached to this service. */
-  networks?: Array<string | Service.NetworkAttachment>;
+  networks?: Array<string | Service.NetworkAttachment>
   /** Published port mappings. */
-  ports?: Service.PortMapping[];
+  ports?: Service.PortMapping[]
   /**
    * Service discovery endpoint mode.
    *
    * @default "vip"
    */
-  endpointMode?: "vip" | "dnsrr";
+  endpointMode?: "vip" | "dnsrr"
   /**
    * Desired number of service replicas.
    *
    * @default 1
    */
-  replicas?: number;
+  replicas?: number
   /** Placement controls for task scheduling. */
-  placement?: Service.Placement;
+  placement?: Service.Placement
   /** Deprecated alias for `placement.constraints`. */
-  constraints?: string[];
+  constraints?: string[]
   /** Rolling update strategy for service updates. */
-  updateConfig?: Service.RolloutConfig;
+  updateConfig?: Service.RolloutConfig
   /** Rollback strategy applied when updates fail. */
-  rollbackConfig?: Service.RolloutConfig;
+  rollbackConfig?: Service.RolloutConfig
   /** Task restart behavior. */
-  restartPolicy?: Service.RestartPolicy;
+  restartPolicy?: Service.RestartPolicy
   /** Container healthcheck for service tasks. */
-  healthcheck?: Service.Healthcheck;
+  healthcheck?: Service.Healthcheck
   /** Grace period before force-killing a task during shutdown, e.g. `"30s"`. */
-  stopGracePeriod?: string;
+  stopGracePeriod?: string
   /** Volume or bind mounts. */
-  volumes?: Service.VolumeMapping[];
+  volumes?: Service.VolumeMapping[]
   /** Swarm secrets mounted into task containers. */
-  secrets?: Service.SecretRef[];
+  secrets?: Service.SecretRef[]
   /** Swarm configs mounted into task containers. */
-  configs?: Service.ConfigRef[];
+  configs?: Service.ConfigRef[]
   /**
    * Mount task root filesystem read-only.
    *
    * @default false
    */
-  readOnlyRootFs?: boolean;
+  readOnlyRootFs?: boolean
   /**
    * Service labels. Alchemy's internal ownership labels are added
    * automatically.
    */
-  labels?: Record<string, string>;
+  labels?: Record<string, string>
 }
 
 /**
@@ -101,8 +183,8 @@ export interface ServicePropsBase extends PlatformProps {
  */
 export interface ImageServiceProps extends ServicePropsBase {
   /** Docker image reference or Docker image resource. */
-  image: Service.Image;
-  main?: undefined;
+  image: Service.Image
+  main?: undefined
 }
 
 /**
@@ -116,30 +198,30 @@ export interface BundledServiceProps extends ServicePropsBase {
    * `import.meta.url` (or `import.meta.filename`) from an inline Effect
    * program.
    */
-  main: string;
+  main: string
   /**
    * Environment image used as the generated Dockerfile's `FROM`. Must be
    * able to run the bun runtime.
    *
    * @default "oven/bun:1"
    */
-  image?: string;
+  image?: string
   /**
    * Container port the bundled HTTP server listens on. Baked into the image
    * as `ENV PORT` + `EXPOSE`; publish it to the swarm ingress with `ports`.
    */
-  port?: number;
+  port?: number
   /**
    * Named export to load from `main`.
    *
    * @default "default"
    */
-  handler?: string;
+  handler?: string
   /** Bundler configuration for the entrypoint. */
   build?: {
-    input?: Partial<rolldown.InputOptions>;
-    output?: Partial<rolldown.OutputOptions>;
-  };
+    input?: Partial<rolldown.InputOptions>
+    output?: Partial<rolldown.OutputOptions>
+  }
 }
 
 /**
@@ -147,84 +229,84 @@ export interface BundledServiceProps extends ServicePropsBase {
  * the props: `image` (a pre-built reference) or `main` (a bundled Effect
  * program).
  */
-export type ServiceProps = ImageServiceProps | BundledServiceProps;
+export type ServiceProps = ImageServiceProps | BundledServiceProps
 
 export declare namespace Service {
-  type Image = string | { imageRef: string };
+  type Image = string | { imageRef: string }
 
   interface PortMapping {
     /** Published port on the swarm node. Omit to let Swarm assign one dynamically. */
-    external?: number;
+    external?: number
     /** Container port receiving traffic. */
-    internal: number;
+    internal: number
     /**
      * Protocol used for the mapping.
      *
      * @default "tcp"
      */
-    protocol?: "tcp" | "udp";
+    protocol?: "tcp" | "udp"
     /**
      * Publish through the swarm routing mesh (`ingress`) or directly on each
      * node (`host`).
      *
      * @default "ingress"
      */
-    mode?: "ingress" | "host";
+    mode?: "ingress" | "host"
   }
 
   interface VolumeMapping {
     /** Host path or named volume source. */
-    hostPath: string;
+    hostPath: string
     /** Container path. */
-    containerPath: string;
+    containerPath: string
     /**
      * Mount read-only.
      *
      * @default false
      */
-    readOnly?: boolean;
+    readOnly?: boolean
   }
 
   interface NetworkAttachment {
     /** Network name. */
-    name: string;
+    name: string
     /** Network aliases for the service's tasks. */
-    aliases?: string[];
+    aliases?: string[]
   }
 
   interface Placement {
     /** Placement constraints, e.g. `"node.role==worker"`. */
-    constraints?: string[];
+    constraints?: string[]
     /** Placement preferences, e.g. `"spread=node.labels.zone"`. */
-    preferences?: string[];
+    preferences?: string[]
     /** Maximum number of replicas per swarm node. */
-    maxReplicasPerNode?: number;
+    maxReplicasPerNode?: number
   }
 
   interface RolloutConfig {
     /** Number of tasks updated simultaneously. */
-    parallelism?: number;
+    parallelism?: number
     /** Delay between task updates, e.g. `"10s"`. */
-    delay?: string;
+    delay?: string
     /** Duration to monitor each updated task for failure, e.g. `"30s"`. */
-    monitor?: string;
+    monitor?: string
     /** Action on update failure. */
-    failureAction?: "pause" | "continue" | "rollback";
+    failureAction?: "pause" | "continue" | "rollback"
     /** Failure ratio tolerated during an update. */
-    maxFailureRatio?: number;
+    maxFailureRatio?: number
     /** Operation order during updates. */
-    order?: "stop-first" | "start-first";
+    order?: "stop-first" | "start-first"
   }
 
   interface RestartPolicy {
     /** Condition under which tasks restart. */
-    condition?: "none" | "on-failure" | "any";
+    condition?: "none" | "on-failure" | "any"
     /** Delay between restart attempts, e.g. `"5s"`. */
-    delay?: string;
+    delay?: string
     /** Maximum restart attempts before giving up. */
-    maxAttempts?: number;
+    maxAttempts?: number
     /** Window used to evaluate the restart policy, e.g. `"120s"`. */
-    window?: string;
+    window?: string
   }
 
   interface Healthcheck {
@@ -234,91 +316,93 @@ export declare namespace Service {
      * `["CMD-SHELL", "pg_isready -U app"]`, `["CMD", "pg_isready", "-U", "app"]`,
      * or `["NONE"]` to disable the image's healthcheck.
      */
-    cmd: string[] | string;
+    cmd: string[] | string
     /** Time between checks, e.g. `"30s"`. */
-    interval?: string;
+    interval?: string
     /** Maximum time a check may run, e.g. `"5s"`. */
-    timeout?: string;
+    timeout?: string
     /** Consecutive failures before unhealthy. */
-    retries?: number;
+    retries?: number
     /** Startup grace period, e.g. `"30s"`. */
-    startPeriod?: string;
+    startPeriod?: string
   }
 
   interface SecretRef {
     /** Swarm secret name. */
-    source: string;
+    source: string
     /** Target file name in `/run/secrets/`. Defaults to `source`. */
-    target?: string;
+    target?: string
     /** File owner uid. */
-    uid?: string;
+    uid?: string
     /** File owner gid. */
-    gid?: string;
+    gid?: string
     /** File mode, e.g. `0o400`. */
-    mode?: number | string;
+    mode?: number | string
   }
 
   interface ConfigRef {
     /** Swarm config name. */
-    source: string;
+    source: string
     /** Target path in the container. Defaults to `/<source>`. */
-    target?: string;
+    target?: string
     /** File owner uid. */
-    uid?: string;
+    uid?: string
     /** File owner gid. */
-    gid?: string;
+    gid?: string
     /** File mode, e.g. `0o444`. */
-    mode?: number | string;
+    mode?: number | string
   }
 }
 
-export interface Service extends Resource<
-  "Docker.Service",
-  ServiceProps,
-  {
-    /** Swarm service id. */
-    id: string;
-    /** Swarm service name. */
-    name: string;
-    /** Docker context the service is deployed to. */
-    context?: string;
-    /** Image reference the service runs. */
-    image: string;
-    /** Desired number of replicas. */
-    replicas: number;
-    /** Network ids the service's tasks attach to. */
-    networks: string[];
-    /** Published port mappings reported by Swarm. */
-    ports: Service.PortMapping[];
-    /** Service labels reported by Swarm. */
-    labels: Record<string, string>;
-    /** Service discovery endpoint mode. */
-    endpointMode: "vip" | "dnsrr";
-    /** Creation timestamp in milliseconds since epoch. */
-    createdAt: number;
-    /** Last update timestamp in milliseconds since epoch. */
-    updatedAt: number;
-    /** Content hash of the bundled program's image (`main` form only). */
-    code?: {
-      /** Content hash of the bundled program's image. */
-      hash: string;
-    };
-  },
-  never,
-  Providers
-> {}
+export interface Service extends
+  Resource<
+    "Docker.Service",
+    ServiceProps,
+    {
+      /** Swarm service id. */
+      id: string
+      /** Swarm service name. */
+      name: string
+      /** Docker context the service is deployed to. */
+      context?: string
+      /** Image reference the service runs. */
+      image: string
+      /** Desired number of replicas. */
+      replicas: number
+      /** Network ids the service's tasks attach to. */
+      networks: string[]
+      /** Published port mappings reported by Swarm. */
+      ports: Service.PortMapping[]
+      /** Service labels reported by Swarm. */
+      labels: Record<string, string>
+      /** Service discovery endpoint mode. */
+      endpointMode: "vip" | "dnsrr"
+      /** Creation timestamp in milliseconds since epoch. */
+      createdAt: number
+      /** Last update timestamp in milliseconds since epoch. */
+      updatedAt: number
+      /** Content hash of the bundled program's image (`main` form only). */
+      code?: {
+        /** Content hash of the bundled program's image. */
+        hash: string
+      }
+    },
+    never,
+    Providers
+  >
+{}
 
 /** Services available to an effectful `Service` impl at init time. */
-export type ServiceServices = ServerHost;
+export type ServiceServices = ServerHost
 
 /**
  * The impl shape for an effectful `Service`: a long-running server returning
  * `{ fetch }` (plus optional RPC methods).
  */
-export type ServiceShape = Main<ServiceServices>;
+export type ServiceShape = Main<ServiceServices>
 
 export interface ServiceRuntimeContext extends HostRuntimeContext {
-  readonly Type: "Docker.Service";
+  readonly Type: "Docker.Service"
 }
 
 /**
@@ -514,16 +598,18 @@ export interface ServiceRuntimeContext extends HostRuntimeContext {
  * @resource
  * @product Swarm
  */
-export const Service: Platform<Service, ServiceServices, ServiceShape, ServiceRuntimeContext> =
-  Platform("Docker.Service", {
+export const Service: Platform<Service, ServiceServices, ServiceShape, ServiceRuntimeContext> = Platform(
+  "Docker.Service",
+  {
     createRuntimeContext: createContainerRuntimeContext("Docker.Service") as (
       id: string,
     ) => ServiceRuntimeContext,
-  });
+  },
+)
 
 /** True when the props declare a bundled `main` program. */
 const isBundledService = (props: ServiceProps): props is BundledServiceProps =>
-  typeof (props as BundledServiceProps).main === "string";
+  typeof (props as BundledServiceProps).main === "string"
 
 /**
  * A `docker service update` that swarm rolled back or paused instead of
@@ -531,64 +617,22 @@ const isBundledService = (props: ServiceProps): props is BundledServiceProps =>
  * provider reads the service's `UpdateStatus` after the update.
  */
 export class DockerServiceUpdateFailed extends Data.TaggedError("DockerServiceUpdateFailed")<{
-  readonly service: string;
-  readonly state: string;
-  readonly reason: string;
+  readonly service: string
+  readonly state: string
+  readonly reason: string
 }> {
   override get message() {
-    return `Update of service "${this.service}" ended in ${this.state}: ${this.reason}`;
+    return `Update of service "${this.service}" ended in ${this.state}: ${this.reason}`
   }
 }
-
-type ServiceInspect = {
-  ID: string;
-  CreatedAt?: string;
-  UpdatedAt?: string;
-  UpdateStatus?: {
-    State?: string;
-    Message?: string;
-  };
-  Spec: {
-    Name: string;
-    Labels?: Record<string, string> | null;
-    TaskTemplate?: {
-      ContainerSpec?: {
-        Image?: string;
-        Env?: string[] | null;
-        Mounts?: Array<{ Target?: string }> | null;
-        Secrets?: Array<{ SecretName?: string }> | null;
-        Configs?: Array<{ ConfigName?: string }> | null;
-      };
-      Networks?: Array<{ Target?: string }>;
-      Placement?: {
-        Constraints?: string[];
-      };
-    };
-    Mode?: {
-      Replicated?: {
-        Replicas?: number;
-      };
-      Global?: Record<string, never>;
-    };
-    EndpointSpec?: {
-      Mode?: "vip" | "dnsrr";
-      Ports?: Array<{
-        PublishedPort?: number;
-        TargetPort?: number;
-        Protocol?: "tcp" | "udp";
-        PublishMode?: "ingress" | "host";
-      }>;
-    };
-  };
-};
 
 export const ServiceProvider = () =>
   Provider.effect(
     Service,
-    Effect.gen(function* () {
-      const docker = yield* Docker;
-      const stack = yield* Stack;
-      const serviceImage = yield* makeServiceImage;
+    effect {
+      const docker = try Docker
+      const stack = try Stack
+      const serviceImage = try makeServiceImage
 
       // The bundled program's bootstrap reads these to rebuild the Stack at
       // container runtime (same contract as the ECS bootstrap).
@@ -596,152 +640,157 @@ export const ServiceProvider = () =>
         ALCHEMY_STACK_NAME: stack.name,
         ALCHEMY_STAGE: stack.stage,
         ALCHEMY_PHASE: "runtime",
-      };
+      }
 
       const inspect = (id: string, context?: string) =>
         docker.service.inspect(id, context).pipe(
-          Effect.map((result) => normalizeServiceInspect(result)),
+          Effect.flatMap((result) =>
+            Effect.orDie(Effect.try({ try: () => normalizeServiceInspect(result), catch: (e) => e }))
+          ),
           Effect.catchReason("PlatformError", "NotFound", () => Effect.undefined),
-        );
+        )
 
       /**
        * Resolve the image the service should run: build the bundled `main`
        * program (content-addressed, skipped when already present in the
        * target engine) or normalize the pre-built reference.
        */
-      const resolveImage = Effect.fn(function* (
+      const resolveImage = effect (
         id: string,
         props: ServiceProps,
         name: string,
         context: string | undefined,
         session: { note: (message: string) => Effect.Effect<void> },
-      ) {
+      ) => {
         if (isBundledService(props)) {
-          return yield* serviceImage.resolve({
+          return try serviceImage.resolve({
             id,
             source: props,
             name,
             context,
             isExternal: props.isExternal,
             session,
-          });
+          })
         }
         return {
           imageRef: normalizeImageRef(props.image),
           codeHash: undefined,
-        };
-      });
+        }
+      }
 
       return Service.Provider.of({
         list: () => Effect.succeed([]),
-        read: Effect.fn(function* ({ id, instanceId, olds, output }) {
-          const name = yield* servicePhysicalName(id, olds, instanceId);
-          const context = dockerEngineContextName(olds?.context);
-          const live = yield* inspect(name, context);
-          if (!live) return undefined;
-          ensureReplicatedMode(live);
-          const attrs = toServiceAttributes(live, context, output?.code);
-          if (output) return attrs;
-          const owned = yield* hasAlchemyTags(id, live.Spec.Labels ?? undefined);
-          return owned ? attrs : Unowned(attrs);
-        }),
-        diff: Effect.fn(function* ({ id, instanceId, news, olds, output }) {
-          if (!isResolved(news)) return undefined;
+        read: effect ({ id, instanceId, olds, output }) => {
+          const name = try servicePhysicalName(id, olds, instanceId)
+          const context = dockerEngineContextName(olds?.context)
+          const live = try inspect(name, context)
+          if (!live) return undefined
+          try Effect.orDie(Effect.try({ try: () => ensureReplicatedMode(live), catch: (e) => e }))
+          const attrs = toServiceAttributes(live, context, output?.code)
+          if (output) return attrs
+          const owned = try hasAlchemyTags(id, live.Spec.Labels ?? undefined)
+          return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+        diff: effect ({ id, instanceId, news, olds, output }) => {
+          const props = try Effect.orDie(
+            Effect.try({ try: () => (isResolved(news) ? news : undefined), catch: (e) => e }),
+          )
+          if (props === undefined) return undefined
 
-          const oldDesired = yield* normalizeDesired(id, olds, instanceId);
-          const newDesired = yield* normalizeDesired(id, news, instanceId);
+          const oldDesired = try normalizeDesired(id, olds, instanceId)
+          const newDesired = try normalizeDesired(id, props, instanceId)
 
           if (!Equal.equals(oldDesired, newDesired)) {
             return requiresReplacement(oldDesired, newDesired)
               ? { action: "replace" as const, deleteFirst: true }
-              : { action: "update" as const };
+              : { action: "update" as const }
           }
 
           // Bundled program: the image identity is the content hash — a code
           // or bootstrap change rolls the service onto the new image.
-          if (isBundledService(news)) {
-            const hash = yield* serviceImage.hash({
-              source: news,
-              isExternal: news.isExternal,
-            });
+          if (isBundledService(props)) {
+            const hash = try serviceImage.hash({
+              source: props,
+              isExternal: props.isExternal,
+            })
             if (hash !== output?.code?.hash) {
-              return { action: "update" as const };
+              return { action: "update" as const }
             }
           }
 
-          return { action: "noop" as const };
-        }),
-        reconcile: Effect.fn(function* ({ id, instanceId, news, olds, output, session }) {
-          const desired = yield* normalizeDesired(id, news, instanceId);
-          const resolved = yield* resolveImage(id, news, desired.name, desired.context, session);
-          const image = resolved.imageRef;
-          const code = resolved.codeHash ? { hash: resolved.codeHash } : undefined;
+          return { action: "noop" as const }
+        },
+        reconcile: effect ({ id, instanceId, news, olds, output, session }) => {
+          const desired = try normalizeDesired(id, news, instanceId)
+          const resolved = try resolveImage(id, news, desired.name, desired.context, session)
+          const image = resolved.imageRef
+          const code = resolved.codeHash ? { hash: resolved.codeHash } : undefined
           const environment = isBundledService(news)
             ? { ...alchemyEnv, ...desired.environment }
-            : desired.environment;
+            : desired.environment
 
           if (output && olds) {
-            const oldDesired = yield* normalizeDesired(id, olds, instanceId);
+            const oldDesired = try normalizeDesired(id, olds, instanceId)
             if (
-              deepEqual(oldDesired, desired) &&
-              (resolved.codeHash === undefined || resolved.codeHash === output.code?.hash)
+              (try Effect.orDie(Effect.try({ try: () => deepEqual(oldDesired, desired), catch: (e) => e })))
+              && (resolved.codeHash === undefined || resolved.codeHash === output.code?.hash)
             ) {
-              const current = yield* inspect(output.id, desired.context);
+              const current = try inspect(output.id, desired.context)
               if (current) {
-                ensureReplicatedMode(current);
-                return toServiceAttributes(current, desired.context, code);
+                try Effect.orDie(Effect.try({ try: () => ensureReplicatedMode(current), catch: (e) => e }))
+                return toServiceAttributes(current, desired.context, code)
               }
             }
           }
 
           if (output) {
-            const current = yield* inspect(output.id, desired.context);
+            const current = try inspect(output.id, desired.context)
             if (current) {
-              ensureReplicatedMode(current);
-              const internalTags = yield* createInternalTags(id);
-              const allDesiredLabels = { ...internalTags, ...desired.labels };
-              const currentLabels = current.Spec.Labels ?? {};
+              try Effect.orDie(Effect.try({ try: () => ensureReplicatedMode(current), catch: (e) => e }))
+              const internalTags = try createInternalTags(id)
+              const allDesiredLabels = { ...internalTags, ...desired.labels }
+              const currentLabels = current.Spec.Labels ?? {}
               const labelsToRemove = Object.keys(currentLabels).filter(
                 (k) => !(k in allDesiredLabels),
-              );
+              )
               // `service update` only adds and removes list entries, so the
               // removals are computed from the observed spec rather than olds.
-              const spec = current.Spec.TaskTemplate?.ContainerSpec;
+              const spec = current.Spec.TaskTemplate?.ContainerSpec
               const envToRemove = (spec?.Env ?? [])
                 .map((entry) => entry.split("=", 1)[0]!)
-                .filter((key) => !(key in environment));
-              const currentConstraints = current.Spec.TaskTemplate?.Placement?.Constraints ?? [];
+                .filter((key) => !(key in environment))
+              const currentConstraints = current.Spec.TaskTemplate?.Placement?.Constraints ?? []
               const constraintsToRemove = currentConstraints.filter(
                 (c) => !desired.constraints.includes(c),
-              );
+              )
               // `--constraint-add` appends without de-duplicating.
               const constraintsToAdd = desired.constraints.filter(
                 (c) => !currentConstraints.includes(c),
-              );
-              const desiredTargets = new Set(desired.volumes.map((v) => v.containerPath));
+              )
+              const desiredTargets = new Set(desired.volumes.map((v) => v.containerPath))
               const mountsToRemove = (spec?.Mounts ?? []).flatMap((m) =>
-                m.Target && !desiredTargets.has(m.Target) ? [m.Target] : [],
-              );
-              const desiredPorts = new Set(desired.ports.map(formatPublish));
+                m.Target && !desiredTargets.has(m.Target) ? [m.Target] : []
+              )
+              const desiredPorts = new Set(desired.ports.map(formatPublish))
               const portsToRemove = (current.Spec.EndpointSpec?.Ports ?? []).flatMap((p) =>
-                p.TargetPort !== undefined &&
-                !desiredPorts.has(
-                  formatPublish({
-                    external: p.PublishedPort,
-                    internal: p.TargetPort,
-                    protocol: p.Protocol,
-                    mode: p.PublishMode,
-                  }),
-                )
-                  ? // `--publish-rm` matches target, protocol and publish mode.
-                    [
-                      `target=${p.TargetPort},protocol=${p.Protocol ?? "tcp"},mode=${p.PublishMode ?? "ingress"}`,
-                    ]
-                  : [],
-              );
+                p.TargetPort !== undefined
+                  && !desiredPorts.has(
+                    formatPublish({
+                      external: p.PublishedPort,
+                      internal: p.TargetPort,
+                      protocol: p.Protocol,
+                      mode: p.PublishMode,
+                    }),
+                  )
+                  // `--publish-rm` matches target, protocol and publish mode.
+                  ? [
+                    `target=${p.TargetPort},protocol=${p.Protocol ?? "tcp"},mode=${p.PublishMode ?? "ingress"}`,
+                  ]
+                  : []
+              )
               // A rollback exits 0 but a paused rollout exits 1, so the
               // outcome is read from `UpdateStatus` either way.
-              const updateError = yield* docker.service
+              const updateError = try docker.service
                 .update({
                   context: desired.context,
                   id: output.id,
@@ -750,9 +799,7 @@ export const ServiceProvider = () =>
                   "endpoint-mode": desired.endpointMode,
                   // Attaching a network the service is already on fails, so
                   // every attachment is detached and the desired set re-added.
-                  "network-rm": (current.Spec.TaskTemplate?.Networks ?? []).flatMap((n) =>
-                    n.Target ? [n.Target] : [],
-                  ),
+                  "network-rm": (current.Spec.TaskTemplate?.Networks ?? []).flatMap((n) => n.Target ? [n.Target] : []),
                   "network-add": desired.networks.map(formatNetwork),
                   "constraint-rm": constraintsToRemove,
                   "constraint-add": constraintsToAdd,
@@ -776,9 +823,8 @@ export const ServiceProvider = () =>
                   "health-cmd": desired.healthcheck
                     ? healthcheckCommand(desired.healthcheck.cmd)
                     : undefined,
-                  "no-healthcheck":
-                    desired.healthcheck !== undefined &&
-                    isHealthcheckDisabled(desired.healthcheck.cmd),
+                  "no-healthcheck": desired.healthcheck !== undefined
+                    && isHealthcheckDisabled(desired.healthcheck.cmd),
                   "health-interval": desired.healthcheck?.interval,
                   "health-timeout": desired.healthcheck?.timeout,
                   "health-retries": desired.healthcheck?.retries,
@@ -789,13 +835,9 @@ export const ServiceProvider = () =>
                   // Re-adding a ref that is still attached conflicts on its
                   // target, so every attached ref is removed and the desired
                   // set re-added in the same update.
-                  "secret-rm": (spec?.Secrets ?? []).flatMap((s) =>
-                    s.SecretName ? [s.SecretName] : [],
-                  ),
+                  "secret-rm": (spec?.Secrets ?? []).flatMap((s) => s.SecretName ? [s.SecretName] : []),
                   "secret-add": desired.secrets.map(formatRef),
-                  "config-rm": (spec?.Configs ?? []).flatMap((c) =>
-                    c.ConfigName ? [c.ConfigName] : [],
-                  ),
+                  "config-rm": (spec?.Configs ?? []).flatMap((c) => c.ConfigName ? [c.ConfigName] : []),
                   "config-add": desired.configs.map(formatRef),
                   "read-only": desired.readOnlyRootFs || undefined,
                   "publish-rm": portsToRemove,
@@ -804,56 +846,57 @@ export const ServiceProvider = () =>
                   "label-rm": labelsToRemove,
                   "env-rm": envToRemove,
                   "env-add": environment,
-                  args:
-                    desired.command.length > 0
-                      ? desired.command.concat(desired.args).join(" ")
-                      : undefined,
+                  args: desired.command.length > 0
+                    ? desired.command.concat(desired.args).join(" ")
+                    : undefined,
                 })
                 .pipe(
                   Effect.as(undefined),
                   Effect.catchTag("PlatformError", (error) => Effect.succeed(error)),
-                );
+                )
 
-              const updated = yield* inspectOrDie(inspect, output.id, desired.context);
+              const updated = try inspectOrDie(inspect, output.id, desired.context)
               // Swarm clears `UpdateStatus` whenever it accepts an update, so
               // any status here belongs to this update.
-              const status = updated.UpdateStatus;
+              const status = updated.UpdateStatus
               if (
-                status?.State === "rollback_completed" ||
-                status?.State === "rollback_paused" ||
-                status?.State === "paused"
+                status?.State === "rollback_completed"
+                || status?.State === "rollback_paused"
+                || status?.State === "paused"
               ) {
-                return yield* new DockerServiceUpdateFailed({
+                return try new DockerServiceUpdateFailed({
                   service: updated.Spec.Name,
                   state: status.State,
                   reason: status.Message ?? "",
-                });
+                })
               }
               if (updateError) {
-                return yield* updateError;
+                return try updateError
               }
 
               // Best-effort: the service now runs the new content-addressed
               // image, so drop the one built for the previous bundle.
               if (output.code && output.code.hash !== resolved.codeHash) {
-                yield* docker.image
+                try docker.image
                   .remove(output.image, true, desired.context)
-                  .pipe(Effect.catchCause(() => Effect.void));
+                  .pipe(Effect.catchCause(() => Effect.void))
               }
 
-              return toServiceAttributes(updated, desired.context, code);
+              return toServiceAttributes(updated, desired.context, code)
             }
           }
 
-          const existingByName = yield* inspect(desired.name, desired.context);
+          const existingByName = try inspect(desired.name, desired.context)
           if (existingByName) {
-            ensureReplicatedMode(existingByName);
-            return toServiceAttributes(existingByName, desired.context, code);
+            try Effect.orDie(
+              Effect.try({ try: () => ensureReplicatedMode(existingByName), catch: (e) => e }),
+            )
+            return toServiceAttributes(existingByName, desired.context, code)
           }
 
-          const internalTags = yield* createInternalTags(id);
-          const allDesiredLabels = { ...internalTags, ...desired.labels };
-          yield* docker.service.create({
+          const internalTags = try createInternalTags(id)
+          const allDesiredLabels = { ...internalTags, ...desired.labels }
+          try docker.service.create({
             context: desired.context,
             name: desired.name,
             image,
@@ -882,8 +925,7 @@ export const ServiceProvider = () =>
             "health-cmd": desired.healthcheck
               ? healthcheckCommand(desired.healthcheck.cmd)
               : undefined,
-            "no-healthcheck":
-              desired.healthcheck !== undefined && isHealthcheckDisabled(desired.healthcheck.cmd),
+            "no-healthcheck": desired.healthcheck !== undefined && isHealthcheckDisabled(desired.healthcheck.cmd),
             "health-interval": desired.healthcheck?.interval,
             "health-timeout": desired.healthcheck?.timeout,
             "health-retries": desired.healthcheck?.retries,
@@ -898,13 +940,13 @@ export const ServiceProvider = () =>
             env: environment,
             command: desired.command,
             args: desired.args,
-          });
+          })
           return toServiceAttributes(
-            yield* inspectOrDie(inspect, desired.name, desired.context),
+            try inspectOrDie(inspect, desired.name, desired.context),
             desired.context,
             code,
-          );
-        }),
+          )
+        },
         delete: Effect.fn(({ output }) =>
           docker
             .run([
@@ -916,9 +958,7 @@ export const ServiceProvider = () =>
             ])
             .pipe(
               Effect.flatMap(() => docker.service.remove(output.id, output.context)),
-              Effect.flatMap(() =>
-                waitForServiceContainersReleased(docker, output.id, output.context),
-              ),
+              Effect.flatMap(() => waitForServiceContainersReleased(docker, output.id, output.context)),
               Effect.catchReason("PlatformError", "NotFound", () => Effect.void),
               // Best-effort: drop the content-addressed image built for a
               // bundled program so replaced/destroyed services don't strand
@@ -926,59 +966,66 @@ export const ServiceProvider = () =>
               Effect.andThen(
                 output.code
                   ? docker.image
-                      .remove(output.image, true, output.context)
-                      .pipe(Effect.catchCause(() => Effect.void))
+                    .remove(output.image, true, output.context)
+                    .pipe(Effect.catchCause(() => Effect.void))
                   : Effect.void,
               ),
-            ),
+            )
         ),
-      });
-    }),
-  );
+      })
+    },
+  )
 
 /** Swarm rejects service names longer than 63 characters. */
 const servicePhysicalName = (
   id: string,
   props: { name?: string } | undefined,
   instanceId: string,
-) => dockerPhysicalName(id, props, instanceId, 63);
+) => dockerPhysicalName(id, props, instanceId, 63)
 
 const normalizeDesired = (id: string, props: ServiceProps, instanceId: string) =>
   servicePhysicalName(id, props, instanceId).pipe(
-    Effect.map((name) => ({
-      name,
-      context: dockerEngineContextName(props.context),
-      // The bundled form's image identity is its content hash (compared
-      // separately in diff) — the `image` prop is only the environment base
-      // there, and it participates in the hash.
-      image: isBundledService(props) ? undefined : normalizeImageRef(props.image),
-      command: props.command ?? [],
-      args: props.args ?? [],
-      environment: {
-        ...normalizeEnvironment(props.environment),
-        ...normalizeBoundEnv(props.env),
-      },
-      networks: normalizeNetworks(props.networks),
-      ports: normalizePorts(props.ports),
-      endpointMode: props.endpointMode ?? "vip",
-      replicas: normalizeReplicas(props.replicas),
-      constraints: [...(props.constraints ?? []), ...(props.placement?.constraints ?? [])],
-      maxReplicasPerNode: props.placement?.maxReplicasPerNode,
-      preferences: props.placement?.preferences ?? [],
-      updateConfig: props.updateConfig,
-      rollbackConfig: props.rollbackConfig,
-      restartPolicy: props.restartPolicy,
-      healthcheck: props.healthcheck,
-      stopGracePeriod: props.stopGracePeriod,
-      volumes: props.volumes ?? [],
-      secrets: props.secrets ?? [],
-      configs: props.configs ?? [],
-      readOnlyRootFs: props.readOnlyRootFs ?? false,
-      labels: props.labels ?? {},
-    })),
-  );
+    Effect.flatMap((name) =>
+      Effect.orDie(
+        Effect.try({
+          try: () => ({
+            name,
+            context: dockerEngineContextName(props.context),
+            // The bundled form's image identity is its content hash (compared
+            // separately in diff) — the `image` prop is only the environment base
+            // there, and it participates in the hash.
+            image: isBundledService(props) ? undefined : normalizeImageRef(props.image),
+            command: props.command ?? [],
+            args: props.args ?? [],
+            environment: {
+              ...normalizeEnvironment(props.environment),
+              ...normalizeBoundEnv(props.env),
+            },
+            networks: normalizeNetworks(props.networks),
+            ports: normalizePorts(props.ports),
+            endpointMode: props.endpointMode ?? "vip",
+            replicas: normalizeReplicas(props.replicas),
+            constraints: [...(props.constraints ?? []), ...(props.placement?.constraints ?? [])],
+            maxReplicasPerNode: props.placement?.maxReplicasPerNode,
+            preferences: props.placement?.preferences ?? [],
+            updateConfig: props.updateConfig,
+            rollbackConfig: props.rollbackConfig,
+            restartPolicy: props.restartPolicy,
+            healthcheck: props.healthcheck,
+            stopGracePeriod: props.stopGracePeriod,
+            volumes: props.volumes ?? [],
+            secrets: props.secrets ?? [],
+            configs: props.configs ?? [],
+            readOnlyRootFs: props.readOnlyRootFs ?? false,
+            labels: props.labels ?? {},
+          }),
+          catch: (e) => e,
+        }),
+      )
+    ),
+  )
 
-type DesiredService = Effect.Success<ReturnType<typeof normalizeDesired>>;
+type DesiredService = Effect.Success<ReturnType<typeof normalizeDesired>>
 
 /**
  * Fields `docker service update` changes in place. Swarm rolls the tasks
@@ -1002,7 +1049,7 @@ const inPlaceFields = new Set<keyof DesiredService>([
   "secrets",
   "configs",
   "ports",
-]);
+])
 
 /**
  * Settings `service update` can change but not reset to the engine default:
@@ -1015,16 +1062,16 @@ const resettableFields = new Set<keyof DesiredService>([
   "restartPolicy",
   "healthcheck",
   "stopGracePeriod",
-]);
+])
 
 const clearsSetting = (olds: unknown, news: unknown): boolean => {
-  if (olds === undefined) return false;
-  if (news === undefined) return true;
-  if (typeof olds !== "object" || olds === null) return false;
+  if (olds === undefined) return false
+  if (news === undefined) return true
+  if (typeof olds !== "object" || olds === null) return false
   return Object.entries(olds).some(
     ([key, value]) => value !== undefined && (news as Record<string, unknown>)[key] === undefined,
-  );
-};
+  )
+}
 
 /**
  * `--publish-rm` matches target, protocol and mode, and `--publish-add` skips
@@ -1032,23 +1079,22 @@ const clearsSetting = (olds: unknown, news: unknown): boolean => {
  * target therefore drops the kept ones too, so that change replaces.
  */
 const dropsSharedTargetPort = (olds: DesiredService, news: DesiredService): boolean => {
-  const kept = new Set(news.ports.map(formatPublish));
-  const key = (port: Service.PortMapping) => `${port.internal}/${port.protocol}/${port.mode}`;
-  const removedKeys = new Set(olds.ports.filter((p) => !kept.has(formatPublish(p))).map(key));
-  return olds.ports.some((p) => kept.has(formatPublish(p)) && removedKeys.has(key(p)));
-};
+  const kept = new Set(news.ports.map(formatPublish))
+  const key = (port: Service.PortMapping) => `${port.internal}/${port.protocol}/${port.mode}`
+  const removedKeys = new Set(olds.ports.filter((p) => !kept.has(formatPublish(p))).map(key))
+  return olds.ports.some((p) => kept.has(formatPublish(p)) && removedKeys.has(key(p)))
+}
 
 const requiresReplacement = (olds: DesiredService, news: DesiredService): boolean =>
-  dropsSharedTargetPort(olds, news) ||
-  (Object.keys(news) as Array<keyof DesiredService>).some(
+  dropsSharedTargetPort(olds, news)
+  || (Object.keys(news) as Array<keyof DesiredService>).some(
     (key) =>
-      !deepEqual(olds[key], news[key]) &&
-      (!inPlaceFields.has(key) ||
-        (resettableFields.has(key) && clearsSetting(olds[key], news[key]))),
-  );
+      !deepEqual(olds[key], news[key])
+      && (!inPlaceFields.has(key)
+        || (resettableFields.has(key) && clearsSetting(olds[key], news[key]))),
+  )
 
-const normalizeImageRef = (image: Service.Image): string =>
-  typeof image === "string" ? image : image.imageRef;
+const normalizeImageRef = (image: Service.Image): string => typeof image === "string" ? image : image.imageRef
 
 const normalizeEnvironment = (
   environment: Record<string, string | Redacted.Redacted<string>> | undefined,
@@ -1058,7 +1104,7 @@ const normalizeEnvironment = (
       key,
       Redacted.isRedacted(value) ? Redacted.value(value) : value,
     ]),
-  );
+  )
 
 /**
  * Platform-injected env (`props.env`) after Output resolution: values are
@@ -1071,10 +1117,10 @@ const normalizeBoundEnv = (env: Record<string, any> | undefined): Record<string,
       typeof value === "string"
         ? value
         : Redacted.isRedacted(value)
-          ? Redacted.value(value as Redacted.Redacted<string>)
-          : JSON.stringify(value),
+        ? Redacted.value(value as Redacted.Redacted<string>)
+        : JSON.stringify(value),
     ]),
-  );
+  )
 
 const normalizePorts = (ports: Service.PortMapping[] | undefined): Service.PortMapping[] =>
   (ports ?? []).map((port) => ({
@@ -1082,15 +1128,7 @@ const normalizePorts = (ports: Service.PortMapping[] | undefined): Service.PortM
     internal: port.internal,
     protocol: port.protocol ?? "tcp",
     mode: port.mode ?? "ingress",
-  }));
-
-const normalizeReplicas = (replicas: number | undefined): number => {
-  const value = replicas ?? 1;
-  if (!Number.isInteger(value) || value < 0) {
-    throw new Error("Service.replicas must be an integer >= 0");
-  }
-  return value;
-};
+  }))
 
 const normalizeNetworks = (
   networks: Array<string | Service.NetworkAttachment> | undefined,
@@ -1098,8 +1136,8 @@ const normalizeNetworks = (
   (networks ?? []).map((network) =>
     typeof network === "string"
       ? { name: network }
-      : { name: network.name, aliases: network.aliases },
-  );
+      : { name: network.name, aliases: network.aliases }
+  )
 
 const formatMount = (volume: Service.VolumeMapping): string =>
   [
@@ -1107,16 +1145,16 @@ const formatMount = (volume: Service.VolumeMapping): string =>
     `source=${volume.hostPath}`,
     `target=${volume.containerPath}`,
     ...(volume.readOnly ? ["readonly=true"] : []),
-  ].join(",");
+  ].join(",")
 
 const formatNetwork = (network: Service.NetworkAttachment): string =>
-  [`name=${network.name}`, ...(network.aliases ?? []).map((a) => `alias=${a}`)].join(",");
+  [`name=${network.name}`, ...(network.aliases ?? []).map((a) => `alias=${a}`)].join(",")
 
 const formatRef = (ref: Service.SecretRef | Service.ConfigRef): string =>
   Object.entries(ref)
     .filter(([, value]) => value !== undefined)
     .map(([key, value]) => `${key}=${value}`)
-    .join(",");
+    .join(",")
 
 const formatPublish = (port: Service.PortMapping): string =>
   [
@@ -1124,7 +1162,7 @@ const formatPublish = (port: Service.PortMapping): string =>
     `target=${port.internal}`,
     `protocol=${port.protocol ?? "tcp"}`,
     `mode=${port.mode ?? "ingress"}`,
-  ].join(",");
+  ].join(",")
 
 const toServiceAttributes = (
   service: ServiceInspect,
@@ -1136,12 +1174,10 @@ const toServiceAttributes = (
   context,
   image: service.Spec.TaskTemplate?.ContainerSpec?.Image ?? "",
   replicas: service.Spec.Mode?.Replicated?.Replicas ?? 1,
-  networks: (service.Spec.TaskTemplate?.Networks ?? []).flatMap((n) =>
-    n.Target ? [n.Target] : [],
-  ),
+  networks: (service.Spec.TaskTemplate?.Networks ?? []).flatMap((n) => n.Target ? [n.Target] : []),
   ports: (service.Spec.EndpointSpec?.Ports ?? []).flatMap((port) => {
     if (port.PublishedPort === undefined || port.TargetPort === undefined) {
-      return [];
+      return []
     }
     return [
       {
@@ -1150,40 +1186,14 @@ const toServiceAttributes = (
         protocol: port.Protocol ?? "tcp",
         mode: port.PublishMode ?? "ingress",
       },
-    ];
+    ]
   }),
   labels: service.Spec.Labels ?? {},
   endpointMode: service.Spec.EndpointSpec?.Mode ?? "vip",
   createdAt: Date.parse(service.CreatedAt ?? "") || Date.now(),
   updatedAt: Date.parse(service.UpdatedAt ?? "") || Date.now(),
   code,
-});
-
-const ensureReplicatedMode = (service: ServiceInspect): void => {
-  if (service.Spec.Mode?.Global !== undefined) {
-    throw new Error(
-      `Docker.Service only supports replicated services. Service "${service.Spec.Name}" is global.`,
-    );
-  }
-};
-
-const parseInspectArray = <T>(json: string): T => {
-  const parsed = JSON.parse(json) as T[];
-  if (parsed.length === 0) {
-    throw new Error("docker inspect returned no objects");
-  }
-  return parsed[0]!;
-};
-
-const normalizeServiceInspect = (value: unknown): ServiceInspect => {
-  if (typeof value === "object" && value !== null && "stdout" in value) {
-    const stdout = (value as { stdout?: unknown }).stdout;
-    if (typeof stdout === "string") {
-      return parseInspectArray<ServiceInspect>(stdout);
-    }
-  }
-  return value as ServiceInspect;
-};
+})
 
 const inspectOrDie = <T>(
   inspect: (nameOrId: string, context?: string) => Effect.Effect<T | undefined, any>,
@@ -1191,24 +1201,22 @@ const inspectOrDie = <T>(
   context?: string,
 ) =>
   inspect(nameOrId, context).pipe(
-    Effect.flatMap((value) =>
-      value ? Effect.succeed(value) : Effect.die(`Expected ${nameOrId} to exist after create`),
-    ),
-  );
+    Effect.flatMap((value) => value ? Effect.succeed(value) : Effect.die(`Expected ${nameOrId} to exist after create`)),
+  )
 
 const waitForServiceContainersReleased = (
   docker: Docker["Service"],
   serviceId: string,
   context?: string,
 ): Effect.Effect<void, PlatformError> => {
-  const maxAttempts = 10;
-  const noContainers = Symbol.for("Docker.Service.NoContainers");
+  const maxAttempts = 10
+  const noContainers = Symbol.for("Docker.Service.NoContainers")
 
   const poll = listServiceContainerIds(docker, serviceId, context).pipe(
     Effect.flatMap((containerIds) =>
-      containerIds.length === 0 ? Effect.fail(noContainers) : Effect.succeed(containerIds),
+      containerIds.length === 0 ? Effect.fail(noContainers) : Effect.succeed(containerIds)
     ),
-  );
+  )
 
   return poll.pipe(
     Effect.repeat(Schedule.spaced("1 second").pipe(Schedule.upTo({ times: maxAttempts - 1 }))),
@@ -1220,24 +1228,24 @@ const waitForServiceContainersReleased = (
     Effect.flatMap((containerIds) =>
       containerIds.length === 0
         ? Effect.void
-        : // Best effort cleanup for lingering task containers that keep volumes attached.
-          Effect.forEach(
-            containerIds,
-            (containerId) =>
-              docker
-                .run([
-                  ...(context ? ["--context", context] : []),
-                  "container",
-                  "rm",
-                  "-f",
-                  containerId,
-                ])
-                .pipe(Effect.catchCause(() => Effect.void)),
-            { concurrency: "unbounded" },
-          ).pipe(Effect.as(undefined)),
+        // Best effort cleanup for lingering task containers that keep volumes attached.
+        : Effect.forEach(
+          containerIds,
+          (containerId) =>
+            docker
+              .run([
+                ...(context ? ["--context", context] : []),
+                "container",
+                "rm",
+                "-f",
+                containerId,
+              ])
+              .pipe(Effect.catchCause(() => Effect.void)),
+          { concurrency: "unbounded" },
+        ).pipe(Effect.as(undefined))
     ),
-  );
-};
+  )
+}
 
 const listServiceContainerIds = (
   docker: Docker["Service"],
@@ -1259,6 +1267,6 @@ const listServiceContainerIds = (
         result.stdout
           .split("\n")
           .map((line) => line.trim())
-          .filter((line) => line.length > 0),
+          .filter((line) => line.length > 0)
       ),
-    );
+    )

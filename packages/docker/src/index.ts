@@ -1,6 +1,6 @@
 export * from "./Container.vibe";
 export * from "./Context.vibe";
-export * from "./Docker.ts";
+export * from "./Docker.vibe";
 export * as Dockerfile from "./Dockerfile.ts";
 export * from "./Image.vibe";
 export * from "./Network.vibe";
@@ -12,6 +12,6 @@ export {
   type DockerImagePublicationError,
 } from "./RegistryError.vibe";
 export * from "./RemoteImage.vibe";
-export * from "./Service.ts";
+export * from "./Service.vibe";
 export * from "./Swarm.vibe";
 export * from "./Volume.vibe";
