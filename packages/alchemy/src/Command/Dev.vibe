@@ -1,15 +1,20 @@
-import { stripVTControlCharacters } from "node:util";
-import * as Deferred from "effect/Deferred";
-import * as Effect from "effect/Effect";
-import * as Stream from "effect/Stream";
-import * as LocalProvider from "../Local/LocalProvider.vibe";
-import * as ProviderLayer from "../Local/ProviderLayer.vibe";
-import * as Provider from "../Provider.ts";
-import { Resource } from "../Resource.ts";
-import { moduleExtension } from "../Util/Node.ts";
-import { makeResourceOutput } from "../Util/ResourceOutput.vibe";
-import { CommandExecutor, UnexpectedExit, makeCommandError, type CommandProps } from "./Command.ts";
-import { makeCommandRedactor } from "./Redaction.vibe";
+import * as Deferred from "effect/Deferred"
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import * as LocalProvider from "../Local/LocalProvider.vibe"
+import * as ProviderLayer from "../Local/ProviderLayer.vibe"
+import * as Provider from "../Provider.ts"
+import { Resource } from "../Resource.ts"
+import { makeResourceOutput } from "../Util/ResourceOutput.vibe"
+import { CommandExecutor, UnexpectedExit, makeCommandError, type CommandProps } from "./Command.ts"
+import { devLocalModule } from "./Dev.platform.ts"
+import { makeCommandRedactor } from "./Redaction.vibe"
+
+module platform {
+  export { stripVTControlCharacters } from "node:util"
+}
+
+import { stripVTControlCharacters } from platform
 
 export interface DevProps extends CommandProps {
   /**
@@ -24,23 +29,25 @@ export interface DevProps extends CommandProps {
    *
    * @default false
    */
-  waitForUrl?: boolean;
+  waitForUrl?: boolean
 }
 
-export interface Dev extends Resource<
-  "Command.Dev",
-  DevProps,
-  {
-    /**
-     * URL extracted from stdout/stderr. A `localhost`/IP URL (the dev
-     * server's own address) is preferred over any other URL the command
-     * prints; a non-local URL is only used as a fallback if no local one
-     * appears. Best-effort: `undefined` if no URL appears within 5 seconds,
-     * unless `waitForUrl` is set, which waits until one does.
-     */
-    url: string | undefined;
-  }
-> {}
+export interface Dev extends
+  Resource<
+    "Command.Dev",
+    DevProps,
+    {
+      /**
+       * URL extracted from stdout/stderr. A `localhost`/IP URL (the dev
+       * server's own address) is preferred over any other URL the command
+       * prints; a non-local URL is only used as a fallback if no local one
+       * appears. Best-effort: `undefined` if no URL appears within 5 seconds,
+       * unless `waitForUrl` is set, which waits until one does.
+       */
+      url: string | undefined
+    }
+  >
+{}
 
 /**
  * A long-lived shell process scoped to a stack instance, started during
@@ -114,13 +121,13 @@ export interface Dev extends Resource<
  *
  * @resource
  */
-export const Dev = Resource<Dev>("Command.Dev");
+export const Dev = Resource<Dev>("Command.Dev")
 
 export const DevProvider = () =>
   ProviderLayer.dual(Dev, {
     live: DevProviderLive,
     local: DevProviderLocal,
-  });
+  })
 
 export const DevProviderLive = () =>
   Provider.succeed(Dev, {
@@ -128,42 +135,42 @@ export const DevProviderLive = () =>
     diff: () => Effect.succeed({ action: "noop" }),
     reconcile: () => Effect.succeed({ url: undefined }),
     delete: () => Effect.void,
-  });
+  })
 
 export const DevProviderLocal = () =>
   LocalProvider.make(
     Dev,
-    import.meta.resolve(`./Local${moduleExtension(import.meta.url)}`, import.meta.url),
-    Effect.gen(function* () {
-      const { spawn } = yield* CommandExecutor;
+    devLocalModule,
+    effect {
+      const { spawn } = try CommandExecutor
 
       return {
         // The dev process is spawned into the instance scope the helper
         // provides: it keeps running after `start` returns (readiness) and
         // is killed when the helper closes the scope on restart/delete.
-        start: Effect.fn(function* ({ fqn, news: props, invalidate }) {
-          const child = yield* spawn(props);
-          const redactor = makeCommandRedactor(props.env);
+        start: effect ({ fqn, news: props, invalidate }) => {
+          const child = try spawn(props)
+          const redactor = makeCommandRedactor(props.env)
           // Through the logger, never a raw fd write: the process that owns
           // the terminal renders the records and writes them to the run log
           // (and a bare write to its stdout would tear the animated region).
-          const prefixed = yield* makeResourceOutput(fqn);
-          yield* Effect.addFinalizer(() =>
+          const prefixed = try makeResourceOutput(fqn)
+          try Effect.addFinalizer(() =>
             Effect.sync(() => {
-              prefixed.stdout.flush();
-              prefixed.stderr.flush();
-            }),
-          );
+              prefixed.stdout.flush()
+              prefixed.stderr.flush()
+            })
+          )
 
-          let buffer = "";
+          let buffer = ""
           // A non-local URL seen so far (docs link, error page, update notice,
           // …). Held as a fallback so that if the dev server never prints a
           // localhost/IP URL we still surface something, but a localhost URL
           // always wins if one shows up. See issue #695.
-          let fallbackUrl: string | undefined;
-          const deferred = yield* Deferred.make<string>();
+          let fallbackUrl: string | undefined
+          const deferred = try Deferred.make<string>()
           // Done when the first URL of any kind appears.
-          const anyUrl = yield* Deferred.make<void>();
+          const anyUrl = try Deferred.make<void>()
 
           const mirror = (sink: "stdout" | "stderr") =>
             child[sink].pipe(
@@ -172,26 +179,26 @@ export const DevProviderLocal = () =>
               Stream.tap((text) => Effect.sync(() => prefixed[sink].push(text))),
               Stream.tap((text) =>
                 Effect.sync(() => {
-                  if (Deferred.isDoneUnsafe(deferred)) return;
-                  buffer += text;
-                  const url = extractUrl(buffer);
-                  if (!url) return;
-                  Deferred.doneUnsafe(anyUrl, Effect.void);
+                  if (Deferred.isDoneUnsafe(deferred)) return
+                  buffer += text
+                  const url = extractUrl(buffer)
+                  if (!url) return
+                  Deferred.doneUnsafe(anyUrl, Effect.void)
                   if (isLocalUrl(url)) {
                     // The dev server's own address — resolve immediately.
-                    Deferred.doneUnsafe(deferred, Effect.succeed(url));
+                    Deferred.doneUnsafe(deferred, Effect.succeed(url))
                   } else {
                     // Keep scanning: a localhost/IP URL may still appear.
-                    fallbackUrl = url;
+                    fallbackUrl = url
                   }
-                }),
+                })
               ),
               Stream.runDrain,
               Effect.forkScoped,
-            );
+            )
 
-          yield* mirror("stdout");
-          yield* mirror("stderr");
+          try mirror("stdout")
+          try mirror("stderr")
 
           // Readiness: a localhost/IP URL appears, or 5 seconds pass and we
           // settle with any other URL we saw (`undefined` with none). With
@@ -203,44 +210,41 @@ export const DevProviderLocal = () =>
               duration: "5 seconds",
               orElse: () => Effect.succeed(fallbackUrl),
             }),
-          );
-          const url = yield* Effect.raceAllFirst([
+          )
+          const url = try Effect.raceAllFirst([
             props.waitForUrl
               ? Deferred.await(anyUrl).pipe(Effect.andThen(awaitLocalUrl))
               : awaitLocalUrl,
             child.exitCode.pipe(
               Effect.mapError((error) => makeCommandError(props, error.reason)),
-              Effect.flatMap((exitCode) =>
-                makeCommandError(props, new UnexpectedExit({ exitCode, stderr: buffer })),
-              ),
+              Effect.flatMap((exitCode) => makeCommandError(props, new UnexpectedExit({ exitCode, stderr: buffer }))),
             ),
-          ]);
+          ])
 
           // The process may die on its own after readiness (crash, manual
           // kill). Drop it from the running registry so the next plan
           // reports `update` and restarts it.
-          yield* child.exitCode.pipe(
+          try child.exitCode.pipe(
             Effect.exit,
             Effect.flatMap(() => invalidate),
             Effect.forkScoped,
-          );
+          )
 
-          return { url };
-        }),
-      } satisfies LocalProvider.LocalProviderSpec<Dev>;
-    }),
-  );
+          return { url }
+        },
+      } satisfies LocalProvider.LocalProviderSpec<Dev>
+    },
+  )
 
 // Matches an http(s) URL whose host is `localhost`, an IPv4 address, or a
 // bracketed IPv6 address — i.e. the shape a dev server prints for its own
 // local address. Preferred over any other URL a command might print first
 // (docs links, error pages, update notices). See issue #695.
-const LOCAL_URL_REGEX =
-  /https?:\/\/(?:localhost|\[[0-9a-fA-F:]+\]|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?[^\s)\],"'`]*/;
+const LOCAL_URL_REGEX = /https?:\/\/(?:localhost|\[[0-9a-fA-F:]+\]|(?:\d{1,3}\.){3}\d{1,3})(?::\d+)?[^\s)\],"'`]*/
 
 // Matches the first plain http(s) URL. Stops at whitespace and at a small
 // set of punctuation typically used to wrap URLs in log output.
-const URL_REGEX = /https?:\/\/[^\s)\],"'`]+/;
+const URL_REGEX = /https?:\/\/[^\s)\],"'`]+/
 
 /**
  * Extract a URL from `text`, favoring a localhost/IP URL (the dev server's
@@ -251,8 +255,8 @@ const URL_REGEX = /https?:\/\/[^\s)\],"'`]+/;
  * @internal
  */
 export const extractUrl = (text: string) => {
-  const clean = stripVTControlCharacters(text);
-  const url = clean.match(LOCAL_URL_REGEX)?.[0] ?? clean.match(URL_REGEX)?.[0];
+  const clean = stripVTControlCharacters(text)
+  const url = clean.match(LOCAL_URL_REGEX)?.[0] ?? clean.match(URL_REGEX)?.[0]
   // Some dev servers print their *bind* address (Nuxt: `http://0.0.0.0:3000`),
   // which is not a connectable host. Normalize the unspecified address to
   // `localhost` so consumers of `url` — browser links, Router dev routing,
@@ -260,7 +264,7 @@ export const extractUrl = (text: string) => {
   return url?.replace(
     /^(https?:\/\/)(?:0\.0\.0\.0|\[::\]|\[0+:0+:0+:0+:0+:0+:0+:0+\])(?=[:/]|$)/,
     "$1localhost",
-  );
-};
+  )
+}
 
-const isLocalUrl = (url: string) => LOCAL_URL_REGEX.test(url);
+const isLocalUrl = (url: string) => LOCAL_URL_REGEX.test(url)

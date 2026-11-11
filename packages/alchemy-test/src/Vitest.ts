@@ -12,7 +12,7 @@ import {
   beforeAll as vitestBeforeAll,
   beforeEach as vitestBeforeEach,
 } from "vitest";
-import * as Core from "./Core.ts";
+import * as Core from "./Core.vibe";
 
 export {
   executeWhenReady,

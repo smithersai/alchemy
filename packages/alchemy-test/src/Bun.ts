@@ -8,7 +8,7 @@ import type { Stage } from "alchemy/Stage";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Scope from "effect/Scope";
-import * as Core from "./Core.ts";
+import * as Core from "./Core.vibe";
 
 export {
   executeWhenReady,

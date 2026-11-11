@@ -87,7 +87,7 @@ const loadCommand = async (name: CommandName) => {
     case "drift":
       return (await import("./commands/drift.vibe")).driftCommand;
     case "unsafe":
-      return (await import("./commands/nuke.ts")).unsafeCommand;
+      return (await import("./commands/nuke.vibe")).unsafeCommand;
   }
 };
 
