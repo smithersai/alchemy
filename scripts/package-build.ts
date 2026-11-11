@@ -45,13 +45,14 @@ export interface BuildOptions {
      * Also generate the workspace `exports` from `src/`: the root, one entry
      * per directory index (`./S3` → `./src/S3/index.ts`), the `sourceOnly`
      * subpaths, and `./*` for every other file. Published packages block
-     * every `internal/` directory. Existing TypeScript entries and explicit
-     * private blocks are retained while their source boundaries are in use.
+     * every `internal/` directory. TypeScript entry shims take precedence
+     * over native indexes; existing source aliases and explicit private blocks
+     * are retained while their source boundaries are in use.
      */
     readonly generate?: boolean;
     /** Add a `worker` condition on source for Worker bundlers. */
     readonly worker?: boolean;
-    /** Subpaths that resolve to source in every condition. */
+    /** TypeScript source subpaths; native modules publish compiled code and declarations. */
     readonly sourceOnly?: ReadonlyArray<string>;
     /** Per-entry runtime targets; types and ordinary Node targets are preserved. */
     readonly runtimeConditions?: Readonly<
@@ -224,27 +225,40 @@ const generateExports = Effect.fn(function* (
     .filter((module) => module !== "index")
     .sort((a, b) => a.localeCompare(b));
 
-  const indexes: Array<string> = [];
+  const indexes: Array<[string, string]> = [];
   for (const directory of directories) {
     if (isInternal(directory)) continue;
-    if (yield* fs.exists(path.join(sourceDirectory, directory, "index.ts"))) {
-      indexes.push(directory);
+    for (const extension of ["ts", "vibe"]) {
+      if (yield* fs.exists(path.join(sourceDirectory, directory, "index." + extension))) {
+        indexes.push([directory, extension]);
+        break;
+      }
     }
   }
 
+  const rootIndex = (yield* fs.exists(path.join(sourceDirectory, "index.ts")))
+    ? "./src/index.ts"
+    : (yield* fs.exists(path.join(sourceDirectory, "index.vibe")))
+      ? "./src/index.vibe"
+      : undefined;
   const exports = {
-    ...((yield* fs.exists(path.join(sourceDirectory, "index.ts")))
-      ? { ".": "./src/index.ts" }
-      : {}),
+    ...(rootIndex ? { ".": rootIndex } : {}),
     ...Object.fromEntries(
       (options.sourceOnly ?? []).map((subpath) => [subpath, `./src/${subpath.slice(2)}.ts`]),
     ),
     ...Object.fromEntries(
       indexes
-        .sort((a, b) => a.localeCompare(b))
-        .map((directory) => [`./${directory}`, `./src/${directory}/index.ts`]),
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([directory, extension]) => [
+          `./${directory}`,
+          `./src/${directory}/index.${extension}`,
+        ]),
     ),
-    ...Object.fromEntries(vibeModules.map((module) => [`./${module}`, `./src/${module}.vibe`])),
+    ...Object.fromEntries(
+      vibeModules
+        .filter((module) => !indexes.some(([directory]) => directory === module))
+        .map((module) => [`./${module}`, `./src/${module}.vibe`]),
+    ),
     "./*": "./src/*.ts",
     "./package.json": "./package.json",
   } as Record<string, string | null>;
@@ -256,7 +270,7 @@ const generateExports = Effect.fn(function* (
     } else if (
       typeof source === "string" &&
       !subpath.includes("*") &&
-      /^\.\/src\/.+\.[cm]?tsx?$/.test(source) &&
+      /^\.\/src\/.+\.(?:[cm]?tsx?|vibex?)$/.test(source) &&
       (yield* fs.exists(path.join(packageDirectory, source)))
     ) {
       exports[subpath] = source;
@@ -504,7 +518,7 @@ const syncPublishExports = Effect.fn(function* (
         if (source === null || !source.startsWith("./src/")) {
           return [subpath, source];
         }
-        if (options.sourceOnly?.includes(subpath)) {
+        if (options.sourceOnly?.includes(subpath) && !/\.vibex?$/.test(source)) {
           return [subpath, { types: source, bun: source, default: source }];
         }
 
