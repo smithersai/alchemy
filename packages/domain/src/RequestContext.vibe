@@ -1,18 +1,45 @@
-import * as EffectContext from "effect/Context";
-import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
-import * as Schema from "effect/Schema";
+import * as EffectContext from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import { registry } from request_contexts
 
-/** The JSON form of a request's context, by service key. */
-export type Json = Readonly<Record<string, unknown>>;
+// `restore` throws on an unknown key or a value its schema rejects, so it and
+// the registry it reads live in a TypeScript body.
+module request_contexts {
+  import * as EffectContext from "effect/Context"
 
-interface Registered {
-  readonly tag: EffectContext.Key<unknown, unknown>;
-  readonly encode: (value: unknown) => unknown;
-  readonly decode: (json: unknown) => unknown;
+  type Json = Readonly<Record<string, unknown>>
+
+  export interface Registered {
+    readonly tag: EffectContext.Key<unknown, unknown>
+    readonly encode: (value: unknown) => unknown
+    readonly decode: (json: unknown) => unknown
+  }
+
+  export const registry = new Map<string, Registered>()
+
+  /**
+   * Decode a request's context back into services, for `decide` or `validate`.
+   *
+   * @internal
+   * @throws {Error}
+   */
+  export const restore = (json: Json): EffectContext.Context<never> => {
+    let context = EffectContext.empty() as EffectContext.Context<unknown>
+    for (const [key, value] of Object.entries(json)) {
+      const entry = registry.get(key)
+      if (!entry) throw new Error(`Unknown request context '${key}'`)
+      context = EffectContext.add(context, entry.tag, entry.decode(value))
+    }
+    return context as EffectContext.Context<never>
+  }
 }
 
-const registry = new Map<string, Registered>();
+export { restore } from request_contexts
+
+/** The JSON form of a request's context, by service key. */
+export type Json = Readonly<Record<string, unknown>>
 
 /**
  * The class type returned by {@link make}.
@@ -23,7 +50,7 @@ export interface RequestContextClass<
   S extends Schema.Top,
 > extends EffectContext.ServiceClass<Self, Key, S["Type"]> {
   /** Encodes the value so it can travel with a request into the domain. */
-  readonly schema: S;
+  readonly schema: S
 }
 
 /**
@@ -68,47 +95,35 @@ export const make =
     key: Key,
     schema: S,
   ): RequestContextClass<Self, Key, S> => {
-    const Tag = EffectContext.Service<Self, S["Type"]>()(key);
+    const Tag = EffectContext.Service<Self, S["Type"]>()(key)
     const codec = Schema.toCodecJson(
       schema as unknown as Schema.Codec<unknown, unknown>,
-    ) as Schema.Codec<unknown, unknown>;
+    ) as Schema.Codec<unknown, unknown>
     registry.set(key, {
       tag: Tag as unknown as EffectContext.Key<unknown, unknown>,
       // oxlint-disable-next-line effecttsgo/schema-sync -- context codecs are sync by contract
       encode: Schema.encodeUnknownSync(codec),
       // oxlint-disable-next-line effecttsgo/schema-sync -- context codecs are sync by contract
       decode: Schema.decodeUnknownSync(codec),
-    });
+    })
     return class extends Tag {
-      static readonly schema: S = schema;
-    } as unknown as RequestContextClass<Self, Key, S>;
-  };
+      static readonly schema: S = schema
+    } as unknown as RequestContextClass<Self, Key, S>
+  }
 
 /**
  * Encode every request context service present in the current fiber.
  *
  * @internal
  */
-export const capture: Effect.Effect<Json> = Effect.gen(function* () {
-  const captured: Record<string, unknown> = {};
+export const capture: Effect.Effect<Json> = effect {
+  const captured: Record<string, unknown> = {}
   for (const [key, entry] of registry) {
-    const value = yield* Effect.serviceOption(entry.tag);
-    if (Option.isSome(value)) captured[key] = entry.encode(value.value);
+    const value = try Effect.serviceOption(entry.tag)
+    // A codec that throws stays a defect, as it was inside the generator.
+    if (Option.isSome(value)) {
+      captured[key] = try Effect.orDie(Effect.try({ try: () => entry.encode(value.value), catch: (e) => e }))
+    }
   }
-  return captured;
-});
-
-/**
- * Decode a request's context back into services, for `decide` or `validate`.
- *
- * @internal
- */
-export const restore = (json: Json): EffectContext.Context<never> => {
-  let context = EffectContext.empty() as EffectContext.Context<unknown>;
-  for (const [key, value] of Object.entries(json)) {
-    const entry = registry.get(key);
-    if (!entry) throw new Error(`Unknown request context '${key}'`);
-    context = EffectContext.add(context, entry.tag, entry.decode(value));
-  }
-  return context as EffectContext.Context<never>;
-};
+  return captured
+}
