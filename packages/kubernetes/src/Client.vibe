@@ -1,0 +1,524 @@
+import { isPlainObject, unwrapRedacted } from "alchemy/Util/data"
+import { collectRedactedSecrets, redactJson } from "alchemy/Util/Redaction"
+/**
+ * Internal Kubernetes API client: transport-agnostic server-side apply and
+ * kind discovery for arbitrary (CRD) manifests. Powers
+ * `Kubernetes.Manifest`, `Kubernetes.Deployment`, `Kubernetes.Job`,
+ * `Kubernetes.HelmChart`, and the `AWS.EKS.Cluster` kubernetes-object
+ * binding channel. Not exported from the Kubernetes index.
+ *
+ * Authentication is delegated to the connection's {@link ClusterAdapter}:
+ * every request mints headers through the resolved
+ * {@link ClusterTransport}, so short-lived tokens (EKS SigV4 presigns,
+ * exec-plugin credentials) stay fresh.
+ */
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import { ClusterNotFoundError, findClusterAdapter, type ClusterTransport } from "./ClusterAdapter.vibe"
+import type { Connection } from "./Connection.ts"
+import { driftMask, hashDriftSelection } from "./internal/declared.ts"
+import {
+  buildKubernetesObjectPathWithSpec,
+  chunkByApplyRank,
+  DEFAULT_APPLY_RANK,
+  kubernetesObjectKey,
+  lookupKubernetesKindSpec,
+  sortRefsForDelete,
+  toKubernetesObjectRef,
+  type KubernetesObjectDefinition,
+  type KubernetesObjectKindSpec,
+  type KubernetesObjectRef,
+} from "./Objects.ts"
+
+export class KubernetesClientOperationFailed extends Data.TaggedError(
+  "KubernetesClientOperationFailed",
+)<{
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
+export class KubernetesApiError extends Data.TaggedError("KubernetesApiError")<{
+  method: string
+  path: string
+  statusCode: number
+  body: string
+}> {
+  override get message(): string {
+    return `${this.method} ${this.path} responded ${this.statusCode}: ${
+      this.body.length > 0 ? this.body.slice(0, 1000) : "(empty body)"
+    }`
+  }
+}
+
+/** An object ref that cannot be mapped to a REST path (e.g. a namespaced kind without a namespace). */
+export class KubernetesObjectPathError extends Data.TaggedError("KubernetesObjectPathError")<{
+  message: string
+  cause?: unknown
+}> {}
+
+const fieldManager = "alchemy"
+
+/** Deadline for auth-header minting and for each HTTP attempt. */
+const requestTimeout = "10 seconds"
+
+/**
+ * Resolve the {@link ClusterTransport} for a connection through its
+ * registered adapter.
+ */
+export const connectCluster = (connection: Connection) =>
+  findClusterAdapter(connection.auth.kind).pipe(
+    Effect.flatMap((adapter) => adapter.connect(connection)),
+  )
+
+/** 404 from the apiserver, including a removed CRD's discovery 404. */
+export class KubernetesNotFound extends Data.TaggedError("KubernetesNotFound")<{
+  method: string
+  path: string
+  body: string
+}> {
+  override get message(): string {
+    return `${this.method} ${this.path} responded 404: ${
+      this.body.length > 0 ? this.body.slice(0, 1000) : "(empty body)"
+    }`
+  }
+}
+
+/**
+ * The effect's result when the cluster exists. `ClusterNotFoundError`
+ * becomes `undefined`; auth and HTTP failures stay failures.
+ */
+export const ifClusterExists = <A, E, R>(effect: Effect.Effect<A, ClusterNotFoundError | E, R>) =>
+  effect.pipe(Effect.catchTag("Kubernetes.ClusterNotFoundError", () => Effect.undefined))
+
+module http {
+  import * as Effect from "effect/Effect"
+  import * as https from "node:https"
+
+  /** Bytes of `value` encoded as UTF-8. */
+  export const utf8ByteLength = (value: string): number => Buffer.byteLength(value)
+
+  /** Decode base64 to a UTF-8 string. */
+  export const decodeBase64Utf8 = (value: string): string => Buffer.from(value, "base64").toString("utf8")
+
+  /**
+   * One HTTPS request to the apiserver, resolved with its status and body.
+   * `fail` builds the error for an aborted or incomplete response.
+   */
+  export const sendRequest = (options: {
+    url: URL
+    method: string
+    path: string
+    headers: Record<string, string>
+    payload: string | undefined
+    contentLength: number | undefined
+    ca: string | undefined
+    clientCert: { readonly certificate: string; readonly key: string } | undefined
+    insecureSkipTlsVerify: boolean | undefined
+    fail: (message: string) => Error
+  }) => {
+    const { url, method, path, headers, fail } = options
+    return Effect.callback<{ readonly statusCode: number; readonly body: string }, Error>(
+      (resume, signal) => {
+        const request = https.request(
+          {
+            signal,
+            protocol: url.protocol,
+            hostname: url.hostname,
+            port: url.port || 443,
+            path: `${url.pathname}${url.search}`,
+            method,
+            headers: {
+              ...headers,
+              Accept: "application/json",
+              ...(options.payload === undefined
+                ? {}
+                : {
+                  "Content-Type": "application/apply-patch+yaml",
+                  "Content-Length": options.contentLength,
+                }),
+            },
+            ...(options.ca === undefined ? {} : { ca: options.ca }),
+            ...(options.clientCert
+              ? {
+                cert: options.clientCert.certificate,
+                key: options.clientCert.key,
+              }
+              : {}),
+            ...(options.insecureSkipTlsVerify ? { rejectUnauthorized: false } : {}),
+          },
+          (incoming) => {
+            const chunks: Uint8Array[] = []
+            incoming.on("data", (chunk: Uint8Array) => {
+              chunks.push(chunk)
+            })
+            incoming.on("error", (error) => {
+              resume(Effect.fail(error))
+            })
+            incoming.on("aborted", () => {
+              resume(Effect.fail(fail(`Kubernetes ${method} ${path} response aborted`)))
+            })
+            incoming.on("end", () => {
+              if (incoming.complete === false) {
+                resume(
+                  Effect.fail(fail(`Kubernetes ${method} ${path} response ended before completion`)),
+                )
+                return
+              }
+              const statusCode = incoming.statusCode ?? 500
+              resume(
+                Effect.sync(() => ({
+                  statusCode,
+                  body: Buffer.concat(chunks).toString("utf8"),
+                })),
+              )
+            })
+          },
+        )
+        request.on("error", (error) => {
+          resume(Effect.fail(error instanceof Error ? error : fail(String(error))))
+        })
+        if (options.payload !== undefined) request.write(options.payload)
+        request.end()
+        // Bun's TLS client ignores AbortSignal. Destroying the socket releases it.
+        // Effect.callback already drops a second resume, and this finalizer runs
+        // on the same interrupt that aborts `signal`.
+        return Effect.sync(() => {
+          request.destroy()
+          request.socket?.destroy()
+        })
+      },
+    )
+  }
+}
+
+import { decodeBase64Utf8, sendRequest, utf8ByteLength } from http
+
+const requestJson = effect ({
+  transport,
+  method,
+  path,
+  body,
+  redactions = [],
+}: {
+  transport: ClusterTransport
+  method: string
+  path: string
+  body?: Record<string, unknown>
+  /** Secrets already plaintext in `body` (Helm renders them). */
+  redactions?: readonly string[]
+}) => {
+  // Outside the attempt retry: a hung token mint must not be retried as
+  // if it were a refused connection.
+  const headers = try transport.headers.pipe(Effect.timeout(requestTimeout))
+  const url = try Effect.orDie(
+    Effect.try({ try: () => new URL(path, transport.endpoint), catch: (e) => e }),
+  )
+  // JSON.stringify(Redacted) emits the display placeholder. Unwrap only at
+  // the wire so plans and state keep the wrapper.
+  const prepared = try Effect.sync(() => {
+    const payload = body === undefined ? undefined : JSON.stringify(unwrapRedacted(body))
+    return {
+      payload,
+      contentLength: payload === undefined ? undefined : utf8ByteLength(payload),
+      ca: transport.certificateAuthorityData === undefined
+        ? undefined
+        : decodeBase64Utf8(transport.certificateAuthorityData),
+      secrets: [...(body === undefined ? [] : collectRedactedSecrets(body)), ...redactions],
+    }
+  })
+
+  const response = try sendRequest({
+    url,
+    method,
+    path,
+    headers,
+    payload: prepared.payload,
+    contentLength: prepared.contentLength,
+    ca: prepared.ca,
+    clientCert: transport.clientCert,
+    insecureSkipTlsVerify: transport.insecureSkipTlsVerify,
+    fail: (message) => new KubernetesClientOperationFailed({ message }),
+  }).pipe(
+    Effect.timeout(requestTimeout),
+    Effect.mapError(
+      (error) =>
+        new KubernetesClientOperationFailed({
+          message: `Failed Kubernetes ${method} ${path}: ${error instanceof Error ? error.message : String(error)}`,
+        }),
+    ),
+    // Transport-level failures (ECONNREFUSED/ECONNRESET/ETIMEDOUT/DNS,
+    // the per-attempt deadline) are transient — a fresh managed endpoint's
+    // load balancer can refuse connections for a short window after the
+    // cluster reports ready. Every request here is idempotent (GET / SSA
+    // PATCH / DELETE), so retry them. HTTP status errors are classified
+    // below and are not retried here.
+    Effect.retry({
+      schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(8)]),
+    }),
+  )
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    // Error bodies can echo the request. Scrub only failures —
+    // a successful dry-run is the object we compare for drift.
+    const responseBody = try Effect.sync(() => redactJson(response.body, prepared.secrets))
+    if (response.statusCode === 404) {
+      return try new KubernetesNotFound({ method, path, body: responseBody })
+    }
+    return try new KubernetesApiError({
+      method,
+      path,
+      statusCode: response.statusCode,
+      body: responseBody,
+    })
+  }
+
+  if (!response.body.trim()) return undefined
+  return try Effect.sync(() => {
+    try {
+      return JSON.parse(response.body) as unknown
+    } catch {
+      return response.body
+    }
+  })
+}
+
+// ─────────────────────────────────────────────────────── kind discovery ──
+
+interface ApiResourceList {
+  resources?: {
+    name?: string
+    kind?: string
+    namespaced?: boolean
+  }[]
+}
+
+// One resolution per (endpoint, apiVersion, kind) per process. Plain cached
+// values (no finalizers), so module scope is safe.
+const discoveredKinds = new Map<string, KubernetesObjectKindSpec>()
+
+/**
+ * Resolve the REST mapping (plural + scope) for an arbitrary kind: static
+ * table fast path, then the Kubernetes discovery API (`/apis/{g}/{v}` or
+ * `/api/v1`). This is what lets `Kubernetes.Manifest` apply any CRD.
+ */
+export const resolveKindSpec = effect ({
+  transport,
+  input,
+}: {
+  transport: ClusterTransport
+  input: Pick<KubernetesObjectRef, "apiVersion" | "kind">
+}) => {
+  const staticSpec = try Effect.orDie(Effect.try({ try: () => lookupKubernetesKindSpec(input), catch: (e) => e }))
+  if (staticSpec) return staticSpec
+
+  const cacheKey = `${transport.endpoint}|${input.apiVersion}|${input.kind}`
+  const cached = discoveredKinds.get(cacheKey)
+  if (cached) return cached
+
+  const discoveryPath = input.apiVersion.includes("/")
+    ? `/apis/${input.apiVersion}`
+    : `/api/${input.apiVersion}`
+
+  const listed = (try requestJson({
+    transport,
+    method: "GET",
+    path: discoveryPath,
+  })) as ApiResourceList
+
+  const resource = listed.resources?.find(
+    (candidate) =>
+      candidate.kind === input.kind
+      && typeof candidate.name === "string"
+      && !candidate.name.includes("/"),
+  )
+
+  if (!resource?.name) {
+    return try new KubernetesNotFound({
+      method: "GET",
+      path: discoveryPath,
+      body: `Kind '${input.kind}' not found in API group '${input.apiVersion}'`,
+    })
+  }
+
+  const spec: KubernetesObjectKindSpec = {
+    plural: resource.name,
+    scope: resource.namespaced ? "Namespaced" : "Cluster",
+    applyRank: DEFAULT_APPLY_RANK,
+  }
+  discoveredKinds.set(cacheKey, spec)
+  return spec
+}
+
+const buildPath = effect ({
+  transport,
+  object,
+}: {
+  transport: ClusterTransport
+  object: KubernetesObjectRef
+}) => {
+  const spec = try resolveKindSpec({ transport, input: object })
+  return try Effect.try({
+    try: () => buildKubernetesObjectPathWithSpec(object, spec),
+    catch: (error) =>
+      new KubernetesObjectPathError({
+        message: error instanceof Error ? error.message : String(error),
+        cause: error,
+      }),
+  })
+}
+
+// ─────────────────────────────────────────────────────────── object ops ──
+
+export const readObject = effect ({
+  transport,
+  object,
+}: {
+  transport: ClusterTransport
+  object: KubernetesObjectRef
+}) => {
+  return try requestJson({
+    transport,
+    method: "GET",
+    path: try buildPath({ transport, object }),
+  }).pipe(
+    // Drift reads a whole Helm release at once. A 429 is the apiserver
+    // asking for a pause, not a failed object.
+    Effect.retry({
+      while: (error) => error instanceof KubernetesApiError && error.statusCode === 429,
+      schedule: Schedule.max([Schedule.spaced("1 second"), Schedule.recurs(4)]),
+    }),
+  )
+}
+
+export const applyObject = effect ({
+  transport,
+  object,
+  redactions,
+}: {
+  transport: ClusterTransport
+  object: KubernetesObjectDefinition
+  /** Plaintext secrets already rendered into `object` (Helm values). */
+  redactions?: readonly string[]
+}) => {
+  const basePath = try buildPath({
+    transport,
+    object: try Effect.orDie(Effect.try({ try: () => toKubernetesObjectRef(object), catch: (e) => e })),
+  })
+  const path = `${basePath}?fieldManager=${fieldManager}&force=true`
+
+  // A freshly provisioned cluster's API server briefly 5xxes while warming
+  // up, and the creator's bootstrap access can propagate asynchronously
+  // (401/403 in the first minute).
+  return try requestJson({
+    transport,
+    method: "PATCH",
+    path,
+    body: object,
+    redactions,
+  }).pipe(
+    Effect.retry({
+      while: (e): boolean =>
+        e instanceof KubernetesApiError
+        && (e.statusCode >= 500
+          || e.statusCode === 429
+          || e.statusCode === 401
+          || e.statusCode === 403),
+      schedule: Schedule.max([Schedule.spaced("6 seconds"), Schedule.recurs(10)]),
+    }),
+  )
+}
+
+export const deleteObject = effect ({
+  transport,
+  object,
+}: {
+  transport: ClusterTransport
+  object: KubernetesObjectRef
+}) => {
+  try buildPath({ transport, object }).pipe(
+    Effect.flatMap((path) =>
+      requestJson({
+        transport,
+        method: "DELETE",
+        // batch/v1 Jobs orphan their pods on DELETE unless a propagation
+        // policy is set; Background matches kubectl's default.
+        path: `${path}?propagationPolicy=Background`,
+      })
+    ),
+    Effect.catchTag("KubernetesNotFound", () => Effect.void),
+  )
+}
+
+export const reconcileObjects = effect ({
+  transport,
+  previousObjects,
+  desiredObjects,
+  redactions,
+}: {
+  transport: ClusterTransport
+  previousObjects: ReadonlyArray<KubernetesObjectRef>
+  desiredObjects: ReadonlyArray<KubernetesObjectDefinition>
+  redactions?: readonly string[]
+}) => {
+  const desiredRefs = desiredObjects.map(toKubernetesObjectRef)
+  const desiredKeys = new Set(desiredRefs.map(kubernetesObjectKey))
+
+  const removedObjects = previousObjects.filter(
+    (object) => !desiredKeys.has(kubernetesObjectKey(object)),
+  )
+
+  const removedInOrder = try Effect.orDie(
+    Effect.try({ try: () => sortRefsForDelete(removedObjects), catch: (e) => e }),
+  )
+  for (const object of removedInOrder) {
+    try deleteObject({
+      transport,
+      object,
+    })
+  }
+
+  const baselines = new Map<string, { baselineHash: string; driftMask: unknown }>()
+  const chunks = try Effect.orDie(Effect.try({ try: () => chunkByApplyRank(desiredObjects), catch: (e) => e }))
+  for (const chunk of chunks) {
+    try Effect.forEach(
+      chunk,
+      (object) =>
+        effect {
+          const applied = try applyObject({
+            transport,
+            object,
+            redactions,
+          })
+          const ref = try Effect.orDie(Effect.try({ try: () => toKubernetesObjectRef(object), catch: (e) => e }))
+          const witnessed = isPlainObject(applied) ? applied : undefined
+          const key = try Effect.orDie(Effect.try({ try: () => kubernetesObjectKey(ref), catch: (e) => e }))
+          const mask = try Effect.orDie(Effect.try({ try: () => driftMask(object, witnessed), catch: (e) => e }))
+          const baselineHash = try hashDriftSelection(object, witnessed ?? object)
+          baselines.set(key, { driftMask: mask, baselineHash })
+        },
+      { concurrency: "unbounded" },
+    )
+  }
+
+  return desiredRefs.map((ref) => ({
+    ...ref,
+    ...baselines.get(kubernetesObjectKey(ref)),
+  }))
+}
+
+export const deleteObjects = effect ({
+  transport,
+  objects,
+}: {
+  transport: ClusterTransport
+  objects: ReadonlyArray<KubernetesObjectRef>
+}) => {
+  const inOrder = try Effect.orDie(Effect.try({ try: () => sortRefsForDelete(objects), catch: (e) => e }))
+  for (const object of inOrder) {
+    try deleteObject({
+      transport,
+      object,
+    })
+  }
+}
