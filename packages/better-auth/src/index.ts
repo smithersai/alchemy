@@ -5,7 +5,7 @@ export {
   type BetterAuthInstance,
   type BetterAuthProps,
   type Session,
-} from "./BetterAuth.ts";
+} from "./BetterAuth.vibe";
 export {
   Database,
   type DatabaseInput,
