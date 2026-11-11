@@ -13,7 +13,7 @@
 import * as Effect from "effect/Effect";
 import { runBuildChild } from "../core/BuildChild.ts";
 import { DeployTargetError, makeDeployTarget } from "../core/index.ts";
-import { make, type ViteTarget, type ViteTargetConfig } from "./Vite.ts";
+import { make, type ViteTarget, type ViteTargetConfig } from "./Vite.vibe";
 
 const fail = (message: string, cause?: unknown) =>
   new DeployTargetError({ platform: "aws", message, cause });

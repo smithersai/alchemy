@@ -40,7 +40,9 @@ export const devChildCommand = (options: {
 }): { readonly executable: string; readonly args: Array<string> } => {
   const entry = fileURLToPath(
     new URL(
-      options.callerUrl.endsWith(".ts") ? "../core/DevChildRunner.ts" : "../core/DevChildRunner.js",
+      options.callerUrl.endsWith(".ts") || options.callerUrl.endsWith(".vibe")
+        ? "../core/DevChildRunner.ts"
+        : "../core/DevChildRunner.js",
       options.callerUrl,
     ),
   );

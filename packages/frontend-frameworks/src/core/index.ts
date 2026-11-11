@@ -79,4 +79,4 @@ export {
   ModuleLoadError,
   resolveInstalledPackageVersion,
   resolveProjectPackageDirectory,
-} from "./Loader.ts";
+} from "./Loader.vibe";

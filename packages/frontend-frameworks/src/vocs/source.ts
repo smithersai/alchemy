@@ -6,7 +6,7 @@ import {
   type SourceProvider,
   type WakuBuildChildConfig,
   type WakuSourceOptions,
-} from "../waku/source.ts";
+} from "../waku/source.vibe";
 import vocsCloudflareTarget from "./cloudflare.ts";
 import { make as vocsFrameworkLayer } from "./Vocs.ts";
 

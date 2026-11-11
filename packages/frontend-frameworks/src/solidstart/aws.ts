@@ -29,7 +29,7 @@
 import * as Effect from "effect/Effect";
 import { runBuildChild } from "../core/BuildChild.ts";
 import { DeployTargetError, makeDeployTarget } from "../core/index.ts";
-import { make, type SolidStartTarget, type SolidStartTargetConfig } from "./SolidStart.ts";
+import { make, type SolidStartTarget, type SolidStartTargetConfig } from "./SolidStart.vibe";
 
 /** The nitro deployment preset this target builds with. */
 export const NITRO_PRESET = "aws-lambda";

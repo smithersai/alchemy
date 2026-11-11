@@ -26,7 +26,7 @@ import type * as Path from "effect/Path";
  * validation constants — lives behind `@alchemy.run/frontend-frameworks/octane/cloudflare`.
  */
 import type { Framework } from "../core/index.ts";
-import { layer, type OctaneOptions } from "./Octane.ts";
+import { layer, type OctaneOptions } from "./Octane.vibe";
 
 export {
   DEFAULT_TARGET_SPECIFIER,
@@ -43,7 +43,7 @@ export {
   type OctaneViteModule,
   type OctaneVitePluginModule,
   type ResolvedOctaneConfigSlice,
-} from "./Octane.ts";
+} from "./Octane.vibe";
 
 /**
  * The structural subset of the e2e harness's cloudflare worker options this

@@ -39,7 +39,7 @@ import {
   relativeClientDirExpression,
   writeNodeServeEntry,
 } from "../core/NodeServe.ts";
-import { make, type OctaneTarget, type OctaneTargetConfig } from "./Octane.ts";
+import { make, type OctaneTarget, type OctaneTargetConfig } from "./Octane.vibe";
 
 /** The `adapter.name` the Node marker adapter declares. */
 export const ADAPTER_NAME = "node";
