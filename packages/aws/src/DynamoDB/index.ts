@@ -1,4 +1,4 @@
-export * from "./AttributeValue.ts";
+export * from "./AttributeValue.vibe";
 export * from "./BatchExecuteStatement.vibe";
 export * from "./BatchExecuteStatementHttp.vibe";
 export * from "./BatchGetItem.vibe";

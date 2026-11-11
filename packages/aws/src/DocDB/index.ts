@@ -2,7 +2,7 @@ export * from "./ApplyPendingMaintenanceAction.vibe";
 export * from "./ApplyPendingMaintenanceActionHttp.vibe";
 export * from "./ClusterEventSource.vibe";
 export * from "./Connect.vibe";
-export * from "./ConnectHttp.ts";
+export * from "./ConnectHttp.vibe";
 export * from "./CopyDBClusterSnapshot.vibe";
 export * from "./CopyDBClusterSnapshotHttp.vibe";
 export * from "./CreateDBClusterSnapshot.vibe";

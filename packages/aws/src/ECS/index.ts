@@ -15,7 +15,7 @@ export * from "./DescribeTasks.vibe";
 export * from "./DescribeTasksHttp.vibe";
 export * from "./ExecuteCommand.vibe";
 export * from "./ExecuteCommandHttp.vibe";
-export * from "./FlociServiceProvider.ts";
+export * from "./FlociServiceProvider.vibe";
 export * from "./FlociTaskProvider.ts";
 export * from "./GetTaskProtection.vibe";
 export * from "./GetTaskProtectionHttp.vibe";

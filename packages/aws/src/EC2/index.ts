@@ -27,7 +27,7 @@ export * from "./InstanceEventSource.vibe";
 export * from "./InternetGateway.vibe";
 export * from "./KeyPair.vibe";
 export * from "./NatGateway.vibe";
-export * from "./Network.ts";
+export * from "./Network.vibe";
 export * from "./NetworkAcl.vibe";
 export * from "./NetworkAclAssociation.vibe";
 export * from "./NetworkAclEntry.vibe";

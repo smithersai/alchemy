@@ -26,7 +26,7 @@ export * from "./InvokeModelHttp.vibe";
 export * from "./InvokeModelWithResponseStream.vibe";
 export * from "./InvokeModelWithResponseStreamHttp.vibe";
 export * from "./KnowledgeBase.vibe";
-export * from "./LanguageModel.ts";
+export * from "./LanguageModel.vibe";
 export * from "./LanguageModelHttp.vibe";
 export * from "./ListIngestionJobs.vibe";
 export * from "./ListIngestionJobsHttp.vibe";
