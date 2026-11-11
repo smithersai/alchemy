@@ -6,8 +6,8 @@ export default defineScene({
   notes:
     "An Axiom.Dashboard declared next to the code it observes: requests by route, p95 latency, clicks by link, errors. Every stage gets its own dashboard over its own datasets, and a chart change is a reviewable diff.",
   async run(s) {
-    await s.sync({ except: ["src/Dashboard.ts", "alchemy.run.ts"] });
-    await s.editor.show("src/Dashboard.ts");
+    await s.sync({ except: ["src/Dashboard.vibe", "alchemy.run.ts"] });
+    await s.editor.show("src/Dashboard.vibe");
     s.pause(1);
     await s.editor.show("alchemy.run.ts");
     s.pause(1);
