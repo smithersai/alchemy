@@ -12,7 +12,7 @@ import {
   syncHostIam,
   type AppliedIamGrant,
   type GcpHostBinding,
-} from "./Host.ts";
+} from "./Host.vibe";
 
 /**
  * Shared deploy-time plumbing for the GCP runtime hosts (`Run.Service`,

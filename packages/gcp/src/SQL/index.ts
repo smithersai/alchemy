@@ -12,4 +12,4 @@ export * from "./GetUserHttp.vibe";
 export * from "./Instance.vibe";
 export * from "./SslCert.vibe";
 export * from "./User.vibe";
-export type { MigrationsTransport } from "./Migrations.ts";
+export type { MigrationsTransport } from "./Migrations.vibe";

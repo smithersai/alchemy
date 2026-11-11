@@ -28,7 +28,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts"
+} from "./internal.vibe"
 
 export type HookEvent = ssm.HookEventsItemEnum | (string & {})
 
@@ -171,7 +171,7 @@ const toEvents = (
   events: readonly (ssm.HookEventsItemEnum | (string & {}))[] | undefined,
 ): HookEvent[] => [...(events ?? [])].slice().sort()
 
-const toAttrs = (item: ssm.Hook, project: string, region: string): infer _ => {
+const toAttrs = effect (item: ssm.Hook, project: string, region: string) => {
   const name = item.name ?? ""
   const parsed = parseName(name, "hooks", region)
   return {
@@ -180,7 +180,7 @@ const toAttrs = (item: ssm.Hook, project: string, region: string): infer _ => {
     repository: parsed.parent,
     project: parsed.project || project,
     location: parsed.location,
-    targetUri: stripAlchemyQuery(item.targetUri ?? ""),
+    targetUri: try Effect.orDie(Effect.try({ try: () => stripAlchemyQuery(item.targetUri ?? ""), catch: (e) => e })),
     events: toEvents(item.events),
     disabled: item.disabled === true,
     pushOption: item.pushOption === undefined ? undefined : { branchFilter: item.pushOption.branchFilter },
@@ -209,7 +209,13 @@ const listOwned = effect (project: string, region: string) =>
   try forEachRepository(
     project,
     region,
-    effect (repository) => (try listOnRepository(repository)).filter((item) => hasTargetUriOwnership(item.targetUri)),
+    effect (repository) => {
+      const items = try listOnRepository(repository)
+      return try Effect.orDie(Effect.try({
+        try: () => items.filter((item) => hasTargetUriOwnership(item.targetUri)),
+        catch: (e) => e,
+      }))
+    },
   )
 
 export const RepositoriesHookProvider = (): infer _ =>
@@ -260,7 +266,7 @@ export const RepositoriesHookProvider = (): infer _ =>
       const name = output?.name ?? (repository.length > 0 ? resourceName(repository, hookId) : "")
       const existing = try getByName(name)
       if (existing === undefined) return undefined
-      const attrs = toAttrs(existing, env.project, env.region)
+      const attrs = try toAttrs(existing, env.project, env.region)
       // A generated id embeds stack/stage/logical id, so finding it means we
       // created it; an explicit id could name anyone's hook. Hooks created
       // before ownership moved off the URI still carry query markers.
@@ -276,7 +282,7 @@ export const RepositoriesHookProvider = (): infer _ =>
     list: effect () => {
       const env = try GcpEnvironment.current
       const items = try listOwned(env.project, env.region)
-      return items.map((item: ssm.Hook) => toAttrs(item, env.project, env.region))
+      return try Effect.forEach(items, (item: ssm.Hook) => toAttrs(item, env.project, env.region))
     },
 
     reconcile: effect ({ id, news, output }) => {
@@ -346,7 +352,7 @@ export const RepositoriesHookProvider = (): infer _ =>
         current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
       }
 
-      return toAttrs(current, env.project, env.region)
+      return try toAttrs(current, env.project, env.region)
     },
 
     delete: effect ({ output }) => {

@@ -29,7 +29,7 @@ export * from "./RegionHealthCheck.vibe";
 export * from "./CrossSiteNetwork.vibe";
 export * from "./FutureReservation.vibe";
 export * from "./GlobalPublicDelegatedPrefix.vibe";
-export * from "./GlobalVmExtensionPolicy.ts";
+export * from "./GlobalVmExtensionPolicy.vibe";
 export * from "./InstanceGroupManagerResizeRequest.vibe";
 export * from "./InstantSnapshot.vibe";
 export * from "./InstantSnapshotGroup.vibe";
