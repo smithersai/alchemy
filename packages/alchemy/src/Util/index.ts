@@ -9,5 +9,5 @@ export * from "./service.vibe";
 export * from "./sha256.vibe";
 export * from "./stable.ts";
 export * from "./type.ts";
-export * from "./types.ts";
+export * from "./types.vibe";
 export * from "./unknown.ts";

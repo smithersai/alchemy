@@ -8,7 +8,7 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
-import { asEffect } from ".//Util/types.ts";
+import { asEffect } from ".//Util/types.vibe";
 import { isAction, type ActionLike } from "./Action.vibe";
 import {
   AdoptPolicy,
@@ -61,10 +61,10 @@ import {
   selectResources,
   type ResourceSelection,
   type SelectionOutput,
-} from "./ResourceSelection.ts";
+} from "./ResourceSelection.vibe";
 import { capturedEnvKeys } from "./RuntimeContext.vibe";
 import { cachedInScope } from "./Util/Memoize.vibe";
-export { InvalidResourceSelection, UnsafeSelectionBoundary } from "./ResourceSelection.ts";
+export { InvalidResourceSelection, UnsafeSelectionBoundary } from "./ResourceSelection.vibe";
 import { type StackSpec } from "./Stack.ts";
 import {
   isActionState,

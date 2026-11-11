@@ -10,6 +10,6 @@ export * from "./LocalState.vibe";
 export * from "./ResourceState.ts";
 export * from "./State.ts";
 export * from "./ActionState.ts";
-export * from "./StateEncoding.ts";
+export * from "./StateEncoding.vibe";
 export * from "./Sync.vibe";
 export * from "./Tree.vibe";
