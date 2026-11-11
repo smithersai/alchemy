@@ -2,7 +2,7 @@ import { recordsEqual } from "alchemy/Util/equal";
 import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import type * as Path from "effect/Path";
-import { hashMigrations } from "../SqlFile.ts";
+import { hashMigrations } from "../SqlFile.vibe";
 import { ALCHEMY_DEFAULT_TABLE, applyAlchemyFormat } from "./AlchemyFormat.ts";
 import {
   MigrationError,
