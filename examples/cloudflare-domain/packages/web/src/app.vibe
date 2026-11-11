@@ -1,0 +1,131 @@
+import * as Domain from "@alchemy.run/domain"
+import * as DomainFoldkit from "@alchemy.run/domain/Foldkit"
+import { CustomerId } from "@bank/domain/Customer/Customer.id"
+import { CustomerApi } from "@bank/domain/CustomerApi.api"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as HttpClient from "effect/http/HttpClient"
+import * as HttpClientRequest from "effect/http/HttpClientRequest"
+import * as Layer from "effect/Layer"
+import * as OtlpSerialization from "effect/observability/OtlpSerialization"
+import * as OtlpTracer from "effect/observability/OtlpTracer"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import * as Socket from "effect/socket/Socket"
+import { Intent, intentsKey } from "./Bank.ts"
+
+// The page itself: its URL, storage and network status, and the app mounted
+// on its root element.
+module browser {
+  import type * as Effect from "effect/Effect"
+  import type * as Layer from "effect/Layer"
+  import { Runtime } from "foldkit"
+  import { Flags, init, Model, subscriptions, update, view } from "./Bank.ts"
+
+  export const customerParam = (): string | null => new URLSearchParams(location.search).get("customer")
+  export const storedItem = (key: string): string | null => localStorage.getItem(key)
+  export const pageOrigin = (): string => location.origin
+  export const randomSession = (): string => crypto.randomUUID()
+  export const isOnline = (): boolean => navigator.onLine
+
+  export const start = <Resources>(
+    resources: Layer.Layer<Resources>,
+    flags: Effect.Effect<Flags, never, Resources>,
+  ): void =>
+    Runtime.run(
+      Runtime.makeApplication({
+        Model,
+        Flags,
+        init,
+        update,
+        view,
+        subscriptions,
+        resources,
+        container: document.getElementById("root"),
+      }),
+      { flags },
+    )
+}
+
+import { customerParam, isOnline, pageOrigin, randomSession, start, storedItem } from browser
+
+/**
+ * The signed-in customer. A demo stand-in for a login: `?customer=c-2` picks
+ * who you are, defaulting to `c-1`.
+ */
+const signedIn = Effect.orDie(
+  Effect.try({ try: () => CustomerId.make(customerParam() ?? "c-1"), catch: (e) => e }),
+)
+
+/** Intents an earlier page load could not deliver. Anything unreadable is dropped. */
+const savedIntents = (customerId: CustomerId) =>
+  Effect.orDie(
+    Effect.try({
+      try: () =>
+        Option.getOrElse(
+          Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Array(Intent)))(
+            storedItem(intentsKey(customerId)) ?? "[]",
+          ),
+          () => [],
+        ),
+      catch: (e) => e,
+    }),
+  )
+
+/** Sign in: the Api sets an `HttpOnly` session cookie on this origin. */
+const signIn = effect (customerId: CustomerId) => {
+  const client = HttpClient.filterStatusOk(try HttpClient.HttpClient)
+  try client.execute(
+    HttpClientRequest.post("/api/session").pipe(HttpClientRequest.bodyJsonUnsafe({ customerId })),
+  )
+}
+
+/**
+ * The bank Api for the life of the app, on this origin, so the browser sends
+ * the session cookie with every call and every watch. Commands go over HTTP;
+ * each watch is a WebSocket to the Durable Object that owns what it reads,
+ * which pushes every change.
+ */
+const BankConnection = Layer.unwrap(
+  effect {
+    // The app cannot run signed out.
+    try signIn(try signedIn).pipe(Effect.orDie)
+    const origin = try Effect.orDie(Effect.try({ try: () => pageOrigin(), catch: (e) => e }))
+    return CustomerApi.layerClient.pipe(
+      Layer.provide(Domain.protocolWebSocket(`${origin}/api`)),
+      Layer.provide(Socket.layerWebSocketConstructorGlobal),
+    )
+  },
+)
+
+/**
+ * The app's spans, exported to its own origin, where the bank Worker relays
+ * them on. foldkit traces every Command, and each Api call carries the trace
+ * on, so a click and everything it causes on the server is one trace.
+ */
+const Tracing = OtlpTracer.layer({
+  url: `${pageOrigin()}/api/telemetry/v1/traces`,
+  resource: { serviceName: "bank-web" },
+}).pipe(Layer.provide(OtlpSerialization.layerJson))
+
+const Headers = Layer.succeed(DomainFoldkit.CommandHeaders, {
+  get: (command) => Effect.succeed(command === "WithdrawMoney" ? { "x-mfa-code": "000000" } : {}),
+})
+
+const Resources = Layer.mergeAll(BankConnection, Tracing, Headers).pipe(
+  Layer.provide(FetchHttpClient.layer),
+)
+
+start(
+  Resources,
+  effect {
+    const customerId = try signedIn
+    return {
+      customerId,
+      // Names this page's commands, so each is unique even across reloads.
+      session: try Effect.orDie(Effect.try({ try: () => randomSession(), catch: (e) => e })),
+      online: try Effect.orDie(Effect.try({ try: () => isOnline(), catch: (e) => e })),
+      intents: try savedIntents(customerId),
+    }
+  },
+)
