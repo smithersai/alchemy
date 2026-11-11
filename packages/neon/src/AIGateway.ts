@@ -2,7 +2,7 @@ import { getProjectBranchAiGateway } from "@distilled.cloud/neon";
 import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import { InvalidBranchScope, resolveBranchScope } from "./BranchScope.ts";
+import { InvalidBranchScope, resolveBranchScope } from "./BranchScope.vibe";
 import type { Credential } from "./Credential.vibe";
 
 export type AIGatewayProps = (
