@@ -1,0 +1,316 @@
+import * as kafka from "@distilled.cloud/gcp/managedkafka_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  expandParent,
+  fieldMask,
+  fingerprint,
+  getConnector,
+  listAlchemyConnectClusters,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  retryTransient,
+  rfc1035,
+  stringMapOf,
+  toPhysicalId,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+export type TaskRetryPolicy = {
+  /** Minimum backoff before retrying a failed task (e.g. `"60s"`). */
+  minimumBackoff?: string
+  /** Maximum backoff before retrying a failed task (e.g. `"43200s"`). */
+  maximumBackoff?: string
+  /**
+   * Disable task retry.
+   * @default false
+   */
+  taskRetryDisabled?: boolean
+}
+
+export type ConnectClustersConnectorProps = {
+  /**
+   * Parent Connect cluster. Full name
+   * `projects/{project}/locations/{location}/connectClusters/{id}` or
+   * the Connect cluster id (combined with `location`). Immutable —
+   * changing it replaces the connector.
+   */
+  connectCluster: string
+  /**
+   * Region used when `connectCluster` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Connector id. If omitted, a unique RFC1035 name is generated.
+   * Immutable — changing it replaces the connector.
+   */
+  connectorId?: string
+  /**
+   * Connector config (`connector.class`, `tasks.max`, converters, …).
+   */
+  configs?: Record<string, string>
+  /**
+   * Task restart policy.
+   */
+  taskRestartPolicy?: TaskRetryPolicy
+}
+
+export type ConnectClustersConnector = Resource<
+  "GCP.ManagedKafka.ConnectClustersConnector",
+  ConnectClustersConnectorProps,
+  {
+    /** Full resource name `.../connectClusters/{id}/connectors/{connector}`. */
+    name: string
+    /** Connector id. */
+    connectorId: string
+    /** Parent Connect cluster resource name. */
+    connectCluster: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Connector configs. */
+    configs: Record<string, string>
+    /** Server-reported state. */
+    state: string | undefined
+    /** Task restart policy currently applied. */
+    taskRestartPolicy: TaskRetryPolicy | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Kafka Connect connector on a Managed Kafka Connect cluster.
+ *
+ * Changing `connectorId`, `connectCluster`, or `location` replaces the
+ * connector. Configs and the task restart policy update in place.
+ *
+ * ### Creating a Connector
+ * **Example:** Pub/Sub sink
+ * ```typescript
+ * const connector = yield* GCP.ManagedKafka.ConnectClustersConnector(
+ *   "Sink",
+ *   {
+ *     connectCluster: connect.name,
+ *     configs: {
+ *       "connector.class":
+ *         "com.google.pubsub.kafka.sink.CloudPubSubSinkConnector",
+ *       "tasks.max": "1",
+ *       topics: "orders",
+ *       "cps.project": "my-project",
+ *       "cps.topic": "orders-sink",
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category ManagedKafka
+ */
+export const ConnectClustersConnector = Resource<ConnectClustersConnector>(
+  "GCP.ManagedKafka.ConnectClustersConnector",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ConnectClustersConnectorNotResolved extends Data.TaggedError(
+  "GCP.ManagedKafka.ConnectClustersConnectorNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const connectClusterOf = (value: string, project: string, location: string): infer _ =>
+  expandParent(value, project, location, "connectClusters")
+
+const resourceName = (connectCluster: string, connectorId: string): infer _ =>
+  `${connectCluster}/connectors/${connectorId}`
+
+const policyOf = (
+  policy: kafka.TaskRetryPolicy | TaskRetryPolicy | undefined,
+): TaskRetryPolicy | undefined => {
+  if (policy === undefined) return undefined
+  return {
+    minimumBackoff: policy.minimumBackoff,
+    maximumBackoff: policy.maximumBackoff,
+    taskRetryDisabled: policy.taskRetryDisabled === true,
+  }
+}
+
+const toAttrs = (connector: kafka.Connector, project: string): infer _ => {
+  const name = connector.name ?? ""
+  const parsed = parseName(name, "connectors")
+  return {
+    name,
+    connectorId: parsed.id,
+    connectCluster: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    configs: stringMapOf(connector.configs),
+    state: connector.state,
+    taskRestartPolicy: policyOf(connector.taskRestartPolicy),
+  }
+}
+
+export const ConnectClustersConnectorProvider = (): infer _ =>
+  Provider.succeed(ConnectClustersConnector, {
+    stables: ["name", "connectorId", "connectCluster", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? output?.location, env.region),
+          catch: (e) => e,
+        }),
+      )
+      const input = {
+        previousId: olds?.connectorId ?? output?.connectorId,
+        nextId: resolved.connectorId
+          ? rfc1035(resolved.connectorId, "connector")
+          : (olds?.connectorId ?? output?.connectorId),
+        previousParent: olds?.connectCluster ?? output?.connectCluster,
+        nextParent: connectClusterOf(resolved.connectCluster, env.project, location),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const connectorId = try toPhysicalId(
+        id,
+        olds?.connectorId,
+        output?.connectorId,
+        "connector",
+      )
+      const connectCluster = olds?.connectCluster !== undefined
+        ? connectClusterOf(olds.connectCluster, env.project, location)
+        : (output?.connectCluster ?? "")
+      const name = output?.name
+        ?? (connectCluster.length > 0 ? resourceName(connectCluster, connectorId) : "")
+      const existing = try getConnector(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return output !== undefined || olds !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const clusters = try listAlchemyConnectClusters(env.project, env.region)
+      const connectors = try Effect.forEach(
+        clusters.filter((cluster) => (cluster.name ?? "").length > 0),
+        effect (cluster: kafka.ConnectCluster) =>
+          collectPages(
+            kafka.listProjectsLocationsConnectClustersConnectors.pages({
+              parent: cluster.name!,
+              pageSize: 1000,
+            }),
+            (page) => page.connectors,
+          ) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as kafka.Connector[]; default: throw e; },
+        { concurrency: 4 },
+      )
+      return connectors.flat().map((connector) => toAttrs(connector, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const connectCluster = connectClusterOf(news.connectCluster, env.project, location)
+      const connectorId = try toPhysicalId(
+        id,
+        news.connectorId,
+        output?.connectorId,
+        "connector",
+      )
+      const name = output?.name ?? resourceName(connectCluster, connectorId)
+      const configs = news.configs
+      const taskRestartPolicy = news.taskRestartPolicy
+
+      let current = try getConnector(name)
+
+      if (current === undefined) {
+        const created = try retryTransient(
+          effect {
+            return kafka
+              .createProjectsLocationsConnectClustersConnectors({
+                parent: connectCluster,
+                connectorId,
+                body: {
+                  configs,
+                  taskRestartPolicy,
+                },
+              }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getConnector(name); default: throw e; }
+          },
+        )
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ConnectClustersConnectorNotResolved({ resourceName: name })
+      }
+
+      const configsChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, stringMapOf(current.configs)),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(stringMapOf(configs)),
+        catch: (e) => e,
+      })))
+      const value = policyOf(current.taskRestartPolicy)
+      const policyChanged = (try Effect.orDie(Effect.try({ try: () => fingerprint(value), catch: (e) => e })))
+        !== (try Effect.orDie(
+          Effect.try({ try: fingerprint.bind(undefined, policyOf(taskRestartPolicy)), catch: (e) => e }),
+        ))
+
+      if (configsChanged || policyChanged) {
+        current = try kafka.patchProjectsLocationsConnectClustersConnectors({
+          name,
+          updateMask: try Effect.orDie(Effect.try({
+            try: () =>
+              fieldMask([
+                configsChanged && "configs",
+                policyChanged && "task_restart_policy",
+              ]),
+            catch: (e) => e,
+          })),
+          body: {
+            configs,
+            taskRestartPolicy,
+          },
+        })
+      }
+
+      current = try waitUntilReady(
+        getConnector(current.name ?? name),
+        current.name ?? name,
+        (connector) => connector.state,
+      )
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      kafka
+        .deleteProjectsLocationsConnectClustersConnectors({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getConnector(output.name), output.name)
+    },
+  })

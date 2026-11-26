@@ -1,0 +1,94 @@
+import * as Effect from "effect/Effect"
+import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs"
+import * as Output from "alchemy/Output"
+import { makeBatchedSink } from "alchemy/Util/BatchedSink"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { LogEventSink, type LogEventSinkProps } from "./LogEventSink.vibe"
+import type { LogGroup } from "./LogGroup.vibe"
+import { PutLogEvents } from "./PutLogEvents.vibe"
+
+const encoder = new TextEncoder()
+
+/**
+ * The `PutLogEvents` batch-size formula charges each event its UTF-8 message
+ * size plus 26 bytes of overhead.
+ */
+const PER_EVENT_OVERHEAD = 26
+
+/**
+ * Select the events `rejectedLogEventsInfo` marks as permanently rejected,
+ * preserving input order. The API skips (never ingests) these while still
+ * processing the remaining valid events, so they must be dropped — not
+ * retried:
+ *
+ * - `tooOldLogEventEndIndex` / `expiredLogEventEndIndex` — everything up to
+ *   and including that index is too old / past retention;
+ * - `tooNewLogEventStartIndex` — everything from that index on is more than
+ *   2 hours in the future.
+ */
+const selectRejected = (
+  out: Logs.PutLogEventsResponse,
+  batch: readonly Logs.InputLogEvent[],
+): readonly Logs.InputLogEvent[] => {
+  const info = out.rejectedLogEventsInfo
+  if (info === undefined) {
+    return []
+  }
+  const rejectedHeadEnd = Math.max(
+    info.tooOldLogEventEndIndex ?? -1,
+    info.expiredLogEventEndIndex ?? -1,
+  )
+  const tooNewStart = info.tooNewLogEventStartIndex ?? batch.length
+  return batch.filter((_, index) => index <= rejectedHeadEnd || index >= tooNewStart)
+}
+
+export const LogEventSinkHttp = Layer.effect(
+  LogEventSink,
+  effect {
+    const bind = try AWSBindings.Bind
+    const putLogEvents = try PutLogEvents
+
+    return effect (logGroup: LogGroup, props: LogEventSinkProps) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Logs.LogEventSink(${logGroup})`({
+          policyStatements: [
+            {
+              // PutLogEvents authorizes against the log-stream resource
+              // (`log-group:{name}:log-stream:{stream}`), covered by the
+              // `:*` wildcard on the group ARN.
+              Effect: "Allow",
+              Action: ["logs:PutLogEvents"],
+              Resource: [Output.interpolate`${logGroup.logGroupArn}:*`],
+            },
+          ],
+        })
+      }
+      const put = try putLogEvents(logGroup)
+      return (try effect {
+        const sinkOptions: Parameters<
+          typeof makeBatchedSink<Logs.InputLogEvent, Logs.PutLogEventsResponse, Logs.PutLogEventsError>
+        >[0] = {
+          maxRecords: 10_000,
+          maxBytes: 1_048_576,
+          sizeOf: (event): infer _ => encoder.encode(event.message).length + PER_EVENT_OVERHEAD,
+          send: effect (batch) =>
+            try put({
+              logStreamName: props.logStreamName,
+              logEvents: [...batch],
+            }),
+          // No `unprocessed` extractor: PutLogEvents has no transient per-event
+          // failure mode — timestamp rejections are permanent, so drop + surface.
+          rejected: selectRejected,
+        }
+        return try Effect.orDie(
+          Effect.try({
+            try: () =>
+              makeBatchedSink<Logs.InputLogEvent, Logs.PutLogEventsResponse, Logs.PutLogEventsError>(sinkOptions),
+            catch: (error) => error,
+          }),
+        )
+      })
+    }
+  },
+)

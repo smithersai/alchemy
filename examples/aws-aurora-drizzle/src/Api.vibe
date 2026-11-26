@@ -1,0 +1,123 @@
+import * as AWS from "@alchemy.run/aws"
+import * as Drizzle from "@alchemy.run/drizzle/Postgres"
+import { eq, sql } from "drizzle-orm"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Redacted from "effect/Redacted"
+import * as Schema from "effect/Schema"
+import { bootstrap } from "./bootstrap.vibe"
+import { database } from "./database.vibe"
+import { todos } from "./schema.ts"
+
+export default class Api extends AWS.Lambda.Function<Api>()(
+  "Api",
+  effect {
+    const schemaVersion = try bootstrap
+    return {
+      main: import.meta.url,
+      runtime: "nodejs22.x" as const,
+      functionUrl: { authType: "AWS_IAM" as const },
+      timeout: Duration.seconds(30),
+      env: {
+        SCHEMA_VERSION: schemaVersion,
+        NODE_EXTRA_CA_CERTS: "/var/runtime/ca-cert.pem",
+      },
+    }
+  },
+  effect {
+    const { cluster, subnetIds, lambdaSecurityGroup } = try database
+    const connect = try AWS.RDS.Connect(cluster, {
+      auth: "iam",
+      username: "app_iam",
+      database: "app",
+      subnetIds,
+      securityGroupIds: [lambdaSecurityGroup.groupId],
+    })
+    const db = try Drizzle.Postgres(
+      connect.pipe(
+        Effect.map((connection) => {
+          const url = new URL(Redacted.value(connection.url))
+          // Connect currently emits no-verify; require full certificate verification.
+          url.searchParams.set("sslmode", "verify-full")
+          return Redacted.make(url.toString())
+        }),
+      ),
+    )
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const url = new URL(request.originalUrl)
+        if (request.method === "GET" && url.pathname === "/health") {
+          const query = try Effect.orDie(
+            Effect.try({
+              try: () => sql`SELECT current_user AS username,
+            (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) AS tls,
+            has_table_privilege(current_user, 'todos', 'INSERT') AS can_insert,
+            has_schema_privilege(current_user, 'public', 'CREATE') AS can_create`,
+              catch: (e) => e,
+            }),
+          )
+          const rows = try db.execute(query)
+          return try HttpServerResponse.json(rows)
+        }
+        if (url.pathname === "/todos" && request.method === "GET") {
+          const query = try Effect.orDie(
+            Effect.try({ try: () => db.select().from(todos), catch: (e) => e }),
+          )
+          return try HttpServerResponse.json(try query)
+        }
+        if (url.pathname === "/todos" && request.method === "POST") {
+          const input = try request.json.pipe(
+            Effect.flatMap(
+              Schema.decodeUnknownEffect(
+                Schema.Struct({
+                  id: Schema.String.check(Schema.isUUID()),
+                  title: Schema.NonEmptyString,
+                }),
+              ),
+            ),
+          )
+          const query = try Effect.orDie(
+            Effect.try({ try: () => db.insert(todos).values(input).returning(), catch: (e) => e }),
+          )
+          return try HttpServerResponse.json(try query, {
+            status: 201,
+          })
+        }
+        if (url.pathname.startsWith("/todos/")) {
+          const id = try Schema.decodeUnknownEffect(Schema.String.check(Schema.isUUID()))(
+            url.pathname.slice(7),
+          )
+          if (request.method === "PATCH") {
+            const input = try request.json.pipe(
+              Effect.flatMap(Schema.decodeUnknownEffect(Schema.Struct({ done: Schema.Boolean }))),
+            )
+            const query = try Effect.orDie(
+              Effect.try({
+                try: () => db.update(todos).set(input).where(eq(todos.id, id)).returning(),
+                catch: (e) => e,
+              }),
+            )
+            return try HttpServerResponse.json(try query)
+          }
+          if (request.method === "DELETE") {
+            const query = try Effect.orDie(
+              Effect.try({ try: () => db.delete(todos).where(eq(todos.id, id)), catch: (e) => e }),
+            )
+            try query
+            return HttpServerResponse.empty({ status: 204 })
+          }
+        }
+        return HttpServerResponse.text("Not found", { status: 404 })
+      }.pipe(
+        Effect.catchTag(
+          "SchemaError",
+          () => Effect.succeed(HttpServerResponse.text("Invalid request", { status: 400 })),
+        ),
+        Effect.orDie,
+      ),
+    }
+  }.pipe(Effect.provide(AWS.RDS.ConnectHttp)),
+) {}

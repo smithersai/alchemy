@@ -1,0 +1,436 @@
+import {
+  BadGateway,
+  GatewayTimeout,
+  InternalServerError,
+  ServiceUnavailable,
+  TooManyRequests,
+} from "@distilled.cloud/fly-io/Errors"
+import * as machines from "@distilled.cloud/fly-io/machines"
+import * as Retry from "@distilled.cloud/fly-io/Retry"
+import * as Clock from "effect/Clock"
+import * as Data from "effect/Data"
+import * as Deferred from "effect/Deferred"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as HttpClient from "effect/http/HttpClient"
+import * as HttpClientRequest from "effect/http/HttpClientRequest"
+import * as Option from "effect/Option"
+import * as Schedule from "effect/Schedule"
+
+const TTL_SECONDS = 120
+const EXPIRY_MARGIN_MS = 15_000
+
+const retrySchedule = <E>(): Schedule.Schedule<Duration.Duration, E> =>
+  Schedule.exponential("500 millis").pipe(
+    Schedule.modifyDelay<Duration.Duration, E>(({ input, duration }) =>
+      Effect.orDie(
+        Effect.try({
+          try: () =>
+            (TooManyRequests.is(input)
+                || InternalServerError.is(input)
+                || BadGateway.is(input)
+                || ServiceUnavailable.is(input)
+                || GatewayTimeout.is(input))
+              && input.retryAfter
+              ? Math.min(Duration.toMillis(input.retryAfter), 60_000)
+              : Math.min(Duration.toMillis(duration), 5_000),
+          catch: (e) => e,
+        }),
+      )
+    ),
+    Schedule.addDelay<Duration.Duration, E>(() => Effect.sync(() => Duration.millis(Math.random() * 50))),
+  )
+
+export class MachineLeaseBusy extends Data.TaggedError("Fly.MachineLeaseBusy")<{
+  appName: string
+  machineId: string
+}> {}
+
+export class MachineLeaseLost extends Data.TaggedError("Fly.MachineLeaseLost")<{
+  appName: string
+  machineId: string
+  reason: string
+}> {
+  get message() {
+    return `Machine lease authority lost for ${this.appName}/${this.machineId}: ${this.reason}`
+  }
+}
+
+export class MachineMutationUncertain extends Data.TaggedError("Fly.MachineMutationUncertain")<{
+  appName: string
+  machineId: string
+}> {}
+
+interface HeldLease {
+  nonce: string
+  deadline: number
+  renewAt: number
+}
+
+export const makeMachineLeases = effect (appName: string) => {
+  const scope = try Effect.scope
+  const held = new Map<string, HeldLease>()
+  const deleting = new Set<string>()
+  const renewals = new Set<Fiber.Fiber<void, never>>()
+  const uncertain = new Set<string>()
+  const lost = try Deferred.make<never, MachineLeaseLost>()
+  let failure: MachineLeaseLost | undefined
+  const lose = (machineId: string, reason: string) =>
+    effect {
+      failure ??= new MachineLeaseLost({ appName, machineId, reason })
+      try Deferred.fail(lost, failure)
+      return try failure
+    }
+  const check = effect {
+    if (failure) return try failure
+    const now = try Clock.currentTimeMillis
+    for (const [machineId, lease] of held) {
+      if (now >= lease.deadline) return try lose(machineId, "lease authority expired")
+    }
+  }
+  const guard = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    check.pipe(Effect.andThen(Effect.raceFirst(effect, Deferred.await(lost))))
+  const record = (machineId: string, response: machines.MachineLease, requestedAt: number) =>
+    effect {
+      const lease = response.data
+      const now = try Clock.currentTimeMillis
+      const deadline = Math.min((lease?.expires_at ?? 0) * 1000, requestedAt + TTL_SECONDS * 1000)
+        - EXPIRY_MARGIN_MS
+      const captured = lease?.nonce
+        ? { nonce: lease.nonce, deadline, renewAt: requestedAt + 25_000 }
+        : undefined
+      if (captured) held.set(machineId, captured)
+      if (!captured || !Number.isFinite(deadline) || deadline <= now) {
+        return try lose(machineId, "invalid or expired lease response")
+      }
+      return captured
+    }
+  const acquire = (machineIds: readonly string[]) =>
+    effect {
+      for (const machineId of [...new Set(machineIds)].sort()) {
+        try check
+        if (held.has(machineId)) continue
+        // Save a returned nonce atomically; uncertain interrupted requests expire at Fly.
+        try Effect.uninterruptibleMask((restore) =>
+          effect {
+            const requestedAt = try Clock.currentTimeMillis
+            const response = try restore(
+              machines
+                .createMachineLease({
+                  app_name: appName,
+                  machine_id: machineId,
+                  ttl: TTL_SECONDS,
+                  description: "Alchemy Machine lifecycle",
+                })
+                .pipe(
+                  Retry.none,
+                  Effect.retry({
+                    times: 8,
+                    schedule: retrySchedule<machines.CreateMachineLeaseError>(),
+                    while: (error) => error._tag === "Conflict" || error._tag === "TooManyRequests",
+                  }),
+                  Effect.timeout("30 seconds"),
+                  Effect.catchTag("Conflict", () => Effect.fail(new MachineLeaseBusy({ appName, machineId }))),
+                  Effect.catchTag(
+                    ["HttpClientError", "GatewayTimeout", "TimeoutError"],
+                    (error) => lose(machineId, `acquisition uncertain: ${error._tag}`),
+                  ),
+                ),
+            )
+            const lease = try record(machineId, response, requestedAt)
+            const renewal = try heartbeat(machineId, lease).pipe(
+              Effect.interruptible,
+              Effect.forkIn(scope),
+            )
+            renewals.add(renewal)
+          }
+        )
+        try check
+      }
+    }
+  const nonce = (machineId: string) =>
+    effect {
+      try check
+      const lease = held.get(machineId)
+      if (!lease) return try lose(machineId, "target is outside the acquired lease set")
+      return lease.nonce
+    }
+  const mutate = <A, E extends { readonly _tag: string }, R>(
+    machineId: string,
+    operation: (nonce: string) => Effect.Effect<A, E, R>,
+    options: { idempotent?: boolean; timeoutMs?: number } = {},
+  ) =>
+    guard(
+      effect {
+        const value = try nonce(machineId)
+        return try operation(value).pipe(Retry.none)
+      }.pipe(
+        Effect.retry({
+          times: 8,
+          schedule: retrySchedule<E | MachineLeaseLost>(),
+          // Only explicit throttling is safe to replay for update/stop/delete.
+          while: (error) =>
+            error._tag === "TooManyRequests"
+            || (options.idempotent === true
+              && (error._tag === "InternalServerError"
+                || error._tag === "BadGateway"
+                || error._tag === "ServiceUnavailable"
+                || error._tag === "GatewayTimeout")),
+        }),
+        Effect.timeout(options.timeoutMs ?? 120_000),
+        Effect.catch((error) =>
+          effect {
+            if (error._tag === "Conflict" || error._tag === "Forbidden") {
+              return try lose(machineId, `leased mutation rejected: ${error._tag}`)
+            }
+            // Transport errors retain the request, including its private nonce header.
+            if (
+              error._tag === "HttpClientError"
+              || error._tag === "GatewayTimeout"
+              || error._tag === "TimeoutError"
+            ) {
+              return try new MachineMutationUncertain({
+                appName,
+                machineId,
+              })
+            }
+            return try Effect.fail(error)
+          }
+        ),
+      ),
+    )
+  const forget = (machineId: string) =>
+    Effect.sync(() => {
+      held.delete(machineId)
+    })
+  const confirmRemoved = (machineId: string) =>
+    guard(
+      machines
+        .getMachine({
+          app_name: appName,
+          machine_id: machineId,
+        })
+        .pipe(
+          Retry.none,
+          Effect.map((machine) => machine.id === machineId && machine.state === "destroyed"),
+          Effect.catchTag("NotFound", () => Effect.succeed(true)),
+          Effect.catchTag(
+            [
+              "TooManyRequests",
+              "InternalServerError",
+              "BadGateway",
+              "ServiceUnavailable",
+              "GatewayTimeout",
+            ],
+            () => Effect.succeed(false),
+          ),
+          Effect.catchReason("HttpClientError", "TransportError", () => Effect.succeed(false)),
+          Effect.repeat({
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+            until: (absent) => absent,
+          }),
+          Effect.timeoutOrElse({ duration: "30 seconds", orElse: () => Effect.succeed(false) }),
+          Effect.catch((error) =>
+            effect {
+              if (!held.has(machineId)) return true
+              if (error._tag === "Forbidden") {
+                return try lose(machineId, "removal observation forbidden")
+              }
+              return try error
+            }
+          ),
+          // Another observer's confirmed removal wins over a late uncertain response.
+          Effect.map((absent) => absent || !held.has(machineId)),
+          Effect.tap((absent) => (absent ? forget(machineId) : Effect.void)),
+        ),
+    )
+  const remove = <A, E extends { readonly _tag: string }, R>(
+    machineId: string,
+    operation: (nonce: string) => Effect.Effect<A, E, R>,
+  ) =>
+    effect {
+      const http = try HttpClient.HttpClient
+      const fetchOptions = try Effect.serviceOption(FetchHttpClient.RequestInit)
+      try Effect.sync(() => {
+        deleting.add(machineId)
+      })
+      try mutate(machineId, (nonce) =>
+        operation(nonce).pipe(
+          // Bun can replay DELETE on a reused socket below the SDK retry policy.
+          Effect.provideService(
+            HttpClient.HttpClient,
+            HttpClient.mapRequest(http, HttpClientRequest.setHeader("connection", "close")),
+          ),
+          Effect.provideService(FetchHttpClient.RequestInit, {
+            ...Option.getOrUndefined(fetchOptions),
+            keepalive: false,
+            redirect: "error",
+          }),
+        )).pipe(
+          Effect.asVoid,
+          Effect.catch((error) =>
+            effect {
+              if (error._tag === "NotFound") return try forget(machineId)
+              if (
+                error._tag === "Fly.MachineMutationUncertain"
+                || error._tag === "InternalServerError"
+                || error._tag === "BadGateway"
+                || error._tag === "ServiceUnavailable"
+              ) {
+                // Keep renewal aware of the removal until its exact target has been observed.
+                if (try confirmRemoved(machineId)) return
+              }
+              return try Effect.fail(error)
+            }
+          ),
+        )
+      try forget(machineId)
+    }.pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          deleting.delete(machineId)
+        }),
+      ),
+    )
+  const nonceIfHeld = (machineId: string) => check.pipe(Effect.map(() => held.get(machineId)?.nonce))
+
+  try Effect.addFinalizer(() =>
+    effect {
+      // A late refresh can recreate a lease after a successful release.
+      try Fiber.interruptAll(renewals)
+      try Effect.forEach(
+        [...held.entries()]
+          .filter(([machineId]) => !uncertain.has(machineId))
+          .sort(([a], [b]) => a.localeCompare(b)),
+        ([machineId, lease]) =>
+          machines
+            .machinesReleaseLease({
+              app_name: appName,
+              machine_id: machineId,
+              lease_nonce: lease.nonce,
+            })
+            .pipe(
+              Retry.none,
+              Effect.timeout("5 seconds"),
+              Effect.interruptible,
+              Effect.catchTag("NotFound", () => Effect.void),
+              Effect.catch((error) =>
+                Effect.logWarning(
+                  "Fly lease release was not confirmed; expiry remains the safety bound",
+                  { appName, machineId, error: error._tag },
+                )
+              ),
+              Effect.asVoid,
+            ),
+        { concurrency: 4 },
+      )
+      if (uncertain.size > 0) {
+        try Effect.logWarning(
+          "Fly lease renewal was not confirmed; expiry remains the safety bound",
+          { appName, machineIds: [...uncertain] },
+        )
+      }
+    }
+  )
+
+  const refresh = (machineId: string, lease: HeldLease) =>
+    effect {
+      try check
+      if (held.get(machineId) !== lease) return
+      const requestedAt = try Clock.currentTimeMillis
+      const response = try machines
+        .createMachineLease({
+          app_name: appName,
+          machine_id: machineId,
+          ttl: TTL_SECONDS,
+          lease_nonce: lease.nonce,
+          description: "Alchemy Machine lifecycle",
+        })
+        .pipe(Retry.none)
+      if (held.get(machineId) !== lease) return
+      if (response.data?.nonce !== lease.nonce) {
+        return try lose(machineId, "refresh returned a different nonce")
+      }
+      return try record(machineId, response, requestedAt)
+    }.pipe(
+      Effect.retry({
+        times: 8,
+        schedule: retrySchedule<machines.CreateMachineLeaseError | MachineLeaseLost>(),
+        while: (error) => error._tag === "TooManyRequests",
+      }),
+      Effect.timeout("75 seconds"),
+      Effect.catch((error) =>
+        effect {
+          if (held.get(machineId) !== lease) return
+          uncertain.add(machineId)
+          // A missing lease during removal is not proof that the Machine is gone.
+          if (error._tag === "NotFound" && deleting.has(machineId)) {
+            const absent = try confirmRemoved(machineId).pipe(
+              Effect.catch((observation) =>
+                held.get(machineId) === lease
+                  ? lose(machineId, `removal observation uncertain: ${observation._tag}`)
+                  : Effect.succeed(true)
+              ),
+            )
+            if (absent || held.get(machineId) !== lease) return
+            return try lose(machineId, "lease disappeared before removal was confirmed")
+          }
+          return try lose(machineId, `refresh uncertain: ${error._tag}`)
+        }
+      ),
+      (operation) =>
+        Effect.uninterruptible(
+          effect {
+            const pending = try operation.pipe(Effect.interruptible, Effect.forkChild)
+            return try Fiber.join(pending)
+          },
+        ),
+    )
+  // Each target renews serially on its own cadence within the operation scope.
+  const heartbeat = (machineId: string, acquired: HeldLease) =>
+    effect {
+      let lease: HeldLease | undefined = acquired
+      while (lease && held.get(machineId) === lease) {
+        const now = try Clock.currentTimeMillis
+        try Effect.sleep(Math.max(0, lease.renewAt - now))
+        lease = try refresh(machineId, lease)
+      }
+    }.pipe(Effect.ignore)
+  try Effect.sleep("1 second").pipe(
+    Effect.andThen(check),
+    Effect.forever,
+    Effect.ignore,
+    Effect.forkScoped,
+  )
+  const checkTarget = (machineId: string) => nonce(machineId).pipe(Effect.asVoid)
+  return {
+    acquire,
+    check,
+    checkTarget,
+    guard,
+    mutate,
+    remove,
+    forget,
+    nonceIfHeld,
+  }
+}
+
+export type MachineLeases = Effect.Success<ReturnType<typeof makeMachineLeases>>
+
+export const usingMachineLeases = <A, E, R>(
+  appName: string,
+  existing: MachineLeases | undefined,
+  use: (leases: MachineLeases) => Effect.Effect<A, E, R>,
+) =>
+  effect {
+    if (existing) return try existing.guard(Effect.suspend(() => use(existing)))
+    return try Effect.scoped(
+      effect {
+        const leases = try makeMachineLeases(appName)
+        return try leases.guard(Effect.suspend(() => use(leases)))
+      },
+    )
+  }

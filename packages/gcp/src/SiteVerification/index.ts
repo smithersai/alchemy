@@ -1,1 +1,1 @@
-export * from "./WebResource.ts";
+export * from "./WebResource.vibe";

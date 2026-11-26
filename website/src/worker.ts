@@ -1,4 +1,4 @@
-import type { WorkerEnv } from "../alchemy.run.ts";
+import type { WorkerEnv } from "../alchemy.run.vibe";
 import { referenceDestination } from "./reference-links.ts";
 import { SOCIAL_REDIRECTS } from "./social-redirects.ts";
 

@@ -36,7 +36,7 @@ Use the printed function name and your AWS CLI credentials. The Function URL req
 
 ## Schema and connections
 
-[Private network](./src/database.ts) · [Deployment-only bootstrap](./src/bootstrap.ts) · [IAM and verified TLS](./src/Api.ts)
+[Private network](./src/database.vibe) · [Deployment-only bootstrap](./src/bootstrap.vibe) · [IAM and verified TLS](./src/Api.vibe)
 
 The bootstrap creates the initial schema and restricted login. Later schema changes need versioned migrations.
 

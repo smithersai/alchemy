@@ -1,0 +1,62 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { Photos, Sessions } from "./resources.ts"
+import { randomUUID } from "./crypto.platform.ts"
+
+export default Cloudflare.Worker(
+  "Api",
+  { main: import.meta.url },
+  effect {
+    const photos = try Cloudflare.R2.ReadWriteBucket(Photos)
+    const sessions = try Cloudflare.KV.ReadWriteNamespace(Sessions)
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const path = new URL(request.url, "http://localhost").pathname
+
+        // GET /photos — the gallery: every object key in Photos
+        if (path === "/photos" && request.method === "GET") {
+          const list = try photos.list()
+          return try HttpServerResponse.json({
+            photos: list.objects.map((object) => object.key),
+          })
+        }
+
+        // PUT /photos/:key — upload the request body to Photos
+        if (path.startsWith("/photos/") && request.method === "PUT") {
+          const key = path.slice("/photos/".length)
+          try photos.put(key, request.stream, {
+            contentLength: Number(request.headers["content-length"] ?? 0),
+          })
+          return HttpServerResponse.empty({ status: 201 })
+        }
+
+        // GET /session — with `x-session-id`, read the session back from
+        // Sessions; without it, start a new session and store it
+        if (path === "/session" && request.method === "GET") {
+          const id = request.headers["x-session-id"]
+          if (id) {
+            const value = try sessions.get(`session:${id}`)
+            return try HttpServerResponse.json({ id, value })
+          }
+          const newId = try randomUUID()
+          try sessions.put(`session:${newId}`, newId)
+          return try HttpServerResponse.json({ id: newId, value: newId })
+        }
+
+        return HttpServerResponse.text("Not found", { status: 404 })
+      }.pipe(
+        Effect.catchTag(
+          ["R2Error", "NamespaceError"],
+          (error) => Effect.succeed(HttpServerResponse.text(error.message, { status: 500 })),
+        ),
+      ),
+    }
+  }.pipe(
+    Effect.provide(Cloudflare.R2.ReadWriteBucketBinding),
+    Effect.provide(Cloudflare.KV.ReadWriteNamespaceBinding),
+  ),
+)

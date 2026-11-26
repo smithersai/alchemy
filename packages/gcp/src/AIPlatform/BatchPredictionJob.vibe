@@ -1,0 +1,432 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  hasAlchemyLabelKeys,
+  isJobTerminal,
+  normalizeLocation,
+  parentOf,
+  parseResourceName,
+  rfc1035,
+  userLabels,
+  waitForOperation,
+} from "./internal.ts"
+import { listLocations } from "./names.vibe"
+import type { EncryptionSpec } from "./shared.vibe"
+
+export type GcsSource = {
+  /** GCS URIs of input files. Wildcards allowed. */
+  uris?: string[]
+}
+
+export type GcsDestination = {
+  /** GCS URI prefix of the output directory. */
+  outputUriPrefix?: string
+}
+
+export type BigQuerySource = {
+  /** BigQuery table URI, for example `bq://project.dataset.table`. */
+  inputUri?: string
+}
+
+export type BigQueryDestination = {
+  /** BigQuery project, dataset, or table URI (`bq://...`). */
+  outputUri?: string
+}
+
+export type BatchPredictionInputConfig = {
+  /** Instance format; must be one of the Model's supported input formats. */
+  instancesFormat?: string
+  /** GCS input. */
+  gcsSource?: GcsSource
+  /** BigQuery input. */
+  bigquerySource?: BigQuerySource
+  /** Vertex multimodal dataset input. */
+  vertexMultimodalDatasetSource?: { datasetName?: string }
+}
+
+export type BatchPredictionOutputConfig = {
+  /** Predictions format; must be one of the Model's supported output formats. */
+  predictionsFormat?: string
+  /** GCS output directory. */
+  gcsDestination?: GcsDestination
+  /** BigQuery output. */
+  bigqueryDestination?: BigQueryDestination
+}
+
+export type BatchDedicatedResources = {
+  /** Max machine replicas. Defaults to 10. */
+  maxReplicaCount?: number
+  /** Starting replica count. */
+  startingReplicaCount?: number
+  /** Single-machine spec. */
+  machineSpec?: {
+    machineType?: string
+    acceleratorType?: string
+    acceleratorCount?: number
+  }
+}
+
+export type BatchPredictionJobProps = {
+  /**
+   * Region. Immutable — changing it replaces the job.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-facing display name. Defaults to a generated id. Immutable after
+   * create — BatchPredictionJob has no update API.
+   */
+  displayName?: string
+  /**
+   * Model resource that produces predictions
+   * (`projects/{project}/locations/{location}/models/{model}` or a
+   * publisher model). Exactly one of `model` or `endpoint` should be set.
+   */
+  model?: string
+  /**
+   * Input instances. Required.
+   */
+  inputConfig: BatchPredictionInputConfig
+  /**
+   * Output predictions location. Required.
+   */
+  outputConfig: BatchPredictionOutputConfig
+  /**
+   * Dedicated machine resources for the prediction workers.
+   */
+  dedicatedResources?: BatchDedicatedResources
+  /**
+   * Model parameters forwarded to the predictor.
+   */
+  modelParameters?: unknown
+  /**
+   * Generate explanations with the predictions.
+   */
+  generateExplanation?: boolean
+  /**
+   * Disable container logging.
+   */
+  disableContainerLogging?: boolean
+  /**
+   * Runtime service account email.
+   */
+  serviceAccount?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Customer-managed encryption.
+   */
+  encryptionSpec?: EncryptionSpec
+}
+
+export type BatchPredictionJob = Resource<
+  "GCP.AIPlatform.BatchPredictionJob",
+  BatchPredictionJobProps,
+  {
+    /** Full resource name `.../batchPredictionJobs/{job}`. */
+    name: string
+    /** Job id (last path segment). */
+    batchPredictionJobId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Model resource name. */
+    model: string | undefined
+    /** Model version id. */
+    modelVersionId: string | undefined
+    /** Detailed job state. */
+    state: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** GCS output directory, if any. */
+    gcsOutputDirectory: string | undefined
+    /** BigQuery output dataset, if any. */
+    bigqueryOutputDataset: string | undefined
+    /** Customer-managed KMS key, if any. */
+    kmsKeyName: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 start timestamp. */
+    startTime: string | undefined
+    /** RFC3339 end timestamp. */
+    endTime: string | undefined
+    /** Failure/cancel status, if any. */
+    error: { code?: number; message?: string } | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI BatchPredictionJob — offline predictions over many
+ * instances.
+ *
+ * Creating a job starts it immediately. There is no update API, so
+ * reconcile is observe-ensure. Delete can only run after the job
+ * finishes; Alchemy cancels first. Alchemy ownership labels are merged
+ * into `labels` so `list` / nuke can find the job.
+ *
+ * ### Creating a Batch Prediction Job
+ * **Example:** JSONL in, JSONL out
+ * ```typescript
+ * const job = yield* GCP.AIPlatform.BatchPredictionJob("Nightly", {
+ *   displayName: "nightly-scores",
+ *   model: "projects/my-project/locations/us-central1/models/my-model",
+ *   inputConfig: {
+ *     instancesFormat: "jsonl",
+ *     gcsSource: { uris: ["gs://bucket/input.jsonl"] },
+ *   },
+ *   outputConfig: {
+ *     predictionsFormat: "jsonl",
+ *     gcsDestination: { outputUriPrefix: "gs://bucket/out/" },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const BatchPredictionJob = Resource<BatchPredictionJob>("GCP.AIPlatform.BatchPredictionJob")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class BatchPredictionJobNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.BatchPredictionJobNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toId = effect (id: string, existing?: string) => {
+  if (existing !== undefined) return existing
+  const name = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  return try Effect.orDie(Effect.try({
+    try: () =>
+      rfc1035(
+        name,
+      ),
+    catch: (e) => e,
+  }))
+}
+
+const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1BatchPredictionJob, project: string): infer _ => {
+  const name = job.name ?? ""
+  const parsed = parseResourceName(name, "batchPredictionJobs")
+  return {
+    name,
+    batchPredictionJobId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: job.displayName,
+    model: job.model,
+    modelVersionId: job.modelVersionId,
+    state: job.state,
+    labels: userLabels(job.labels),
+    gcsOutputDirectory: job.outputInfo?.gcsOutputDirectory,
+    bigqueryOutputDataset: job.outputInfo?.bigqueryOutputDataset,
+    kmsKeyName: job.encryptionSpec?.kmsKeyName,
+    createTime: job.createTime,
+    startTime: job.startTime,
+    endTime: job.endTime,
+    error: job.error ? { code: job.error.code, message: job.error.message } : undefined,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsBatchPredictionJobs({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listJobs = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    Array.from(
+      try (aiplatform.listProjectsLocationsBatchPredictionJobs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.batchPredictionJobs ?? []))
+        |> Stream.filter(%, (job) => hasAlchemyLabelKeys(job.labels))
+        |> Stream.runCollect(%)),
+    )
+  const fallback = effect {
+    return (try Effect.forEach(
+      listLocations(region),
+      effect (location) => try collect(`projects/${project}/locations/${location}`),
+    )).flat()
+  }
+  // Vertex AI has no `locations/-` wildcard; scan known locations.
+  return (effect {
+    return (try fallback)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+}
+
+const findOwned = effect (id: string, project: string, region: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const jobs = try listJobs(project, region)
+  for (const job of jobs) {
+    if (
+      try hasAlchemyLabels(
+        id,
+        try Effect.orDie(Effect.try({ try: () => tagRecord(job.labels), catch: (e) => e })),
+      )
+    ) return job
+  }
+  return undefined as aiplatform.GoogleCloudAiplatformV1BatchPredictionJob | undefined
+}
+
+const cancelAndDelete = effect (name: string) => {
+  const existing = try getByName(name)
+  if (existing === undefined) return
+  if (!(try Effect.orDie(Effect.try({ try: () => isJobTerminal(existing.state), catch: (e) => e })))) {
+    aiplatform
+      .cancelProjectsLocationsBatchPredictionJobs({ name }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+    ;(effect {
+      return (try (getByName(name)
+        |> Effect.filterOrFail(
+          %,
+          (job) => job === undefined || isJobTerminal(job.state),
+          () => new BatchPredictionJobNotResolved({ resourceName: name }),
+        )
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "GCP.AIPlatform.BatchPredictionJobNotResolved",
+          times: 8,
+          schedule: Schedule.spaced("4 seconds"),
+        })))
+    }) catch effect (e) => match (e) {
+      when { _tag: "GCP.AIPlatform.BatchPredictionJobNotResolved" }: try Effect.void;
+      default: throw e;
+    }
+  }
+  const operation = (effect {
+    return (try (aiplatform.deleteProjectsLocationsBatchPredictionJobs({ name })
+      |> Effect.retry(%, {
+        while: (error) => error._tag === "Conflict",
+        times: 8,
+        schedule: Schedule.spaced("3 seconds"),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "Conflict" }: try Effect.undefined;
+    default: throw e;
+  }
+  if (operation !== undefined) {
+    try waitForOperation(operation, { notFoundOk: true })
+  }
+}
+
+export const BatchPredictionJobProvider = (): infer _ =>
+  Provider.succeed(BatchPredictionJob, {
+    stables: ["name", "batchPredictionJobId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      if (previousLocation !== nextLocation) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try findOwned(id, env.project, env.region, output?.name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const jobs = try listJobs(env.project, env.region)
+      return jobs.map((job) => toAttrs(job, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const displayName = news.displayName ?? (try toId(id, output?.batchPredictionJobId))
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try findOwned(id, env.project, env.region, output?.name)
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsBatchPredictionJobs({
+            parent: parentOf(env.project, location),
+            body: {
+              displayName,
+              model: news.model,
+              inputConfig: news.inputConfig,
+              outputConfig: news.outputConfig,
+              dedicatedResources: news.dedicatedResources,
+              modelParameters: news.modelParameters,
+              generateExplanation: news.generateExplanation,
+              disableContainerLogging: news.disableContainerLogging,
+              serviceAccount: news.serviceAccount,
+              labels: desiredLabels,
+              encryptionSpec: news.encryptionSpec,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findOwned(id, env.project, env.region);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new BatchPredictionJobNotResolved({
+          resourceName: output?.name ?? parentOf(env.project, location),
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      try cancelAndDelete(output.name)
+    },
+  })

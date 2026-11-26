@@ -1,1 +1,1 @@
-export * from "./ScanConfig.ts";
+export * from "./ScanConfig.vibe";

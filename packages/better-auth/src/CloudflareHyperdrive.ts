@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Redacted from "effect/Redacted";
-import { Database } from "./Database.ts";
+import { Database } from "./Database.vibe";
 import { makeMySQLService, type MySQLOptions } from "./MySQL.ts";
 import { makePostgresService, type MigrateSource, type PostgresOptions } from "./Postgres.ts";
 

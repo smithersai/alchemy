@@ -1,6 +1,6 @@
 import type { Input } from "alchemy/Input";
 import * as Scheduler from "../Scheduler/index.ts";
-import type { Cluster } from "./Cluster.ts";
+import type { Cluster } from "./Cluster.vibe";
 
 export interface ScheduleProps {
   /**

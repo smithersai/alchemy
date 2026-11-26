@@ -1,0 +1,307 @@
+import * as apim from "@distilled.cloud/gcp/apim_v1alpha"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  type GclbObservationSource,
+  ResourceNotResolved,
+  expandGclb,
+  hasAlchemyId,
+  listAtLocation,
+  collectPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceName,
+  sameJson,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+export type { GclbObservationSource, PscNetworkConfig } from "./internal.vibe"
+
+const COLLECTION = "observationSources"
+const READY = new Set(["CREATED"])
+
+export type ObservationSourceProps = {
+  /**
+   * Observation source id (the `{source}` segment of
+   * `projects/{project}/locations/{location}/observationSources/{source}`).
+   * Must be 4-63 lowercase letters, digits, or hyphens. If omitted, a
+   * unique `alch-` prefixed name is generated. Immutable — changing it
+   * replaces the source.
+   */
+  observationSourceId?: string
+  /**
+   * Region of the source (`us-central1`, …). Immutable — changing it
+   * replaces the source. The API currently allows one source per region.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * GCLB observation source. Required. `pscNetworkConfigs` names the
+   * VPC and subnet used to attach PSC NEGs to Cloud Load Balancers.
+   * Immutable — changing it replaces the source.
+   */
+  gclbObservationSource: GclbObservationSource
+}
+
+export type ObservationSource = Resource<
+  "GCP.Apim.ObservationSource",
+  ObservationSourceProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Observation source id (last path segment). */
+    observationSourceId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** GCLB observation source configuration. */
+    gclbObservationSource: GclbObservationSource | undefined
+    /** Server-reported state. */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API Observation source — configuration for collecting traffic from
+ * Cloud Load Balancers in a VPC. Sources have no labels, description,
+ * or update API; Alchemy stamps ownership into generated ids (`alch-`)
+ * so `list` / nuke can find them. Identity, location, and GCLB network
+ * config replace the resource.
+ *
+ * ### Creating an Observation Source
+ * **Example:** Observe a VPC via PSC
+ * ```typescript
+ * const source = yield* GCP.Apim.ObservationSource("Edge", {
+ *   gclbObservationSource: {
+ *     pscNetworkConfigs: [
+ *       {
+ *         network: network.selfLink,
+ *         subnetwork: subnet.selfLink,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apim
+ */
+export const ObservationSource = Resource<ObservationSource>("GCP.Apim.ObservationSource")
+
+const toGclb = (
+  source: apim.GclbObservationSource | undefined,
+): GclbObservationSource | undefined => {
+  const configs = source?.pscNetworkConfigs ?? []
+  if (configs.length === 0) return undefined
+  return {
+    pscNetworkConfigs: configs.flatMap((config) =>
+      config.network && config.subnetwork
+        ? [
+          {
+            network: config.network,
+            subnetwork: config.subnetwork,
+          },
+        ]
+        : []
+    ),
+  }
+}
+
+const toAttrs = (location: string, item: apim.ObservationSource, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    observationSourceId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || location,
+    gclbObservationSource: toGclb(item.gclbObservationSource),
+    state: item.state,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apim
+  .getProjectsLocationsObservationSources({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  (try listAtLocation(project, region, effect (parent) =>
+    try collectPages(
+      apim.listProjectsLocationsObservationSources.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.observationSources,
+    ))).filter((item) => hasAlchemyId(parseName(item.name ?? "", COLLECTION).id))
+
+export const ObservationSourceProvider = (): infer _ =>
+  Provider.succeed(ObservationSource, {
+    stables: ["name", "observationSourceId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location ?? env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previous = try Effect.orDie(Effect.try({
+        try: () =>
+          expandGclb(
+            olds?.gclbObservationSource ?? output?.gclbObservationSource,
+            env.project,
+            location,
+          ),
+        catch: (e) => e,
+      }))
+      const desired = try Effect.orDie(
+        Effect.try({ try: () => expandGclb(resolved.gclbObservationSource, env.project, location), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.observationSourceId ?? output?.observationSourceId,
+            nextId: resolved.observationSourceId ?? olds?.observationSourceId ?? output?.observationSourceId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: location,
+            extra: previous !== undefined && !sameJson(previous, desired),
+            // MVP: one source per region, so replace must delete first.
+            deleteFirst: true,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const observationSourceId = try toPhysicalId(
+        id,
+        olds?.observationSourceId,
+        output?.observationSourceId,
+        "src",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({
+            try: () => resourceName(env.project, location, COLLECTION, observationSourceId),
+            catch: (e) => e,
+          }),
+        ))
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(location, existing, env.project)
+      // No labels/description. Generated `alch-` ids are owned; an
+      // explicit id that already exists is Unowned unless we persisted it.
+      if (
+        output !== undefined
+        || (try Effect.orDie(Effect.try({ try: () => hasAlchemyId(attrs.observationSourceId), catch: (e) => e })))
+      ) {
+        return attrs
+      }
+      return try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(env.region, item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const observationSourceId = try toPhysicalId(
+        id,
+        news.observationSourceId,
+        output?.observationSourceId,
+        "src",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({
+          try: () => resourceName(env.project, location, COLLECTION, observationSourceId),
+          catch: (e) => e,
+        }),
+      )
+      const gclbObservationSource = try Effect.orDie(
+        Effect.try({ try: () => expandGclb(news.gclbObservationSource, env.project, location), catch: (e) => e }),
+      )
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apim
+          .createProjectsLocationsObservationSources({
+            parent: parentOf(env.project, location),
+            observationSourceId,
+            body: {
+              gclbObservationSource,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+        READY,
+      )
+
+      return toAttrs(location, current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (apim
+          .deleteProjectsLocationsObservationSources({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

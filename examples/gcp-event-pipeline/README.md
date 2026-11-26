@@ -13,16 +13,20 @@ curl "$URL/events/count?type=signup"
 
 ## Architecture
 
-- [`Events`](./src/resources.ts) — Pub/Sub topic every event is published to.
-- [`Inbox`](./src/resources.ts) — pull subscription on `Events`. It holds messages until they are acked, so the drain can run whenever a batch is due.
-- [`Analytics`](./src/resources.ts) / [`EventsTable`](./src/resources.ts) — BigQuery dataset and `events` table (`id`, `type`, `occurredAt`, `payload` as JSON).
-- [`Ingest`](./src/Ingest.ts) — public `GCP.Function` (a Cloud Run service):
+- [`Events`](./src/resources.vibe) — Pub/Sub topic every event is published to.
+- [`Inbox`](./src/resources.vibe) — pull subscription on `Events`. It holds messages until they are acked, so the drain can run whenever a batch is due.
+- [`Analytics`](./src/resources.vibe) / [`EventsTable`](./src/resources.vibe) — BigQuery dataset and `events` table (`id`, `type`, `occurredAt`, `payload` as JSON).
+- [`Ingest`](./src/Ingest.vibe) — public `GCP.Function` (a Cloud Run service):
   - `POST /events` — publish `{ type, payload }` to the topic.
   - `POST /drain` — start a `Drain` execution now.
   - `GET /events/count?type=` — count rows in BigQuery.
-- [`Drain`](./src/Drain.ts) — `GCP.Run.Job`. It pulls batches of up to 100 messages, inserts them into the table, and acks them, until a pull comes back empty.
+- [`Drain`](./src/Drain.vibe) — `GCP.Run.Job`. It pulls batches of up to 100 messages, inserts them into the table, and acks them, until a pull comes back empty.
 
 The drain inserts first and acks second. A crash between the two redelivers the batch; BigQuery `insertIds` collapse the duplicates inside its dedup window.
+
+The drain decodes the entire batch before inserting rows or acknowledging messages.
+Invalid JSON fails the execution as a defect, leaving the batch unacknowledged
+for redelivery.
 
 ## Bindings and IAM
 

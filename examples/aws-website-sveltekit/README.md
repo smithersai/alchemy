@@ -25,3 +25,10 @@ bun alchemy destroy  # tear down
 - `@alchemy.run/frontend-frameworks` must be installed in the project — the server's source provider is loaded from its `/sveltekit` export at deploy time.
 - Unchanged projects skip the build and deploy entirely (the project tree is content-hashed, respecting `.gitignore`).
 - In `alchemy dev`, the site is kit's own Vite dev server (plain Node SSR) — already the AWS Lambda programming model, `process.env` included. No cloud resources are created; wrap the site in `Alchemy.remote()` to deploy the real infrastructure even during dev.
+
+## Deployment type checking
+
+The deployment config enables JSX when checking imported shared UI modules.
+
+It loads ES2023 library types for the shared UI array helpers while keeping
+the existing JavaScript emit target.

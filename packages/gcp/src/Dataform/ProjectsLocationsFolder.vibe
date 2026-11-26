@@ -1,0 +1,280 @@
+import * as dataform from "@distilled.cloud/gcp/dataform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  deleteFolderTree,
+  encodeOwnershipLine,
+  expandParent,
+  hasOwnershipMarker,
+  listFolders,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameText,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type ProjectsLocationsFolderProps = {
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * folder. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-friendly display name. Dataform folders have no labels field,
+   * so Alchemy stamps ownership into a `[alchemy …]` prefix and strips
+   * it from attributes. If omitted, only the ownership marker is stored.
+   */
+  displayName?: string
+  /**
+   * Parent folder or team folder
+   * (`projects/{project}/locations/{location}/folders/{folder}` or
+   * `.../teamFolders/{teamFolder}`). Empty or omitted creates a root
+   * user folder. Changing it moves the folder.
+   */
+  containingFolder?: string
+}
+
+export type ProjectsLocationsFolder = Resource<
+  "GCP.Dataform.ProjectsLocationsFolder",
+  ProjectsLocationsFolderProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/folders/{folder}`. */
+    name: string
+    /** Folder id (last path segment). */
+    folderId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** Parent folder or team folder, if any. */
+    containingFolder: string | undefined
+    /** Associated team folder, if any. */
+    teamFolderName: string | undefined
+    /** Creator IAM principal. */
+    creatorIamPrincipal: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataform folder used to organize repositories and nested folders.
+ *
+ * Folders have no labels API, so Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. Location is immutable. Display name
+ * updates in place; `containingFolder` is applied with MoveFolder.
+ *
+ * ### Creating a Folder
+ * **Example:** Root folder
+ * ```typescript
+ * const folder = yield* GCP.Dataform.ProjectsLocationsFolder("Analytics", {
+ *   displayName: "analytics",
+ * });
+ * ```
+ *
+ * **Example:** Nested folder
+ * ```typescript
+ * const child = yield* GCP.Dataform.ProjectsLocationsFolder("Models", {
+ *   displayName: "models",
+ *   containingFolder: folder.name,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataform
+ */
+export const ProjectsLocationsFolder = Resource<ProjectsLocationsFolder>(
+  "GCP.Dataform.ProjectsLocationsFolder",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProjectsLocationsFolderNotResolved extends Data.TaggedError(
+  "GCP.Dataform.ProjectsLocationsFolderNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toAttrs = (folder: dataform.Folder, project: string, region: string): infer _ => {
+  const name = folder.name ?? ""
+  const parsed = parseResourceName(name, "folders", region)
+  return {
+    name,
+    folderId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: parseOwnership(folder.displayName).text,
+    containingFolder: folder.containingFolder,
+    teamFolderName: folder.teamFolderName,
+    creatorIamPrincipal: folder.creatorIamPrincipal,
+    createTime: folder.createTime,
+    updateTime: folder.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 || name.includes("//") ? try Effect.undefined : dataform
+  .getProjectsLocationsFolders({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const findOwned = effect (
+  project: string,
+  location: string,
+  id: string,
+  displayName: string | undefined,
+) => {
+  const folders = try listFolders(project, location)
+  for (const folder of folders) {
+    if (try ownedByAlchemy(id, folder.displayName)) return folder
+  }
+  if (displayName !== undefined) {
+    const match = folders.find(
+      (folder) => parseOwnership(folder.displayName).text === displayName,
+    )
+    if (match) return match
+  }
+  return undefined
+}
+
+export const ProjectsLocationsFolderProvider = (): infer _ =>
+  Provider.succeed(ProjectsLocationsFolder, {
+    stables: ["name", "folderId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousLocation: olds?.location ?? output?.location,
+            nextLocation: resolved.location ?? olds?.location ?? output?.location,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const existing = output?.name
+        ? try getByName(output.name)
+        : try findOwned(env.project, location, id, olds?.displayName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const folders = try listFolders(env.project, env.region)
+      return folders
+        .filter((folder) => hasOwnershipMarker(folder.displayName))
+        .map((folder) => toAttrs(folder, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const ownership = try createInternalLabels(id)
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
+      const containingFolder = try Effect.orDie(Effect.try({
+        try: () =>
+          news.containingFolder !== undefined && news.containingFolder.length > 0
+            ? news.containingFolder.includes("/")
+              ? news.containingFolder
+              : expandParent(news.containingFolder, env.project, location, "folders")
+            : undefined,
+        catch: (e) => e,
+      }))
+
+      let current = output?.name
+        ? try getByName(output.name)
+        : try findOwned(env.project, location, id, news.displayName)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          dataform.createProjectsLocationsFolders({
+            parent: locationParent(env.project, location),
+            body: {
+              displayName,
+              containingFolder,
+            },
+          }),
+        ) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try findOwned(env.project, location, id, news.displayName);
+          default: throw e;
+        }
+        current = created ?? undefined
+        if (current?.name) {
+          current = (try getByName(current.name)) ?? current
+        }
+      }
+
+      if (current === undefined) {
+        throw new ProjectsLocationsFolderNotResolved({
+          resourceName: output?.name
+            ?? (try Effect.orDie(Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }))),
+        })
+      }
+
+      const currentName = current.name ?? ""
+      const displayChanged = !sameText(current.displayName, displayName)
+      if (displayChanged) {
+        current = try retryTransient(
+          dataform.patchProjectsLocationsFolders({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({ try: () => updateMaskOf("displayName"), catch: (e) => e })),
+            body: { displayName },
+          }),
+        )
+      }
+
+      const observedFolder = current.containingFolder ?? ""
+      const desiredFolder = containingFolder ?? ""
+      if (desiredFolder !== observedFolder) {
+        try retryTransient(
+          dataform.moveProjectsLocationsFolders({
+            name: currentName,
+            body: { destinationContainingFolder: desiredFolder },
+          }),
+        )
+        current = (try getByName(currentName)) ?? current
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try retryTransient(deleteFolderTree(output.name))
+      try waitUntilGone(getByName(output.name))
+    },
+  })

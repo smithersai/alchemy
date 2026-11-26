@@ -8,7 +8,7 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import type * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { logChildOutput } from "../core/ChildOutput.ts";
+import { logChildOutput } from "../core/ChildOutput.vibe";
 
 export class RunnerError extends Data.TaggedError<"RunnerError">("RunnerError")<{
   readonly message: string;

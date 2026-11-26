@@ -8,13 +8,13 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type { HttpClient } from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
-import { ArtifactStore, createArtifactStore } from "../Artifacts.ts";
+import { ArtifactStore, createArtifactStore } from "../Artifacts.vibe";
 import type { ProviderService } from "../Provider.ts";
 import type { ResourceLike } from "../Resource.ts";
-import { childJsonLogLayer, LOG_FORMAT_ENV, LogProcess } from "../Util/LogRecord.ts";
+import { childJsonLogLayer, LOG_FORMAT_ENV, LogProcess } from "../Util/LogRecord.vibe";
 import { platformLayer, PlatformServices, runMain } from "../Util/PlatformServices.ts";
-import { logShutdown } from "../Util/Shutdown.ts";
-import { processTrace, withTraceParent } from "../Util/TraceParent.ts";
+import { logShutdown } from "../Util/Shutdown.vibe";
+import { processTrace, withTraceParent } from "../Util/TraceParent.vibe";
 import * as RpcSerialization from "./RpcSerialization.ts";
 import * as RpcServerEnvironment from "./RpcServerEnvironment.ts";
 import type { SessionEnvironment } from "./RpcServerEnvironment.ts";
@@ -91,11 +91,11 @@ export type ProviderGroupLoader = (group: string) => Effect.Effect<ProviderLayer
 
 const serverPlatformLayer = platformLayer({
   bun: async () => {
-    const { RpcServerBun } = await import("./RpcServerBun.ts");
+    const { RpcServerBun } = await import("./RpcServerBun.vibe");
     return RpcServerBun;
   },
   node: async () => {
-    const { RpcServerNode } = await import("./RpcServerNode.ts");
+    const { RpcServerNode } = await import("./RpcServerNode.vibe");
     return RpcServerNode;
   },
 });

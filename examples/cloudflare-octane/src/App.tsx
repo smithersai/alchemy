@@ -1,5 +1,6 @@
 import { useEffect, useState } from "octane";
 import "./app.css";
+import { decodeVisits } from "./visits.ts";
 
 export function App() {
   const [count, setCount] = useState(0);
@@ -7,7 +8,8 @@ export function App() {
   useEffect(() => {
     fetch("/api/visits")
       .then((response) => response.json())
-      .then((body: { visits: number | null }) => setVisits(body.visits))
+      .then(decodeVisits)
+      .then((body) => setVisits(body.visits))
       .catch(() => setVisits(null));
   }, []);
   return (

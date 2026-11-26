@@ -1,0 +1,45 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { GrantTables, tablesRegion } from "./BindingHttp.vibe"
+import {
+  ExecuteTransaction,
+  type ExecuteTransactionRequest,
+  type ExecuteTransactionTables,
+} from "./ExecuteTransaction.vibe"
+
+export const ExecuteTransactionHttp = Layer.effect(
+  ExecuteTransaction,
+  effect {
+    const grantTables = try GrantTables
+    return effect (...tables: ExecuteTransactionTables) => {
+      const sortedTables = [...tables].sort((a, b) => a.LogicalId.localeCompare(b.LogicalId))
+      try grantTables(
+        `AWS.DynamoDB.ExecuteTransaction(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: [
+              "dynamodb:PartiQLSelect",
+              "dynamodb:PartiQLInsert",
+              "dynamodb:PartiQLUpdate",
+              "dynamodb:PartiQLDelete",
+            ],
+            Resource: sortedTables.map((table) => table.tableArn),
+          },
+        ],
+      )
+      const executeTransaction = try AWSBindings.withCredentials(
+        DynamoDB.executeTransaction,
+        tablesRegion(sortedTables),
+      )
+      return effect (request: ExecuteTransactionRequest) =>
+        try withSpan(
+          effect {
+            return try executeTransaction(request)
+          },
+          `AWS.DynamoDB.ExecuteTransaction(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        )
+    }
+  },
+)

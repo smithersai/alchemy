@@ -1,0 +1,51 @@
+import type * as Credentials from "@distilled.cloud/aws/Credentials"
+import * as Presign from "@distilled.cloud/aws/Presign"
+import type * as Region from "@distilled.cloud/aws/Region"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Bucket } from "./Bucket.vibe"
+import { PresignGetObject, type PresignGetObjectRequest } from "./PresignGetObject.vibe"
+
+export const PresignGetObjectHttp = Layer.effect(
+  PresignGetObject,
+  effect {
+    const bind = try AWSBindings.Bind
+    const services = try AWSBindings.withCredentials(
+      Effect.context<Credentials.Credentials | Region.Region>(),
+    )
+
+    return effect (bucket: Bucket) => {
+      const BucketName = try bucket.bucketName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.S3.PresignGetObject(${bucket})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["s3:GetObject", "s3:GetObjectVersion"],
+              Resource: [Output.interpolate`${bucket.bucketArn}/*`],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: PresignGetObjectRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const bucketName = try BucketName
+            return try (Presign.presignS3Url({
+              method: "GET",
+              bucket: bucketName,
+              key: request.key,
+              versionId: request.versionId,
+              expiresIn: request.expiresIn,
+              responseContentType: request.contentType,
+            })
+              |> Effect.provideContext(%, services))
+          },
+          `AWS.S3.PresignGetObject(${bucket.LogicalId})`,
+        )
+    }
+  },
+)

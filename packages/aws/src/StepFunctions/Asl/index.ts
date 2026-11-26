@@ -33,7 +33,7 @@ export type {
   IntegrationOptions,
   InvokableFunction,
   RetryOptions,
-} from "./Node.ts";
+} from "./Node.vibe";
 export {
   gen,
   isSfnEffect,
@@ -58,11 +58,11 @@ export {
   succeed,
   waitForTaskToken,
   when,
-} from "./combinators.ts";
-export { compileProgram, SfnCompileError, type CompiledProgram } from "./compile.ts";
+} from "./combinators.vibe";
+export { compileProgram, SfnCompileError, type CompiledProgram } from "./compile.vibe";
 export {
   simulate,
   SimulateError,
   type SimulateHandlers,
   type SimulateOptions,
-} from "./simulate.ts";
+} from "./simulate.vibe";

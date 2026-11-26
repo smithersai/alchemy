@@ -1,2 +1,2 @@
-export * from "./StateStore.ts";
-export * as Token from "./Token.ts";
+export * from "./StateStore.vibe";
+export * as Token from "./Token.vibe";

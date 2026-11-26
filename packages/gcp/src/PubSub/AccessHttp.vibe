@@ -1,0 +1,134 @@
+import * as pubsub from "@distilled.cloud/gcp/pubsub_v1"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.vibe"
+import { grantFor, type BindingIam } from "../HttpBinding.vibe"
+import type { PulledMessage, ReadSubscriptionClient } from "./ReadSubscription.vibe"
+import type { Subscription } from "./Subscription.vibe"
+import type { Topic } from "./Topic.vibe"
+import type { PublishMessage, WriteTopicClient } from "./WriteTopic.vibe"
+import { bufferFromBytes, bufferFromString } from "./AccessHttp.platform.js"
+
+/**
+ * Shared HTTP scaffolding for the Pub/Sub `WriteTopic` / `ReadSubscription`
+ * bindings. NOT exported from `index.ts`.
+ */
+
+export const writeTopicGrant: BindingIam = {
+  role: "roles/pubsub.publisher",
+  on: "pubsub.topic",
+}
+
+export const readSubscriptionGrant: BindingIam = {
+  role: "roles/pubsub.subscriber",
+  on: "pubsub.subscription",
+}
+
+const encode = (data: string | Uint8Array) =>
+  typeof data === "string"
+    ? bufferFromString(data, "utf8").toString("base64")
+    : bufferFromBytes(data).toString("base64")
+
+const toPubsubMessage = (message: PublishMessage): pubsub.PubsubMessage => ({
+  data: encode(message.data),
+  attributes: message.attributes,
+  orderingKey: message.orderingKey,
+})
+
+const decode = (received: pubsub.ReceivedMessage): PulledMessage => {
+  const buffer = bufferFromString(received.message?.data ?? "", "base64")
+  return {
+    ...received,
+    ackId: received.ackId ?? "",
+    messageId: received.message?.messageId ?? "",
+    data: new Uint8Array(buffer),
+    text: buffer.toString("utf8"),
+    attributes: Object.fromEntries(
+      Object.entries(received.message?.attributes ?? {}).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
+    ),
+  }
+}
+
+export const makeWriteTopicBinding = effect {
+  const bind = try GCPBindings.Bind
+  const publish = try GCPBindings.withCredentials(pubsub.publishProjectsTopics)
+  return effect (topic: Topic) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`GCP.PubSub.WriteTopic(${topic})`({
+        iam: [try Effect.orDie(Effect.try({ try: () => grantFor(writeTopicGrant, topic.name), catch: (e) => e }))],
+      })
+    }
+    const topicName = try topic.name.asEffect()
+    const publishBatch = (messages: ReadonlyArray<PublishMessage>) =>
+      messages.length === 0
+        ? Effect.succeed<string[]>([])
+        : effect {
+          const body = try Effect.sync(() => ({
+            messages: messages.map(toPubsubMessage),
+          }))
+          const response = try publish({
+            topic: try topicName,
+            body,
+          })
+          return response.messageIds ?? []
+        }
+    return {
+      publish: (message) => publishBatch([message]).pipe(Effect.map((ids) => ids[0] ?? "")),
+      publishBatch,
+    } satisfies WriteTopicClient
+  }
+}
+
+export const makeReadSubscriptionBinding = effect {
+  const bind = try GCPBindings.Bind
+  const pull = try GCPBindings.withCredentials(pubsub.pullProjectsSubscriptions)
+  const acknowledge = try GCPBindings.withCredentials(pubsub.acknowledgeProjectsSubscriptions)
+  const modifyAckDeadline = try GCPBindings.withCredentials(
+    pubsub.modifyAckDeadlineProjectsSubscriptions,
+  )
+  return effect (subscription: Subscription) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`GCP.PubSub.ReadSubscription(${subscription})`({
+        iam: [
+          try Effect.orDie(Effect.try({
+            try: () => grantFor(readSubscriptionGrant, subscription.name),
+            catch: (e) => e,
+          })),
+        ],
+      })
+    }
+    const subscriptionName = try subscription.name.asEffect()
+    return {
+      pull: (options) =>
+        effect {
+          const response = try pull({
+            subscription: try subscriptionName,
+            body: {
+              maxMessages: options?.maxMessages ?? 10,
+              returnImmediately: options?.returnImmediately ?? false,
+            },
+          })
+          return try Effect.sync(() => (response.receivedMessages ?? []).map(decode))
+        },
+      acknowledge: (ackIds) =>
+        ackIds.length === 0
+          ? Effect.void
+          : effect {
+            try acknowledge({
+              subscription: try subscriptionName,
+              body: { ackIds: [...ackIds] },
+            })
+          },
+      modifyAckDeadline: (ackIds, seconds) =>
+        ackIds.length === 0
+          ? Effect.void
+          : effect {
+            try modifyAckDeadline({
+              subscription: try subscriptionName,
+              body: { ackIds: [...ackIds], ackDeadlineSeconds: seconds },
+            })
+          },
+    } satisfies ReadSubscriptionClient
+  }
+}

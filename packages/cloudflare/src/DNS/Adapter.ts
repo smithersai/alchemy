@@ -9,9 +9,9 @@ import {
 import type { Input } from "alchemy/Input";
 import * as Output from "alchemy/Output";
 import * as RemovalPolicy from "alchemy/RemovalPolicy";
-import type { Providers } from "../Providers.ts";
-import { RecordList } from "./RecordList.ts";
-import { Records } from "./Records.ts";
+import type { Providers } from "../Providers.vibe";
+import { RecordList } from "./RecordList.vibe";
+import { Records } from "./Records.vibe";
 
 /** The {@link DnsConfig.type} of the Cloudflare DNS adapter. */
 export const CLOUDFLARE_DNS = "Cloudflare.DNS";

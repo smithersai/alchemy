@@ -1,0 +1,403 @@
+import * as integrations from "@distilled.cloud/gcp/integrations_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+import type { TriggerConfig } from "./shared.ts"
+
+export type IntegrationsVersionProps = {
+  /**
+   * Integration id (the `{integration}` segment of
+   * `projects/{project}/locations/{location}/integrations/{integration}`).
+   * If omitted, a unique id is generated. Immutable — changing it
+   * replaces the version.
+   */
+  integrationId?: string
+  /**
+   * Version id (the `{version}` segment). Server-assigned on create.
+   * Immutable — changing it replaces the version.
+   */
+  versionId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * version. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Human-readable description. Integration versions have no labels
+   * field, so Alchemy ownership is stored in a `[alchemy …]` prefix and
+   * stripped from attributes.
+   */
+  description?: string
+  /**
+   * User-defined label that annotates this version.
+   */
+  userLabel?: string
+  /**
+   * Trigger configurations. A draft with no tasks is valid; add an API
+   * trigger to make the version executable.
+   */
+  triggerConfigs?: TriggerConfig[]
+  /**
+   * When true, create a new integration if `integrationId` does not
+   * exist. Ignored on update.
+   * @default true
+   */
+  newIntegration?: boolean
+}
+
+export type IntegrationsVersion = Resource<
+  "GCP.Integrations.IntegrationsVersion",
+  IntegrationsVersionProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/integrations/{integration}/versions/{version}`. */
+    name: string
+    /** Version id (last path segment). */
+    versionId: string
+    /** Parent integration id. */
+    integrationId: string
+    /** Parent integration resource name. */
+    integration: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** User-defined version label. */
+    userLabel: string | undefined
+    /** Trigger configurations. */
+    triggerConfigs: TriggerConfig[] | undefined
+    /** Server-reported status (`DRAFT`, `ACTIVE`, …). */
+    status: string | undefined
+    /** Server-reported state. */
+    state: string | undefined
+    /** Snapshot number. */
+    snapshotNumber: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Application Integration version (a draft or published snapshot of
+ * an integration).
+ *
+ * Versions have no labels field — Alchemy stamps ownership into the
+ * description. Location, integration id, and version id are immutable.
+ * Description, user label, and trigger configs update in place. Draft
+ * versions cannot be deleted via the versions API; Alchemy deletes the
+ * parent integration instead.
+ *
+ * ### Creating a Version
+ * **Example:** Empty draft with an API trigger
+ * ```typescript
+ * const version = yield* GCP.Integrations.IntegrationsVersion("Orders", {
+ *   description: "order workflow",
+ *   triggerConfigs: [
+ *     {
+ *       label: "API Trigger",
+ *       triggerType: "API",
+ *       triggerNumber: "1",
+ *       triggerId: "api_trigger/orders",
+ *       properties: { "Trigger name": "orders" },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Integrations
+ */
+export const IntegrationsVersion = Resource<IntegrationsVersion>(
+  "GCP.Integrations.IntegrationsVersion",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IntegrationsVersionNotResolved extends Data.TaggedError(
+  "GCP.Integrations.IntegrationsVersionNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const integrationOf = (name: string): infer _ => {
+  const parts = name.split("/")
+  const index = parts.indexOf("integrations")
+  return index >= 0 ? parts.slice(0, index + 2).join("/") : parentOf(name)
+}
+
+const integrationIdOf = (name: string): infer _ => {
+  const parts = name.split("/")
+  const index = parts.indexOf("integrations")
+  return index >= 0 ? (parts[index + 1] ?? lastSegment(name)) : lastSegment(name)
+}
+
+const resourceName = (
+  project: string,
+  location: string,
+  integrationId: string,
+  versionId: string,
+): infer _ => `${locationParent(project, location)}/integrations/${integrationId}/versions/${versionId}`
+
+const triggersOf = (
+  configs: integrations.GoogleCloudIntegrationsV1alphaTriggerConfigList | undefined,
+): TriggerConfig[] | undefined => {
+  if (configs === undefined) return undefined
+  return configs.map((config) => ({
+    label: config.label,
+    triggerType: config.triggerType,
+    triggerNumber: config.triggerNumber,
+    triggerId: config.triggerId,
+    properties: config.properties,
+    description: config.description,
+  }))
+}
+
+const toAttrs = (
+  version: integrations.GoogleCloudIntegrationsV1alphaIntegrationVersion,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = version.name ?? ""
+  const parsed = parseOwnership(version.description)
+  return {
+    name,
+    versionId: lastSegment(name),
+    integrationId: integrationIdOf(name),
+    integration: integrationOf(name),
+    location: locationOf(name, region),
+    project,
+    description: parsed.text,
+    userLabel: version.userLabel,
+    triggerConfigs: triggersOf(version.triggerConfigs),
+    status: version.status,
+    state: version.state,
+    snapshotNumber: version.snapshotNumber,
+    createTime: version.createTime,
+    updateTime: version.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : integrations
+  .getProjectsLocationsIntegrationsVersions({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (effect {
+    return (Array.from(
+      try (integrations.listProjectsLocationsIntegrationsVersions.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.integrationVersions ?? []))
+        |> Stream.filter(%, (version) => hasOwnershipMarker(version.description))
+        |> Stream.map(%, (version) => toAttrs(version, project, region))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) =>
+  (effect {
+    return (try effect {
+      const option = try (integrations.listProjectsLocationsIntegrationsVersions.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.integrationVersions ?? []))
+        |> Stream.filterEffect(%, effect (version) => try ownedByAlchemy(id, version.description))
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+const deleteIntegration = effect (
+  name: string,
+) => (name.length === 0
+  ? (undefined as void)
+  : integrations.deleteProjectsLocationsIntegrations({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined as void;
+    when { _tag: "BadRequest" }: undefined as void;
+    when { _tag: "Conflict" }: undefined as void;
+    default: throw e;
+  })
+
+export const IntegrationsVersionProvider = (): infer _ =>
+  Provider.succeed(IntegrationsVersion, {
+    stables: [
+      "name",
+      "versionId",
+      "integrationId",
+      "integration",
+      "location",
+      "project",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = normalizeLocation(resolved.location, previousLocation ?? env.region)
+      if (
+        previousLocation !== undefined
+        && normalizeLocation(previousLocation, env.region) !== nextLocation
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousIntegration = olds?.integrationId ?? output?.integrationId
+      if (
+        previousIntegration !== undefined
+        && resolved.integrationId !== undefined
+        && resolved.integrationId !== previousIntegration
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.versionId ?? output?.versionId
+      if (
+        previousId !== undefined
+        && resolved.versionId !== undefined
+        && resolved.versionId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const integrationId = try toResourceId(id, olds?.integrationId, output?.integrationId)
+      const versionId = olds?.versionId ?? output?.versionId ?? ""
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name
+        ?? (versionId.length > 0 ? resourceName(env.project, location, integrationId, versionId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined) {
+        existing = try findOwned(
+          `${locationParent(env.project, location)}/integrations/${integrationId}`,
+          id,
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(
+        `${locationParent(env.project, env.region)}/integrations/-`,
+        env.project,
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const integrationId = try toResourceId(id, news.integrationId, output?.integrationId)
+      const parent = `${locationParent(env.project, location)}/integrations/${integrationId}`
+      const versionId = news.versionId ?? output?.versionId ?? ""
+      const name = output?.name
+        ?? (versionId.length > 0
+          ? resourceName(env.project, location, integrationId, versionId)
+          : parent)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const triggerConfigs = news.triggerConfigs
+      const newIntegration = news.newIntegration !== false
+
+      let current = try getByName(output?.name ?? (versionId ? name : ""))
+      if (current === undefined) {
+        current = try findOwned(parent, id)
+      }
+
+      if (current === undefined) {
+        const tryCreate = effect (createNew: boolean) =>
+          try integrations.createProjectsLocationsIntegrationsVersions({
+            parent,
+            newIntegration: createNew,
+            body: {
+              description,
+              userLabel: news.userLabel,
+              triggerConfigs,
+            },
+          })
+        const created = tryCreate(newIntegration) catch effect (e) => match (e) {
+          when { _tag: "Conflict" } or { _tag: "BadRequest" }: tryCreate(false) catch effect (e) => match (e) {
+            when { _tag: "Conflict" } or { _tag: "BadRequest" }: try findOwned(parent, id);
+            default: throw e;
+          };
+          default: throw e;
+        }
+        current = created ?? (try findOwned(parent, id))
+      }
+
+      if (current === undefined) {
+        throw new IntegrationsVersionNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const descriptionChanged = (current.description ?? "") !== description
+      const labelChanged = !sameText(current.userLabel, news.userLabel)
+      const triggersChanged = !jsonTriggersEqual(
+        triggersOf(current.triggerConfigs),
+        triggerConfigs,
+      )
+
+      if (descriptionChanged || labelChanged || triggersChanged) {
+        current = try integrations.patchProjectsLocationsIntegrationsVersions({
+          name: currentName,
+          updateMask: updateMaskOf(
+            descriptionChanged ? "description" : undefined,
+            labelChanged ? "user_label" : undefined,
+            triggersChanged ? "trigger_configs" : undefined,
+          ),
+          body: {
+            name: currentName,
+            description,
+            userLabel: news.userLabel,
+            triggerConfigs,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      integrations.deleteProjectsLocationsIntegrationsVersions({ name: output.name }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: undefined as void;
+        when { _tag: "BadRequest" }: undefined as void;
+        when { _tag: "Conflict" }: undefined as void;
+        default: throw e;
+      }
+      try deleteIntegration(output.integration)
+    },
+  })
+
+const jsonTriggersEqual = (left: TriggerConfig[] | undefined, right: TriggerConfig[] | undefined): infer _ =>
+  JSON.stringify(left ?? null) === JSON.stringify(right ?? null)

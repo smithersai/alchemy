@@ -1,0 +1,78 @@
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Interaction from "../Interaction.ts"
+import type { Plan } from "../Plan.ts"
+import { Cli, type PlanDisplayOptions } from "../Report.vibe"
+import { renderApply } from "../Report.vibe"
+import { PlatformServices } from "../Util/PlatformServices.ts"
+import { renderPlanning } from "./commands/render.vibe"
+import { renderNukeDelete, renderNukeScan, reviewNuke } from "./components/view/Nuke.tsx"
+import { stackOutputsView } from "./components/view/StackOutputs.tsx"
+import { selectCliServices } from "./selectCli.vibe"
+
+/**
+ * The CLI's terminal UI for scripts that drive `alchemy/Alchemist`
+ * themselves: the Sigil UI on an interactive terminal, plain log lines
+ * otherwise, exactly like the CLI.
+ *
+ * ```ts
+ * const plan = yield* Alchemist.plan({ stack, operation: "deploy", stage }).pipe(
+ *   SigilRenderer.planning({ operation: "Deploy", stage }),
+ * );
+ * if (!(yield* SigilRenderer.approve(plan, { stage }))) return;
+ * const output = yield* Alchemist.apply(plan).pipe(SigilRenderer.apply(plan, { stage }));
+ * yield* SigilRenderer.outputs(output);
+ * ```
+ */
+
+/** A deploy or destroy plan, or a drift scan, from `alchemy/Alchemist`. */
+export interface RenderablePlan {
+  readonly native: Plan
+}
+
+/**
+ * The CLI's terminal and renderer services, in place of `Alchemist.layer()`'s
+ * non-interactive terminal. Provide it after `Alchemist.layer()`:
+ * `Effect.provide([Alchemist.layer(), SigilRenderer.layer()])`.
+ */
+export const layer = (): infer _ =>
+  Layer.provideMerge(selectCliServices(), Interaction.layer()).pipe(
+    Layer.provide(PlatformServices),
+  )
+
+/** Planning progress (import, services, state, per-resource diffing) around a `plan` call. */
+export const planning = renderPlanning
+
+/**
+ * Show the plan and ask to apply it; `true` when approved. Fails with
+ * `NonInteractiveTerminal` when there is no terminal to ask on.
+ */
+export const approve = effect (plan: RenderablePlan, options?: PlanDisplayOptions) =>
+  try Effect.flatMap(Cli, effect (cli) => try cli.approvePlan(plan.native, options))
+
+/** Show the plan without asking, as `alchemy plan` does. */
+export const display = effect (plan: RenderablePlan, options?: PlanDisplayOptions) =>
+  try Effect.flatMap(Cli, effect (cli) => try cli.displayPlan(plan.native, options))
+
+/** Per-resource apply rows around an `apply` call. */
+export const apply = (plan: RenderablePlan, options?: PlanDisplayOptions): infer _ => renderApply(plan.native, options)
+
+/** Print a deployed stack's outputs. */
+export const outputs = effect (output: unknown) =>
+  try Effect.flatMap(
+    Interaction.Interaction,
+    effect (terminal) =>
+      try terminal.output.print(
+        try Effect.orDie(Effect.try({ try: () => stackOutputsView(output), catch: (error) => error })),
+      ),
+  )
+
+/** `alchemy unsafe nuke`'s scan progress, review prompt and deletion view. */
+export const Nuke = {
+  /** Live scan progress around `Alchemist.Nuke.scan`. */
+  scan: renderNukeScan,
+  /** Show the inventory and ask to delete it; `true` when approved (or `yes`/`dryRun`). */
+  review: reviewNuke,
+  /** Per-resource deletion rows around `Alchemist.Nuke.execute`. */
+  delete: renderNukeDelete,
+}

@@ -1,0 +1,228 @@
+import * as appconfig from "@distilled.cloud/aws/appconfig"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface DeploymentProps {
+  /**
+   * ID of the application.
+   */
+  applicationId: string
+  /**
+   * ID of the environment to deploy to.
+   */
+  environmentId: string
+  /**
+   * ID of the deployment strategy that governs the rollout.
+   */
+  deploymentStrategyId: string
+  /**
+   * ID of the configuration profile being deployed.
+   */
+  configurationProfileId: string
+  /**
+   * The configuration version to deploy. For a hosted configuration profile
+   * this is the hosted version number (as a string); for other sources it is
+   * the version identifier defined by that source.
+   */
+  configurationVersion: string
+  /**
+   * Description of the deployment.
+   */
+  description?: string
+}
+
+export interface Deployment extends
+  Resource<
+    "AWS.AppConfig.Deployment",
+    DeploymentProps,
+    {
+      applicationId: string
+      environmentId: string
+      deploymentNumber: number
+      configurationProfileId: string
+      configurationVersion: string
+      state: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS AppConfig deployment — releases a configuration version to an
+ * environment following a deployment strategy. Deployments are immutable and
+ * asynchronous: the provider starts the deployment and waits (bounded) for it
+ * to reach a terminal state. Any change to the deployed version, strategy, or
+ * target creates a new deployment (a replacement). Use an all-at-once strategy
+ * (duration 0, bake 0) for a near-instant rollout.
+ *
+ * ### Deploying a Configuration
+ * **Example:** Deploy a Hosted Version
+ * ```typescript
+ * const deployment = yield* AppConfig.Deployment("Rollout", {
+ *   applicationId: app.applicationId,
+ *   environmentId: env.environmentId,
+ *   deploymentStrategyId: strategy.deploymentStrategyId,
+ *   configurationProfileId: profile.configurationProfileId,
+ *   configurationVersion: String(version.versionNumber),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Deployment = Resource<Deployment>("AWS.AppConfig.Deployment")
+
+error DeploymentNotSettled {
+  deploymentNumber: number
+  state: string
+}
+
+const TERMINAL_STATES = new Set(["COMPLETE", "ROLLED_BACK", "REVERTED"])
+
+export const DeploymentProvider = (): infer _ =>
+  Provider.effect(
+    Deployment,
+    effect {
+      const readDeployment = effect (
+        applicationId: string,
+        environmentId: string,
+        deploymentNumber: number,
+      ) =>
+        appconfig
+          .getDeployment({
+            ApplicationId: applicationId,
+            EnvironmentId: environmentId,
+            DeploymentNumber: deploymentNumber,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      // Deployments roll out asynchronously; wait (bounded) for a terminal
+      // state. With an all-at-once strategy this settles in seconds.
+      const waitForSettled = effect (
+        applicationId: string,
+        environmentId: string,
+        deploymentNumber: number,
+      ) =>
+        try (effect {
+          return try effect {
+            const deployment = try readDeployment(applicationId, environmentId, deploymentNumber)
+            return (deployment !== undefined && !TERMINAL_STATES.has(deployment.State ?? "")
+              ? throw new DeploymentNotSettled({
+                deploymentNumber,
+                state: deployment.State ?? "",
+              })
+              : deployment)
+          }
+        }
+          |> Effect.retry(%, {
+            while: (e) => e instanceof DeploymentNotSettled,
+            schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(40)]),
+          }))
+
+      return {
+        stables: ["applicationId", "environmentId", "deploymentNumber"],
+
+        // Deployments are immutable — any change starts a new deployment.
+        diff: effect ({ olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if (
+            olds !== undefined
+            && (olds.applicationId !== resolved.applicationId
+              || olds.environmentId !== resolved.environmentId
+              || olds.deploymentStrategyId !== resolved.deploymentStrategyId
+              || olds.configurationProfileId !== resolved.configurationProfileId
+              || olds.configurationVersion !== resolved.configurationVersion)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ output }) => {
+          if (output?.deploymentNumber === undefined) return undefined
+          const deployment = try readDeployment(
+            output.applicationId,
+            output.environmentId,
+            output.deploymentNumber,
+          )
+          if (deployment?.DeploymentNumber === undefined) return undefined
+          return {
+            applicationId: output.applicationId,
+            environmentId: output.environmentId,
+            deploymentNumber: deployment.DeploymentNumber,
+            configurationProfileId: deployment.ConfigurationProfileId ?? output.configurationProfileId,
+            configurationVersion: deployment.ConfigurationVersion ?? output.configurationVersion,
+            state: deployment.State ?? "",
+          }
+        },
+
+        reconcile: effect ({ news, output, session }) => {
+          // Observe — an interrupted create may already have started the
+          // deployment.
+          let observed = output?.deploymentNumber !== undefined
+            ? try readDeployment(
+              news.applicationId,
+              news.environmentId,
+              output.deploymentNumber,
+            )
+            : undefined
+
+          // Ensure — start the deployment if it does not exist yet. A
+          // concurrent deployment on the same environment rejects with
+          // ConflictException; retry (bounded) until it clears.
+          if (observed?.DeploymentNumber === undefined) {
+            observed = try (appconfig
+              .startDeployment({
+                ApplicationId: news.applicationId,
+                EnvironmentId: news.environmentId,
+                DeploymentStrategyId: news.deploymentStrategyId,
+                ConfigurationProfileId: news.configurationProfileId,
+                ConfigurationVersion: news.configurationVersion,
+                Description: news.description,
+              })
+              |> Effect.retry(%, {
+                while: (e) => e._tag === "ConflictException",
+                schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(20)]),
+              }))
+          }
+
+          const number = observed.DeploymentNumber!
+          const settled = try waitForSettled(news.applicationId, news.environmentId, number)
+
+          try session.note(`deployment-${number}`)
+          return {
+            applicationId: news.applicationId,
+            environmentId: news.environmentId,
+            deploymentNumber: number,
+            configurationProfileId: news.configurationProfileId,
+            configurationVersion: news.configurationVersion,
+            state: settled?.State ?? observed.State ?? "",
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // A completed deployment is historical and cannot be deleted;
+          // stopDeployment only affects an in-progress rollout. Treat a
+          // "nothing to stop" rejection as success.
+          appconfig
+            .stopDeployment({
+              ApplicationId: output.applicationId,
+              EnvironmentId: output.environmentId,
+              DeploymentNumber: output.deploymentNumber,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" } or { _tag: "BadRequestException" }: undefined as void;
+              default: throw e;
+            }
+        },
+
+        // Deployments are keyed under their parent environment.
+        list: effect () => [],
+      }
+    },
+  )

@@ -26,3 +26,8 @@ bun alchemy destroy  # tear down
 - `@alchemy.run/frontend-frameworks` must be installed in the project — the server's source provider is loaded from its `/waku` export at deploy time.
 - Unchanged projects skip the build and deploy entirely (the project tree is content-hashed, respecting `.gitignore`).
 - Read env via `getEnv` from `waku` (as in `src/pages/index.tsx`) — it is backed by the Lambda's `process.env` at request time and keeps page modules portable across deploy targets.
+
+## Deployment type checking
+
+The deployment config loads ES2023 library types for the shared UI array
+helpers while keeping the existing JavaScript emit target.

@@ -1,0 +1,333 @@
+import * as networkservices from "@distilled.cloud/gcp/networkservices_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_GLOBAL,
+  canonicalizeLink,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  linkKey,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  resourceName,
+  rfc1035,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.vibe"
+
+const COLLECTION = "serviceBindings"
+
+export type ServiceBindingProps = {
+  /**
+   * Binding id (the `{serviceBinding}` segment of
+   * `projects/{project}/locations/{location}/serviceBindings/{serviceBinding}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Immutable — changing it replaces the binding.
+   */
+  serviceBindingId?: string
+  /**
+   * Location (`global`, `us-central1`, …). Immutable — changing it
+   * replaces the binding. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Human-readable description. Max 1024 characters.
+   */
+  description?: string
+  /**
+   * Service Directory service resource name
+   * `projects/{project}/locations/{location}/namespaces/{namespace}/services/{service}`.
+   * This field is for the deprecated Service Directory integration.
+   * Immutable — changing it replaces the binding.
+   */
+  service?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type ServiceBinding = Resource<
+  "GCP.NetworkServices.ServiceBinding",
+  ServiceBindingProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/serviceBindings/{serviceBinding}`. */
+    name: string
+    /** Binding id (last path segment). */
+    serviceBindingId: string
+    /** Project id. */
+    project: string
+    /** Location id (`global`, `us-central1`, …). */
+    location: string
+    /** User-provided description. */
+    description: string | undefined
+    /** Bound Service Directory service name, if set. */
+    service: string | undefined
+    /** UUID of the validated Service Directory service, if populated. */
+    serviceId: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A ServiceBinding attaches a producer service (Service Directory, PSC,
+ * or Cloud Run) so Cloud Service Mesh or an Application Load Balancer
+ * can send traffic to it.
+ *
+ * Changing `serviceBindingId`, `location`, or `service` replaces the
+ * binding. Description and labels update in place.
+ *
+ * ### Creating a ServiceBinding
+ * **Example:** Named binding
+ * ```typescript
+ * const binding = yield* GCP.NetworkServices.ServiceBinding("Api", {
+ *   location: "global",
+ *   description: "prod api",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkServices
+ */
+export const ServiceBinding = Resource<ServiceBinding>("GCP.NetworkServices.ServiceBinding")
+
+const toService = (service: string | undefined): infer _ => {
+  const trimmed = canonicalizeLink(service)
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+const toAttrs = (binding: networkservices.ServiceBinding, project: string): infer _ => {
+  const name = binding.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_GLOBAL)
+  return {
+    name,
+    serviceBindingId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || DEFAULT_GLOBAL,
+    description: binding.description,
+    service: toService(binding.service),
+    serviceId: binding.serviceId,
+    labels: userLabels(binding.labels),
+    createTime: binding.createTime,
+    updateTime: binding.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkservices
+    .getProjectsLocationsServiceBindings({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const ServiceBindingProvider = (): infer _ =>
+  Provider.succeed(ServiceBinding, {
+    stables: [
+      "name",
+      "serviceBindingId",
+      "project",
+      "location",
+      "service",
+      "serviceId",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.serviceBindingId ?? output?.serviceBindingId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.serviceBindingId
+            ? rfc1035(resolved.serviceBindingId, "service-binding")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const previousService = try Effect.orDie(
+        Effect.try({ try: () => linkKey(olds?.service ?? output?.service), catch: (e) => e }),
+      )
+      const nextService = try Effect.orDie(Effect.try({ try: () => linkKey(resolved.service), catch: (e) => e }))
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || (previousService.length > 0 && nextService.length > 0 && previousService !== nextService)
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceBindingId = try toPhysicalId(
+        id,
+        olds?.serviceBindingId,
+        output?.serviceBindingId,
+        "service-binding",
+      )
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = output?.name
+        ?? (try Effect.orDie(
+          Effect.try({ try: () => resourceName(env.project, location, COLLECTION, serviceBindingId), catch: (e) => e }),
+        ))
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkservices.listProjectsLocationsServiceBindings.pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
+          pageSize: 1000,
+        }),
+        (page) => page.serviceBindings,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceBindingId = try toPhysicalId(
+        id,
+        news.serviceBindingId,
+        output?.serviceBindingId,
+        "service-binding",
+      )
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL),
+          catch: (e) => e,
+        }),
+      )
+      const name = try Effect.orDie(
+        Effect.try({ try: () => resourceName(env.project, location, COLLECTION, serviceBindingId), catch: (e) => e }),
+      )
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const service = toService(news.service)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (networkservices
+            .createProjectsLocationsServiceBindings({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              serviceBindingId,
+              body: {
+                description: news.description,
+                labels: desiredLabels,
+                service,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const updateMask = changedFields([
+        ["labels", labelsChanged],
+        ["description", (current.description ?? "") !== (news.description ?? "")],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try networkservices.patchProjectsLocationsServiceBindings({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (networkservices
+          .deleteProjectsLocationsServiceBindings({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

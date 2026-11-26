@@ -1,2 +1,2 @@
-export * from "./exec.ts";
+export * from "./exec.vibe";
 export * from "./main.ts";

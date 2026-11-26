@@ -1,0 +1,356 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DataplexNotResolved,
+  collectPages,
+  expandParent,
+  hasAlchemyLabelMap,
+  lastSegment,
+  listAtLocation,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type GlossariesCategoryProps = {
+  /**
+   * Parent Glossary. Full name
+   * `projects/{project}/locations/{location}/glossaries/{glossary}` or
+   * the glossary id (combined with `location`). Immutable — changing it
+   * replaces the category.
+   */
+  glossary: string
+  /**
+   * Category id (the `{category}` segment of
+   * `.../glossaries/{glossary}/categories/{category}`). If omitted, a
+   * unique name is generated from the stack, stage, and logical id.
+   * Must be 1-63 characters, start with a letter, and match
+   * `[a-z]([a-z0-9-]*[a-z0-9])?`. Immutable — changing it replaces the
+   * category.
+   */
+  categoryId?: string
+  /**
+   * Region used when `glossary` is a bare id. Immutable — changing it
+   * replaces the category.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Immediate parent in the glossary hierarchy — the glossary itself
+   * or another category. Defaults to the parent glossary.
+   */
+  parent?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User-friendly display name.
+   */
+  displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type GlossariesCategory = Resource<
+  "GCP.Dataplex.GlossariesCategory",
+  GlossariesCategoryProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Category id (last path segment). */
+    categoryId: string
+    /** Parent glossary resource name. */
+    glossary: string
+    /** Parent glossary id. */
+    glossaryId: string
+    /** Immediate hierarchy parent. */
+    parent: string | undefined
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-provided description. */
+    description: string | undefined
+    /** User-friendly display name. */
+    displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** System-generated uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex Glossary Category nested under a Glossary.
+ *
+ * Changing `categoryId`, `glossary`, or `location` replaces the
+ * category. Description, display name, labels, and hierarchy `parent`
+ * update in place.
+ *
+ * ### Creating a Glossary Category
+ * **Example:** Category under a glossary
+ * ```typescript
+ * const category = yield* GCP.Dataplex.GlossariesCategory("Finance", {
+ *   glossary: glossary.name,
+ *   displayName: "Finance",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Glossary Category
+ * **Example:** Description and labels
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const category = yield* GCP.Dataplex.GlossariesCategory("Finance", {
+ *   glossary: glossary.name,
+ *   description: "finance terms",
+ *   labels: { env: "prod", team: "data" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const GlossariesCategory = Resource<GlossariesCategory>("GCP.Dataplex.GlossariesCategory")
+
+const resolveParent = (
+  project: string,
+  glossary: string,
+  location: string | undefined,
+  defaultLocation: string,
+): infer _ => {
+  const parent = expandParent(
+    glossary,
+    project,
+    normalizeLocation(location, defaultLocation),
+    "glossaries",
+  )
+  const parsed = parseName(`${parent}/categories/_`, "categories")
+  return {
+    parent: parsed.parent,
+    location: parsed.location,
+    project: parsed.project || project,
+    glossaryId: lastSegment(parsed.parent),
+  }
+}
+
+const resourceName = (parent: string, categoryId: string): infer _ => `${parent}/categories/${categoryId}`
+
+const toAttrs = (category: dataplex.GoogleCloudDataplexV1GlossaryCategory, project: string): infer _ => {
+  const name = category.name ?? ""
+  const parsed = parseName(name, "categories")
+  const glossary = parseName(parsed.parent, "glossaries")
+  return {
+    name,
+    categoryId: parsed.id,
+    glossary: parsed.parent,
+    glossaryId: glossary.id,
+    parent: category.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    description: category.description,
+    displayName: category.displayName,
+    labels: userLabels(category.labels),
+    uid: category.uid,
+    createTime: category.createTime,
+    updateTime: category.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(dataplex.getProjectsLocationsGlossariesCategories({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listCategoriesUnder = effect (parent: string, project: string) =>
+  (effect {
+    return ((try collectPages(
+      dataplex.listProjectsLocationsGlossariesCategories.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.categories,
+    )).filter((item) => hasAlchemyLabelMap(item.labels)).map((item) => toAttrs(item, project)))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+
+export const GlossariesCategoryProvider = (): infer _ =>
+  Provider.succeed(GlossariesCategory, {
+    stables: ["name", "categoryId", "glossary", "glossaryId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
+      const env = try GcpEnvironment.current
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.categoryId ?? output?.categoryId,
+            nextId: resolved_.categoryId ?? olds?.categoryId ?? output?.categoryId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved_.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.glossary ?? output?.glossary,
+            nextParent: resolved_.glossary ?? olds?.glossary ?? output?.glossary,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = resolveParent(
+        env.project,
+        olds?.glossary ?? output?.glossary ?? "",
+        olds?.location ?? output?.location,
+        env.region,
+      )
+      const categoryId = try toPhysicalId(id, olds?.categoryId, output?.categoryId, "category")
+      const name = output?.name ?? resourceName(resolved.parent, categoryId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const glossaries = try listAtLocation(env.project, env.region, effect (parent) =>
+        (try collectPages(
+          dataplex.listProjectsLocationsGlossaries.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.glossaries,
+        )).filter((item) => hasAlchemyLabelMap(item.labels)))
+      const nested = try Effect.forEach(
+        glossaries,
+        effect (glossary) => glossary.name ? try listCategoriesUnder(glossary.name, env.project) : [],
+        { concurrency: 4 },
+      )
+      return nested.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = resolveParent(
+        env.project,
+        news.glossary,
+        news.location ?? output?.location,
+        env.region,
+      )
+      const categoryId = try toPhysicalId(id, news.categoryId, output?.categoryId, "category")
+      const name = resourceName(resolved.parent, categoryId)
+      const hierarchyParent = news.parent ?? resolved.parent
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsGlossariesCategories({
+              parent: resolved.parent,
+              categoryId,
+              body: {
+                parent: hierarchyParent,
+                description: news.description,
+                displayName: news.displayName,
+                labels: desiredLabels,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(name);
+          default: throw e;
+        }
+        current = created ?? undefined
+        if (current === undefined) {
+          current = try waitUntilExists(getByName(name), name)
+        }
+      }
+
+      if (current === undefined) {
+        throw new DataplexNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
+      const parentChanged = (current.parent ?? "") !== hierarchyParent
+
+      if (labelsChanged || descriptionChanged || displayNameChanged || parentChanged) {
+        current = try retryQuota(
+          dataplex.patchProjectsLocationsGlossariesCategories({
+            name: current.name ?? name,
+            updateMask: [
+              labelsChanged ? "labels" : undefined,
+              descriptionChanged ? "description" : undefined,
+              displayNameChanged ? "displayName" : undefined,
+              parentChanged ? "parent" : undefined,
+            ]
+              .filter((field): field is string => field !== undefined)
+              .join(","),
+            body: {
+              name: current.name ?? name,
+              parent: hierarchyParent,
+              labels: desiredLabels,
+              description: news.description,
+              displayName: news.displayName,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      retryQuota(
+        dataplex.deleteProjectsLocationsGlossariesCategories({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

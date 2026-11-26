@@ -2,7 +2,7 @@ import * as Fly from "@alchemy.run/fly";
 import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import Api from "./src/api.ts";
+import Api from "./src/api.vibe";
 import { Db } from "./src/shared.ts";
 
 export default Alchemy.Stack(

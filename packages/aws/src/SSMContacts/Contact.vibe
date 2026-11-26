@@ -1,0 +1,327 @@
+import * as contacts from "@distilled.cloud/aws/ssm-contacts"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+/** The kind of contact: a person, an escalation plan, or an on-call schedule. */
+export type ContactType = "PERSONAL" | "ESCALATION" | "ONCALL_SCHEDULE"
+
+export interface ContactProps {
+  /**
+   * The unique, identifiable alias of the contact or escalation plan
+   * (lowercase letters, numbers, `-`, `_`, `.`). Changing it replaces the
+   * contact.
+   *
+   * @default ${app}-${id}-${stage}-${suffix} (lowercased)
+   */
+  alias?: string
+
+  /**
+   * The full name of the contact or escalation plan.
+   */
+  displayName?: string
+
+  /**
+   * `PERSONAL` for a single person, `ESCALATION` for an escalation plan that
+   * engages contacts in phases, or `ONCALL_SCHEDULE` for a rotation-backed
+   * schedule. Changing it replaces the contact.
+   */
+  type: ContactType
+
+  /**
+   * The stages (engagement plan) that Incident Manager runs through when
+   * engaging this contact. Stage targets are contact channels for `PERSONAL`
+   * contacts and contacts for `ESCALATION` plans; `ONCALL_SCHEDULE` contacts
+   * reference rotations via `RotationIds`.
+   *
+   * When omitted, an existing plan is left untouched so it can be managed by
+   * the standalone `SSMContacts.Plan` resource.
+   */
+  plan?: contacts.Plan
+
+  /**
+   * The contact's resource policy as a JSON policy document (string or
+   * object) — shares the contact and its engagements with other accounts.
+   * When omitted, any existing policy is left untouched (SSM Contacts has
+   * no delete-policy API).
+   */
+  policy?: string | Record<string, unknown>
+
+  /**
+   * Tags applied to the contact. Alchemy ownership tags are merged in
+   * automatically.
+   */
+  tags?: Record<string, string>
+}
+
+/** @resource */
+export interface Contact extends
+  Resource<
+    "AWS.SSMContacts.Contact",
+    ContactProps,
+    {
+      /** ARN of the contact. */
+      contactArn: string
+      /** Alias of the contact. */
+      alias: string
+      /** The contact type. */
+      type: string
+      /** Display name of the contact. */
+      displayName: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Incident Manager contact — a person Incident Manager engages during an
+ * incident, an escalation plan that engages contacts in phases, or an
+ * on-call schedule backed by rotations.
+ *
+ * Requires the account's Incident Manager replication set
+ * (`SSMIncidents.ReplicationSet`) to exist.
+ *
+ * ### Creating Contacts
+ * **Example:** Personal contact
+ * ```typescript
+ * const oncall = yield* SSMContacts.Contact("Oncall", {
+ *   type: "PERSONAL",
+ *   displayName: "Primary On-Call",
+ * });
+ * ```
+ *
+ * **Example:** Contact with an inline engagement plan
+ * ```typescript
+ * const channel = yield* SSMContacts.ContactChannel("Email", {
+ *   contactId: oncall.contactArn,
+ *   type: "EMAIL",
+ *   deliveryAddress: { SimpleAddress: "oncall@example.com" },
+ *   deferActivation: true,
+ * });
+ * const escalation = yield* SSMContacts.Contact("Escalation", {
+ *   type: "ESCALATION",
+ *   plan: {
+ *     Stages: [
+ *       {
+ *         DurationInMinutes: 5,
+ *         Targets: [
+ *           { ContactTargetInfo: { ContactId: oncall.contactArn, IsEssential: true } },
+ *         ],
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ */
+const ContactResource = Resource<Contact>("AWS.SSMContacts.Contact")
+
+export { ContactResource as Contact }
+
+const normalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(normalize)
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .sort(([l], [r]) => l.localeCompare(r))
+        .map(([k, v]) => [k, normalize(v)]),
+    )
+  }
+  return value
+}
+const same = (l: unknown, r: unknown): infer _ => JSON.stringify(normalize(l)) === JSON.stringify(normalize(r))
+
+/** Parse a policy JSON string for structural comparison; fall back to the raw string. */
+const parsePolicy = (policy: string): unknown => {
+  try {
+    return JSON.parse(policy)
+  } catch {
+    return policy
+  }
+}
+
+/** Builds the ARN of a contact from its alias in the ambient account/region. */
+export const contactArn = effect (alias: string) => {
+  const { accountId, region } = try AWSEnvironment.current
+  return `arn:aws:ssm-contacts:${region}:${accountId}:contact/${alias}`
+}
+
+export const ContactProvider = (): infer _ =>
+  Provider.effect(
+    ContactResource,
+    effect {
+      const createAlias = effect (id: string, props: { alias?: string }) =>
+        props.alias ?? (try createPhysicalName({ id, maxLength: 200, lowercase: true }))
+
+      const getContact = effect (arn: string) =>
+        contacts
+          .getContact({ ContactId: arn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      const readTags = effect (arn: string) =>
+        (effect {
+          const tags = ((try contacts.listTagsForResource({ ResourceARN: arn })).Tags ?? []).flatMap((t) =>
+            t.Key !== undefined && t.Value !== undefined
+              ? [{ Key: t.Key, Value: t.Value }]
+              : []
+          )
+          return (try Effect.orDie(Effect.try({
+            try: () =>
+              tagRecord(
+                tags,
+              ),
+            catch: (e) => e,
+          })))
+        }) catch () => ({})
+
+      const buildAttrs = (contact: contacts.GetContactResult): infer _ => ({
+        contactArn: contact.ContactArn,
+        alias: contact.Alias,
+        type: contact.Type as string,
+        displayName: contact.DisplayName,
+      })
+
+      return ContactResource.Provider.of({
+        stables: ["contactArn", "alias", "type"],
+
+        list: effect () =>
+          Array.from(
+            try (contacts.listContacts.items({})
+              |> Stream.runCollect(%)),
+          ).map((contact) => ({
+            contactArn: contact.ContactArn,
+            alias: contact.Alias,
+            type: contact.Type as string,
+            displayName: contact.DisplayName,
+          })),
+
+        read: effect ({ id, olds, output }) => {
+          const alias = output?.alias ?? (try createAlias(id, olds ?? {}))
+          const arn = output?.contactArn ?? (try contactArn(alias))
+          const contact = try getContact(arn)
+          if (contact === undefined) return undefined
+          const attrs = buildAttrs(contact)
+          const tags = try readTags(contact.ContactArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        // Alias and type are create-only; display name, plan, and tags update
+        // in place.
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldAlias = try createAlias(id, olds)
+          const newAlias = try createAlias(id, news)
+          if (oldAlias !== newAlias) return { action: "replace" } as const
+          if (olds.type !== news.type) return { action: "replace" } as const
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const alias = output?.alias ?? (try createAlias(id, news))
+          const arn = output?.contactArn ?? (try contactArn(alias))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE
+          let contact = try getContact(arn)
+
+          // 2. ENSURE — create if missing; tolerate the already-exists race.
+          if (contact === undefined) {
+            try session.note(`creating contact ${alias}`)
+            ;(effect {
+              return (try (contacts
+                .createContact({
+                  Alias: alias,
+                  DisplayName: news.displayName,
+                  Type: news.type,
+                  Plan: news.plan ?? { Stages: [] },
+                  Tags: createTagsList(desiredTags),
+                })
+                |> Effect.asVoid(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined as void;
+              default: throw e;
+            }
+            contact = (try getContact(arn))!
+          }
+
+          // 3. SYNC display name + plan — diff observed against desired.
+          //    `plan` is only managed here when the prop is provided, so the
+          //    standalone `SSMContacts.Plan` resource can own it otherwise.
+          const displayNameDelta = (contact.DisplayName ?? "") !== (news.displayName ?? "")
+          const planDelta = news.plan !== undefined && !same(contact.Plan, news.plan)
+          if (displayNameDelta || planDelta) {
+            try contacts.updateContact({
+              ContactId: contact.ContactArn,
+              DisplayName: news.displayName ?? "",
+              ...(planDelta ? { Plan: news.plan } : {}),
+            })
+          }
+
+          // 3b. SYNC resource policy — observed vs desired. Only managed
+          //     when the prop is provided; there is no delete-policy API.
+          if (news.policy !== undefined) {
+            const desiredPolicy = typeof news.policy === "string" ? news.policy : JSON.stringify(news.policy)
+            const observedPolicy = (effect {
+              return (try contacts
+                .getContactPolicy({ ContactArn: contact.ContactArn })).Policy
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
+              default: throw e;
+            }
+            if (
+              observedPolicy === undefined
+              || !same(parsePolicy(observedPolicy), parsePolicy(desiredPolicy))
+            ) {
+              try contacts.putContactPolicy({
+                ContactArn: contact.ContactArn,
+                Policy: desiredPolicy,
+              })
+            }
+          }
+
+          // 3c. SYNC tags — diff against OBSERVED cloud tags.
+          const currentTags = try readTags(contact.ContactArn)
+          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          if (upsert.length > 0) {
+            try contacts.tagResource({
+              ResourceARN: contact.ContactArn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0) {
+            try contacts.untagResource({
+              ResourceARN: contact.ContactArn,
+              TagKeys: removed,
+            })
+          }
+
+          // 4. RETURN fresh attributes.
+          const final = (try getContact(contact.ContactArn))!
+          try session.note(final.ContactArn)
+          return buildAttrs(final)
+        },
+
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (contacts.deleteContact({ ContactId: output.contactArn })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

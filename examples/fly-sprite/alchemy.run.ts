@@ -9,7 +9,7 @@ import * as Fly from "@alchemy.run/fly";
  */
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Box from "./src/box.ts";
+import Box from "./src/box.vibe";
 
 export default Alchemy.Stack(
   "FlySprite",

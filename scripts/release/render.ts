@@ -1,5 +1,5 @@
 /**
- * Markdown renderer for the commits parsed by `changelog.ts`.
+ * Markdown renderer for the commits parsed by `changelog.vibe`.
  *
  * Mirrors the output of changelogithub's built-in generator (which this
  * repo used to depend on) but groups
@@ -12,7 +12,7 @@
  * `&nbsp;` spacing) is kept byte-compatible with changelogithub so output
  * for single-segment scopes is identical to the upstream renderer.
  */
-import type { Commit } from "./changelog.ts";
+import type { Commit } from "./changelog.vibe";
 
 export interface RenderConfig {
   titles: { breakingChanges?: string };

@@ -1,0 +1,238 @@
+// Host access: the working directory reported paths are relative to.
+module host {
+  /** `process.cwd()`. */
+  export const currentDirectory = (): string => process.cwd()
+}
+
+import { currentDirectory } from host
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import { Command } from "effect/cli"
+import * as Console from "effect/Console"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import * as ts from "tsrs/unstable/ast"
+import { API, TypeFlags, type Type, type Project } from "tsrs/unstable/async"
+
+/**
+ * Lints every `Providers.ts` or `Providers.vibe` under a workspace package's `src` (alchemy's
+ * `src/{Cloud}/Providers.ts` and each provider package's `src/Providers.ts`)
+ * and fails if any
+ * `providers()` factory ends up with `unknown` or `any` in its Layer requirements
+ * (the 3rd `Layer<ROut, E, RIn>` type argument). An `unknown`/`any` RIn means some leaf
+ * provider layer leaked an unsatisfied/undeclared requirement, which silently
+ * poisons `StackServices` inference across every consumer.
+ *
+ * For each offending file it reports the specific leaf provider-layer factory
+ * call(s) whose requirements include `unknown`.
+ */
+
+/** Workspace packages with a `Providers.ts` or `Providers.vibe` anywhere under `src`. */
+const providerPackages = effect (packagesRoot: string) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  const found: Array<{ dir: string; sidecars: Array<string> }> = []
+  for (const name of try fs.readDirectory(packagesRoot)) {
+    const src = path.join(packagesRoot, name, "src")
+    if (!(try fs.exists(src))) continue
+    const files = try fs.readDirectory(src, { recursive: true })
+    const providers = files.filter((file) => ["Providers.ts", "Providers.vibe"].includes(path.basename(file)))
+    const sidecars: Array<string> = []
+    for (const file of providers.filter((file) => file.endsWith(".vibe"))) {
+      const sidecar = path.join(src, file.replace(/\.vibe$/, ".d.vibe.ts"))
+      sidecars.push(sidecar)
+      if (!(try fs.exists(sidecar))) {
+        return try Effect.fail(
+          new Error(
+            `Missing declaration sidecar for ${path.join(src, file)}; run typecheck first.`,
+          ),
+        )
+      }
+    }
+    if (providers.length > 0) found.push({ dir: path.join(packagesRoot, name), sidecars })
+  }
+  return found.sort((a, b) => a.dir.localeCompare(b.dir))
+}
+
+/**
+ * Lints one project's `Providers.ts` or `Providers.vibe` files, calling `log` per line of output.
+ * Resolves to `false` if any `providers()` factory leaks `unknown`/`any`.
+ */
+async function lintProviders(
+  project: Project,
+  srcRoot: string,
+  requiredSidecars: ReadonlyArray<string>,
+  relative: (file: string) => string,
+  log: (message: string) => void,
+): Promise<boolean> {
+  const { checker, program } = project
+  const sourceFiles = await program.getSourceFileNames()
+  for (const file of requiredSidecars) {
+    if (!sourceFiles.includes(file)) {
+      throw new Error(
+        `Provider declaration sidecar ${relative(file)} is excluded by its tsconfig; include it before linting.`,
+      )
+    }
+  }
+  const providerPaths = sourceFiles
+    .filter(
+      (file) =>
+        file.startsWith(`${srcRoot}/`)
+        && (file.endsWith("/Providers.ts") || file.endsWith("/Providers.d.vibe.ts")),
+    )
+    .sort((a, b) => a.localeCompare(b))
+
+  // A Layer's requirements are its 3rd type argument: Layer<ROut, E, RIn>.
+  async function layerRequirements(type: Type): Promise<Type | undefined> {
+    const args = type.isTypeReference() ? await checker.getTypeArguments(type) : []
+    if (args.length === 3) return args[2]
+    return undefined
+  }
+
+  // `any` absorbs every other union member, so it must be checked alongside
+  // `unknown` or a leaked `any` silently passes.
+  async function containsUnknown(type: Type): Promise<boolean> {
+    if (type.flags & (TypeFlags.Unknown | TypeFlags.Any)) return true
+    if (type.isUnionType()) {
+      for (const member of await type.getTypes()) {
+        if (await containsUnknown(member)) return true
+      }
+    }
+    return false
+  }
+
+  let hadError = false
+
+  for (const file of providerPaths) {
+    const sourceFile = await program.getSourceFile(file)
+    if (!sourceFile) throw new Error(`Missing source file ${file}`)
+    const rel = relative(sourceFile.fileName.replace(/\.d\.vibe\.ts$/, ".vibe"))
+    const providersVar = sourceFile.statements
+      .filter(ts.isVariableStatement)
+      .flatMap((statement) => statement.declarationList.declarations)
+      .find(
+        (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === "providers",
+      )
+    if (!providersVar) continue
+
+    // Overall requirements of the `providers()` factory return value.
+    const factoryType = await checker.getTypeAtLocation(providersVar)
+    const signature = (await factoryType.getCallSignatures())[0]
+    const returnType = signature ? await checker.getReturnTypeOfSignature(signature) : undefined
+    const overallReq = returnType ? await layerRequirements(returnType) : undefined
+
+    if (!overallReq || !(await containsUnknown(overallReq))) {
+      log(`✓ ${rel}`)
+      continue
+    }
+
+    hadError = true
+
+    // Localize the leak structurally: every Layer-typed expression whose RIn
+    // is `unknown`/`any`, keeping only the innermost ones (composites such as
+    // `Layer.mergeAll(...)` or `.pipe(...)` merely inherit it from a child).
+    const candidates: ts.Node[] = []
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isCallExpression(node)
+        || ts.isPropertyAccessExpression(node)
+        || (ts.isIdentifier(node)
+          && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node))
+      ) {
+        candidates.push(node)
+      }
+      node.forEachChild(visit)
+    }
+    providersVar.forEachChild(visit)
+    const leaking: { node: ts.Node; req: Type }[] = []
+    for (const node of candidates) {
+      const type = await checker.getTypeAtLocation(node)
+      const req = await layerRequirements(type)
+      if (
+        req
+        && (await containsUnknown(req))
+        && (await checker.typeToString(type)).startsWith("Layer<")
+      ) {
+        leaking.push({ node, req })
+      }
+    }
+    const offenders: { text: string; req: string }[] = []
+    for (const { node, req } of leaking) {
+      const hasLeakingChild = leaking.some(
+        (other) => other.node !== node && other.node.pos >= node.pos && other.node.end <= node.end,
+      )
+      if (hasLeakingChild) continue
+      offenders.push({
+        text: node.getText(sourceFile).replace(/\s+/g, " ").slice(0, 120),
+        req: await checker.typeToString(req),
+      })
+    }
+
+    log(
+      `✗ ${rel}  ->  providers() RIn includes \`unknown\`/\`any\` (${await checker.typeToString(overallReq)})`,
+    )
+    if (offenders.length === 0) {
+      log("    (could not localize a leaf culprit — inspect the composite layers)")
+    }
+    for (const o of offenders) {
+      log(`    ✗ ${o.text}  ->  RIn = ${o.req}`)
+    }
+  }
+
+  return !hadError
+}
+
+const command = Command.make(
+  "lint-providers",
+  {},
+  () =>
+    Effect.scoped(effect {
+      const path = try Path.Path
+      const cwd = try Effect.sync(() => currentDirectory())
+      const packages = try providerPackages(
+        path.resolve(path.dirname(try Effect.orDie(path.fromFileUrl(new URL(import.meta.url)))), "../packages"),
+      )
+      const api = try Effect.acquireRelease(
+        Effect.sync(() => new API()),
+        (api) => Effect.promise(() => api.close()),
+      )
+      const tsConfigs = packages.map(({ dir }) => path.join(dir, "tsconfig.json"))
+      const snapshot = try Effect.promise(() => api.createSnapshot({ openProjects: tsConfigs }))
+      let ok = true
+      for (const { dir, sidecars } of packages) {
+        const tsConfig = path.join(dir, "tsconfig.json")
+        const project = snapshot.getConfiguredProject(tsConfig)
+        if (!project) return try Effect.die(new Error(`Failed to open ${tsConfig}`))
+        const lines: Array<string> = []
+        const passed = try Effect.promise(() =>
+          lintProviders(
+            project,
+            path.join(dir, "src"),
+            sidecars,
+            (file) => path.relative(cwd, file),
+            (line) => lines.push(line),
+          )
+        )
+        for (const line of lines) try Console.log(line)
+        ok = passed && ok
+      }
+      if (!ok) {
+        return try Effect.fail(
+          new Error(
+            "Provider lint failed: one or more `providers()` factories have `unknown`/`any` requirements.",
+          ),
+        )
+      }
+      try Console.log("\nAll provider factories have fully-resolved requirements.")
+    }),
+).pipe(
+  Command.withDescription(
+    "Fail if any provider package's `providers()` factory leaks `unknown`/`any` requirements",
+  ),
+)
+
+Command.run(command, { version: "0.0.0" }).pipe(
+  Effect.provide(NodeServices.layer),
+  NodeRuntime.runMain,
+)

@@ -1,1 +1,1 @@
-export * from "./AndroidApp.ts";
+export * from "./AndroidApp.vibe";

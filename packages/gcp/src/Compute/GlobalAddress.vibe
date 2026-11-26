@@ -1,0 +1,460 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { waitGlobalOperation } from "./operations.vibe"
+
+const DEFAULT_ADDRESS_TYPE = "EXTERNAL"
+const DEFAULT_IP_VERSION = "IPV4"
+const DEFAULT_NETWORK_TIER = "PREMIUM"
+const MAX_NAME_LENGTH = 63
+
+export type GlobalAddressProps = {
+  /**
+   * Name of the address. If omitted, a unique RFC1035 name is generated
+   * from the stack, stage, and logical id. Immutable — changing it
+   * replaces the address.
+   */
+  addressName?: string
+  /**
+   * Optional description. Immutable — changing it replaces the address.
+   */
+  description?: string
+  /**
+   * Specific IP to reserve. If omitted, GCP assigns one. Immutable —
+   * changing it replaces the address.
+   */
+  address?: string
+  /**
+   * `EXTERNAL` (global anycast) or `INTERNAL` (VPC peering / PSC).
+   * Immutable — changing it replaces the address.
+   * @default "EXTERNAL"
+   */
+  addressType?: compute.AddressAddressTypeEnum | (string & {})
+  /**
+   * `IPV4` or `IPV6`. Immutable — changing it replaces the address.
+   * @default "IPV4"
+   */
+  ipVersion?: compute.AddressIpVersionEnum | (string & {})
+  /**
+   * Prefix length when the resource is an IP range (VPC peering /
+   * PSC). Immutable — changing it replaces the address.
+   */
+  prefixLength?: number
+  /**
+   * Purpose of an internal address (`VPC_PEERING`,
+   * `PRIVATE_SERVICE_CONNECT`, …). Immutable — changing it replaces
+   * the address.
+   */
+  purpose?: compute.AddressPurposeEnum | (string & {})
+  /**
+   * Network URL for internal addresses (`VPC_PEERING` /
+   * `PRIVATE_SERVICE_CONNECT`). Immutable — changing it replaces the
+   * address.
+   */
+  network?: string
+  /**
+   * Networking tier. Global external addresses are always `PREMIUM`.
+   * Immutable — changing it replaces the address.
+   * @default "PREMIUM"
+   */
+  networkTier?: compute.AddressNetworkTierEnum | (string & {})
+  /**
+   * Endpoint type for reserved IPv6 addresses (`VM` or `NETLB`).
+   * Immutable — changing it replaces the address.
+   */
+  ipv6EndpointType?: compute.AddressIpv6EndpointTypeEnum | (string & {})
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically
+   * and synced via `setLabels` (labels cannot be set on insert).
+   */
+  labels?: Record<string, string>
+}
+
+export type GlobalAddress = Resource<
+  "GCP.Compute.GlobalAddress",
+  GlobalAddressProps,
+  {
+    /** Address name. */
+    addressName: string
+    /** Project id. */
+    project: string
+    /** Reserved IP address or start of the range. */
+    address: string | undefined
+    /** Server-assigned numeric id. */
+    id: string | undefined
+    /** Resource self-link. */
+    selfLink: string | undefined
+    /** `RESERVING`, `RESERVED`, or `IN_USE`. */
+    status: string | undefined
+    /** `EXTERNAL` or `INTERNAL`. */
+    addressType: string | undefined
+    /** `IPV4` or `IPV6`. */
+    ipVersion: string | undefined
+    /** Prefix length of an IP range, if any. */
+    prefixLength: number | undefined
+    /** Purpose of an internal address, if any. */
+    purpose: string | undefined
+    /** Network URL for internal addresses, if any. */
+    network: string | undefined
+    /** Networking tier. */
+    networkTier: string | undefined
+    /** IPv6 endpoint type, if any. */
+    ipv6EndpointType: string | undefined
+    /** Description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+    /** Self-links of resources using this address. */
+    users: ReadonlyArray<string>
+  },
+  never,
+  Providers
+>
+
+/**
+ * A global Compute Engine address — a reserved anycast IP for global
+ * forwarding rules, or an internal range for VPC peering / Private
+ * Service Connect.
+ *
+ * Labels are the only in-place update. Name, IP, type, version,
+ * purpose, network, prefix length, and description replace the
+ * address.
+ *
+ * ### Creating a Global Address
+ * **Example:** Generated name
+ * ```typescript
+ * const ip = yield* GCP.Compute.GlobalAddress("FrontendIp", {});
+ * ```
+ *
+ * **Example:** Named address with labels
+ * ```typescript
+ * const ip = yield* GCP.Compute.GlobalAddress("FrontendIp", {
+ *   addressName: "app-lb-ip",
+ *   description: "Global anycast IP for the HTTPS load balancer",
+ *   ipVersion: "IPV4",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Internal Ranges
+ * **Example:** VPC peering range
+ * ```typescript
+ * const range = yield* GCP.Compute.GlobalAddress("PsaRange", {
+ *   addressType: "INTERNAL",
+ *   purpose: "VPC_PEERING",
+ *   network: "projects/my-project/global/networks/main",
+ *   prefixLength: 16,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const GlobalAddress = Resource<GlobalAddress>("GCP.Compute.GlobalAddress")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class GlobalAddressNotResolved extends Data.TaggedError(
+  "GCP.Compute.GlobalAddressNotResolved",
+)<{
+  addressName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class GlobalAddressPending extends Data.TaggedError("GCP.Compute.GlobalAddressPending")<{
+  addressName: string
+  status: string
+}> {}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return /^[a-z]/.test(generated) ? generated : `a${generated}`.slice(0, MAX_NAME_LENGTH)
+}
+
+const toAttrs = (address: compute.Address, project: string): infer _ => ({
+  addressName: address.name ?? "",
+  project,
+  address: address.address,
+  id: address.id,
+  selfLink: address.selfLink,
+  status: address.status,
+  addressType: address.addressType,
+  ipVersion: address.ipVersion,
+  prefixLength: address.prefixLength,
+  purpose: address.purpose,
+  network: address.network,
+  networkTier: address.networkTier,
+  ipv6EndpointType: address.ipv6EndpointType,
+  description: address.description,
+  labels: userLabels(address.labels),
+  creationTimestamp: address.creationTimestamp,
+  users: address.users ?? [],
+})
+
+const addressTypeOf = (value: string | undefined): infer _ =>
+  value && value !== "UNSPECIFIED_TYPE" ? value : DEFAULT_ADDRESS_TYPE
+
+const ipVersionOf = (value: string | undefined): infer _ =>
+  value && value !== "UNSPECIFIED_VERSION" ? value : DEFAULT_IP_VERSION
+
+const networkTierOf = (value: string | undefined): infer _ => value ?? DEFAULT_NETWORK_TIER
+
+const resourceRefOf = (value: string | undefined): infer _ => {
+  if (!value) return ""
+  const parts = value.split("/")
+  return parts[parts.length - 1] ?? value
+}
+
+const getByName = effect (project: string, address: string) =>
+  compute
+    .getGlobalAddresses({ project, address }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitUntilReady = effect (project: string, addressName: string) =>
+  try (effect {
+    return try effect {
+      const address = try getByName(project, addressName)
+
+      if (address === undefined || address.status === "RESERVING") {
+        throw new GlobalAddressPending({
+          addressName,
+          status: address?.status ?? "MISSING",
+        })
+      }
+      return address
+    }
+  }
+    |> Effect.retry(%, {
+      while: (e) => e._tag === "GCP.Compute.GlobalAddressPending",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+const waitUntilGone = effect (project: string, addressName: string) =>
+  (effect {
+    return (try (effect {
+      return try effect {
+        const address = try getByName(project, addressName)
+        return (address === undefined ? try Effect.void : throw new GlobalAddressPending({
+          addressName,
+          status: address.status ?? "EXISTS",
+        }))
+      }
+    }
+      |> Effect.retry(%, {
+        while: (e) => e._tag === "GCP.Compute.GlobalAddressPending",
+        times: 10,
+        schedule: Schedule.spaced("1 second"),
+      })))
+  }) catch effect (e) => match (e) {
+    when { _tag: "GCP.Compute.GlobalAddressPending" }: try Effect.void;
+    default: throw e;
+  }
+
+export const GlobalAddressProvider = (): infer _ =>
+  Provider.succeed(GlobalAddress, {
+    stables: [
+      "addressName",
+      "project",
+      "address",
+      "id",
+      "selfLink",
+      "addressType",
+      "ipVersion",
+      "prefixLength",
+      "purpose",
+      "network",
+      "networkTier",
+      "creationTimestamp",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousName = olds.addressName ?? output?.addressName
+      const nextName = resolved.addressName ?? previousName
+      const nameChanged = previousName !== undefined && nextName !== undefined && nextName !== previousName
+
+      const previousType = addressTypeOf(olds.addressType ?? output?.addressType)
+      const previousVersion = ipVersionOf(olds.ipVersion ?? output?.ipVersion)
+      const previousTier = networkTierOf(olds.networkTier ?? output?.networkTier)
+      const previousNetwork = resourceRefOf(olds.network ?? output?.network)
+      const previousPurpose = olds.purpose ?? output?.purpose ?? ""
+      const previousDescription = olds.description ?? output?.description ?? ""
+      const previousPrefix = olds.prefixLength ?? output?.prefixLength
+      const previousIpv6 = olds.ipv6EndpointType ?? output?.ipv6EndpointType ?? ""
+
+      const immutableChanged =
+        (resolved.description !== undefined && (resolved.description ?? "") !== previousDescription)
+        || (resolved.address !== undefined
+          && output?.address !== undefined
+          && resolved.address !== output.address)
+        || (resolved.addressType !== undefined && addressTypeOf(resolved.addressType) !== previousType)
+        || (resolved.ipVersion !== undefined && ipVersionOf(resolved.ipVersion) !== previousVersion)
+        || (resolved.prefixLength !== undefined && resolved.prefixLength !== previousPrefix)
+        || (resolved.purpose !== undefined && (resolved.purpose ?? "") !== previousPurpose)
+        || (resolved.network !== undefined && resourceRefOf(resolved.network) !== previousNetwork)
+        || (resolved.networkTier !== undefined && networkTierOf(resolved.networkTier) !== previousTier)
+        || (resolved.ipv6EndpointType !== undefined && (resolved.ipv6EndpointType ?? "") !== previousIpv6)
+
+      if (nameChanged) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      if (immutableChanged) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const addressName = try toName(id, olds?.addressName, output?.addressName)
+      const existing = try getByName(env.project, addressName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (compute.listGlobalAddresses
+          .items({ project: env.project, maxResults: 500 })
+          |> Stream.filter(
+            %,
+            (address) => Object.keys(address.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+          )
+          |> Stream.map(%, (address) => toAttrs(address, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const addressName = try toName(id, news.addressName, output?.addressName)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(env.project, addressName)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try effect {
+            return try effect {
+              try waitGlobalOperation(
+                env.project,
+                try compute
+                  .insertGlobalAddresses({
+                    project: env.project,
+                    body: {
+                      name: addressName,
+                      description: news.description,
+                      address: news.address,
+                      addressType: news.addressType,
+                      ipVersion: news.ipVersion,
+                      prefixLength: news.prefixLength,
+                      purpose: news.purpose,
+                      network: news.network,
+                      networkTier: news.networkTier,
+                      ipv6EndpointType: news.ipv6EndpointType,
+                    },
+                  }),
+                {
+                  ignore: ["RESOURCE_ALREADY_EXISTS"],
+                },
+              )
+              return try getByName(env.project, addressName)
+            }
+          })
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(env.project, addressName);
+          default: throw e;
+        }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new GlobalAddressNotResolved({ addressName })
+      }
+
+      if (current.status === "RESERVING") {
+        current = try waitUntilReady(env.project, addressName)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      if (upsert.length > 0 || removed.length > 0) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setLabelsGlobalAddresses({
+              project: env.project,
+              resource: addressName,
+              body: {
+                labels: desiredLabels,
+                labelFingerprint: current.labelFingerprint,
+              },
+            }),
+        )
+        current = (try getByName(env.project, addressName)) ?? current
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      try (effect {
+        return (effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .deleteGlobalAddresses({
+                project: env.project,
+                address: output.addressName,
+              }),
+            {
+              ignore: ["RESOURCE_NOT_FOUND"],
+            },
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          while: (e) => e._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))
+      try waitUntilGone(env.project, output.addressName)
+    },
+  })

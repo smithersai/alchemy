@@ -627,13 +627,25 @@ function classifyOperation(
   return { category, resourceArity, impliesResource, impliesEventSource };
 }
 
+// A migrated module is `X.vibe`, with its declarations in the sidecar `X.d.vibe.ts`.
+const modulePath = Effect.fn(function* (alchemyPath: string, name: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const vibe = path.join(alchemyPath, `${name}.vibe`);
+  const isVibe = yield* fs.exists(vibe).pipe(Effect.orElseSucceed(() => false));
+  return isVibe ? vibe : path.join(alchemyPath, `${name}.ts`);
+});
+
 const inferImplementedResourceArity = Effect.fn(function* (
   alchemyPath: string,
   pascalCase: string,
   fallback: ResourceArity,
 ) {
   const path = yield* Path.Path;
-  const content = yield* readOptional(path.join(alchemyPath, `${pascalCase}.ts`));
+  // A migrated module's sidecar spells its service signature as TypeScript does.
+  const content =
+    (yield* readOptional(path.join(alchemyPath, `${pascalCase}.d.vibe.ts`))) ??
+    (yield* readOptional(path.join(alchemyPath, `${pascalCase}.ts`)));
   // Fall back to heuristic classification when the file is unreadable.
   return content === undefined ? fallback : implementedResourceArity(content, fallback);
 });
@@ -713,9 +725,8 @@ const getAlchemyFiles = Effect.fn(function* (alchemyPath: string) {
   // A missing directory has no files.
   const entries = yield* fs.readDirectory(alchemyPath).pipe(Effect.orElseSucceed(() => []));
   for (const entry of entries) {
-    if (entry.endsWith(".ts") && entry !== "index.ts") {
-      files.add(entry.replace(".ts", ""));
-    }
+    const name = entry.match(/^(.+?)(?:\.d\.vibe\.ts|\.vibe|\.ts)$/)?.[1];
+    if (name !== undefined && name !== "index") files.add(name);
   }
   return files;
 });
@@ -727,7 +738,7 @@ const getIndexExports = Effect.fn(function* (indexPath: string) {
     const regex = /export \* from ["']\.\/([^"']+)["']/g;
     let match;
     while ((match = regex.exec(content)) !== null) {
-      const name = match[1].replace(".ts", "").replace(".js", "");
+      const name = match[1].replace(/\.(?:ts|js|vibe)$/, "");
       exports.add(name);
     }
   }
@@ -779,7 +790,6 @@ const getLeastPrivilegeWarnings = Effect.fn(function* (
   alchemyPath: string,
   operations: Operation[],
 ) {
-  const path = yield* Path.Path;
   const warnings: LeastPrivilegeWarning[] = [];
   const wildcardResourcePattern = /Resource:\s*\[\s*["']\*["']\s*\]/;
 
@@ -796,7 +806,7 @@ const getLeastPrivilegeWarnings = Effect.fn(function* (
       continue;
     }
 
-    const file = path.join(alchemyPath, `${op.pascalCase}.ts`);
+    const file = yield* modulePath(alchemyPath, op.pascalCase);
     // Missing or unreadable files are surfaced by other audit checks.
     const content = yield* readOptional(file);
     if (content !== undefined && wildcardResourcePattern.test(content)) {

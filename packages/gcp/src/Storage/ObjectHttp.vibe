@@ -1,0 +1,54 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.vibe"
+import { grantFor, type GcpHttpOp } from "../HttpBinding.vibe"
+import type { Bucket } from "./Bucket.vibe"
+
+/**
+ * Grant `role` on the bound bucket's own IAM policy (not the project), the
+ * way AWS S3 bindings scope statements to the bucket ARN.
+ */
+export const GrantOnBucket = effect {
+  const bind = try GCPBindings.Bind
+  return effect (tag: string, bucket: Bucket, role: string) => {
+    if (globalThis.__ALCHEMY_RUNTIME__) return
+    try bind`${tag}(${bucket})`({
+      iam: [
+        try Effect.orDie(Effect.try({
+          try: () => grantFor({ role, on: "storage.bucket" }, bucket.bucketName),
+          catch: (e) => e,
+        })),
+      ],
+    })
+  }
+}
+
+/**
+ * Shared HTTP scaffolding for Cloud Storage object metadata bindings
+ * (`DeleteObject`): yields the distilled operation once at Layer
+ * construction and injects the bound bucket's name.
+ * NOT exported from index.ts.
+ */
+export const makeObjectHttpBinding = effect <I extends { bucket?: string }, A, E>(options: {
+  tag: string
+  role: string
+  operation: GcpHttpOp<I, A, E>
+}) => {
+  const grantOnBucket = try GrantOnBucket
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (bucket: Bucket) => {
+    try grantOnBucket(options.tag, bucket, options.role)
+    const bucketName = try bucket.bucketName.asEffect()
+    return effect (
+      request: Omit<I, "bucket">,
+    ) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...request,
+            bucket: try bucketName,
+          } as I)
+        },
+        `${options.tag}(${bucket.LogicalId})`,
+      )
+  }
+}

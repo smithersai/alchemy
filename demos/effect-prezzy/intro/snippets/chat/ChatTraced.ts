@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 import { DatabaseLive } from "./Db.ts";
 import { Files, FilesR2 } from "./Files.ts";
 import { History, HistoryLive } from "./History.ts";
-import Room from "./Room.ts";
+import Room, { RoomLive } from "./Room.ts";
 import { Ingest, Logs, Traces } from "./Telemetry.ts";
 
 // #region show
@@ -33,6 +33,7 @@ export default Cloudflare.Worker(
         .pipe(Effect.orDie) /*end*/,
     };
   }).pipe(
+    Effect.provide(RoomLive),
     Effect.provide([
       HistoryLive.pipe(Layer.provide(DatabaseLive)),
       FilesR2,

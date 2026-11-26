@@ -1,8 +1,9 @@
 import { foldkit } from "@foldkit/vite-plugin";
+import vibelang from "vibelang-vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [foldkit()],
+  plugins: [vibelang(), foldkit()],
   optimizeDeps: {
     entries: ["src/entry.ts"],
     // The foldkit plugin excludes foldkit from pre-bundling, so its bare

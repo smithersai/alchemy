@@ -1,4 +1,4 @@
-import { alchemyLabelKeys } from "../Labels.ts";
+import { alchemyLabelKeys } from "../Labels.vibe";
 
 export const lastSegment = (value: string) => {
   const trimmed = value.replace(/\/+$/, "");

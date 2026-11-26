@@ -1,0 +1,170 @@
+import * as acmpca from "@distilled.cloud/aws/acm-pca"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { PolicyDocument } from "../IAM/Policy.vibe"
+import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface CertificateAuthorityPolicyProps {
+  /**
+   * The ARN of the private CA the resource-based policy is attached to.
+   * Changing this replaces the policy.
+   */
+  certificateAuthorityArn: string
+  /**
+   * The resource-based permission policy, either as a structured
+   * {@link PolicyDocument} or a raw JSON string (escape hatch). The policy
+   * grants cross-account access on the CA to an Amazon Web Services
+   * account, organization, or organizational unit — a policy that would
+   * lock the CA owner out is rejected by AWS with the typed
+   * `LockoutPreventedException`.
+   */
+  policy: PolicyDocument | string
+}
+
+export interface CertificateAuthorityPolicy extends
+  Resource<
+    "AWS.ACMPCA.CertificateAuthorityPolicy",
+    CertificateAuthorityPolicyProps,
+    {
+      /** The ARN of the CA the policy is attached to. */
+      certificateAuthorityArn: string
+      /** The attached policy document as a JSON string. */
+      policy: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A resource-based policy attached to a private CA, granting cross-account
+ * access — e.g. allowing a Certificate Manager (ACM) user in another
+ * account to issue and renew certificates signed by this CA. This is the
+ * policy Amazon Web Services Resource Access Manager (RAM) manages when a
+ * CA is shared; attach it directly for fine-grained control.
+ *
+ * ### Attaching a CA Policy
+ * **Example:** Allow Another Account to Issue Certificates
+ * ```typescript
+ * import * as ACMPCA from "@alchemy.run/aws/ACMPCA";
+ *
+ * const policy = yield* ACMPCA.CertificateAuthorityPolicy("CrossAccount", {
+ *   certificateAuthorityArn: ca.certificateAuthorityArn,
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: "arn:aws:iam::123456789012:root" },
+ *         Action: [
+ *           "acm-pca:DescribeCertificateAuthority",
+ *           "acm-pca:GetCertificate",
+ *           "acm-pca:GetCertificateAuthorityCertificate",
+ *           "acm-pca:ListPermissions",
+ *           "acm-pca:IssueCertificate",
+ *           "acm-pca:RevokeCertificate",
+ *         ],
+ *         Resource: ca.certificateAuthorityArn,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const CertificateAuthorityPolicy = Resource<CertificateAuthorityPolicy>(
+  "AWS.ACMPCA.CertificateAuthorityPolicy",
+)
+
+export const CertificateAuthorityPolicyProvider = (): infer _ =>
+  Provider.effect(
+    CertificateAuthorityPolicy,
+    effect {
+      // A CA without a policy and a missing/deleted CA both answer
+      // getPolicy with ResourceNotFoundException — either way there is no
+      // policy to observe.
+      const observe = effect (certificateAuthorityArn: string) =>
+        (effect {
+          return (try acmpca.getPolicy({ ResourceArn: certificateAuthorityArn })).Policy
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidStateException" }: undefined;
+          default: throw e;
+        }
+
+      const toDesired = (policy: PolicyDocument | string): infer _ =>
+        typeof policy === "string" ? policy : stringifyPolicyDocument(policy)
+
+      return {
+        stables: ["certificateAuthorityArn"],
+        diff: effect ({ news, olds }) => {
+          if (!("certificateAuthorityArn" in news)) return
+          // The CA's ARN is stable across its updates, so an unresolved ARN
+          // means the CA is being replaced: the policy moves with it.
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(news.certificateAuthorityArn), catch: (e) => e })))
+            || news.certificateAuthorityArn !== olds.certificateAuthorityArn
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const certificateAuthorityArn = output?.certificateAuthorityArn ?? olds?.certificateAuthorityArn
+          if (certificateAuthorityArn === undefined) return undefined
+          const observed = try observe(certificateAuthorityArn)
+          if (observed === undefined) return undefined
+          return { certificateAuthorityArn, policy: observed }
+        },
+        list: effect () => {
+          // Policies hang off CAs: enumerate every non-deleted CA and
+          // collect the ones that actually carry a policy.
+          const cas = Array.from(
+            try (acmpca.listCertificateAuthorities.items({})
+              |> Stream.runCollect(%)),
+          )
+            .filter((ca) => ca.Arn !== undefined && ca.Status !== "DELETED")
+            .map((ca) => ca.Arn!)
+          const policies = try Effect.forEach(
+            cas,
+            effect (arn) =>
+              try effect {
+                const policy = try observe(arn)
+                return policy === undefined ? [] : [{ certificateAuthorityArn: arn, policy }]
+              },
+            { concurrency: 5 },
+          )
+          return policies.flat()
+        },
+        reconcile: effect ({ news, session }) => {
+          const certificateAuthorityArn = news.certificateAuthorityArn
+          const desired = toDesired(news.policy)
+
+          // OBSERVE — putPolicy is an upsert; compare the canonicalized
+          // live document against the canonicalized desired one so a
+          // re-deploy of an equivalent policy (key order, whitespace) skips
+          // the API call entirely.
+          const observed = try observe(certificateAuthorityArn)
+          if (
+            observed === undefined
+            || normalizePolicyDocument(observed) !== normalizePolicyDocument(desired)
+          ) {
+            try acmpca.putPolicy({
+              ResourceArn: certificateAuthorityArn,
+              Policy: desired,
+            })
+          }
+
+          try session.note(certificateAuthorityArn)
+          return { certificateAuthorityArn, policy: desired }
+        },
+        delete: effect ({ output }) => {
+          acmpca.deletePolicy({ ResourceArn: output.certificateAuthorityArn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidStateException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

@@ -1,0 +1,81 @@
+import * as ci from "@distilled.cloud/aws/cognito-identity"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { cognitoMethods } from "./BindingHttp.vibe"
+import type { IdentityPool } from "./IdentityPool.vibe"
+import { IdentityPoolAdmin, type IdentityPoolAdminClient } from "./IdentityPoolAdmin.vibe"
+
+/** The injected identifier field, in the distilled wire type. */
+type IdentityPoolIdField = Pick<ci.ListIdentitiesInput, "IdentityPoolId">
+
+/**
+ * HTTP implementation of {@link IdentityPoolAdmin}: grants the
+ * `cognito-identity:*` identity-management actions on the bound pool's ARN
+ * and calls the Cognito Identity HTTP API with the function's IAM
+ * credentials.
+ */
+export const IdentityPoolAdminHttp = Layer.effect(
+  IdentityPoolAdmin,
+  effect {
+    const bind = try AWSBindings.Bind
+    const describeIdentity = try AWSBindings.withCredentials(ci.describeIdentity)
+    const listIdentities = try AWSBindings.withCredentials(ci.listIdentities)
+    const deleteIdentities = try AWSBindings.withCredentials(ci.deleteIdentities)
+    const lookupDeveloperIdentity = try AWSBindings.withCredentials(ci.lookupDeveloperIdentity)
+    const mergeDeveloperIdentities = try AWSBindings.withCredentials(
+      ci.mergeDeveloperIdentities,
+    )
+    const unlinkDeveloperIdentity = try AWSBindings.withCredentials(ci.unlinkDeveloperIdentity)
+    const getOpenIdTokenForDeveloperIdentity = try AWSBindings.withCredentials(
+      ci.getOpenIdTokenForDeveloperIdentity,
+    )
+
+    return effect <P extends IdentityPool>(pool: P) => {
+      const IdentityPoolId = try pool.identityPoolId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Cognito.IdentityPoolAdmin(${pool})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: [
+                "cognito-identity:GetOpenIdTokenForDeveloperIdentity",
+                "cognito-identity:ListIdentities",
+                "cognito-identity:LookupDeveloperIdentity",
+                "cognito-identity:MergeDeveloperIdentities",
+                "cognito-identity:UnlinkDeveloperIdentity",
+              ],
+              Resource: [pool.identityPoolArn],
+            },
+            {
+              Effect: "Allow",
+              // These act on identity IDs, which have no ARN form —
+              // Cognito Identity does not support resource-level
+              // scoping for them.
+              Action: ["cognito-identity:DeleteIdentities", "cognito-identity:DescribeIdentity"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      const methods = cognitoMethods("AWS.Cognito.IdentityPoolAdmin", pool.LogicalId)
+      const withPool = methods.injecting(
+        Effect.map(IdentityPoolId, (id): IdentityPoolIdField => ({
+          IdentityPoolId: id,
+        })),
+      )
+      const adminClient: IdentityPoolAdminClient = {
+        describeIdentity: methods.plain("describeIdentity", describeIdentity),
+        deleteIdentities: methods.plain("deleteIdentities", deleteIdentities),
+        listIdentities: withPool("listIdentities", listIdentities),
+        lookupDeveloperIdentity: withPool("lookupDeveloperIdentity", lookupDeveloperIdentity),
+        mergeDeveloperIdentities: withPool("mergeDeveloperIdentities", mergeDeveloperIdentities),
+        unlinkDeveloperIdentity: withPool("unlinkDeveloperIdentity", unlinkDeveloperIdentity),
+        getOpenIdTokenForDeveloperIdentity: withPool(
+          "getOpenIdTokenForDeveloperIdentity",
+          getOpenIdTokenForDeveloperIdentity,
+        ),
+      }
+      return adminClient
+    }
+  },
+)

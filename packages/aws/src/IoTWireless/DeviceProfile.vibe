@@ -1,0 +1,245 @@
+import * as Effect from "effect/Effect"
+import * as iotw from "@distilled.cloud/aws/iot-wireless"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readIotWirelessTags, sameShape, syncIotWirelessTags } from "./internal.vibe"
+
+export error DeviceProfileUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DeviceProfileProps {
+  /**
+   * Name of the device profile. If omitted, a deterministic physical name
+   * is generated from the app, stage, and logical ID. Device profiles are
+   * immutable — changing the name replaces the profile.
+   */
+  name?: string
+  /**
+   * LoRaWAN device profile configuration (MAC version, regional parameters,
+   * RX windows, class B/C support). Immutable — changing any field replaces
+   * the profile.
+   */
+  loRaWAN?: iotw.LoRaWANDeviceProfile
+  /**
+   * Sidewalk device profile configuration. Set to `{}` to create an Amazon
+   * Sidewalk device profile instead of a LoRaWAN one. Immutable.
+   */
+  sidewalk?: iotw.SidewalkCreateDeviceProfile
+  /**
+   * Tags applied to the device profile. Alchemy ownership tags are merged
+   * in automatically.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DeviceProfile extends
+  Resource<
+    "AWS.IoTWireless.DeviceProfile",
+    DeviceProfileProps,
+    {
+      /** Server-assigned ID of the device profile. */
+      deviceProfileId: string
+      /** ARN of the device profile. */
+      deviceProfileArn: string
+      /** Name of the device profile. */
+      deviceProfileName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT Core for LoRaWAN device profile — the hardware-level LoRaWAN
+ * parameters (MAC version, regional band, RX windows, device classes) shared
+ * by devices of the same model.
+ *
+ * Device profiles are immutable after creation: any change to `name`,
+ * `loRaWAN`, or `sidewalk` replaces the profile. Only tags update in place.
+ * ### Creating Device Profiles
+ * **Example:** US915 OTAA Device Profile
+ * ```typescript
+ * import * as IoTWireless from "@alchemy.run/aws/IoTWireless";
+ *
+ * const profile = yield* IoTWireless.DeviceProfile("SensorModel", {
+ *   loRaWAN: {
+ *     MacVersion: "1.0.3",
+ *     RegParamsRevision: "RP002-1.0.1",
+ *     RfRegion: "US915",
+ *     MaxEirp: 10,
+ *     SupportsJoin: true,
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Sidewalk Device Profile
+ * ```typescript
+ * const profile = yield* IoTWireless.DeviceProfile("SidewalkModel", {
+ *   sidewalk: {},
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DeviceProfile = Resource<DeviceProfile>("AWS.IoTWireless.DeviceProfile")
+
+export const DeviceProfileProvider = (): infer _ =>
+  Provider.effect(
+    DeviceProfile,
+    effect {
+      const createName = effect (id: string, props: { name?: string }) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 256 }))
+
+      const getById = effect (deviceProfileId: string) =>
+        iotw
+          .getDeviceProfile({ Id: deviceProfileId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      // Device profiles have no name-keyed Get — enumerate and match. The
+      // physical name is deterministic, so this recovers identity after a
+      // lost state write.
+      const findByName = effect (name: string) =>
+        Array.from(
+          try (iotw.listDeviceProfiles.pages({})
+            |> Stream.runCollect(%)),
+        )
+          .flatMap((page) => page.DeviceProfileList ?? [])
+          .find((p) => p.Name === name)
+
+      const observe = effect (
+        output: DeviceProfile["Attributes"] | undefined,
+        name: string,
+      ) => {
+        if (output?.deviceProfileId !== undefined) {
+          const found = try getById(output.deviceProfileId)
+          if (found !== undefined) return found
+        }
+        const summary = try findByName(name)
+        if (summary?.Id === undefined) return undefined
+        return try getById(summary.Id)
+      }
+
+      const toAttrs = effect (profile: iotw.GetDeviceProfileResponse, name: string) => {
+        if (profile.Id === undefined || profile.Arn === undefined) {
+          throw new DeviceProfileUnexpectedResponse({
+            message: `IoT Wireless device profile '${name}' returned without Id/Arn`,
+          })
+        }
+        return {
+          deviceProfileId: profile.Id,
+          deviceProfileArn: profile.Arn,
+          deviceProfileName: profile.Name ?? name,
+        }
+      }
+
+      return DeviceProfile.Provider.of({
+        stables: ["deviceProfileId", "deviceProfileArn", "deviceProfileName"],
+
+        list: effect () =>
+          Array.from(
+            try (iotw.listDeviceProfiles.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.DeviceProfileList ?? [])
+            .flatMap((p) =>
+              p.Id !== undefined && p.Arn !== undefined
+                ? [
+                  {
+                    deviceProfileId: p.Id,
+                    deviceProfileArn: p.Arn,
+                    deviceProfileName: p.Name ?? p.Id,
+                  },
+                ]
+                : []
+            ),
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.deviceProfileName ?? (try createName(id, olds ?? {}))
+          const profile = try observe(output, name)
+          if (profile === undefined) return undefined
+          const attrs = try toAttrs(profile, name)
+          const tags = try readIotWirelessTags(attrs.deviceProfileArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        // There is no UpdateDeviceProfile API — name and radio config are
+        // create-only, so any change to either replaces the profile. Tags
+        // stay update-in-place.
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          if (!sameShape(olds?.loRaWAN, news.loRaWAN)) {
+            return { action: "replace" } as const
+          }
+          if ((olds?.sidewalk === undefined) !== (news.sidewalk === undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.deviceProfileName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative; output is an id cache.
+          let profile = try observe(output, name)
+
+          // 2. ENSURE — create if missing. CreateDeviceProfile always mints
+          //    a new profile (names are not unique keys), so re-observing by
+          //    name after a Conflict race keeps this idempotent.
+          if (profile === undefined) {
+            try session.note(`creating device profile ${name}`)
+            const created = iotw
+              .createDeviceProfile({
+                Name: name,
+                LoRaWAN: news.loRaWAN,
+                Sidewalk: news.sidewalk,
+                Tags: createTagsList(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: undefined;
+                default: throw e;
+              }
+            profile = created?.Id !== undefined
+              ? try getById(created.Id)
+              : try observe(undefined, name)
+          }
+          if (profile === undefined) {
+            throw new DeviceProfileUnexpectedResponse({
+              message: `IoT Wireless device profile '${name}' not found after create`,
+            })
+          }
+
+          // 3. SYNC — only tags are mutable; diff against OBSERVED tags.
+          const attrs = try toAttrs(profile, name)
+          try syncIotWirelessTags(attrs.deviceProfileArn, desiredTags)
+
+          try session.note(attrs.deviceProfileId)
+          return attrs
+        },
+
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (iotw.deleteDeviceProfile({ Id: output.deviceProfileId })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

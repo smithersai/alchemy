@@ -1,0 +1,219 @@
+import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { PolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface DestinationProps {
+  /**
+   * Name of the destination. The destination name is its identity within the
+   * account and region (put semantics upsert by name). If omitted, a unique
+   * name is generated. Changing this value replaces the destination.
+   */
+  destinationName?: string
+  /**
+   * ARN of the physical target that receives the log events — a Kinesis
+   * stream in this account.
+   */
+  targetArn: string
+  /**
+   * ARN of an IAM role that CloudWatch Logs assumes to write to the target.
+   * The role must trust `logs.amazonaws.com`.
+   */
+  roleArn: string
+  /**
+   * Access policy governing which accounts may create subscription filters
+   * against this destination, either as a JSON string or a structured
+   * document. Required before another account can subscribe.
+   */
+  accessPolicy?: PolicyDocument | string
+}
+
+export interface Destination extends
+  Resource<
+    "AWS.Logs.Destination",
+    DestinationProps,
+    {
+      destinationName: string
+      destinationArn: string
+      targetArn: string
+      roleArn: string
+      accessPolicy?: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch Logs destination — a cross-account subscription target that
+ * forwards log events to a Kinesis stream. Producers in other accounts create
+ * subscription filters whose `destinationArn` points at this destination;
+ * the `accessPolicy` controls which accounts may subscribe.
+ * ### Cross-Account Log Fan-Out
+ * **Example:** Kinesis-Backed Destination
+ * ```typescript
+ * const destination = yield* Destination("CentralLogs", {
+ *   targetArn: stream.streamArn,
+ *   roleArn: role.roleArn,
+ *   accessPolicy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: "123456789012" },
+ *         Action: ["logs:PutSubscriptionFilter"],
+ *         Resource: "*",
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Destination = Resource<Destination>("AWS.Logs.Destination")
+
+/**
+ * `putDestination` validates that CloudWatch Logs can assume the delivery role
+ * at call time; when the role was created in the same deploy this fails with
+ * `InvalidParameterException` until IAM propagates. Bounded retry.
+ *
+ * NOTE: explicit return annotation is load-bearing — an inlined `Effect.retry`
+ * in provider lifecycle code widens the provider layer during declaration emit
+ * (see PATTERNS.md §7).
+ */
+const retryThroughRolePropagation = effect <A, E extends { _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "InvalidParameterException" || e._tag === "OperationAbortedException",
+    schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(9)]),
+  })
+
+export const DestinationProvider = (): infer _ =>
+  Provider.effect(
+    Destination,
+    effect {
+      const toDestinationName = effect (
+        id: string,
+        props: { destinationName?: string } = {},
+      ) => (props.destinationName ? props.destinationName : try createPhysicalName({ id, maxLength: 512 }))
+
+      const toPolicyString = (policy: PolicyDocument | string | undefined): infer _ =>
+        policy === undefined
+          ? undefined
+          : typeof policy === "string"
+          ? policy
+          : JSON.stringify(policy)
+
+      const observe = effect (destinationName: string) =>
+        Option.getOrUndefined(
+          try (logs.describeDestinations
+            .items({ DestinationNamePrefix: destinationName })
+            |> Stream.filter(%, (destination) => destination.destinationName === destinationName)
+            |> Stream.runHead(%)),
+        )
+
+      return {
+        stables: ["destinationName", "destinationArn"],
+        list: effect () =>
+          Array.from(
+            try (logs.describeDestinations.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.destinations ?? [])
+            .filter(
+              (
+                destination,
+              ): destination is logs.Destination & {
+                destinationName: string
+                arn: string
+              } => destination.destinationName != null && destination.arn != null,
+            )
+            .map((destination) => ({
+              destinationName: destination.destinationName,
+              destinationArn: destination.arn,
+              targetArn: destination.targetArn ?? "",
+              roleArn: destination.roleArn ?? "",
+              accessPolicy: destination.accessPolicy,
+            })),
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toDestinationName(id, olds)) !== (try toDestinationName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const destinationName = output?.destinationName ?? (try toDestinationName(id, olds ?? {}))
+          const observed = try observe(destinationName)
+          if (!observed?.arn) return undefined
+          return {
+            destinationName,
+            destinationArn: observed.arn,
+            targetArn: observed.targetArn ?? "",
+            roleArn: observed.roleArn ?? "",
+            accessPolicy: observed.accessPolicy,
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const destinationName = output?.destinationName ?? (try toDestinationName(id, news))
+          const desiredPolicy = toPolicyString(news.accessPolicy)
+
+          // Observe — putDestination upserts by name; skip when target/role
+          // already match.
+          let observed = try observe(destinationName)
+          if (observed?.targetArn !== news.targetArn || observed?.roleArn !== news.roleArn) {
+            const put = try retryThroughRolePropagation(
+              logs.putDestination({
+                destinationName,
+                targetArn: news.targetArn,
+                roleArn: news.roleArn,
+              }),
+            )
+            observed = put.destination ?? (try observe(destinationName))
+          }
+
+          // Sync access policy against the observed policy.
+          if (desiredPolicy !== undefined && observed?.accessPolicy !== desiredPolicy) {
+            try retryThroughRolePropagation(
+              logs.putDestinationPolicy({
+                destinationName,
+                accessPolicy: desiredPolicy,
+              }),
+            )
+          }
+
+          try session.note(destinationName)
+
+          return {
+            destinationName,
+            destinationArn: observed?.arn ?? "",
+            targetArn: news.targetArn,
+            roleArn: news.roleArn,
+            accessPolicy: desiredPolicy,
+          }
+        },
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (logs.deleteDestination({ destinationName: output.destinationName })
+              |> Effect.retry(%, {
+                while: (error) =>
+                  error._tag === "OperationAbortedException"
+                  || error._tag === "ServiceUnavailableException",
+                schedule: Schedule.exponential(100),
+                times: 8,
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

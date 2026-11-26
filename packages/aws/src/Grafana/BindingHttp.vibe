@@ -1,0 +1,99 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Workspace } from "./Workspace.vibe"
+
+/**
+ * Shared scaffolding for AWS Managed Grafana HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an account-level operation (e.g. listing the
+ * available Grafana versions). The deploy-time half grants `actions` on `*`.
+ */
+export const makeGrafanaAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Grafana.ListVersions`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a workspace-scoped operation: the runtime
+ * callable injects the bound {@link Workspace}'s id as `workspaceId` and the
+ * deploy-time half grants `actions` on the workspace ARN.
+ */
+export const makeGrafanaWorkspaceHttpBinding = effect <
+  I extends { workspaceId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Grafana.ListPermissions`. */
+  tag: string
+  /** The distilled operation; `workspaceId` is injected from the workspace. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the workspace ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (workspace: Workspace) => {
+    const workspaceId = try workspace.workspaceId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${workspace})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${workspace.workspaceArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "workspaceId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            workspaceId: try workspaceId,
+          } as I)
+        },
+        `${options.tag}(${workspace.LogicalId})`,
+      )
+  }
+}

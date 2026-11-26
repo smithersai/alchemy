@@ -1,8 +1,8 @@
 import type { Rpc } from "@cloudflare/workers-types";
 import type { Input } from "alchemy/Input";
 import { isResourceOfType } from "alchemy/Resource";
-import type { Worker } from "./Worker.ts";
-import { WorkerTypeId } from "./WorkerRuntime.ts";
+import type { Worker } from "./Worker.vibe";
+import { WorkerTypeId } from "./WorkerRuntime.vibe";
 
 type WorkerEntrypointTypeId = "Cloudflare.WorkerEntrypoint";
 const WorkerEntrypointTypeId: WorkerEntrypointTypeId = "Cloudflare.WorkerEntrypoint";

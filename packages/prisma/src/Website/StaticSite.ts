@@ -8,7 +8,7 @@ import { loadFrontendCore } from "alchemy/Website/FrontendCore";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import { WebsiteArtifact } from "./Artifact.ts";
+import { WebsiteArtifact } from "./Artifact.vibe";
 import { deployWebsite, type FrameworkSiteProps, type Website } from "./FrameworkSite.ts";
 
 /** A command-built website with the same build vocabulary as Fly and Railway. */

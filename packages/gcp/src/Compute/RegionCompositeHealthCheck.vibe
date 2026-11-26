@@ -1,0 +1,335 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeDescription,
+  hasOwnershipMarker,
+  lastSegment,
+  normalizeRegion,
+  parseDescription,
+  runRegionOp,
+  sameUrlList,
+  toPhysicalName,
+} from "./internal.vibe"
+
+export type RegionCompositeHealthCheckProps = {
+  /**
+   * Health check name (RFC1035, 1-63 characters). If omitted, a unique
+   * name is generated from the stack, stage, and logical id. Changing it
+   * replaces the resource.
+   */
+  healthCheckName?: string
+  /**
+   * Region the composite health check lives in. Immutable — changing it
+   * replaces the resource. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  region?: string
+  /**
+   * Optional description. Composite health checks have no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix for `list` /
+   * nuke.
+   */
+  description?: string
+  /**
+   * URL of the destination ForwardingRule. Must be regional, in the same
+   * region, and use load balancing scheme `INTERNAL` or
+   * `INTERNAL_MANAGED`.
+   */
+  healthDestination: string
+  /**
+   * URLs of HealthSource resources whose results are AND'ed. Must have at
+   * least 1 and at most 10. Must be regional and in the same region.
+   */
+  healthSources: string[]
+}
+
+export type RegionCompositeHealthCheck = Resource<
+  "GCP.Compute.RegionCompositeHealthCheck",
+  RegionCompositeHealthCheckProps,
+  {
+    /** Health check name. */
+    healthCheckName: string
+    /** Project id. */
+    project: string
+    /** Region short name (`us-central1`). */
+    region: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Destination forwarding-rule URL. */
+    healthDestination: string | undefined
+    /** Health source URLs. */
+    healthSources: string[]
+    /** Optimistic-locking fingerprint. */
+    fingerprint: string | undefined
+    /** Server-defined URL. */
+    selfLink: string | undefined
+    /** Server-defined URL including the numeric id. */
+    selfLinkWithId: string | undefined
+    /** Server-assigned numeric id. */
+    healthCheckId: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+    /** Resource kind. */
+    kind: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A regional Compute Engine composite health check.
+ *
+ * Composite health checks AND the results of one or more HealthSource
+ * resources and publish the aggregate to a destination ForwardingRule.
+ * Name and region are immutable. Destination, sources, and description
+ * update in place via `regionCompositeHealthChecks.patch`.
+ *
+ * ### Creating a Composite Health Check
+ * **Example:** Generated name
+ * ```typescript
+ * const check = yield* GCP.Compute.RegionCompositeHealthCheck("Comp", {
+ *   healthDestination: rule.selfLink,
+ *   healthSources: [source.selfLink],
+ *   description: "and backends",
+ * });
+ * ```
+ *
+ * **Example:** Named check
+ * ```typescript
+ * const check = yield* GCP.Compute.RegionCompositeHealthCheck("Comp", {
+ *   healthCheckName: "app-composite",
+ *   region: "us-central1",
+ *   healthDestination: rule.selfLink,
+ *   healthSources: [source.selfLink],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const RegionCompositeHealthCheck = Resource<RegionCompositeHealthCheck>(
+  "GCP.Compute.RegionCompositeHealthCheck",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class RegionCompositeHealthCheckNotResolved extends Data.TaggedError(
+  "GCP.Compute.RegionCompositeHealthCheckNotResolved",
+)<{
+  healthCheckName: string
+  region: string
+}> {}
+
+const toAttrs = (
+  check: compute.CompositeHealthCheck,
+  project: string,
+): RegionCompositeHealthCheck["Attributes"] => {
+  const parsed = parseDescription(check.description)
+  return {
+    healthCheckName: check.name ?? lastSegment(check.selfLink),
+    project,
+    region: lastSegment(check.region).toLowerCase(),
+    description: parsed.description,
+    healthDestination: check.healthDestination,
+    healthSources: check.healthSources ?? [],
+    fingerprint: check.fingerprint,
+    selfLink: check.selfLink,
+    selfLinkWithId: check.selfLinkWithId,
+    healthCheckId: check.id,
+    creationTimestamp: check.creationTimestamp,
+    kind: check.kind,
+  }
+}
+
+const getByName = effect (project: string, region: string, name: string) =>
+  compute
+    .getRegionCompositeHealthChecks({
+      project,
+      region,
+      compositeHealthCheck: name,
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+const awaitResource = effect (project: string, region: string, healthCheckName: string) =>
+  try (effect {
+    return try effect {
+      const check = try getByName(project, region, healthCheckName)
+      return (check !== undefined ? check : throw new RegionCompositeHealthCheckNotResolved({
+        healthCheckName,
+        region,
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Compute.RegionCompositeHealthCheckNotResolved",
+      times: 20,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+export const RegionCompositeHealthCheckProvider = (): infer _ =>
+  Provider.succeed(RegionCompositeHealthCheck, {
+    stables: [
+      "healthCheckName",
+      "project",
+      "region",
+      "healthCheckId",
+      "selfLink",
+      "creationTimestamp",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousName = olds?.healthCheckName ?? output?.healthCheckName
+      const nextName = resolved.healthCheckName ?? previousName
+      const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? (previousRegion || env.region), env.region)
+      const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
+      const regionChanged = previousRegion.length > 0 && previousRegion !== nextRegion
+      if (nameChanged || regionChanged) {
+        return {
+          action: "replace" as const,
+          deleteFirst: !nameChanged || nextName === undefined || nextName === previousName,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const healthCheckName = try toPhysicalName(
+        id,
+        olds?.healthCheckName,
+        output?.healthCheckName,
+        "healthcheck",
+      )
+      const region = normalizeRegion(olds?.region ?? output?.region, env.region)
+      const existing = try getByName(env.project, region, healthCheckName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = (effect {
+        return (try (compute.aggregatedListRegionCompositeHealthChecks
+          .pages({
+            project: env.project,
+            maxResults: 500,
+            returnPartialSuccess: true,
+          })
+          |> Stream.runCollect(%)))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as never[];
+        default: throw e;
+      }
+      return Array.from(pages as readonly compute.CompositeHealthCheckAggregatedList[]).flatMap(
+        (page) =>
+          Object.values(page.items ?? {}).flatMap((scoped) =>
+            (scoped?.compositeHealthChecks ?? [])
+              .filter((item) => hasOwnershipMarker(item.description))
+              .map((item) => toAttrs(item, env.project))
+          ),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const healthCheckName = try toPhysicalName(
+        id,
+        news.healthCheckName,
+        output?.healthCheckName,
+        "healthcheck",
+      )
+      const region = normalizeRegion(news.region ?? output?.region, env.region)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+
+      let current = try getByName(env.project, region, healthCheckName)
+
+      if (current === undefined) {
+        runRegionOp(
+          env.project,
+          region,
+          compute.insertRegionCompositeHealthChecks({
+            project: env.project,
+            region,
+            body: {
+              name: healthCheckName,
+              description: desiredDescription,
+              healthDestination: news.healthDestination,
+              healthSources: news.healthSources,
+            },
+          }),
+          { ignoreAlreadyExists: true },
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        current = try awaitResource(env.project, region, healthCheckName)
+      }
+
+      if (current === undefined) {
+        throw new RegionCompositeHealthCheckNotResolved({
+          healthCheckName,
+          region,
+        })
+      }
+
+      const patch: compute.CompositeHealthCheck = {
+        fingerprint: current.fingerprint,
+      }
+      let dirty = false
+      if ((current.description ?? "") !== desiredDescription) {
+        patch.description = desiredDescription
+        dirty = true
+      }
+      if (lastSegment(current.healthDestination) !== lastSegment(news.healthDestination)) {
+        patch.healthDestination = news.healthDestination
+        dirty = true
+      }
+      if (!sameUrlList(current.healthSources, news.healthSources)) {
+        patch.healthSources = news.healthSources
+        dirty = true
+      }
+      if (dirty) {
+        try runRegionOp(
+          env.project,
+          region,
+          compute.patchRegionCompositeHealthChecks({
+            project: env.project,
+            region,
+            compositeHealthCheck: healthCheckName,
+            body: patch,
+          }),
+        )
+        current = (try getByName(env.project, region, healthCheckName)) ?? current
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const region = normalizeRegion(output.region, env.region)
+      runRegionOp(
+        env.project,
+        region,
+        compute.deleteRegionCompositeHealthChecks({
+          project: env.project,
+          region,
+          compositeHealthCheck: output.healthCheckName,
+        }),
+        { ignoreNotFound: true },
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+    },
+  })

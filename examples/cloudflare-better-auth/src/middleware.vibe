@@ -1,0 +1,42 @@
+import { RuntimeContext } from "alchemy"
+import * as HttpApiMiddleware from "effect/http-api/HttpApiMiddleware"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+import { Auth } from "./auth.vibe"
+import { CurrentUser } from "./current-user.vibe"
+
+export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
+  "Unauthorized",
+  {},
+  { httpApiStatus: 401 },
+) {}
+
+export class AuthenticationUnavailable extends Schema.TaggedError<AuthenticationUnavailable>()(
+  "AuthenticationUnavailable",
+  {},
+  { httpApiStatus: 503 },
+) {}
+
+export class Authentication extends HttpApiMiddleware.Service<
+  Authentication,
+  { provides: CurrentUser }
+>()("app/Authentication", {
+  error: [Unauthorized, AuthenticationUnavailable],
+}) {
+  static readonly layer = Layer.effect(
+    Authentication,
+    effect {
+      const auth = try Auth
+      return (httpEffect) =>
+        effect {
+          const session = try (auth.getSession()
+            |> Effect.mapError(%, () => new AuthenticationUnavailable())
+            |> Effect.catchDefect(%, () => Effect.fail(new AuthenticationUnavailable())))
+          if (session === null) throw new Unauthorized()
+          return try Effect.provideService(httpEffect, CurrentUser, session.user)
+        }
+        // HttpApi does not carry Alchemy's runtime marker; the Worker owns request scope.
+        |> Effect.provide(%, RuntimeContext.phantom)
+    },
+  )
+}

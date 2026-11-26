@@ -1,0 +1,45 @@
+import type * as runtime from "@cloudflare/workers-types"
+import * as Layer from "effect/Layer"
+import { Worker, WorkerEnvironment } from "../Workers/Worker.vibe"
+import { makeClient, tryAiSearch } from "./QuerySearch.vibe"
+import { QuerySearchNamespace, type QuerySearchNamespaceClient } from "./QuerySearchNamespace.vibe"
+import type { SearchNamespace } from "./SearchNamespace.vibe"
+
+/**
+ * Runtime layer for {@link QuerySearchNamespace}.
+ */
+export const QuerySearchNamespaceBinding = Layer.effect(
+  QuerySearchNamespace,
+  effect {
+    const env = try Effect.service(WorkerEnvironment)
+    const host = try Worker
+
+    return effect (namespace: SearchNamespace) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try host.bind`${namespace}`({
+          bindings: [
+            {
+              type: "ai_search_namespace",
+              name: namespace.LogicalId,
+              namespace: namespace.name,
+            },
+          ],
+        })
+      }
+
+      const nsEff = effect {
+        return (env as Record<string, runtime.AiSearchNamespace>)[namespace.LogicalId]!
+      }
+      return {
+        raw: nsEff,
+        get: (instanceName) =>
+          makeClient(effect {
+            const $try2 = try nsEff
+            return try Effect.orDie(Effect.try({ try: () => $try2.get(instanceName), catch: (error) => error }))
+          }),
+        list: effect (params) => try Effect.flatMap(nsEff, effect (ns) => try tryAiSearch(() => ns.list(params))),
+        search: effect (params) => try Effect.flatMap(nsEff, effect (ns) => try tryAiSearch(() => ns.search(params))),
+      } satisfies QuerySearchNamespaceClient
+    }
+  },
+)

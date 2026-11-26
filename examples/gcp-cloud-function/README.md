@@ -12,7 +12,7 @@ Firestore.
 
 ## Architecture
 
-- `src/Notes.ts` — `GCP.CloudFunctions.Function` with `main: import.meta.url`.
+- `src/Notes.vibe` — `GCP.CloudFunctions.Function` with `main: import.meta.url`.
   Alchemy bundles it for Node.js 22, uploads the archive, and serves `fetch`
   through the Functions Framework. No Dockerfile, no local image build.
 - `src/resources.ts` — a named `FIRESTORE_NATIVE` `GCP.Firestore.Database` in

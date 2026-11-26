@@ -1,2 +1,2 @@
-export * from "./VpcService.ts";
-export * from "./VpcServiceLookup.ts";
+export * from "./VpcService.vibe";
+export * from "./VpcServiceLookup.vibe";

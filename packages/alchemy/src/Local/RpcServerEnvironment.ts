@@ -3,14 +3,14 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { AlchemyContext } from "../AlchemyContext.ts";
-import { CredentialsStoreLive } from "../Auth/Credentials.ts";
-import { ProfileStoreLive } from "../Auth/Profile.ts";
-import { AuthProvidersLive } from "../Auth/Registry.ts";
+import { AlchemyContext } from "../AlchemyContext.vibe";
+import { CredentialsStoreLive } from "../Auth/Credentials.vibe";
+import { ProfileStoreLive } from "../Auth/Profile.vibe";
+import { AuthProvidersLive } from "../Auth/Registry.vibe";
 import { withProfileOverride } from "../Auth/Resolve.ts";
 import { Stack } from "../Stack.ts";
 import { Stage } from "../Stage.ts";
-import { loadConfigProvider } from "../Util/ConfigProvider.ts";
+import { loadConfigProvider } from "../Util/ConfigProvider.vibe";
 
 /**
  * The stack-specific half of the sidecar environment. One sidecar process

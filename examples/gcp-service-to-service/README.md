@@ -11,7 +11,7 @@ identity. This is the GCP counterpart of `AWS.Lambda.InvokeFunction`.
 - `Quotes` ([src/Quotes.ts](./src/Quotes.ts)) keeps Cloud Run's invoker
   IAM check on (the default). Requests without a valid ID token get `403`
   from Cloud Run's front end and never reach the container.
-- `Gateway` ([src/Gateway.ts](./src/Gateway.ts)) sets
+- `Gateway` ([src/Gateway.vibe](./src/Gateway.vibe)) sets
   `invokerIamDisabled: true` so anyone can call it. It forwards
   `GET /quote` to `Quotes` and relays the response.
 

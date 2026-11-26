@@ -13,8 +13,8 @@ curl "$URL/jobs/5f0c…"
 
 - [`Jobs`](./src/resources.ts) — Pub/Sub topic, the queue.
 - [`Results`](./src/resources.ts) — named Firestore Native database; one document per job at `jobs/{id}`.
-- [`Api`](./src/Api.ts) — `GCP.Function` (a Cloud Run service) with a public URL. `POST /jobs` publishes, `GET /jobs/:id` reads the result (`202 pending` until it exists).
-- [`Worker`](./src/Worker.ts) — `GCP.Run.WorkerPool` with one instance. No inbound URL; it pulls from the topic in a background loop.
+- [`Api`](./src/Api.vibe) — `GCP.Function` (a Cloud Run service) with a public URL. `POST /jobs` publishes, `GET /jobs/:id` reads the result (`202 pending` until it exists).
+- [`Worker`](./src/Worker.vibe) — `GCP.Run.WorkerPool` with one instance. No inbound URL; it pulls from the topic in a background loop.
 
 ## Bindings and event sources
 

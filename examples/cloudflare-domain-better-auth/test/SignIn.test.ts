@@ -17,7 +17,7 @@ import { Auth } from "../src/Auth.ts";
 import { NotesModel } from "../src/Notes.model.ts";
 import { NotesApi } from "../src/NotesApi.api.ts";
 import { SessionLive } from "../src/Session.ts";
-import { UserId } from "../src/User.id.ts";
+import { UserId } from "../src/User.id.vibe";
 
 // A local OpenID Connect provider stands in for GitHub and Google, which a test can't sign in to.
 // `signingInAs` picks who the next sign-in is.

@@ -4,7 +4,7 @@ import {
   MigrationHistoryConflictError,
   type MigrationRecord,
   type SqlExecutor,
-} from "./Format.ts";
+} from "./Format.vibe";
 import { classifyTable, tableColumns } from "./Introspect.ts";
 import {
   bookkeepingColumns,

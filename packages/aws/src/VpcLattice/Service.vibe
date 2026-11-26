@@ -1,0 +1,306 @@
+import * as vpclattice from "@distilled.cloud/aws/vpc-lattice"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import { toWireSeconds } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import type { Providers } from "../Providers.vibe"
+import { retryOnConflict, waitUntilAbsent, waitUntilStable } from "./internal.vibe"
+import type { ServiceNetworkAuthType } from "./ServiceNetwork.vibe"
+
+export error VpcLatticeServiceUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ServiceProps {
+  /**
+   * Name of the service. If omitted, a unique name is generated. Immutable —
+   * changing it replaces the resource.
+   */
+  name?: string
+  /**
+   * Authorization type for the service.
+   * @default "NONE"
+   */
+  authType?: ServiceNetworkAuthType
+  /**
+   * Custom domain name for the service. Immutable — changing it replaces the
+   * resource.
+   */
+  customDomainName?: string
+  /**
+   * ARN of an ACM certificate for the custom domain (HTTPS listeners).
+   */
+  certificateArn?: string
+  /**
+   * Idle timeout for connections to the service, e.g. `"60 seconds"` or
+   * `Duration.minutes(1)` (a bare number is milliseconds). Rounded to whole
+   * seconds on the wire.
+   */
+  idleTimeout?: Duration.Input
+  /**
+   * User-defined tags to apply to the service.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Service extends
+  Resource<
+    "AWS.VpcLattice.Service",
+    ServiceProps,
+    {
+      /**
+       * Service-assigned unique ID of the service.
+       */
+      serviceId: string
+      /**
+       * ARN of the service.
+       */
+      serviceArn: string
+      /**
+       * Physical name of the service.
+       */
+      name: string
+      /**
+       * Current lifecycle status (e.g. `ACTIVE`).
+       */
+      status: string
+      /**
+       * Lattice-generated DNS name clients resolve the service by.
+       */
+      dnsName?: string
+      /**
+       * Effective authorization type.
+       */
+      authType: ServiceNetworkAuthType
+      /**
+       * Current tags reported for the service.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon VPC Lattice service — an independently deployable unit of software
+ * (running on Lambda, ECS, EC2, or elsewhere) that is made discoverable through
+ * a service network. Cheap control-plane resource.
+ *
+ * ### Creating Services
+ * **Example:** Basic Service
+ * ```typescript
+ * const service = yield* Service("PaymentsService", {});
+ * ```
+ *
+ * **Example:** Service with Custom Domain
+ * ```typescript
+ * const service = yield* Service("PaymentsService", {
+ *   customDomainName: "payments.internal.example.com",
+ *   certificateArn: cert.certificateArn,
+ *   authType: "AWS_IAM",
+ *   idleTimeout: "60 seconds",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Service = Resource<Service>("AWS.VpcLattice.Service")
+
+export const ServiceProvider = (): infer _ =>
+  Provider.effect(
+    Service,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { name?: string } = {},
+      ) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 40, lowercase: true }))
+
+      // getService only accepts an id or ARN — never a name.
+      const observe = effect (serviceIdentifier: string) =>
+        vpclattice
+          .getService({ serviceIdentifier }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      const findByName = effect (name: string) =>
+        try effect {
+          const summary = Array.from(
+            try (vpclattice.listServices.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.items ?? [])
+            .find((s) => s.name === name)
+          return (summary?.id ? try observe(summary.id) : undefined)
+        }
+
+      const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
+        const listed = try vpclattice.listTagsForResource({
+          resourceArn: arn,
+        })
+        const { removed, upsert } = try Effect.orDie(
+          Effect.try({ try: () => diffTags(tagRecord(listed.tags), desiredTags), catch: (e) => e }),
+        )
+        if (upsert.length > 0) {
+          try vpclattice.tagResource({
+            resourceArn: arn,
+            tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+          })
+        }
+        if (removed.length > 0) {
+          try vpclattice.untagResource({
+            resourceArn: arn,
+            tagKeys: removed,
+          })
+        }
+      }
+
+      return {
+        stables: ["serviceId", "serviceArn", "name"],
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, resolved ?? {}))) {
+            return { action: "replace" } as const
+          }
+          // Custom domain name is fixed at creation time.
+          if ((olds?.customDomainName ?? undefined) !== resolved.customDomainName) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const service = output?.serviceId
+            ? try observe(output.serviceId)
+            : try findByName(try toName(id, olds ?? {}))
+          if (!service?.arn || !service.id) return undefined
+          const listed = try vpclattice.listTagsForResource({
+            resourceArn: service.arn,
+          })
+          const attrs = {
+            serviceId: service.id,
+            serviceArn: service.arn,
+            name: service.name!,
+            status: service.status ?? "UNKNOWN",
+            dnsName: service.dnsEntry?.domainName,
+            authType: (service.authType as ServiceNetworkAuthType) ?? "NONE",
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(listed.tags), catch: (e) => e })),
+          }
+          return (try hasAlchemyTags(id, listed.tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try toName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredAuthType = news.authType ?? "NONE"
+          const desiredIdleTimeoutSeconds = try Effect.orDie(
+            Effect.try({ try: () => toWireSeconds(news.idleTimeout), catch: (e) => e }),
+          )
+
+          const existing = output?.serviceId
+            ? try observe(output.serviceId)
+            : try findByName(name)
+
+          let serviceId: string
+          let serviceArn: string
+          if (!existing?.arn || !existing.id) {
+            const created = vpclattice
+              .createService({
+                name,
+                authType: desiredAuthType,
+                customDomainName: news.customDomainName,
+                certificateArn: news.certificateArn,
+                idleTimeoutSeconds: desiredIdleTimeoutSeconds,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try findByName(name);
+                default: throw e;
+              }
+            if (!created?.arn || !created.id) {
+              throw new VpcLatticeServiceUnexpectedResponse({
+                message: `Failed to create service ${name}`,
+              })
+            }
+            serviceId = created.id
+            serviceArn = created.arn
+          } else {
+            serviceId = existing.id
+            serviceArn = existing.arn
+          }
+
+          // VPC Lattice services reject updates/tags while CREATE_IN_PROGRESS;
+          // wait for a stable status before syncing mutable settings.
+          const stable = try waitUntilStable(observe(serviceId))
+          const needsUpdate = (stable?.authType ?? "NONE") !== desiredAuthType
+            || stable?.certificateArn !== news.certificateArn
+            || stable?.idleTimeoutSeconds !== desiredIdleTimeoutSeconds
+          if (needsUpdate) {
+            try vpclattice.updateService({
+              serviceIdentifier: serviceId,
+              authType: desiredAuthType,
+              certificateArn: news.certificateArn,
+              idleTimeoutSeconds: desiredIdleTimeoutSeconds,
+            })
+          }
+
+          try syncTags(serviceArn, desiredTags)
+
+          const final = try observe(serviceId)
+          try session.note(serviceArn)
+          return {
+            serviceId,
+            serviceArn,
+            name,
+            status: final?.status ?? stable?.status ?? "ACTIVE",
+            dnsName: final?.dnsEntry?.domainName ?? stable?.dnsEntry?.domainName,
+            authType: desiredAuthType,
+            tags: desiredTags,
+          }
+        },
+        list: effect () => {
+          const summaries = Array.from(
+            try (vpclattice.listServices.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.items ?? [])
+          return try Effect.forEach(
+            summaries.filter(
+              (s): s is typeof s & { id: string; arn: string } => s.id != null && s.arn != null,
+            ),
+            effect (summary) => {
+              const service = try observe(summary.id)
+              const listed = try vpclattice.listTagsForResource({
+                resourceArn: summary.arn,
+              })
+              return {
+                serviceId: summary.id,
+                serviceArn: summary.arn,
+                name: summary.name!,
+                status: summary.status ?? "UNKNOWN",
+                dnsName: summary.dnsEntry?.domainName,
+                authType: (service?.authType as ServiceNetworkAuthType) ?? "NONE",
+                tags: try Effect.orDie(Effect.try({ try: () => tagRecord(listed.tags), catch: (e) => e })),
+              }
+            },
+            { concurrency: 10 },
+          )
+        },
+        delete: effect ({ output }) => {
+          retryOnConflict(
+            vpclattice.deleteService({ serviceIdentifier: output.serviceId }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+          try waitUntilAbsent(observe(output.serviceId))
+        },
+      }
+    },
+  )

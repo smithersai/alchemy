@@ -1,1 +1,1 @@
-export * from "./HostnameAssociation.ts";
+export * from "./HostnameAssociation.vibe";

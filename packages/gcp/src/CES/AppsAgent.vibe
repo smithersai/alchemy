@@ -1,0 +1,394 @@
+import * as ces from "@distilled.cloud/gcp/ces_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  expandApp,
+  forEachApp,
+  normalizeLocation,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type AppsAgentProps = {
+  /**
+   * Parent CES app. Full name
+   * `projects/{project}/locations/{location}/apps/{app}` or the app id
+   * (combined with `location`). Immutable — changing it replaces the
+   * agent.
+   */
+  app: string
+  /**
+   * Region used when `app` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * Agent id (the `{agent}` segment). If omitted, a unique name is
+   * generated. Immutable — changing it replaces the agent.
+   */
+  agentId?: string
+  /**
+   * Human-readable name. Required by the API; Alchemy falls back to the
+   * generated agent id.
+   */
+  displayName?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * Instructions for the LLM.
+   */
+  instruction?: string
+  /**
+   * LLM model settings for this agent.
+   */
+  modelSettings?: ces.ModelSettings
+  /**
+   * Tool resource names available to the agent.
+   */
+  tools?: string[]
+  /**
+   * Toolset selections.
+   */
+  toolsets?: ces.AgentAgentToolsetList
+  /**
+   * Child agent resource names.
+   */
+  childAgents?: string[]
+  /**
+   * Guardrail resource names.
+   */
+  guardrails?: string[]
+  /**
+   * Agent transfer rules.
+   */
+  transferRules?: ces.TransferRuleList
+  /**
+   * When set, the agent delegates to a Dialogflow CX agent and other
+   * agent-level properties are ignored.
+   */
+  remoteDialogflowAgent?: ces.AgentRemoteDialogflowAgent
+}
+
+export type AppsAgent = Resource<
+  "GCP.CES.AppsAgent",
+  AppsAgentProps,
+  {
+    /** Full resource name `.../apps/{app}/agents/{agent}`. */
+    name: string
+    /** Agent id (last path segment). */
+    agentId: string
+    /** Parent app resource name. */
+    app: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** LLM instructions. */
+    instruction: string | undefined
+    /** Model settings. */
+    modelSettings: ces.ModelSettings | undefined
+    /** Tool resource names. */
+    tools: string[] | undefined
+    /** Toolset selections. */
+    toolsets: ces.AgentAgentToolsetList | undefined
+    /** Child agent resource names. */
+    childAgents: string[] | undefined
+    /** Guardrail resource names. */
+    guardrails: string[] | undefined
+    /** Transfer rules. */
+    transferRules: ces.TransferRuleList | undefined
+    /** Remote Dialogflow agent, if any. */
+    remoteDialogflowAgent: ces.AgentRemoteDialogflowAgent | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Server-assigned etag. */
+    etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Customer Engagement Suite agent inside an app. Agents give the LLM
+ * instructions, tools, and transfer rules for a task.
+ *
+ * Agents have no labels field, and the description reaches the model, so
+ * Alchemy writes no ownership marker: a generated agent id identifies the
+ * agent, and `read` reports an explicit id it has no state for as
+ * unowned. Parent app, location, and agent id are immutable.
+ *
+ * ### Creating an Agent
+ * **Example:** Root LLM agent
+ * ```typescript
+ * const agent = yield* GCP.CES.AppsAgent("Greeter", {
+ *   app: app.name,
+ *   displayName: "greeter",
+ *   instruction: "Greet the user and offer help.",
+ * });
+ * ```
+ *
+ * @resource
+ * @category CES
+ */
+export const AppsAgent = Resource<AppsAgent>("GCP.CES.AppsAgent")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppsAgentNotResolved extends Data.TaggedError("GCP.CES.AppsAgentNotResolved")<{
+  resourceName: string
+}> {}
+
+const resourceName = (app: string, agentId: string): infer _ => `${app}/agents/${agentId}`
+
+const toAttrs = (agent: ces.Agent, project: string, region: string, appHint?: string): infer _ => {
+  const name = agent.name ?? ""
+  const parsed = parseResourceName(name, "agents", region)
+  return {
+    name,
+    agentId: parsed.id,
+    app: name.includes("/agents/") ? parsed.app : (appHint ?? parsed.parent),
+    location: parsed.location,
+    project: parsed.project || project,
+    displayName: agent.displayName,
+    description: parseOwnership(agent.description).text,
+    instruction: agent.instruction,
+    modelSettings: agent.modelSettings,
+    tools: agent.tools,
+    toolsets: agent.toolsets,
+    childAgents: agent.childAgents,
+    guardrails: agent.guardrails,
+    transferRules: agent.transferRules,
+    remoteDialogflowAgent: agent.remoteDialogflowAgent,
+    createTime: agent.createTime,
+    updateTime: agent.updateTime,
+    etag: agent.etag,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : ces
+  .getProjectsLocationsAppsAgents({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (try collectPages(
+    ces.listProjectsLocationsAppsAgents.pages({ parent, pageSize: 100 }),
+    (page) => page.agents,
+  )).map((agent) => toAttrs(agent, project, region, parent))
+
+export const AppsAgentProvider = (): infer _ =>
+  Provider.succeed(AppsAgent, {
+    stables: ["name", "agentId", "app", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(resolved.location, env.region), catch: (e) => e }),
+      )
+      if (
+        previousLocation !== undefined
+        && resolved.location !== undefined
+        && (try Effect.orDie(
+          Effect.try({ try: () => normalizeLocation(previousLocation, env.region), catch: (e) => e }),
+        )) !== nextLocation
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.agentId ?? output?.agentId,
+            nextId: resolved.agentId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
+      const agentId = try toPhysicalId(id, olds?.agentId, output?.agentId)
+      const name = output?.name ?? (app !== undefined ? resourceName(app, agentId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region, app)
+      return output !== undefined || olds?.agentId === undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try forEachApp(
+        env.project,
+        effect (parent) => try listAt(parent, env.project, env.region),
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
+      const agentId = try toPhysicalId(id, news.agentId, output?.agentId)
+      const name = output?.name ?? resourceName(app, agentId)
+      const description = news.description
+      const displayName = news.displayName ?? agentId
+      const llmAgent = news.remoteDialogflowAgent === undefined ? {} : undefined
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          ces.createProjectsLocationsAppsAgents({
+            parent: app,
+            agentId,
+            body: {
+              displayName,
+              description,
+              instruction: news.instruction,
+              modelSettings: news.modelSettings,
+              tools: news.tools,
+              toolsets: news.toolsets,
+              childAgents: news.childAgents,
+              guardrails: news.guardrails,
+              transferRules: news.transferRules,
+              remoteDialogflowAgent: news.remoteDialogflowAgent,
+              llmAgent,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppsAgentNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const instructionChanged = !sameText(current.instruction, news.instruction)
+      const modelChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.modelSettings, news.modelSettings), catch: (e) => e }),
+      ))
+      const toolsChanged =
+        !(try Effect.orDie(Effect.try({ try: sameJson.bind(undefined, current.tools, news.tools), catch: (e) => e })))
+      const toolsetsChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.toolsets, news.toolsets),
+        catch: (e) => e,
+      })))
+      const childrenChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.childAgents, news.childAgents), catch: (e) => e }),
+      ))
+      const guardrailsChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.guardrails, news.guardrails), catch: (e) => e }),
+      ))
+      const rulesChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, current.transferRules, news.transferRules), catch: (e) => e }),
+      ))
+      const remoteChanged = !(try Effect.orDie(
+        Effect.try({
+          try: sameJson.bind(undefined, current.remoteDialogflowAgent, news.remoteDialogflowAgent),
+          catch: (e) => e,
+        }),
+      ))
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || instructionChanged
+        || modelChanged
+        || toolsChanged
+        || toolsetsChanged
+        || childrenChanged
+        || guardrailsChanged
+        || rulesChanged
+        || remoteChanged
+      ) {
+        current = try retryTransient(
+          ces.patchProjectsLocationsAppsAgents({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  instructionChanged ? "instruction" : undefined,
+                  modelChanged ? "model_settings" : undefined,
+                  toolsChanged ? "tools" : undefined,
+                  toolsetsChanged ? "toolsets" : undefined,
+                  childrenChanged ? "child_agents" : undefined,
+                  guardrailsChanged ? "guardrails" : undefined,
+                  rulesChanged ? "transfer_rules" : undefined,
+                  remoteChanged ? "remote_dialogflow_agent" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: {
+              displayName,
+              description,
+              instruction: news.instruction,
+              modelSettings: news.modelSettings,
+              tools: news.tools,
+              toolsets: news.toolsets,
+              childAgents: news.childAgents,
+              guardrails: news.guardrails,
+              transferRules: news.transferRules,
+              remoteDialogflowAgent: news.remoteDialogflowAgent,
+              llmAgent,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region, app)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryTransient(
+        ces.deleteProjectsLocationsAppsAgents({
+          name: output.name,
+          force: true,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name))
+    },
+  })

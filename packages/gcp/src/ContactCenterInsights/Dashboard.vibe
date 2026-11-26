@@ -1,0 +1,325 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  ownedByAlchemy,
+  parseOwnership,
+  sameJson,
+  toResourceId,
+} from "./ownership.vibe"
+
+export type DateRangeConfig = {
+  /** Rolling window measured in `unit`. */
+  relativeDateRange?: {
+    /** Number of units in the past. */
+    quantity?: string
+    /** Calendar unit (`DAY`, `WEEK`, `MONTH`, `QUARTER`, `YEAR`). */
+    unit?: "TIME_UNIT_UNSPECIFIED" | "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | (string & {})
+  }
+  /** Inclusive start/end timestamps. */
+  absoluteDateRange?: {
+    startTime?: string
+    endTime?: string
+  }
+}
+
+export type DashboardProps = {
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * dashboard.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Dashboard id (the `{dashboard}` segment). If omitted, a unique id is
+   * generated from the stack, stage, and logical id. Immutable — changing
+   * it replaces the dashboard. 4-64 characters matching
+   * `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`.
+   */
+  dashboardId?: string
+  /**
+   * User-facing display name.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Dashboards have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+  /**
+   * Filter applied to every chart on the dashboard.
+   */
+  filter?: string
+  /**
+   * Date range applied to every chart on the dashboard.
+   */
+  dateRangeConfig?: DateRangeConfig
+  /**
+   * Root widget container describing the dashboard layout.
+   */
+  rootContainer?: cci.GoogleCloudContactcenterinsightsV1Container
+}
+
+export type Dashboard = Resource<
+  "GCP.ContactCenterInsights.Dashboard",
+  DashboardProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Dashboard id (last path segment). */
+    dashboardId: string
+    /** Region id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User-facing display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Dashboard-wide filter. */
+    filter: string | undefined
+    /** Dashboard-wide date range. */
+    dateRangeConfig: DateRangeConfig | undefined
+    /** Root layout container. */
+    rootContainer: cci.GoogleCloudContactcenterinsightsV1Container | undefined
+    /** Whether the dashboard is a predefined read-only dashboard. */
+    readOnly: boolean
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center Insights dashboard of conversation charts.
+ *
+ * Dashboards have no labels field — Alchemy stamps ownership into the
+ * description. Location and dashboard id are immutable. Display name,
+ * description, filter, date range, and root container update in place.
+ *
+ * ### Creating a Dashboard
+ * **Example:** Generated id
+ * ```typescript
+ * const dashboard = yield* GCP.ContactCenterInsights.Dashboard("Overview", {
+ *   displayName: "overview",
+ *   description: "call quality",
+ * });
+ * ```
+ *
+ * **Example:** Named dashboard
+ * ```typescript
+ * const dashboard = yield* GCP.ContactCenterInsights.Dashboard("Overview", {
+ *   dashboardId: "quality-overview",
+ *   displayName: "quality",
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const Dashboard = Resource<Dashboard>("GCP.ContactCenterInsights.Dashboard")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DashboardNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.DashboardNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (parent: string, dashboardId: string): infer _ => `${parent}/dashboards/${dashboardId}`
+
+const toDateRangeConfig = (
+  config: cci.GoogleCloudContactcenterinsightsV1DateRangeConfig | undefined,
+): DateRangeConfig | undefined => {
+  if (config === undefined) return undefined
+  return {
+    relativeDateRange: config.relativeDateRange === undefined
+      ? undefined
+      : {
+        quantity: config.relativeDateRange.quantity,
+        unit: config.relativeDateRange.unit,
+      },
+    absoluteDateRange: config.absoluteDateRange === undefined
+      ? undefined
+      : {
+        startTime: config.absoluteDateRange.startTime,
+        endTime: config.absoluteDateRange.endTime,
+      },
+  }
+}
+
+const toAttrs = (dashboard: cci.GoogleCloudContactcenterinsightsV1Dashboard, project: string): infer _ => {
+  const name = dashboard.name ?? ""
+  const parsed = parseOwnership(dashboard.description)
+  return {
+    name,
+    dashboardId: lastSegment(name),
+    location: locationOf(name),
+    project,
+    displayName: dashboard.displayName,
+    description: parsed.text,
+    filter: dashboard.filter,
+    dateRangeConfig: toDateRangeConfig(dashboard.dateRangeConfig),
+    rootContainer: dashboard.rootContainer,
+    readOnly: dashboard.readOnly === true,
+    createTime: dashboard.createTime,
+    updateTime: dashboard.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
+  .getProjectsLocationsDashboards({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (cci.listProjectsLocationsDashboards.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dashboards ?? []))
+        |> Stream.filter(%, (dashboard) => hasOwnershipMarker(dashboard.description))
+        |> Stream.map(%, (dashboard) => toAttrs(dashboard, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const DashboardProvider = (): infer _ =>
+  Provider.succeed(Dashboard, {
+    stables: ["name", "dashboardId", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = resolved.location
+      if (
+        previousLocation !== undefined
+        && nextLocation !== undefined
+        && previousLocation !== nextLocation
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.dashboardId ?? output?.dashboardId
+      if (
+        previousId !== undefined
+        && resolved.dashboardId !== undefined
+        && resolved.dashboardId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const dashboardId = try toResourceId(id, olds?.dashboardId, output?.dashboardId)
+      const location = olds?.location ?? output?.location ?? env.region
+      const name = output?.name ?? resourceName(locationParent(env.project, location), dashboardId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = news.location ?? output?.location ?? env.region
+      const parent = locationParent(env.project, location)
+      const dashboardId = try toResourceId(id, news.dashboardId, output?.dashboardId)
+      const name = resourceName(parent, dashboardId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? dashboardId
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsDashboards({
+            parent,
+            dashboardId,
+            body: {
+              displayName,
+              description,
+              filter: news.filter,
+              dateRangeConfig: news.dateRangeConfig,
+              rootContainer: news.rootContainer,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DashboardNotResolved({ resourceName: name })
+      }
+
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const descriptionChanged = (current.description ?? "") !== description
+      const filterChanged = (current.filter ?? "") !== (news.filter ?? "")
+      const dateRangeChanged = !sameJson(current.dateRangeConfig, news.dateRangeConfig)
+      const rootChanged = !sameJson(current.rootContainer, news.rootContainer)
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || filterChanged
+        || dateRangeChanged
+        || rootChanged
+      ) {
+        current = try cci.patchProjectsLocationsDashboards({
+          name: current.name ?? name,
+          updateMask: [
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            filterChanged ? "filter" : undefined,
+            dateRangeChanged ? "date_range_config" : undefined,
+            rootChanged ? "root_container" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description,
+            filter: news.filter,
+            dateRangeConfig: news.dateRangeConfig,
+            rootContainer: news.rootContainer,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsDashboards({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

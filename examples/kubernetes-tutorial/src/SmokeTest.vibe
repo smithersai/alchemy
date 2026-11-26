@@ -1,0 +1,43 @@
+import * as Kubernetes from "@alchemy.run/kubernetes"
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import { Cluster, Namespace, Web } from "./infra.vibe"
+
+export default Kubernetes.Job(
+  "SmokeTest",
+  effect {
+    const cluster = try Cluster
+    const namespace = try Namespace
+    return {
+      cluster,
+      main: import.meta.url,
+      name: "smoke-test",
+      namespace: namespace.name,
+      backoffLimit: 2,
+      ttlSecondsAfterFinished: 600,
+    }
+  },
+  effect {
+    const web = try Web
+    const webUrl = try Output.interpolate`http://${web.serviceName}.${web.namespace}.svc.cluster.local:${web.port}`
+      .asEffect()
+
+    return {
+      run: effect {
+        return try (effect {
+          const url = try webUrl
+          const response = try (effect {
+            return try HttpClientResponse.filterStatusOk(try HttpClient.get(`${url}/healthz`))
+          }
+            |> Effect.retry(%, {
+              schedule: Schedule.exponential("1 second"),
+              times: 5,
+            }))
+          try Effect.log(`${url} responded ${response.status}`)
+        }
+          |> Effect.orDie(%))
+      },
+    }
+  },
+)

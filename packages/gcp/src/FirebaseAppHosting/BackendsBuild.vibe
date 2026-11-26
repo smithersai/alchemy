@@ -1,0 +1,508 @@
+import * as firebaseapphosting from "@distilled.cloud/gcp/firebaseapphosting_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  expandParent,
+  fingerprint,
+  listAtNested,
+  listLabeledPages,
+  MAX_BACKEND_ID_LENGTH,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  stringMap,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type UserMetadata = {
+  /** Git user name. */
+  displayName?: string
+  /** Git user email. */
+  email?: string
+  /** URI of a profile image. */
+  imageUri?: string
+}
+
+export type CodebaseSource = {
+  /**
+   * Branch to build from (latest commit). Mutually exclusive with
+   * `commit`.
+   */
+  branch?: string
+  /**
+   * Commit SHA to build from. Mutually exclusive with `branch`.
+   */
+  commit?: string
+  /**
+   * Developer Connect gitRepositoryLink resource name used for this
+   * build.
+   */
+  repository?: string
+}
+
+export type ArchiveSource = {
+  /** Signed URL of an archive in a storage bucket. */
+  externalSignedUri?: string
+  /**
+   * Cloud Storage URI of a `.zip` or `.tar.gz` archive
+   * (`gs://bucket/object`).
+   */
+  userStorageUri?: string
+  /**
+   * Directory relative to the archive root used as the web app root.
+   */
+  rootDirectory?: string
+  /** Optional message describing this uploaded source. */
+  description?: string
+}
+
+export type ContainerSource = {
+  /**
+   * Artifact Registry container image URI used as the build source.
+   */
+  image?: string
+}
+
+export type BuildSource = {
+  /** Git codebase at a branch or commit. */
+  codebase?: CodebaseSource
+  /** Storage archive. */
+  archive?: ArchiveSource
+  /** Artifact Registry container image. */
+  container?: ContainerSource
+}
+
+export type RunConfig = {
+  /** Maximum Cloud Run instances per revision. */
+  maxInstances?: number
+  /** Memory per instance in MiB (`128`–`32768`). */
+  memoryMib?: number
+  /** Maximum concurrent requests per instance (`1`–`1000`). */
+  concurrency?: number
+  /** Minimum Cloud Run instances. */
+  minInstances?: number
+  /** CPUs per instance (`0.08`–`8`). */
+  cpu?: number
+}
+
+export type EnvironmentVariable = {
+  /** Variable name. Must not start with `X_FIREBASE_`. */
+  variable?: string
+  /** Plaintext value. */
+  value?: string
+  /**
+   * Secret Manager version resource name. The Cloud Build and Cloud Run
+   * service accounts need `secretmanager.versions.access`.
+   */
+  secret?: string
+  /**
+   * Where the variable is available (`BUILD`, `RUNTIME`). Unspecified
+   * means both.
+   */
+  availability?: Array<firebaseapphosting.EnvironmentVariableAvailabilityItemEnum | (string & {})>
+}
+
+export type BuildConfig = {
+  /** Cloud Run service configuration for this build. */
+  runConfig?: RunConfig
+  /**
+   * Environment variables supplied at create time. Immutable. Only
+   * valid for container or archive sources.
+   */
+  env?: EnvironmentVariable[]
+}
+
+export type BackendsBuildProps = {
+  /**
+   * Parent backend. Full name
+   * `projects/{project}/locations/{location}/backends/{backend}` or the
+   * backend id (combined with `location`). Immutable — changing it
+   * replaces the build.
+   */
+  backend: string
+  /**
+   * Region used when `backend` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Build id (the `{buildId}` segment). If omitted, a unique RFC1035
+   * name is generated from the stack, stage, and logical id. Immutable
+   * — changing it replaces the build.
+   */
+  buildId?: string
+  /**
+   * Source for the build. Immutable — changing it replaces the build.
+   */
+  source: BuildSource
+  /**
+   * Additional Cloud Run / environment configuration. Immutable —
+   * changing it replaces the build.
+   */
+  config?: BuildConfig
+  /**
+   * Human-readable name. 63 character limit.
+   */
+  displayName?: string
+  /**
+   * User annotations (preserved by external tools).
+   */
+  annotations?: Record<string, string>
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type BackendsBuild = Resource<
+  "GCP.FirebaseAppHosting.BackendsBuild",
+  BackendsBuildProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Build id (last path segment). */
+    buildId: string
+    /** Parent backend name. */
+    backend: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Build source. */
+    source: BuildSource | undefined
+    /** Additional configuration. */
+    config: BuildConfig | undefined
+    /** Human-readable name. */
+    displayName: string | undefined
+    /** Environment name of the backend when this build was created. */
+    environment: string | undefined
+    /** Artifact Registry image URI used by the Cloud Run revision. */
+    image: string | undefined
+    /** Cloud Build logs URI. */
+    buildLogsUri: string | undefined
+    /** Server-reported build state. */
+    state: string | undefined
+    /** True while the build has an ongoing LRO. */
+    reconciling: boolean
+    /** User annotations. */
+    annotations: Record<string, string>
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-generated resource uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Server-computed etag. */
+    etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Firebase App Hosting build of a backend from a git commit, storage
+ * archive, or container image.
+ *
+ * Builds have no update API. Changing `buildId`, `backend`,
+ * `location`, `source`, or `config` replaces the build.
+ *
+ * ### Creating a Build
+ * **Example:** Container image
+ * ```typescript
+ * const build = yield* GCP.FirebaseAppHosting.BackendsBuild("Hello", {
+ *   backend: backend.name,
+ *   source: {
+ *     container: { image: "us-docker.pkg.dev/cloudrun/container/hello" },
+ *   },
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Archive source with Cloud Run limits
+ * ```typescript
+ * const build = yield* GCP.FirebaseAppHosting.BackendsBuild("Archive", {
+ *   backend: backend.name,
+ *   source: { archive: { userStorageUri: "gs://bucket/app.tar.gz" } },
+ *   config: { runConfig: { cpu: 1, memoryMib: 512, maxInstances: 4 } },
+ * });
+ * ```
+ *
+ * @resource
+ * @category FirebaseAppHosting
+ */
+export const BackendsBuild = Resource<BackendsBuild>("GCP.FirebaseAppHosting.BackendsBuild")
+
+const resourceName = (backend: string, buildId: string): infer _ => `${backend}/builds/${buildId}`
+
+const toCodebaseSource = (
+  value: firebaseapphosting.CodebaseSource | undefined,
+): CodebaseSource | undefined =>
+  value === undefined
+    ? undefined
+    : {
+      branch: value.branch,
+      commit: value.commit,
+      repository: value.repository,
+    }
+
+const toArchiveSource = (
+  value: firebaseapphosting.ArchiveSource | undefined,
+): ArchiveSource | undefined =>
+  value === undefined
+    ? undefined
+    : {
+      externalSignedUri: value.externalSignedUri,
+      userStorageUri: value.userStorageUri,
+      rootDirectory: value.rootDirectory,
+      description: value.description,
+    }
+
+const toContainerSource = (
+  value: firebaseapphosting.ContainerSource | undefined,
+): ContainerSource | undefined => (value === undefined ? undefined : { image: value.image })
+
+const toSource = (value: firebaseapphosting.BuildSource | undefined): BuildSource | undefined =>
+  value === undefined
+    ? undefined
+    : {
+      codebase: toCodebaseSource(value.codebase),
+      archive: toArchiveSource(value.archive),
+      container: toContainerSource(value.container),
+    }
+
+const toConfig = (value: firebaseapphosting.Config | undefined): BuildConfig | undefined =>
+  value === undefined
+    ? undefined
+    : {
+      runConfig: value.runConfig
+        ? {
+          maxInstances: value.runConfig.maxInstances,
+          memoryMib: value.runConfig.memoryMib,
+          concurrency: value.runConfig.concurrency,
+          minInstances: value.runConfig.minInstances,
+          cpu: value.runConfig.cpu,
+        }
+        : undefined,
+      env: value.env?.map((item) => ({
+        variable: item.variable,
+        value: item.value,
+        secret: item.secret,
+        availability: item.availability,
+      })),
+    }
+
+const toAttrs = (item: firebaseapphosting.Build, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "builds")
+  return {
+    name,
+    buildId: parsed.id,
+    backend: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    source: toSource(item.source),
+    config: toConfig(item.config),
+    displayName: item.displayName,
+    environment: item.environment,
+    image: item.image,
+    buildLogsUri: item.buildLogsUri,
+    state: item.state,
+    reconciling: item.reconciling === true,
+    annotations: stringMap(item.annotations),
+    labels: userLabels(item.labels),
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+    etag: item.etag,
+  }
+}
+
+const getByName = effect (name: string) =>
+  firebaseapphosting
+    .getProjectsLocationsBackendsBuilds({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  try listAtNested(project, "backends/-", effect (parent) =>
+    try listLabeledPages(
+      firebaseapphosting.listProjectsLocationsBackendsBuilds.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.builds,
+      (item) => item.labels,
+    ))
+
+export const BackendsBuildProvider = (): infer _ =>
+  Provider.succeed(BackendsBuild, {
+    stables: ["name", "buildId", "backend", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const previousParent = (olds?.backend ?? output?.backend)
+        ? try Effect.orDie(Effect.try({
+          try: () =>
+            expandParent(
+              olds?.backend ?? output?.backend ?? "",
+              env.project,
+              previousLocation,
+              "backends",
+            ),
+          catch: (e) => e,
+        }))
+        : undefined
+      const nextParent = try Effect.orDie(
+        Effect.try({ try: () => expandParent(resolved.backend, env.project, location, "backends"), catch: (e) => e }),
+      )
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.buildId ?? output?.buildId,
+            nextId: resolved.buildId ?? olds?.buildId ?? output?.buildId,
+            previousLocation,
+            nextLocation: location,
+            previousParent,
+            nextParent,
+            extra: fingerprint(olds?.source ?? output?.source) !== fingerprint(resolved.source)
+              || fingerprint(olds?.config ?? output?.config) !== fingerprint(resolved.config),
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const buildId = try toPhysicalId(
+        id,
+        olds?.buildId,
+        output?.buildId,
+        "build",
+        MAX_BACKEND_ID_LENGTH,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const backend = output?.backend
+        ?? (olds?.backend
+          ? try Effect.orDie(
+            Effect.try({ try: () => expandParent(olds.backend, env.project, location, "backends"), catch: (e) => e }),
+          )
+          : undefined)
+      const name = output?.name ?? (backend ? resourceName(backend, buildId) : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const buildId = try toPhysicalId(
+        id,
+        news.buildId,
+        output?.buildId,
+        "build",
+        MAX_BACKEND_ID_LENGTH,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const backend = try Effect.orDie(
+        Effect.try({ try: () => expandParent(news.backend, env.project, location, "backends"), catch: (e) => e }),
+      )
+      const name = resourceName(backend, buildId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const desiredAnnotations = news.annotations ?? {}
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = firebaseapphosting
+          .createProjectsLocationsBackendsBuilds({
+            parent: backend,
+            buildId,
+            body: {
+              source: news.source,
+              config: news.config,
+              displayName: news.displayName,
+              annotations: desiredAnnotations,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (firebaseapphosting
+          .deleteProjectsLocationsBackendsBuilds({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

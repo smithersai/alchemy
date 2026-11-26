@@ -1,0 +1,446 @@
+import * as docdb from "@distilled.cloud/aws/docdb"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export error DBInstanceNotReady {
+  message: string
+  cause?: unknown
+}
+
+export interface DBInstanceProps {
+  /**
+   * Instance identifier. If omitted, Alchemy generates one.
+   */
+  dbInstanceIdentifier?: string
+  /**
+   * DocumentDB cluster the instance belongs to. Required — every DocumentDB
+   * instance is a cluster member. Immutable — forces replacement.
+   */
+  dbClusterIdentifier: string
+  /**
+   * Instance class such as `db.r6g.large` or `db.t3.medium`. In-place modify.
+   */
+  dbInstanceClass: string
+  /**
+   * Database engine. DocumentDB only supports `docdb`.
+   * Changing the engine forces replacement.
+   * @default "docdb"
+   */
+  engine?: string
+  /**
+   * Availability zone. Immutable — forces replacement.
+   */
+  availabilityZone?: string
+  /**
+   * Weekly maintenance window, e.g. `Mon:00:00-Mon:03:00`. In-place modify.
+   */
+  preferredMaintenanceWindow?: string
+  /**
+   * Auto minor version upgrades. In-place modify.
+   */
+  autoMinorVersionUpgrade?: boolean
+  /**
+   * Promotion tier inside the cluster (0-15). In-place modify.
+   */
+  promotionTier?: number
+  /**
+   * Enable Performance Insights. In-place modify.
+   */
+  enablePerformanceInsights?: boolean
+  /**
+   * KMS key for Performance Insights. In-place modify.
+   */
+  performanceInsightsKMSKeyId?: string
+  /**
+   * CA certificate identifier. In-place modify.
+   */
+  caCertificateIdentifier?: string
+  /**
+   * Copy tags to snapshots. In-place modify.
+   */
+  copyTagsToSnapshot?: boolean
+  /**
+   * User-defined tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DBInstance extends
+  Resource<
+    "AWS.DocDB.DBInstance",
+    DBInstanceProps,
+    {
+      /** The instance identifier (unique per account/region). */
+      dbInstanceIdentifier: string
+      /** The ARN of the instance. */
+      dbInstanceArn: string
+      /** The cluster this instance belongs to. */
+      dbClusterIdentifier: string | undefined
+      /** The instance endpoint hostname. */
+      endpointAddress: string | undefined
+      /** The port the instance accepts connections on. */
+      endpointPort: number | undefined
+      /** The compute class of the instance, e.g. `db.t3.medium`. */
+      dbInstanceClass: string | undefined
+      /** The database engine (`docdb`). */
+      engine: string | undefined
+      /** The engine version running on the instance. */
+      engineVersion: string | undefined
+      /** The current status of the instance, e.g. `available`. */
+      status: string | undefined
+      /** The failover promotion tier of the instance. */
+      promotionTier: number | undefined
+      /** Whether the instance is publicly accessible. */
+      publiclyAccessible: boolean | undefined
+      /** The DB subnet group the instance is deployed into. */
+      dbSubnetGroupName: string | undefined
+      /** The Availability Zone the instance runs in. */
+      availabilityZone: string | undefined
+      /** The weekly window during which maintenance can occur. */
+      preferredMaintenanceWindow: string | undefined
+      /** Number of days automated backups are retained (cluster-managed). */
+      backupRetentionPeriod: number | undefined
+      /** The KMS key used for storage encryption. */
+      kmsKeyId: string | undefined
+      /** Whether storage is encrypted at rest. */
+      storageEncrypted: boolean | undefined
+      /** The CA certificate identifier used by the instance. */
+      caCertificateIdentifier: string | undefined
+      /** Whether Performance Insights is enabled. */
+      performanceInsightsEnabled: boolean | undefined
+      /** The log types exported to CloudWatch Logs. */
+      enabledCloudwatchLogsExports: string[]
+      /** The immutable region-unique resource ID of the instance. */
+      dbiResourceId: string | undefined
+      /** Whether minor engine upgrades apply automatically. */
+      autoMinorVersionUpgrade: boolean | undefined
+      /** Whether instance tags are copied to snapshots. */
+      copyTagsToSnapshot: boolean | undefined
+      /** The tags attached to the instance. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon DocumentDB instance — a compute member of a DocumentDB
+ * {@link DBCluster}. Storage, backup, and endpoints are managed at the cluster
+ * level; the instance contributes CPU/RAM and can serve as a writer or reader.
+ * Provisioning takes several minutes.
+ *
+ * Mutable fields (`dbInstanceClass`, `promotionTier`, maintenance window,
+ * monitoring) are reconciled in place; immutable fields (`engine`,
+ * `dbClusterIdentifier`, `availabilityZone`) force a replacement.
+ * ### Adding an Instance
+ * **Example:** A DocumentDB writer instance
+ * ```typescript
+ * const writer = yield* DBInstance("Writer", {
+ *   dbClusterIdentifier: cluster.dbClusterIdentifier,
+ *   dbInstanceClass: "db.t3.medium",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DBInstance = Resource<DBInstance>("AWS.DocDB.DBInstance")
+
+const toTagRecord = (
+  tags: Array<{ Key?: string; Value?: string }> | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter(
+        (tag): tag is { Key: string; Value: string } => typeof tag.Key === "string" && typeof tag.Value === "string",
+      )
+      .map((tag) => [tag.Key, tag.Value]),
+  )
+
+const toAttrs = ({
+  instance,
+  tags,
+}: {
+  instance: docdb.DBInstance
+  tags: Record<string, string>
+}): DBInstance["Attributes"] => ({
+  dbInstanceIdentifier: instance.DBInstanceIdentifier ?? "",
+  dbInstanceArn: instance.DBInstanceArn ?? "",
+  dbClusterIdentifier: instance.DBClusterIdentifier,
+  endpointAddress: instance.Endpoint?.Address,
+  endpointPort: instance.Endpoint?.Port,
+  dbInstanceClass: instance.DBInstanceClass,
+  engine: instance.Engine,
+  engineVersion: instance.EngineVersion,
+  status: instance.DBInstanceStatus,
+  promotionTier: instance.PromotionTier,
+  publiclyAccessible: instance.PubliclyAccessible,
+  dbSubnetGroupName: instance.DBSubnetGroup?.DBSubnetGroupName,
+  availabilityZone: instance.AvailabilityZone,
+  preferredMaintenanceWindow: instance.PreferredMaintenanceWindow,
+  backupRetentionPeriod: instance.BackupRetentionPeriod,
+  kmsKeyId: instance.KmsKeyId,
+  storageEncrypted: instance.StorageEncrypted,
+  caCertificateIdentifier: instance.CACertificateIdentifier,
+  performanceInsightsEnabled: instance.PerformanceInsightsEnabled,
+  enabledCloudwatchLogsExports: instance.EnabledCloudwatchLogsExports ?? [],
+  dbiResourceId: instance.DbiResourceId,
+  autoMinorVersionUpgrade: instance.AutoMinorVersionUpgrade,
+  copyTagsToSnapshot: instance.CopyTagsToSnapshot,
+  tags,
+})
+
+export const DBInstanceProvider = (): infer _ =>
+  Provider.effect(
+    DBInstance,
+    effect {
+      const toIdentifier = effect (
+        id: string,
+        props: DBInstanceProps,
+      ) => (props.dbInstanceIdentifier ? props.dbInstanceIdentifier : try createPhysicalName({ id, maxLength: 63 }))
+
+      const readInstance = effect (instanceId: string) => {
+        const response = docdb
+          .describeDBInstances({
+            DBInstanceIdentifier: instanceId,
+          }) catch effect (e) => match (e) {
+            when { _tag: "DBInstanceNotFoundFault" }: undefined;
+            default: throw e;
+          }
+        return response?.DBInstances?.[0]
+      }
+
+      const readTags = effect (arn: string | undefined) => {
+        if (!arn) return {} as Record<string, string>
+        const response = docdb
+          .listTagsForResource({ ResourceName: arn }) catch effect (e) => match (e) {
+            when { _tag: "DBInstanceNotFoundFault" }: undefined;
+            default: throw e;
+          }
+        return toTagRecord(response?.TagList)
+      }
+
+      // Bounded readiness wait. Gate on `DBInstanceStatus === "available"` so a
+      // follow-on `modifyDBInstance` doesn't hit `InvalidDBInstanceStateFault`.
+      // Budgets ~10 min (60 * 10s) for slow provisioning.
+      const waitForInstance = effect (instanceId: string) => {
+        const readinessPolicy = Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(60)])
+        return try (effect {
+          return try effect {
+            const instance = try readInstance(instanceId)
+
+            if (!instance?.DBInstanceArn) {
+              throw new DBInstanceNotReady({ message: `DB instance '${instanceId}' not found` })
+            }
+            const status = instance.DBInstanceStatus
+            if (
+              status !== "available"
+              && status !== "incompatible-parameters"
+              && status !== "incompatible-restore"
+            ) {
+              throw new DBInstanceNotReady({
+                message: `DB instance '${instanceId}' not available (status: ${status})`,
+              })
+            }
+            return instance
+          }
+        }
+          |> Effect.retry(%, { schedule: readinessPolicy }))
+      }
+
+      return {
+        stables: ["dbInstanceArn", "dbInstanceIdentifier"],
+        // AWS account/region collection: `describeDBInstances` is paginated
+        // (items: "DBInstances"). DocumentDB does not surface tags inline, so
+        // we emit an empty tag map rather than a per-item `listTagsForResource`
+        // fan-out. `DBInstanceNotFoundFault` is in the op's typed error union;
+        // treat a stray one as "nothing to list".
+        list: effect () =>
+          (effect {
+            return (Array.from(
+              try (docdb.describeDBInstances.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.DBInstances ?? [])
+                .filter(
+                  (
+                    instance,
+                  ): instance is typeof instance & {
+                    DBInstanceArn: string
+                  } => instance.DBInstanceArn != null,
+                )
+                .map((instance) => toAttrs({ instance, tags: {} }))
+            ))
+          }) catch effect (e) => match (e) {
+            when { _tag: "DBInstanceNotFoundFault" }: [] as DBInstance["Attributes"][];
+            default: throw e;
+          },
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if (
+            (try toIdentifier(id, olds ?? ({} as DBInstanceProps)))
+            !== (try toIdentifier(id, resolved))
+          ) {
+            return { action: "replace" } as const
+          }
+          // Immutable props — any change forces a fresh instance.
+          if (
+            olds !== undefined
+            && ((olds.engine ?? "docdb") !== (resolved.engine ?? "docdb")
+              || olds.dbClusterIdentifier !== resolved.dbClusterIdentifier
+              || olds.availabilityZone !== resolved.availabilityZone)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const identifier = output?.dbInstanceIdentifier
+            ?? (try toIdentifier(
+              id,
+              olds
+                ?? ({
+                  dbClusterIdentifier: "",
+                  dbInstanceClass: "",
+                } as DBInstanceProps),
+            ))
+          const instance = try readInstance(identifier)
+          if (!instance?.DBInstanceArn) {
+            return undefined
+          }
+          const tags = try readTags(instance.DBInstanceArn)
+          return toAttrs({ instance, tags })
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const identifier = output?.dbInstanceIdentifier ?? (try toIdentifier(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — fetch live instance state.
+          let observed = try readInstance(identifier)
+
+          // Ensure — create if missing. Tolerate
+          // `DBInstanceAlreadyExistsFault` as a race with a peer reconciler.
+          if (!observed?.DBInstanceArn) {
+            docdb
+              .createDBInstance({
+                DBInstanceIdentifier: identifier,
+                DBClusterIdentifier: news.dbClusterIdentifier,
+                DBInstanceClass: news.dbInstanceClass,
+                Engine: news.engine ?? "docdb",
+                AvailabilityZone: news.availabilityZone,
+                PreferredMaintenanceWindow: news.preferredMaintenanceWindow,
+                AutoMinorVersionUpgrade: news.autoMinorVersionUpgrade,
+                PromotionTier: news.promotionTier,
+                EnablePerformanceInsights: news.enablePerformanceInsights,
+                PerformanceInsightsKMSKeyId: news.performanceInsightsKMSKeyId,
+                CACertificateIdentifier: news.caCertificateIdentifier,
+                CopyTagsToSnapshot: news.copyTagsToSnapshot,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "DBInstanceAlreadyExistsFault" }: undefined as void;
+                default: throw e;
+              }
+
+            observed = try waitForInstance(identifier)
+          } else {
+            // Wait for the instance to settle before any modify so the call
+            // doesn't hit `InvalidDBInstanceStateFault`.
+            observed = try waitForInstance(identifier)
+
+            // syncCoreSettings — single `modifyDBInstance` carrying scalar
+            // in-place fields. Only emit a field when the desired value differs
+            // from the observed cloud state.
+            const core: docdb.ModifyDBInstanceMessage = {
+              DBInstanceIdentifier: identifier,
+              ApplyImmediately: true,
+            }
+            let coreDirty = false
+            const setIf = <K extends keyof docdb.ModifyDBInstanceMessage>(
+              key: K,
+              desired: docdb.ModifyDBInstanceMessage[K] | undefined,
+              observedValue: unknown,
+            ): infer _ => {
+              if (desired !== undefined && desired !== observedValue) {
+                core[key] = desired
+                coreDirty = true
+              }
+            }
+            setIf("DBInstanceClass", news.dbInstanceClass, observed.DBInstanceClass) // prettier-ignore
+            setIf("PreferredMaintenanceWindow", news.preferredMaintenanceWindow, observed.PreferredMaintenanceWindow) // prettier-ignore
+            setIf("AutoMinorVersionUpgrade", news.autoMinorVersionUpgrade, observed.AutoMinorVersionUpgrade) // prettier-ignore
+            setIf("PromotionTier", news.promotionTier, observed.PromotionTier)
+            setIf("EnablePerformanceInsights", news.enablePerformanceInsights, observed.PerformanceInsightsEnabled) // prettier-ignore
+            setIf("PerformanceInsightsKMSKeyId", news.performanceInsightsKMSKeyId, observed.PerformanceInsightsKMSKeyId) // prettier-ignore
+            setIf("CACertificateIdentifier", news.caCertificateIdentifier, observed.CACertificateIdentifier) // prettier-ignore
+            setIf("CopyTagsToSnapshot", news.copyTagsToSnapshot, observed.CopyTagsToSnapshot) // prettier-ignore
+            if (coreDirty) {
+              try docdb.modifyDBInstance(core)
+              observed = try waitForInstance(identifier)
+            }
+          }
+
+          const dbInstanceArn = observed.DBInstanceArn ?? ""
+
+          // Sync tags — diff observed cloud tags against desired.
+          const observedTags = try readTags(dbInstanceArn)
+          const { removed, upsert } = try Effect.orDie(
+            Effect.try({ try: () => diffTags(observedTags, desiredTags), catch: (e) => e }),
+          )
+          if (upsert.length > 0 && dbInstanceArn) {
+            try docdb.addTagsToResource({
+              ResourceName: dbInstanceArn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0 && dbInstanceArn) {
+            try docdb.removeTagsFromResource({
+              ResourceName: dbInstanceArn,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(dbInstanceArn || identifier)
+          return toAttrs({ instance: observed, tags: desiredTags })
+        },
+        delete: effect ({ output }) => {
+          docdb
+            .deleteDBInstance({
+              DBInstanceIdentifier: output.dbInstanceIdentifier,
+            }) catch effect (e) => match (e) {
+              when { _tag: "DBInstanceNotFoundFault" }: undefined as void;
+              default: throw e;
+            }
+          // Block until the instance is fully gone so a dependent cluster or
+          // subnet group is not torn down while DocumentDB still references it.
+          Effect.repeat(
+            effect {
+              return (effect {
+                return (try (docdb
+                  .describeDBInstances({
+                    DBInstanceIdentifier: output.dbInstanceIdentifier,
+                  })
+                  |> Effect.as(%, true)))
+              }) catch effect (e) => match (e) {
+                when { _tag: "DBInstanceNotFoundFault" }: false;
+                default: throw e;
+              }
+            },
+            {
+              schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
+              until: (exists) => exists === false,
+            },
+          ) catch effect (e) => (undefined as void)
+        },
+      }
+    },
+  )

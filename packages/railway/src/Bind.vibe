@@ -1,0 +1,147 @@
+import * as Binding from "alchemy/Binding"
+import type { Rpc } from "alchemy/Rpc"
+import { isYieldableEffectLike } from "alchemy/Util/effect"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { fromProcessEnv, postRpc } from "./Bind.platform.ts"
+import { isRailwayHost } from "./MountVolume.vibe"
+import { DEFAULT_RPC_PORT, RPC_ERROR_TAG, RPC_PATH_PREFIX, rpcEnvKeys } from "./rpc-token.ts"
+
+export class RpcCallError extends Data.TaggedError("Railway.RpcCallError")<{
+  readonly method: string
+  readonly cause: unknown
+}> {}
+
+export class RpcUnauthorized extends Data.TaggedError("Railway.RpcUnauthorized")<{
+  readonly method: string
+}> {}
+
+type RpcTarget = {
+  readonly Type: string
+  readonly LogicalId: string
+  readonly dnsName?: unknown
+  readonly port?: unknown
+  readonly rpcToken?: unknown
+}
+
+effect function resolveTarget<Shape, Req>(
+  targetEff: (RpcTarget & Rpc<Shape>) | Effect.Effect<RpcTarget & Rpc<Shape>, never, Req>,
+): Effect.Effect<RpcTarget & Rpc<Shape>, never, Req> {
+  const yieldable = try Effect.orDie(Effect.try({ try: () => isYieldableEffectLike(targetEff), catch: (e) => e }))
+  if (yieldable) return try (targetEff as Effect.Effect<RpcTarget & Rpc<Shape>, never, Req>)
+  return targetEff as RpcTarget & Rpc<Shape>
+}
+
+/** Logical id without yielding the Resource (runtime has no engine). */
+const logicalIdOf = (target: unknown): string => {
+  if (target !== null && typeof target === "object" && "LogicalId" in target) {
+    const id = (target as { LogicalId?: unknown }).LogicalId
+    if (typeof id === "string" && id.length > 0) return id
+  }
+  if (typeof target === "function") {
+    const named = (target as { name?: unknown }).name
+    if (typeof named === "string" && named.length > 0) return named
+  }
+  return ""
+}
+
+const makeStub = <Shape>(options: { readonly baseUrl: string; readonly token: string }): Shape => {
+  const { baseUrl, token } = options
+  return new Proxy(
+    {},
+    {
+      get: (_obj, prop) => {
+        if (typeof prop !== "string") return undefined
+        return (...args: unknown[]) =>
+          effect {
+            if (!baseUrl || !token) {
+              return try new RpcCallError({
+                method: prop,
+                cause: !baseUrl ? "missing host" : "missing token",
+              })
+            }
+            const response = try Effect.tryPromise({
+              try: () =>
+                postRpc(
+                  `${baseUrl}${RPC_PATH_PREFIX}${encodeURIComponent(prop)}`,
+                  token,
+                  JSON.stringify(args),
+                ),
+              catch: (cause) => new RpcCallError({ method: prop, cause }),
+            })
+            if (response.status === 401) {
+              return try new RpcUnauthorized({ method: prop })
+            }
+            const value = try Effect.tryPromise({
+              try: () => response.json() as Promise<unknown>,
+              catch: (cause) => new RpcCallError({ method: prop, cause }),
+            })
+            if (
+              typeof value === "object"
+              && value !== null
+              && (value as { _tag?: unknown })._tag === RPC_ERROR_TAG
+              && "error" in value
+            ) {
+              return try Effect.fail((value as { error: unknown }).error)
+            }
+            return value
+          }
+      },
+    },
+  ) as Shape
+}
+
+const bindRpc = <Shape, Req = never>(
+  targetEff: (RpcTarget & Rpc<Shape>) | Effect.Effect<RpcTarget & Rpc<Shape>, never, Req>,
+): Effect.Effect<Shape, never, Req> =>
+  effect {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const target = try resolveTarget(targetEff)
+      const keys = try Effect.orDie(Effect.try({ try: () => rpcEnvKeys(target.LogicalId), catch: (e) => e }))
+      const host = try Binding.Host
+      if (isRailwayHost(host)) {
+        try host.bind`${target}`({
+          env: {
+            [keys.host]: target.dnsName,
+            [keys.port]: target.port ?? DEFAULT_RPC_PORT,
+            [keys.token]: target.rpcToken,
+          },
+        })
+      }
+    }
+
+    const keys = try Effect.orDie(Effect.try({ try: () => rpcEnvKeys(logicalIdOf(targetEff)), catch: (e) => e }))
+    const hostName = try Effect.orDie(Effect.try({ try: () => fromProcessEnv(keys.host), catch: (e) => e }))
+    const port = try Effect.orDie(Effect.try({ try: () => fromProcessEnv(keys.port), catch: (e) => e }))
+    const token = try Effect.orDie(Effect.try({ try: () => fromProcessEnv(keys.token), catch: (e) => e }))
+    const baseUrl = hostName.length > 0
+      ? `http://${hostName}:${port.length > 0 ? port : String(DEFAULT_RPC_PORT)}`
+      : ""
+
+    return makeStub<Shape>({ baseUrl, token })
+  }
+
+/**
+ * Bind a {@link Function} and return a typed schemaless RPC stub.
+ * Calls go to `{dnsName}:{port}/__rpc__/{method}` on the private mesh
+ * with a shared token — not the public `*.up.railway.app` URL.
+ *
+ * @example
+ * ```typescript
+ * const query = yield* Railway.bindFunction(Query);
+ * const greeting = yield* query.greet("sam");
+ * ```
+ */
+export const bindFunction = bindRpc
+
+/**
+ * Bind a {@link Service} and return a typed schemaless RPC stub.
+ * Same private-mesh + token path as {@link bindFunction}.
+ *
+ * @example
+ * ```typescript
+ * const api = yield* Railway.bindService(Api);
+ * const greeting = yield* api.greet("sam");
+ * ```
+ */
+export const bindService = bindRpc

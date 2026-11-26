@@ -1,0 +1,67 @@
+// Prepends the release notes for a tag to CHANGELOG.md. Idempotent: a tag
+// that already has a heading in CHANGELOG.md is skipped.
+//
+// The notes cover the commits since the previous tag, up to the tag if it
+// exists yet, otherwise HEAD. Reads `ALCHEMY_REPO` (`<owner>/<repo>`) for the
+// changelog's links.
+//
+// Usage: node scripts/release/release-notes.ts <tag>
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import { Argument, Command } from "effect/cli"
+import * as Console from "effect/Console"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import { ChildProcess } from "effect/process"
+import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner"
+import { generate } from "./changelog.vibe"
+import { repository } from "./config.vibe"
+
+/** Whether `tag` exists locally. */
+const tagExists = effect (tag: string) => {
+  const spawner = try ChildProcessSpawner
+  const exitCode = try Effect.scoped(
+    effect {
+      const handle = try spawner.spawn(
+        ChildProcess.make("git", ["rev-parse", "--verify", `refs/tags/${tag}`], {
+          stdout: "ignore",
+          stderr: "ignore",
+        }),
+      )
+      return try handle.exitCode
+    },
+  )
+  return Number(exitCode) === 0
+}
+
+const command = Command.make(
+  "release-notes",
+  {
+    tag: Argument.String("tag").pipe(Argument.withDescription("Release tag, e.g. v2.0.0-beta.13")),
+  },
+  effect ({ tag }) => {
+    const fs = try FileSystem.FileSystem
+    const path = try Path.Path
+    const changelogPath = path.resolve("CHANGELOG.md")
+
+    const existing = (try fs.exists(changelogPath))
+      ? try fs.readFileString(changelogPath)
+      : ""
+    if (existing.includes(`## ${tag}\n`)) {
+      try Console.log(`${tag} already in CHANGELOG.md, skipping`)
+      return
+    }
+
+    const to = (try tagExists(tag)) ? tag : "HEAD"
+    try Console.log(`Generating release notes for ${tag} (using ${to})`)
+    const { md } = try generate({ to, repo: try repository })
+
+    try fs.writeFileString(changelogPath, `## ${tag}\n\n${md}\n\n---\n\n${existing}`)
+  },
+).pipe(Command.withDescription("Prepend the release notes for a tag to CHANGELOG.md"))
+
+Command.run(command, { version: "0.0.0" }).pipe(
+  Effect.provide(NodeServices.layer),
+  NodeRuntime.runMain,
+)

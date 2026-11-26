@@ -1,0 +1,408 @@
+import type * as WAFV2 from "@distilled.cloud/aws/wafv2"
+import * as wafv2 from "@distilled.cloud/aws/wafv2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, hasAlchemyTags } from "alchemy/Tags"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import type { Providers } from "../Providers.vibe"
+import {
+  fetchWafTags,
+  retryAssociatedItem,
+  retryOptimisticLock,
+  syncWafTags,
+  type WafScope,
+  withWafScope,
+} from "./internal.vibe"
+
+export class RegexPatternSetUnexpectedResponse extends Data.TaggedError(
+  "RegexPatternSetUnexpectedResponse",
+)<{
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
+export interface RegexPatternSetProps {
+  /**
+   * Name of the regex pattern set. Must match `^[\w\-]+$` and be 1-128
+   * characters. Changing the name replaces the regex pattern set.
+   * @default a physical name derived from the app, stage and logical ID
+   */
+  regexPatternSetName?: string
+  /**
+   * Scope of the regex pattern set — `REGIONAL` (ambient region) or
+   * `CLOUDFRONT` (pinned to `us-east-1`). Must match the scope of the web
+   * ACLs and rule groups that reference it. Changing the scope replaces the
+   * regex pattern set.
+   * @default "REGIONAL"
+   */
+  scope?: WafScope
+  /**
+   * Regular expressions in the set (1-10 patterns, each up to 200
+   * characters). Mutable — updated in place.
+   */
+  regularExpressions: string[]
+  /**
+   * Description of the regex pattern set.
+   */
+  description?: string
+  /**
+   * User-defined tags to apply to the regex pattern set.
+   */
+  tags?: Record<string, string>
+}
+
+export interface RegexPatternSet extends
+  Resource<
+    "AWS.WAFv2.RegexPatternSet",
+    RegexPatternSetProps,
+    {
+      /**
+       * Name of the regex pattern set.
+       */
+      regexPatternSetName: string
+      /**
+       * WAF-assigned unique ID of the regex pattern set.
+       */
+      regexPatternSetId: string
+      /**
+       * ARN of the regex pattern set — reference it from a rule's
+       * `RegexPatternSetReferenceStatement`.
+       */
+      regexPatternSetArn: string
+      /**
+       * Scope the regex pattern set was created in.
+       */
+      scope: WafScope
+      /**
+       * Current regular expressions in the set.
+       */
+      regularExpressions: string[]
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS WAFv2 regex pattern set — a named collection of regular expressions
+ * referenced from web ACL and rule group rules via
+ * `RegexPatternSetReferenceStatement`.
+ *
+ * ### Creating Regex Pattern Sets
+ * **Example:** Block Requests Matching Bad Path Patterns
+ * ```typescript
+ * const badPaths = yield* AWS.WAFv2.RegexPatternSet("BadPaths", {
+ *   regularExpressions: ["^/wp-admin", "\\.php$"],
+ * });
+ * ```
+ *
+ * **Example:** Reference from a Web ACL Rule
+ * ```typescript
+ * const acl = yield* AWS.WAFv2.WebACL("Firewall", {
+ *   rules: [
+ *     {
+ *       Name: "block-bad-paths",
+ *       Priority: 0,
+ *       Statement: {
+ *         RegexPatternSetReferenceStatement: {
+ *           ARN: badPaths.regexPatternSetArn,
+ *           FieldToMatch: { UriPath: {} },
+ *           TextTransformations: [{ Priority: 0, Type: "NONE" }],
+ *         },
+ *       },
+ *       Action: { Block: {} },
+ *       VisibilityConfig: {
+ *         SampledRequestsEnabled: true,
+ *         CloudWatchMetricsEnabled: true,
+ *         MetricName: "block-bad-paths",
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const RegexPatternSet = Resource<RegexPatternSet>("AWS.WAFv2.RegexPatternSet")
+
+const defaultScope: WafScope = "REGIONAL"
+
+const toExpressionList = (expressions: readonly string[]): WAFV2.Regex[] =>
+  expressions.map((RegexString) => ({ RegexString }))
+
+const fromExpressionList = (list: readonly WAFV2.Regex[] | undefined): string[] =>
+  (list ?? []).flatMap((regex) => (regex.RegexString !== undefined ? [regex.RegexString] : []))
+
+const sorted = (values: readonly string[]) => [...values].sort((a, b) => a.localeCompare(b))
+
+const toAttrs = (set: WAFV2.RegexPatternSet, scope: WafScope) => ({
+  regexPatternSetName: set.Name ?? "",
+  regexPatternSetId: set.Id ?? "",
+  regexPatternSetArn: set.ARN ?? "",
+  scope,
+  regularExpressions: fromExpressionList(set.RegularExpressionList),
+})
+
+export const RegexPatternSetProvider = () =>
+  Provider.effect(
+    RegexPatternSet,
+    effect {
+      const createName = effect (id: string, props: RegexPatternSetProps) => {
+        return props.regexPatternSetName ?? (try createPhysicalName({ id, maxLength: 128 }))
+      }
+
+      const findSet = effect (
+        scope: WafScope,
+        name: string,
+        cachedId: string | undefined,
+      ) => {
+        if (cachedId !== undefined) {
+          const byId = try withWafScope(
+            scope,
+            wafv2
+              .getRegexPatternSet({ Name: name, Scope: scope, Id: cachedId })
+              .pipe(Effect.catchTag("WAFNonexistentItemException", () => Effect.undefined)),
+          )
+          if (byId?.RegexPatternSet) {
+            return byId
+          }
+        }
+        let marker: string | undefined
+        for (let page = 0; page < 20; page++) {
+          const listed = try withWafScope(
+            scope,
+            wafv2.listRegexPatternSets({
+              Scope: scope,
+              NextMarker: marker,
+              Limit: 100,
+            }),
+          )
+          const summary = listed.RegexPatternSets?.find((s) => s.Name === name)
+          if (summary?.Id !== undefined) {
+            return try withWafScope(
+              scope,
+              wafv2
+                .getRegexPatternSet({
+                  Name: name,
+                  Scope: scope,
+                  Id: summary.Id,
+                })
+                .pipe(Effect.catchTag("WAFNonexistentItemException", () => Effect.undefined)),
+            )
+          }
+          if (!listed.NextMarker || (listed.RegexPatternSets?.length ?? 0) === 0) {
+            break
+          }
+          marker = listed.NextMarker
+        }
+        return undefined
+      }
+
+      const listScope = effect (scope: WafScope) => {
+        const rows: ReturnType<typeof toAttrs>[] = []
+        let marker: string | undefined
+        for (let page = 0; page < 50; page++) {
+          const listed = try withWafScope(
+            scope,
+            wafv2.listRegexPatternSets({
+              Scope: scope,
+              NextMarker: marker,
+              Limit: 100,
+            }),
+          )
+          const summaries = listed.RegexPatternSets ?? []
+          const details = try Effect.forEach(
+            summaries,
+            (summary) =>
+              summary.Name !== undefined && summary.Id !== undefined
+                ? withWafScope(
+                  scope,
+                  wafv2
+                    .getRegexPatternSet({
+                      Name: summary.Name,
+                      Scope: scope,
+                      Id: summary.Id,
+                    })
+                    .pipe(Effect.catchTag("WAFNonexistentItemException", () => Effect.undefined)),
+                )
+                : Effect.undefined,
+            { concurrency: 5 },
+          )
+          for (const detail of details) {
+            if (detail?.RegexPatternSet) {
+              rows.push(toAttrs(detail.RegexPatternSet, scope))
+            }
+          }
+          if (!listed.NextMarker || summaries.length === 0) {
+            break
+          }
+          marker = listed.NextMarker
+        }
+        return rows
+      }
+
+      return {
+        stables: ["regexPatternSetName", "regexPatternSetId", "regexPatternSetArn", "scope"],
+
+        list: () =>
+          effect {
+            const regional = try listScope("REGIONAL")
+            const cloudfront = try listScope("CLOUDFRONT")
+            return [...regional, ...cloudfront]
+          },
+
+        diff: effect ({ id, news, olds }) => {
+          const props = try Effect.orDie(
+            Effect.try({ try: () => (isResolved(news) ? news : undefined), catch: (e) => e }),
+          )
+          if (props === undefined) return undefined
+          const oldName = try createName(id, olds ?? { regularExpressions: [] })
+          const newName = try createName(id, props)
+          if (
+            oldName !== newName
+            || (olds?.scope ?? defaultScope) !== (props.scope ?? defaultScope)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const scope = output?.scope ?? olds?.scope ?? defaultScope
+          const name = output?.regexPatternSetName
+            ?? (try createName(id, olds ?? { regularExpressions: [] }))
+          const found = try findSet(scope, name, output?.regexPatternSetId)
+          if (!found?.RegexPatternSet?.ARN) {
+            return undefined
+          }
+          const attrs = toAttrs(found.RegexPatternSet, scope)
+          const tags = try fetchWafTags(scope, found.RegexPatternSet.ARN)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e })))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const scope = news.scope ?? defaultScope
+          const name = output?.regexPatternSetName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. Observe.
+          let observed = try findSet(scope, name, output?.regexPatternSetId)
+
+          // 2. Ensure — tolerate a duplicate-create race and re-read.
+          if (!observed?.RegexPatternSet) {
+            try withWafScope(
+              scope,
+              wafv2
+                .createRegexPatternSet({
+                  Name: name,
+                  Scope: scope,
+                  RegularExpressionList: toExpressionList(news.regularExpressions),
+                  Description: news.description,
+                  Tags: createTagsList(desiredTags),
+                })
+                .pipe(Effect.catchTag("WAFDuplicateItemException", () => Effect.undefined)),
+            )
+            observed = try findSet(scope, name, undefined)
+          }
+
+          const set = observed?.RegexPatternSet
+          const arn = set?.ARN
+          if (set === undefined || arn === undefined) {
+            return try new RegexPatternSetUnexpectedResponse({
+              message: `Failed to observe RegexPatternSet '${name}' after create`,
+            })
+          }
+
+          try session.note(arn)
+
+          // 3. Sync expressions + description against OBSERVED state. WAF
+          //    may return the list in arbitrary order — compare as sets.
+          const drifted = !(try Effect.orDie(
+            Effect.try({
+              try: () =>
+                deepEqual(
+                  {
+                    RegularExpressions: sorted(fromExpressionList(set.RegularExpressionList)),
+                    Description: set.Description,
+                  },
+                  {
+                    RegularExpressions: sorted(news.regularExpressions),
+                    Description: news.description,
+                  },
+                  { stripNullish: true },
+                ),
+              catch: (e) => e,
+            }),
+          ))
+          if (drifted) {
+            try retryOptimisticLock(
+              effect {
+                const fresh = try findSet(scope, name, set.Id)
+                if (!fresh?.RegexPatternSet?.Id || fresh.LockToken === undefined) {
+                  return
+                }
+                try withWafScope(
+                  scope,
+                  wafv2.updateRegexPatternSet({
+                    Name: name,
+                    Scope: scope,
+                    Id: fresh.RegexPatternSet.Id,
+                    RegularExpressionList: toExpressionList(news.regularExpressions),
+                    Description: news.description,
+                    LockToken: fresh.LockToken,
+                  }),
+                )
+              },
+            )
+          }
+
+          // 3b. Sync tags against OBSERVED cloud tags.
+          try syncWafTags(scope, arn, desiredTags)
+
+          // 4. Return fresh attributes.
+          return {
+            ...toAttrs(set, scope),
+            regularExpressions: [...news.regularExpressions],
+          }
+        },
+
+        delete: effect ({ output }) => {
+          const scope = output.scope
+          // A pattern set still referenced by a web ACL rule (deletion
+          // propagation) surfaces WAFAssociatedItemException — retry it.
+          try effect {
+            const found = try withWafScope(
+              scope,
+              wafv2
+                .getRegexPatternSet({
+                  Name: output.regexPatternSetName,
+                  Scope: scope,
+                  Id: output.regexPatternSetId,
+                })
+                .pipe(Effect.catchTag("WAFNonexistentItemException", () => Effect.undefined)),
+            )
+            if (!found?.RegexPatternSet || found.LockToken === undefined) {
+              return
+            }
+            try withWafScope(
+              scope,
+              wafv2
+                .deleteRegexPatternSet({
+                  Name: output.regexPatternSetName,
+                  Scope: scope,
+                  Id: output.regexPatternSetId,
+                  LockToken: found.LockToken,
+                })
+                .pipe(Effect.catchTag("WAFNonexistentItemException", () => Effect.void)),
+            )
+          }.pipe(retryOptimisticLock, retryAssociatedItem)
+        },
+      }
+    },
+  )

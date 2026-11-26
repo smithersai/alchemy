@@ -21,17 +21,17 @@
 // resource-only: they are root-level account settings the IaC engine owns.
 // No event sources: the service emits no event streams or notification
 // configurations.
-export * from "./AccountName.ts";
-export * from "./AlternateContact.ts";
-export * from "./ContactInformation.ts";
-export * from "./GetAccountInformation.ts";
-export * from "./GetAccountInformationHttp.ts";
-export * from "./GetAlternateContact.ts";
-export * from "./GetAlternateContactHttp.ts";
-export * from "./GetContactInformation.ts";
-export * from "./GetContactInformationHttp.ts";
-export * from "./GetRegionOptStatus.ts";
-export * from "./GetRegionOptStatusHttp.ts";
-export * from "./ListRegions.ts";
-export * from "./ListRegionsHttp.ts";
-export * from "./Region.ts";
+export * from "./AccountName.vibe";
+export * from "./AlternateContact.vibe";
+export * from "./ContactInformation.vibe";
+export * from "./GetAccountInformation.vibe";
+export * from "./GetAccountInformationHttp.vibe";
+export * from "./GetAlternateContact.vibe";
+export * from "./GetAlternateContactHttp.vibe";
+export * from "./GetContactInformation.vibe";
+export * from "./GetContactInformationHttp.vibe";
+export * from "./GetRegionOptStatus.vibe";
+export * from "./GetRegionOptStatusHttp.vibe";
+export * from "./ListRegions.vibe";
+export * from "./ListRegionsHttp.vibe";
+export * from "./Region.vibe";

@@ -1,1 +1,1 @@
-export * from "./Workload.ts";
+export * from "./Workload.vibe";

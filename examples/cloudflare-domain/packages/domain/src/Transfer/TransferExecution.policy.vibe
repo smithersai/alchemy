@@ -1,0 +1,40 @@
+import * as Domain from "@alchemy.run/domain"
+import { TransferApproved } from "./ApproveTransfer.command.ts"
+import { Decision, ExecuteTransfer } from "./ExecuteTransfer.saga.vibe"
+import { TransferFailed } from "./FailTransfer.command.vibe"
+import { TransferRequested } from "./RequestTransfer.command.vibe"
+import { Transfer } from "./Transfer.aggregate.vibe"
+
+/**
+ * Starts the ExecuteTransfer saga for every requested transfer, and passes on
+ * what the Transfer decides about a large one: approved, or expired.
+ */
+export class TransferExecution extends Domain.Policy("TransferExecution", {
+  from: Transfer,
+  on: [TransferRequested, TransferApproved, TransferFailed],
+}) {}
+
+export const TransferExecutionLive = TransferExecution.toLayer(
+  effect {
+    const executions = try Effect.service(ExecuteTransfer)
+    return effect ({ source, event }) => {
+      switch (event._tag) {
+        case "TransferRequested":
+          try executions.start(source, {
+            from: event.from,
+            to: event.to,
+            amount: event.amount,
+            requestedBy: event.requestedBy,
+            needsApproval: event.needsApproval,
+          })
+          return
+        case "TransferApproved":
+          return try executions.get(source).signal(Decision, "approved")
+        case "TransferFailed":
+          // A transfer that expired waiting for approval; a saga that already
+          // finished ignores it.
+          return try executions.get(source).signal(Decision, "expired")
+      }
+    }
+  },
+)

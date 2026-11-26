@@ -1,6 +1,6 @@
 import * as Hetzner from "@alchemy.run/hetzner";
 import * as Effect from "effect/Effect";
-import Api from "./ApiWorker.ts";
+import Api from "./ApiWorker.vibe";
 
 // #region show
 export const Web = Effect.gen(function* () {

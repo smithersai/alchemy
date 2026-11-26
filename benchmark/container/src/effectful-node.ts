@@ -1,7 +1,7 @@
 import * as AWS from "@alchemy.run/aws";
 import * as Effect from "effect/Effect";
 import { MicrovmBuildRole } from "./build-role.ts";
-import { effectfulImpl } from "./effectful-impl.ts";
+import { effectfulImpl } from "./effectful-impl.vibe";
 
 /**
  * Effectful MicroVM image on **node** — identical server to the bun effectful

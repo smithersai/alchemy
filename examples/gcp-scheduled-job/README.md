@@ -2,8 +2,8 @@
 
 A Cloud Run Job that rolls the last 24 hours of orders in BigQuery up into a JSON summary in Cloud Storage. Cloud Scheduler runs it every night, and a public admin route runs it on demand.
 
-- [`Summarize`](./src/Summarize.ts): a `GCP.Run.Job` with an Effect-native `run` entry. It queries the `orders` table grouped by region and writes `daily/<YYYY-MM-DD>.json` with per-region and overall order counts and revenue. Re-running on the same day overwrites that day's object.
-- [`Nightly`](./src/Nightly.ts): a `GCP.CloudScheduler.Job` that `POST`s to the Cloud Run Admin API's `jobs:run` endpoint for `Summarize` at 02:00 UTC. It authenticates with an OAuth token for the job's own runtime service account, which a `GCP.IAM.Member` grants `roles/run.invoker` on the job.
+- [`Summarize`](./src/Summarize.vibe): a `GCP.Run.Job` with an Effect-native `run` entry. It queries the `orders` table grouped by region and writes `daily/<YYYY-MM-DD>.json` with per-region and overall order counts and revenue. Re-running on the same day overwrites that day's object.
+- [`Nightly`](./src/Nightly.vibe): a `GCP.CloudScheduler.Job` that `POST`s to the Cloud Run Admin API's `jobs:run` endpoint for `Summarize` at 02:00 UTC. It authenticates with an OAuth token for the job's own runtime service account, which a `GCP.IAM.Member` grants `roles/run.invoker` on the job.
 - [`Admin`](./src/Admin.ts): a public `GCP.Function` (Cloud Run service). `POST /run` starts an execution and returns its operation name.
 - [`Orders`, `Reports`](./src/resources.ts): the BigQuery table (in the `Warehouse` dataset) and the bucket the summaries land in.
 

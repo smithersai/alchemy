@@ -1,0 +1,59 @@
+import * as codeartifact from "@distilled.cloud/aws/codeartifact"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { domainWideArns } from "./BindingHttp.vibe"
+import { CopyPackageVersions, type CopyPackageVersionsRequest } from "./CopyPackageVersions.vibe"
+import type { Repository } from "./Repository.vibe"
+
+/**
+ * HTTP implementation of {@link CopyPackageVersions} over the CodeArtifact
+ * API. Bespoke (not the shared repository scaffolding): the bound repository
+ * is injected as `destinationRepository`, and the copy also reads from the
+ * caller-chosen source repository, so the grant spans every repository and
+ * package in the domain.
+ */
+export const CopyPackageVersionsHttp = Layer.effect(
+  CopyPackageVersions,
+  effect {
+    const bind = try AWSBindings.Bind
+    const op = try AWSBindings.withCredentials(codeartifact.copyPackageVersions)
+
+    return effect (repository: Repository) => {
+      const DomainName = try repository.domainName.asEffect()
+      const DomainOwner = try repository.domainOwner.asEffect()
+      const RepositoryName = try repository.repositoryName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.CodeArtifact.CopyPackageVersions(${repository})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: [
+                "codeartifact:CopyPackageVersions",
+                // The copy reads version metadata and assets from the
+                // source repository on the caller's behalf.
+                "codeartifact:ReadFromRepository",
+                "codeartifact:DescribePackageVersion",
+              ],
+              Resource: try Effect.orDie(Effect.try({ try: () => domainWideArns(repository), catch: (e) => e })),
+            },
+          ],
+        })
+      }
+      return effect (
+        request: CopyPackageVersionsRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const owner = try DomainOwner
+            return try op({
+              ...request,
+              domain: try DomainName,
+              ...(owner === "" ? {} : { domainOwner: owner }),
+              destinationRepository: try RepositoryName,
+            })
+          },
+          `AWS.CodeArtifact.CopyPackageVersions(${repository.LogicalId})`,
+        )
+    }
+  },
+)

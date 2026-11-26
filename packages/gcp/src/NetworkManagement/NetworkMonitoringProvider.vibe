@@ -1,0 +1,338 @@
+import * as networkmanagement from "@distilled.cloud/gcp/networkmanagement_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { alchemyLabelKeys, createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  resourceName as qualifiedName,
+  rfc1035,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const COLLECTION = "networkMonitoringProviders"
+const DEFAULT_PROVIDER_TYPE = "EXTERNAL" satisfies networkmanagement.NetworkMonitoringProviderProviderTypeEnum
+
+export type NetworkMonitoringProviderType =
+  | networkmanagement.NetworkMonitoringProviderProviderTypeEnum
+  | (string & {})
+
+export type NetworkMonitoringProviderProps = {
+  /**
+   * Provider id (the `{network_monitoring_provider}` segment of
+   * `projects/{project}/locations/{location}/networkMonitoringProviders/{network_monitoring_provider}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable — changing
+   * it replaces the provider.
+   */
+  networkMonitoringProviderId?: string
+  /**
+   * Location. Network monitoring providers are only served from `global`
+   * (regional names are rejected as malformed). Immutable — changing it
+   * replaces the provider.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Provider type. The API currently supports `EXTERNAL`. Immutable —
+   * changing it replaces the provider.
+   * @default "EXTERNAL"
+   */
+  providerType?: NetworkMonitoringProviderType
+}
+
+export type NetworkMonitoringProvider = Resource<
+  "GCP.NetworkManagement.NetworkMonitoringProvider",
+  NetworkMonitoringProviderProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/networkMonitoringProviders/{network_monitoring_provider}`. */
+    name: string
+    /** Provider id (last path segment). */
+    networkMonitoringProviderId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Provider type (`EXTERNAL`). */
+    providerType: string | undefined
+    /** Link to the provider UI. */
+    providerUri: string | undefined
+    /** Provider state (`ACTIVATING`, `ACTIVE`, …). */
+    state: string | undefined
+    /** Server-reported error messages. */
+    errors: string[]
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Network Intelligence Center Network Monitoring Provider.
+ *
+ * The API has no labels, description, or patch method. Identity is the
+ * id, location, and provider type; changing any of them replaces the
+ * provider. Alchemy stamps ownership into the generated id so `list` /
+ * nuke can find leaked rows.
+ *
+ * ### Creating a NetworkMonitoringProvider
+ * **Example:** External provider
+ * ```typescript
+ * const provider = yield* GCP.NetworkManagement.NetworkMonitoringProvider(
+ *   "AppNeta",
+ *   { providerType: "EXTERNAL" },
+ * );
+ * ```
+ *
+ * **Example:** Named provider
+ * ```typescript
+ * const provider = yield* GCP.NetworkManagement.NetworkMonitoringProvider(
+ *   "AppNeta",
+ *   {
+ *     networkMonitoringProviderId: "app-neta",
+ *     location: "global",
+ *     providerType: "EXTERNAL",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category NetworkManagement
+ */
+export const NetworkMonitoringProvider = Resource<NetworkMonitoringProvider>(
+  "GCP.NetworkManagement.NetworkMonitoringProvider",
+)
+
+const resourceName = (project: string, location: string, networkMonitoringProviderId: string): infer _ =>
+  qualifiedName(project, location, COLLECTION, networkMonitoringProviderId)
+
+const typeOf = (value: string | undefined): infer _ => (value ?? DEFAULT_PROVIDER_TYPE).toUpperCase()
+
+const ownedPrefix = (labels: Record<string, string>): infer _ => {
+  const id = (labels[alchemyLabelKeys.id] ?? "x")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 8)
+  return `alch${id.length > 0 ? id : "x"}`
+}
+
+const GLOBAL_LOCATION = "global"
+
+const isOwnedId = (id: string): infer _ => id.toLowerCase().startsWith("alch")
+
+const toOwnedId = effect (id: string, explicit: string | undefined, existing: string | undefined) => {
+  if (explicit !== undefined) {
+    return try Effect.orDie(Effect.try({ try: () => rfc1035(explicit, "nmp"), catch: (e) => e }))
+  }
+  if (existing !== undefined) return existing
+  const labels = try createInternalLabels(id)
+  const generated = try toPhysicalId(id, undefined, undefined, "nmp")
+  const prefix = ownedPrefix(labels)
+  if (generated.startsWith(prefix)) return generated
+  return try Effect.orDie(Effect.try({ try: () => rfc1035(`${prefix}-${generated}`, "nmp"), catch: (e) => e }))
+}
+
+const toAttrs = (
+  provider: networkmanagement.NetworkMonitoringProvider,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = provider.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  return {
+    name,
+    networkMonitoringProviderId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || region,
+    providerType: provider.providerType,
+    providerUri: provider.providerUri,
+    state: provider.state,
+    errors: provider.errors ?? [],
+    createTime: provider.createTime,
+    updateTime: provider.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkmanagement
+    .getProjectsLocationsNetworkMonitoringProviders({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const NetworkMonitoringProviderProvider = (): infer _ =>
+  Provider.succeed(NetworkMonitoringProvider, {
+    stables: [
+      "name",
+      "networkMonitoringProviderId",
+      "project",
+      "location",
+      "providerType",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.networkMonitoringProviderId ?? output?.networkMonitoringProviderId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.networkMonitoringProviderId
+            ? rfc1035(resolved.networkMonitoringProviderId, "nmp")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            GLOBAL_LOCATION,
+          ),
+        catch: (e) => e,
+      }))
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            GLOBAL_LOCATION,
+          ),
+        catch: (e) => e,
+      }))
+      const previousType = typeOf(olds?.providerType ?? output?.providerType)
+      const nextType = typeOf(resolved.providerType ?? olds?.providerType ?? output?.providerType)
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || previousType !== nextType
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const networkMonitoringProviderId = try toOwnedId(
+        id,
+        olds?.networkMonitoringProviderId,
+        output?.networkMonitoringProviderId,
+      )
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(olds?.location ?? output?.location, GLOBAL_LOCATION),
+          catch: (e) => e,
+        }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, networkMonitoringProviderId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, GLOBAL_LOCATION)
+      return isOwnedId(attrs.networkMonitoringProviderId)
+          || olds?.networkMonitoringProviderId !== undefined
+          || output?.networkMonitoringProviderId !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const listed: NetworkMonitoringProvider["Attributes"][] = []
+      const seen = new Set<string>()
+      const parents = [
+        try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
+        ...[GLOBAL_LOCATION].map((location) => parentOf(env.project, location)),
+      ]
+      for (const parent of parents) {
+        const items = try collectPages(
+          networkmanagement.listProjectsLocationsNetworkMonitoringProviders.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.networkMonitoringProviders,
+        )
+        for (const item of items) {
+          const attrs = toAttrs(item, env.project, GLOBAL_LOCATION)
+          if (!isOwnedId(attrs.networkMonitoringProviderId)) continue
+          if (seen.has(attrs.name)) continue
+          seen.add(attrs.name)
+          listed.push(attrs)
+        }
+      }
+      return listed
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const networkMonitoringProviderId = try toOwnedId(
+        id,
+        news.networkMonitoringProviderId,
+        output?.networkMonitoringProviderId,
+      )
+      const location = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(news.location ?? output?.location, GLOBAL_LOCATION),
+          catch: (e) => e,
+        }),
+      )
+      const name = resourceName(env.project, location, networkMonitoringProviderId)
+      const providerType = typeOf(news.providerType)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (networkmanagement
+            .createProjectsLocationsNetworkMonitoringProviders({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              networkMonitoringProviderId,
+              body: { providerType },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      current = try waitUntilReady(getByName(current.name ?? name), current.name ?? name)
+
+      return toAttrs(current, env.project, GLOBAL_LOCATION)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (networkmanagement
+          .deleteProjectsLocationsNetworkMonitoringProviders({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

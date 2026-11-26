@@ -1,0 +1,380 @@
+import * as dlp from "@distilled.cloud/gcp/dlp_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_LOCATION,
+  DlpNotResolved,
+  encodeDescription,
+  fingerprint,
+  hasOwnershipMarker,
+  lastSegment,
+  locationParentsOf,
+  organizationLocationParent,
+  normalizeLocation,
+  organizationIdOf,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  toPhysicalId,
+  tryResolveOrganization,
+  updateMaskOf,
+} from "./internal.vibe"
+
+export type InspectJobConfig = dlp.GooglePrivacyDlpV2InspectJobConfig
+export type JobTriggerTrigger = dlp.GooglePrivacyDlpV2Trigger
+export type JobTriggerStatus = dlp.GooglePrivacyDlpV2JobTriggerStatusEnum | (string & {})
+
+export type OrganizationsLocationsJobTriggerProps = {
+  /**
+   * Trigger id (the `{jobTrigger}` segment of
+   * `organizations/{organization}/locations/{location}/jobTriggers/{jobTrigger}`).
+   * If omitted, a unique id is generated. Letters, digits, hyphens, and
+   * underscores; max 100 characters. Immutable — changing it replaces
+   * the trigger.
+   */
+  triggerId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to `GOOGLE_ORGANIZATION_ID` or the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the trigger.
+   */
+  organization?: string
+  /**
+   * Processing location (`us-central1`, `global`, `us`, …). Immutable —
+   * changing it replaces the trigger.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Human-readable display name (max 100 characters).
+   */
+  displayName?: string
+  /**
+   * Human-readable description (max 256 characters). Job triggers have no
+   * labels field, so Alchemy ownership is stored in a `[alchemy …]` prefix
+   * and stripped from attributes.
+   */
+  description?: string
+  /**
+   * Trigger status. Prefer `PAUSED` unless jobs should run.
+   * @default "PAUSED"
+   */
+  status?: JobTriggerStatus
+  /**
+   * Events that start a job. At least one trigger is required.
+   */
+  triggers: JobTriggerTrigger[]
+  /**
+   * Inspect job configuration (what to scan and which detectors to run).
+   */
+  inspectJob: InspectJobConfig
+}
+
+export type OrganizationsLocationsJobTrigger = Resource<
+  "GCP.DLP.OrganizationsLocationsJobTrigger",
+  OrganizationsLocationsJobTriggerProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Trigger id (last path segment). */
+    triggerId: string
+    /** Organization resource name. */
+    organization: string
+    /** Organization id. */
+    organizationId: string
+    /** Location id. */
+    location: string
+    /** Project id of the deploying stack. */
+    project: string
+    /** User display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Trigger status. */
+    status: string
+    /** Triggers that start a job. */
+    triggers: JobTriggerTrigger[]
+    /** Inspect job configuration. */
+    inspectJob: InspectJobConfig | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** RFC3339 last-run timestamp. */
+    lastRunTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Sensitive Data Protection job trigger that
+ * inspects storage on a schedule.
+ *
+ * Job triggers have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Trigger id, organization,
+ * and location are identity. Display name, description, status, triggers,
+ * and inspect job update in place. Keep `status` as `PAUSED` unless jobs
+ * should run.
+ *
+ * ### Creating a Job Trigger
+ * **Example:** Daily paused Cloud Storage inspect
+ * ```typescript
+ * const trigger = yield* GCP.DLP.OrganizationsLocationsJobTrigger(
+ *   "ScanBucket",
+ *   {
+ *     status: "PAUSED",
+ *     triggers: [
+ *       { schedule: { recurrencePeriodDuration: "86400s" } },
+ *     ],
+ *     inspectJob: {
+ *       inspectConfig: { infoTypes: [{ name: "EMAIL_ADDRESS" }] },
+ *       storageConfig: {
+ *         cloudStorageOptions: {
+ *           fileSet: { url: "gs://my-bucket/" },
+ *         },
+ *       },
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DLP
+ */
+export const OrganizationsLocationsJobTrigger = Resource<OrganizationsLocationsJobTrigger>(
+  "GCP.DLP.OrganizationsLocationsJobTrigger",
+)
+
+const DEFAULT_STATUS = "PAUSED" satisfies JobTriggerStatus
+
+const resourceName = (organization: string, location: string, triggerId: string): infer _ =>
+  `${organizationLocationParent(organization, location)}/jobTriggers/${triggerId}`
+
+const toAttrs = (
+  trigger: dlp.GooglePrivacyDlpV2JobTrigger,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = trigger.name ?? ""
+  const parsed = parseName(name, "jobTriggers")
+  const ownership = parseOwnership(trigger.description)
+  return {
+    name,
+    triggerId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    location: parsed.location || DEFAULT_LOCATION,
+    project,
+    displayName: trigger.displayName,
+    description: ownership.text,
+    status: trigger.status ?? DEFAULT_STATUS,
+    triggers: trigger.triggers ?? [],
+    inspectJob: trigger.inspectJob,
+    createTime: trigger.createTime,
+    updateTime: trigger.updateTime,
+    lastRunTime: trigger.lastRunTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dlp
+  .getOrganizationsLocationsJobTriggers({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, organization: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (dlp.listOrganizationsLocationsJobTriggers
+        .pages({ parent, pageSize: 100, type: "INSPECT_JOB" })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobTriggers ?? []))
+        |> Stream.filter(%, (trigger) => hasOwnershipMarker(trigger.description))
+        |> Stream.map(%, (trigger) => toAttrs(trigger, organization, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const statusOf = (value: string | undefined): infer _ => value ?? DEFAULT_STATUS
+
+export const OrganizationsLocationsJobTriggerProvider = (): infer _ =>
+  Provider.succeed(OrganizationsLocationsJobTrigger, {
+    stables: [
+      "name",
+      "triggerId",
+      "organization",
+      "organizationId",
+      "location",
+      "project",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(
+        Effect.try({
+          try: () => normalizeLocation(resolved.location ?? olds?.location ?? output?.location),
+          catch: (e) => e,
+        }),
+      )
+      return (
+        (try Effect.orDie(
+          Effect.try({
+            try: () => replaceOn(olds?.triggerId ?? output?.triggerId, resolved.triggerId),
+            catch: (e) => e,
+          }),
+        ))
+          ?? (try Effect.orDie(
+            Effect.try({
+              try: () => replaceOn(olds?.organization ?? output?.organization, resolved.organization),
+              catch: (e) => e,
+            }),
+          ))
+          ?? (try Effect.orDie(Effect.try({ try: () => replaceOn(previousLocation, nextLocation), catch: (e) => e })))
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location), catch: (e) => e }),
+      )
+      const triggerId = try toPhysicalId(id, olds?.triggerId, output?.triggerId)
+      const name = output?.name ?? resourceName(organization, location, triggerId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      const pages = try Effect.forEach(
+        try Effect.orDie(Effect.try({ try: () => locationParentsOf(organization, env.region), catch: (e) => e })),
+        effect (parent) => try listAt(parent, organization, env.project),
+        { concurrency: 3 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location), catch: (e) => e }),
+      )
+      const triggerId = try toPhysicalId(id, news.triggerId, output?.triggerId)
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => organizationLocationParent(organization, location), catch: (e) => e }),
+      )
+      const name = resourceName(organization, location, triggerId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const displayName = news.displayName
+      const status = statusOf(news.status)
+      const triggers = news.triggers
+      const inspectJob = news.inspectJob
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = dlp
+          .createOrganizationsLocationsJobTriggers({
+            parent,
+            body: {
+              triggerId,
+              jobTrigger: {
+                displayName,
+                description,
+                status,
+                triggers,
+                inspectJob,
+              },
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DlpNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const statusChanged = !sameText(current.status, status)
+      const triggersChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.triggers), catch: (e) => e })))
+        !== (try Effect.orDie(Effect.try({
+          try: () => fingerprint(triggers),
+          catch: (e) => e,
+        })))
+      const jobChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.inspectJob), catch: (e) => e })))
+        !== (try Effect.orDie(Effect.try({
+          try: () => fingerprint(inspectJob),
+          catch: (e) => e,
+        })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          updateMaskOf(
+            displayChanged ? "displayName" : undefined,
+            descriptionChanged ? "description" : undefined,
+            statusChanged ? "status" : undefined,
+            triggersChanged ? "triggers" : undefined,
+            jobChanged ? "inspectJob" : undefined,
+          ),
+        catch: (e) => e,
+      }))
+
+      if (updateMask.length > 0) {
+        current = try dlp.patchOrganizationsLocationsJobTriggers({
+          name: currentName,
+          body: {
+            updateMask,
+            jobTrigger: {
+              displayName,
+              description,
+              status,
+              triggers,
+              inspectJob,
+            },
+          },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      dlp
+        .deleteOrganizationsLocationsJobTriggers({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

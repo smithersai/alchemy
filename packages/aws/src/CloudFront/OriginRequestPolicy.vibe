@@ -1,0 +1,303 @@
+import * as cloudfront from "@distilled.cloud/aws/cloudfront"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export error OriginRequestPolicyConflict {
+  message: string
+  cause?: unknown
+}
+
+export error OriginRequestPolicyUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface OriginRequestPolicyProps {
+  /**
+   * Name of the origin request policy. If omitted, a deterministic name is
+   * generated. Names must be unique per AWS account. Changing the name
+   * triggers a replacement.
+   */
+  name?: string
+  /**
+   * Optional comment describing the policy.
+   */
+  comment?: string
+  /**
+   * Headers to forward to the origin (in addition to the cache key).
+   */
+  headersConfig: cloudfront.OriginRequestPolicyHeadersConfig
+  /**
+   * Cookies to forward to the origin (in addition to the cache key).
+   */
+  cookiesConfig: cloudfront.OriginRequestPolicyCookiesConfig
+  /**
+   * Query strings to forward to the origin (in addition to the cache key).
+   */
+  queryStringsConfig: cloudfront.OriginRequestPolicyQueryStringsConfig
+}
+
+export interface OriginRequestPolicy extends
+  Resource<
+    "AWS.CloudFront.OriginRequestPolicy",
+    OriginRequestPolicyProps,
+    {
+      /**
+       * CloudFront-assigned origin request policy identifier.
+       */
+      originRequestPolicyId: string
+      /**
+       * Name of the origin request policy.
+       */
+      name: string
+      /**
+       * Most recent entity tag for update/delete operations.
+       */
+      etag: string | undefined
+      /**
+       * Current comment on the policy.
+       */
+      comment: string | undefined
+      /**
+       * Current headers configuration.
+       */
+      headersConfig: cloudfront.OriginRequestPolicyHeadersConfig
+      /**
+       * Current cookies configuration.
+       */
+      cookiesConfig: cloudfront.OriginRequestPolicyCookiesConfig
+      /**
+       * Current query strings configuration.
+       */
+      queryStringsConfig: cloudfront.OriginRequestPolicyQueryStringsConfig
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudFront origin request policy.
+ *
+ * Origin request policies control which values from the viewer request (in
+ * addition to those used in the cache key) CloudFront includes when sending
+ * a request to the origin. They are referenced by ID on a Distribution's
+ * default behavior or per-path cache behaviors.
+ * ### Creating Origin Request Policies
+ * **Example:** Forward all viewer headers and cookies
+ * ```typescript
+ * const originRequestPolicy = yield* OriginRequestPolicy("AppOriginRequest", {
+ *   comment: "Forward auth + locale",
+ *   headersConfig: {
+ *     HeaderBehavior: "whitelist",
+ *     Headers: { Quantity: 2, Items: ["Authorization", "Accept-Language"] },
+ *   },
+ *   cookiesConfig: { CookieBehavior: "all" },
+ *   queryStringsConfig: { QueryStringBehavior: "all" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const OriginRequestPolicy = Resource<OriginRequestPolicy>(
+  "AWS.CloudFront.OriginRequestPolicy",
+)
+
+export const OriginRequestPolicyProvider = (): infer _ =>
+  Provider.effect(
+    OriginRequestPolicy,
+    effect {
+      const getById = effect (id: string) => {
+        const config = cloudfront
+          .getOriginRequestPolicyConfig({ Id: id }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchOriginRequestPolicy" }: undefined;
+            default: throw e;
+          }
+        if (!config?.OriginRequestPolicyConfig) return undefined
+        return { config: config.OriginRequestPolicyConfig, etag: config.ETag }
+      }
+
+      const getByName = effect (name: string) => {
+        const listed = try cloudfront.listOriginRequestPolicies({
+          Type: "custom",
+        })
+        const summary = listed.OriginRequestPolicyList?.Items?.find(
+          (item) => item.OriginRequestPolicy?.OriginRequestPolicyConfig?.Name === name,
+        )
+        if (!summary?.OriginRequestPolicy?.Id) return undefined
+        return try effect {
+          const found = try getById(summary.OriginRequestPolicy.Id)
+          return found ? { id: summary.OriginRequestPolicy.Id, ...found } : undefined
+        }
+      }
+
+      const buildConfig = (
+        name: string,
+        props: OriginRequestPolicyProps,
+      ): cloudfront.OriginRequestPolicyConfig => ({
+        Name: name,
+        Comment: props.comment,
+        HeadersConfig: props.headersConfig,
+        CookiesConfig: props.cookiesConfig,
+        QueryStringsConfig: props.queryStringsConfig,
+      })
+
+      const toAttrs = (
+        id: string,
+        config: cloudfront.OriginRequestPolicyConfig,
+        etag: string | undefined,
+      ): infer _ => ({
+        originRequestPolicyId: id,
+        name: config.Name,
+        etag,
+        comment: config.Comment,
+        headersConfig: config.HeadersConfig,
+        cookiesConfig: config.CookiesConfig,
+        queryStringsConfig: config.QueryStringsConfig,
+      })
+
+      return {
+        stables: ["originRequestPolicyId"],
+        diff: effect ({ id, news, olds }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try createName(id, olds ?? {})) !== (try createName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          if (output?.originRequestPolicyId) {
+            const found = try getById(output.originRequestPolicyId)
+            if (found) {
+              return toAttrs(output.originRequestPolicyId, found.config, found.etag)
+            }
+          }
+          const name = try createName(id, olds ?? {})
+          const found = try getByName(name)
+          if (!found) return undefined
+          return toAttrs(found.id, found.config, found.etag)
+        },
+        // CloudFront is global (no region). `listOriginRequestPolicies`
+        // returns both AWS-managed and custom policies; we filter to
+        // `Type: "custom"` since those are the only ones we create/delete.
+        // The op is marker-paginated (no `.pages`), so we loop until
+        // `NextMarker` is exhausted and hydrate each summary's ETag via
+        // `getById` so every row matches read().
+        list: effect () => {
+          const items: ReturnType<typeof toAttrs>[] = []
+          let marker: string | undefined = undefined
+          do {
+            const listed: cloudfront.ListOriginRequestPoliciesResult = try cloudfront.listOriginRequestPolicies({
+              Type: "custom",
+              Marker: marker,
+            })
+            for (const summary of listed.OriginRequestPolicyList?.Items ?? []) {
+              if (summary.Type !== "custom") continue
+              const id = summary.OriginRequestPolicy?.Id
+              const config = summary.OriginRequestPolicy?.OriginRequestPolicyConfig
+              if (!id || !config) continue
+              const found = try getById(id)
+              items.push(toAttrs(id, found?.config ?? config, found?.etag))
+            }
+            marker = listed.OriginRequestPolicyList?.NextMarker
+          } while (marker)
+          return items
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+
+          // Observe — locate the policy by id (cached on `output`) or
+          // by name. Trust observed cloud state, not stale `olds`.
+          let observed = output?.originRequestPolicyId
+            ? try effect {
+              const found = try getById(output.originRequestPolicyId)
+              return found ? { id: output.originRequestPolicyId, ...found } : undefined
+            }
+            : undefined
+          if (!observed) {
+            observed = try getByName(name)
+          }
+
+          // Ensure — create the policy if it's missing. Tolerate
+          // `OriginRequestPolicyAlreadyExists` (race with a peer
+          // reconciler).
+          if (!observed) {
+            const created = cloudfront
+              .createOriginRequestPolicy({
+                OriginRequestPolicyConfig: buildConfig(name, news),
+              }) catch effect (e) => match (e) {
+                when { _tag: "OriginRequestPolicyAlreadyExists" }: try effect {
+                  const existing = try getByName(name)
+                  return (existing
+                    ? {
+                      OriginRequestPolicy: {
+                        Id: existing.id,
+                        LastModifiedTime: new Date(),
+                        OriginRequestPolicyConfig: existing.config,
+                      },
+                      ETag: existing.etag,
+                      Location: undefined,
+                    }
+                    : throw new OriginRequestPolicyConflict({
+                      message: `Origin request policy '${name}' already exists but could not be recovered`,
+                    }))
+                };
+                default: throw e;
+              }
+            if (!created.OriginRequestPolicy?.Id) {
+              throw new OriginRequestPolicyUnexpectedResponse({
+                message: "createOriginRequestPolicy returned no identifier",
+              })
+            }
+            try session.note(created.OriginRequestPolicy.Id)
+            return toAttrs(
+              created.OriginRequestPolicy.Id,
+              created.OriginRequestPolicy.OriginRequestPolicyConfig,
+              created.ETag,
+            )
+          }
+
+          // Sync — patch the observed config to the desired state. The
+          // freshly observed ETag handles optimistic concurrency.
+          const updated = try cloudfront.updateOriginRequestPolicy({
+            Id: observed.id,
+            IfMatch: observed.etag,
+            OriginRequestPolicyConfig: buildConfig(observed.config.Name, news),
+          })
+          if (!updated.OriginRequestPolicy?.Id) {
+            throw new OriginRequestPolicyUnexpectedResponse({
+              message: "updateOriginRequestPolicy returned no identifier",
+            })
+          }
+          try session.note(observed.id)
+          return toAttrs(
+            updated.OriginRequestPolicy.Id,
+            updated.OriginRequestPolicy.OriginRequestPolicyConfig,
+            updated.ETag,
+          )
+        },
+        delete: effect ({ output }) => {
+          const current = try getById(output.originRequestPolicyId)
+          if (!current) return
+          cloudfront
+            .deleteOriginRequestPolicy({
+              Id: output.originRequestPolicyId,
+              IfMatch: current.etag,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchOriginRequestPolicy" }: undefined as void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )
+
+const createName = effect (
+  id: string,
+  props: OriginRequestPolicyProps,
+) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 128, lowercase: true }))

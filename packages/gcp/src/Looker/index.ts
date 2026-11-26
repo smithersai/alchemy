@@ -1,1 +1,1 @@
-export * from "./InstancesBackup.ts";
+export * from "./InstancesBackup.vibe";

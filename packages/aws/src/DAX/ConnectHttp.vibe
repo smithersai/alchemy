@@ -1,0 +1,110 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Cluster } from "./Cluster.vibe"
+import { connectEnvPrefix } from "./Connect.vibe"
+
+/**
+ * Shared scaffolding for the DAX connect bindings.
+ *
+ * NOT exported from `index.ts` — `ConnectReadHttp.ts` / `ConnectWriteHttp.ts`
+ * / `ConnectReadWriteHttp.ts` are thin
+ * `Layer.effect(Cap, makeDaxConnectHttpBinding({ … }))` calls over the
+ * builder below. Only the IAM action list differs per access level.
+ */
+
+/**
+ * Protocol actions every DAX client needs regardless of access level — the
+ * client discovers cluster nodes and negotiates the item schema before any
+ * item operation.
+ */
+export const DAX_PROTOCOL_ACTIONS = [
+  "dax:DefineAttributeList",
+  "dax:DefineAttributeListId",
+  "dax:DefineKeySchema",
+  "dax:Endpoints",
+] as const
+
+/** Read-side DAX data-plane actions. */
+export const DAX_READ_ACTIONS = [
+  "dax:GetItem",
+  "dax:BatchGetItem",
+  "dax:Query",
+  "dax:Scan",
+] as const
+
+/** Write-side DAX data-plane actions. */
+export const DAX_WRITE_ACTIONS = [
+  "dax:PutItem",
+  "dax:UpdateItem",
+  "dax:DeleteItem",
+  "dax:BatchWriteItem",
+  "dax:ConditionCheckItem",
+] as const
+
+/**
+ * Build the impl Effect for a connect binding. At deploy time it grants
+ * `actions` on the cluster ARN and publishes the discovery endpoint as
+ * `DAX_{LOGICAL_ID}_{HOST,PORT,URL,TLS}` environment variables on the host
+ * Function; at runtime it resolves the same values into a typed connection
+ * descriptor.
+ */
+export const makeDaxConnectHttpBinding = effect (options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DAX.ConnectReadWrite`. */
+  tag: string
+  /** IAM actions granted on the cluster ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  return effect (cluster: Cluster) => {
+    const Host = try cluster.discoveryEndpointAddress.asEffect()
+    const Port = try cluster.discoveryEndpointPort.asEffect()
+    const Url = try cluster.discoveryEndpointUrl.asEffect()
+    const EncryptionType = try cluster.clusterEndpointEncryptionType.asEffect()
+
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const prefix = connectEnvPrefix(cluster.LogicalId)
+      try bind`${options.tag}(${cluster})`({
+        env: {
+          [`${prefix}_HOST`]: cluster.discoveryEndpointAddress,
+          // Lambda environment variables are strings — stringify the port.
+          [`${prefix}_PORT`]: Output.interpolate`${cluster.discoveryEndpointPort}`,
+          [`${prefix}_URL`]: cluster.discoveryEndpointUrl,
+          [`${prefix}_TLS`]: try Effect.orDie(Effect.try({
+            try: () =>
+              Output.map(
+                cluster.clusterEndpointEncryptionType,
+                (encryption) => encryption === "TLS" ? "true" : "false",
+              ),
+            catch: (e) => e,
+          })),
+        },
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${cluster.clusterArn}`],
+          },
+        ],
+      })
+    }
+
+    return effect {
+      const host = try Host
+      const port = try Port
+      const url = try Url
+      const encryptionType = try EncryptionType
+      if (!host || port === undefined || !url) {
+        return try Effect.die(
+          `DAX discovery endpoint for '${cluster.LogicalId}' is not available yet`,
+        )
+      }
+      return {
+        host,
+        port,
+        url,
+        tls: encryptionType === "TLS",
+      }
+    }
+  }
+}

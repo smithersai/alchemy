@@ -1,1 +1,1 @@
-export * from "./GoogleTagGateway.ts";
+export * from "./GoogleTagGateway.vibe";

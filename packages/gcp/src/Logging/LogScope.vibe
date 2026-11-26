@@ -1,0 +1,283 @@
+import * as logging from "@distilled.cloud/gcp/logging_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { encodeDescription, hasOwnershipMarker, lastSegment, parseDescription, sortedStrings } from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 100
+const DEFAULT_LOCATION = "global"
+
+export type LogScopeProps = {
+  /**
+   * Log scope id (the `{logScope}` segment of
+   * `projects/{project}/locations/{location}/logScopes/{logScope}`). If
+   * omitted, a unique name is generated from the stack, stage, and
+   * logical id. Limited to 100 characters: letters, digits, underscores,
+   * hyphens, periods; first character must be alphanumeric. Immutable —
+   * changing it replaces the log scope.
+   */
+  logScopeId?: string
+  /**
+   * Location. Log scopes are only available in `global`. Immutable —
+   * changing it replaces the log scope.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Parent resources whose logs this scope covers. Each entry is
+   * `projects/{project}` or a log view
+   * `projects/{project}/locations/{location}/buckets/{bucket}/views/{view}`.
+   * At most 5 projects and 100 resources total. Organizations and folders
+   * are not supported.
+   */
+  resourceNames: string[]
+  /**
+   * Human-readable description (max 8000 characters). Log scopes have no
+   * labels field, so Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and stripped from attributes.
+   */
+  description?: string
+}
+
+export type LogScope = Resource<
+  "GCP.Logging.LogScope",
+  LogScopeProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/logScopes/{logScopeId}`. */
+    name: string
+    /** Log scope id (last path segment). */
+    logScopeId: string
+    /** Project id. */
+    project: string
+    /** Location (`global`). */
+    location: string
+    /** Covered parent resources. */
+    resourceNames: string[]
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Logging log scope — a named collection of projects and log
+ * views to query together.
+ *
+ * Log scopes exist only in the `global` location. They have no labels
+ * field, so Alchemy stamps ownership into the description for `list` /
+ * nuke. `logScopeId` and `location` are identity — changing either
+ * replaces the scope. `resourceNames` and description update in place.
+ *
+ * ### Creating a Log Scope
+ * **Example:** Generated name covering this project
+ * ```typescript
+ * const scope = yield* GCP.Logging.LogScope("App", {
+ *   resourceNames: ["projects/my-project"],
+ *   description: "application logs",
+ * });
+ * ```
+ *
+ * **Example:** Named scope
+ * ```typescript
+ * const scope = yield* GCP.Logging.LogScope("App", {
+ *   logScopeId: "app-logs",
+ *   resourceNames: ["projects/my-project"],
+ * });
+ * ```
+ *
+ * ### Updating a Log Scope
+ * **Example:** Change the description
+ * ```typescript
+ * const scope = yield* GCP.Logging.LogScope("App", {
+ *   resourceNames: ["projects/my-project"],
+ *   description: "all application logs",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Logging
+ */
+export const LogScope = Resource<LogScope>("GCP.Logging.LogScope")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class LogScopeNotResolved extends Data.TaggedError("GCP.Logging.LogScopeNotResolved")<{
+  resourceName: string
+}> {}
+
+const parseScopeName = (name: string): infer _ => {
+  const match = name.match(/^projects\/([^/]+)\/locations\/([^/]+)\/logScopes\/([^/]+)$/)
+  if (!match) return undefined
+  return {
+    project: match[1]!,
+    location: match[2]!,
+    logScopeId: match[3]!,
+  }
+}
+
+const resourceName = (project: string, location: string, logScopeId: string): infer _ =>
+  `projects/${project}/locations/${location}/logScopes/${logScopeId}`
+
+const logScopeIdOf = (scope: logging.LogScope, fallback?: string): infer _ => {
+  const parsed = parseScopeName(scope.name ?? "")
+  return parsed?.logScopeId ?? fallback ?? lastSegment(scope.name ?? "")
+}
+
+const toId = effect (id: string, logScopeId: string | undefined, existing?: string) => {
+  if (logScopeId !== undefined) return logScopeId
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return /^[a-z0-9]/.test(generated) ? generated : `s${generated}`.slice(0, MAX_NAME_LENGTH)
+}
+
+const toAttrs = (scope: logging.LogScope, project: string, location: string): infer _ => {
+  const logScopeId = logScopeIdOf(scope)
+  const parsed = parseDescription(scope.description)
+  const parsedName = parseScopeName(scope.name ?? "")
+  const resolvedLocation = parsedName?.location ?? location
+  const resolvedProject = parsedName?.project ?? project
+  return {
+    name: scope.name ?? (logScopeId ? resourceName(resolvedProject, resolvedLocation, logScopeId) : ""),
+    logScopeId,
+    project: resolvedProject,
+    location: resolvedLocation,
+    resourceNames: [...(scope.resourceNames ?? [])],
+    description: parsed.description,
+    createTime: scope.createTime,
+    updateTime: scope.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  logging
+    .getProjectsLocationsLogScopes({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const LogScopeProvider = (): infer _ =>
+  Provider.succeed(LogScope, {
+    stables: ["name", "logScopeId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.logScopeId ?? output?.logScopeId
+      const idChanged = previousId !== undefined && resolved.logScopeId !== undefined
+        && resolved.logScopeId !== previousId
+      const previousLocation = olds?.location ?? output?.location
+      const locationChanged = previousLocation !== undefined
+        && resolved.location !== undefined
+        && resolved.location !== previousLocation
+      if (!idChanged && !locationChanged) return undefined
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = olds?.location ?? output?.location ?? DEFAULT_LOCATION
+      const logScopeId = try toId(id, olds?.logScopeId, output?.logScopeId)
+      const name = output?.name ?? resourceName(env.project, location, logScopeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, location)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (logging.listProjectsLocationsLogScopes
+          .pages({
+            parent: `projects/${env.project}/locations/${DEFAULT_LOCATION}`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.logScopes ?? []))
+          |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
+          |> Stream.map(%, (scope) => toAttrs(scope, env.project, DEFAULT_LOCATION))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = news.location ?? output?.location ?? DEFAULT_LOCATION
+      const logScopeId = try toId(id, news.logScopeId, output?.logScopeId)
+      const name = resourceName(env.project, location, logScopeId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const desiredResources = [...news.resourceNames]
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = logging
+          .createProjectsLocationsLogScopes({
+            parent: `projects/${env.project}/locations/${location}`,
+            logScopeId,
+            body: {
+              resourceNames: desiredResources,
+              description: desiredDescription,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new LogScopeNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const resourcesChanged = JSON.stringify(sortedStrings(current.resourceNames))
+        !== JSON.stringify(
+          try Effect.orDie(Effect.try({ try: () => sortedStrings(desiredResources), catch: (e) => e })),
+        )
+      const updateMask = [
+        descriptionChanged ? "description" : undefined,
+        resourcesChanged ? "resourceNames" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try logging.patchProjectsLocationsLogScopes({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            resourceNames: desiredResources,
+            description: desiredDescription,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, location)
+    },
+
+    delete: effect ({ output }) => {
+      logging
+        .deleteProjectsLocationsLogScopes({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

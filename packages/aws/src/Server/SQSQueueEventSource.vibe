@@ -1,0 +1,124 @@
+import { ServerHost } from "alchemy/Runtime/Process"
+import { toWireSeconds } from "alchemy/Util/Duration"
+import * as Layer from "effect/Layer"
+import { processBatch, traceparentLink } from "../internal/EventSourceBatch.vibe"
+import * as SQS from "../SQS/index.ts"
+
+export const SQSQueueEventSource = Layer.effect(
+  SQS.QueueEventSource,
+  effect {
+    const { run } = try Effect.service(ServerHost)
+
+    const ReceiveMessage = try Effect.service(SQS.ReceiveMessage)
+    const DeleteMessageBatch = try Effect.service(SQS.DeleteMessageBatch)
+
+    // Cast below: the service type erases `process`'s requirements, so every
+    // event source implementation casts its client.
+    return (effect <E = never, Req = never>(
+      queue: SQS.Queue,
+      props: SQS.MessagesProps,
+      process: SQS.QueueMessagesHandler<E, Req>,
+    ) => {
+      const QueueArn = try queue.queueArn.asEffect()
+
+      const receiveMessage = try ReceiveMessage(queue)
+      const deleteMessageBatch = try DeleteMessageBatch(queue)
+
+      try run(
+        effect {
+          return try (Effect.forever(
+            effect {
+              const queueArn = try QueueArn
+              const region = queueArn.split(":")[3]!
+              const result = try receiveMessage({
+                MaxNumberOfMessages: props.maxNumberOfMessages ?? props.batchSize ?? 10,
+                MessageAttributeNames: ["All"],
+                MessageSystemAttributeNames: ["All"],
+                WaitTimeSeconds: (try Effect.orDie(Effect.try({
+                  try: () => toWireSeconds(props.waitTime),
+                  catch: (e) => e,
+                }))) ?? (try Effect.orDie(Effect.try({
+                  try: () => toWireSeconds(props.maximumBatchingWindow),
+                  catch: (e) => e,
+                }))),
+              })
+
+              const messages = result.Messages ?? []
+              if (messages.length === 0) return
+
+              const records: SQS.SQSRecord[] = messages.map((msg) => ({
+                messageId: msg.MessageId!,
+                receiptHandle: msg.ReceiptHandle!,
+                body: msg.Body!,
+                attributes: {
+                  ApproximateReceiveCount: msg.Attributes?.ApproximateReceiveCount!,
+                  SentTimestamp: msg.Attributes?.SentTimestamp!,
+                  SenderId: msg.Attributes?.SenderId!,
+                  ApproximateFirstReceiveTimestamp: msg.Attributes?.ApproximateFirstReceiveTimestamp!,
+                  ...(msg.Attributes?.MessageGroupId
+                    ? { MessageGroupId: msg.Attributes.MessageGroupId }
+                    : {}),
+                  ...(msg.Attributes?.MessageDeduplicationId
+                    ? { MessageDeduplicationId: msg.Attributes.MessageDeduplicationId }
+                    : {}),
+                  ...(msg.Attributes?.SequenceNumber
+                    ? { SequenceNumber: msg.Attributes.SequenceNumber }
+                    : {}),
+                  ...(msg.Attributes?.AWSTraceHeader
+                    ? { AWSTraceHeader: msg.Attributes.AWSTraceHeader }
+                    : {}),
+                },
+                messageAttributes: Object.fromEntries(
+                  Object.entries(msg.MessageAttributes ?? {}).map(([name, value]) => [
+                    name,
+                    {
+                      dataType: value?.DataType ?? "String",
+                      stringValue: value?.StringValue,
+                    },
+                  ]),
+                ),
+                md5OfBody: msg.MD5OfBody!,
+                eventSource: "aws:sqs",
+                eventSourceARN: queueArn,
+                awsRegion: region,
+              }))
+
+              // Same contract as the Lambda event source: the handler's
+              // `batchItemFailures` stay on the queue (visible again after the
+              // visibility timeout); a failure leaves the whole batch.
+              const response = try (effect {
+                return (try process({ Records: records })) ?? { batchItemFailures: [] }
+              }
+                |> processBatch({
+                  system: "aws_sqs",
+                  destination: queueArn.split(":")[5]!,
+                  count: records.length,
+                  links: records.flatMap((record) =>
+                    Option.toArray(
+                      traceparentLink(record.messageAttributes.traceparent?.stringValue),
+                    )
+                  ),
+                })(%)
+                |> Effect.exit(%))
+              if (Exit.isFailure(response)) return
+
+              const failed = new Set(
+                response.value.batchItemFailures.map((failure) => failure.itemIdentifier),
+              )
+              const succeeded = records.filter((record) => !failed.has(record.messageId))
+              if (succeeded.length === 0) return
+
+              try deleteMessageBatch({
+                Entries: succeeded.map((record) => ({
+                  Id: record.messageId,
+                  ReceiptHandle: record.receiptHandle,
+                })),
+              })
+            },
+          )
+            |> Effect.orDie(%))
+        },
+      )
+    }) as SQS.QueueEventSourceService
+  },
+)

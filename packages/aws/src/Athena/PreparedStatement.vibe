@@ -1,0 +1,214 @@
+import * as athena from "@distilled.cloud/aws/athena"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface PreparedStatementProps {
+  /**
+   * Name of the prepared statement. If omitted, a unique name is generated.
+   * Must start with a letter or underscore and contain only letters, digits,
+   * and underscores. Changing this replaces the prepared statement.
+   */
+  statementName?: string
+  /**
+   * The SQL statement text, with `?` positional parameters (e.g.
+   * `SELECT * FROM t WHERE id = ?`). Updatable in place.
+   */
+  queryStatement: string
+  /**
+   * Workgroup the statement is saved in. Changing this replaces the prepared
+   * statement.
+   * @default "primary"
+   */
+  workGroup?: string
+  /**
+   * Optional human-readable description. Updatable in place.
+   */
+  description?: string
+}
+
+export interface PreparedStatement extends
+  Resource<
+    "AWS.Athena.PreparedStatement",
+    PreparedStatementProps,
+    {
+      /**
+       * Name of the prepared statement (its identity within the workgroup).
+       */
+      statementName: string
+      /**
+       * Workgroup the statement is saved in.
+       */
+      workGroup: string
+      /**
+       * The SQL statement text.
+       */
+      queryStatement: string
+      /**
+       * Description of the prepared statement.
+       */
+      description: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Athena prepared statement — a named, parameterized SQL statement
+ * saved in a workgroup and run with `EXECUTE name USING ...`. Identity is the
+ * `(workGroup, statementName)` pair; the `queryStatement` and `description`
+ * are updatable in place.
+ *
+ * ### Preparing Statements
+ * **Example:** Save a parameterized statement in a workgroup
+ * ```typescript
+ * const stmt = yield* AWS.Athena.PreparedStatement("TopN", {
+ *   workGroup: wg.workGroupName,
+ *   queryStatement: "SELECT * FROM analytics.orders WHERE customer_id = ?",
+ * });
+ * // then at runtime: EXECUTE <stmt.statementName> USING 'customer-123'
+ * ```
+ *
+ * @resource
+ */
+export const PreparedStatement = Resource<PreparedStatement>("AWS.Athena.PreparedStatement")
+
+const toAttributes = (ps: athena.PreparedStatement): infer _ => ({
+  statementName: ps.StatementName!,
+  workGroup: ps.WorkGroupName ?? "primary",
+  queryStatement: ps.QueryStatement ?? "",
+  description: ps.Description,
+})
+
+export const PreparedStatementProvider = (): infer _ =>
+  Provider.effect(
+    PreparedStatement,
+    effect {
+      // Statement names must match [a-zA-Z_][a-zA-Z0-9_@:]* — generate the
+      // engine name and fold every other character to `_`.
+      const toName = effect (
+        id: string,
+        props: PreparedStatementProps,
+      ) => (props.statementName ? props.statementName : try effect {
+        const n = (try createPhysicalName({ id, maxLength: 128 })).replace(/[^a-zA-Z0-9_]/g, "_")
+        return (/^[a-zA-Z_]/.test(n) ? n : `_${n}`)
+      })
+
+      const getOne = effect (workGroup: string, statementName: string) =>
+        (effect {
+          return (try athena
+            .getPreparedStatement({
+              WorkGroup: workGroup,
+              StatementName: statementName,
+            })).PreparedStatement
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" } or { _tag: "WorkGroupNotFound" }: undefined;
+          default: throw e;
+        }
+
+      return {
+        stables: ["statementName", "workGroup"],
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toName(id, olds ?? { queryStatement: "" })) !== (try toName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+          if ((olds?.workGroup ?? "primary") !== (resolved.workGroup ?? "primary")) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const workGroup = output?.workGroup ?? olds?.workGroup ?? "primary"
+          const name = output?.statementName ?? (try toName(id, olds ?? { queryStatement: "" }))
+          const ps = try getOne(workGroup, name)
+          return ps ? toAttributes(ps) : undefined
+        },
+        list: effect () => {
+          const wgPages = try athena.listWorkGroups.pages({}).pipe(Stream.runCollect)
+          const workGroups = Array.from(wgPages)
+            .flatMap((page) => page.WorkGroups ?? [])
+            .flatMap((wg) => (wg.Name ? [wg.Name] : []))
+          const attrs: ReturnType<typeof toAttributes>[] = []
+          for (const wg of workGroups) {
+            const namePages = try athena.listPreparedStatements
+              .pages({ WorkGroup: wg })
+              .pipe(Stream.runCollect)
+            const names = Array.from(namePages)
+              .flatMap((page) => page.PreparedStatements ?? [])
+              .flatMap((ps) => (ps.StatementName ? [ps.StatementName] : []))
+            for (let i = 0; i < names.length; i += 256) {
+              const res = try athena.batchGetPreparedStatement({
+                WorkGroup: wg,
+                PreparedStatementNames: names.slice(i, i + 256),
+              })
+              for (const ps of res.PreparedStatements ?? []) {
+                if (ps.StatementName) {
+                  attrs.push(toAttributes({ ...ps, WorkGroupName: wg }))
+                }
+              }
+            }
+          }
+          return attrs
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const workGroup = news.workGroup ?? "primary"
+          const name = output?.statementName ?? (try toName(id, news))
+
+          // Observe — cloud state is authoritative.
+          const ps = try getOne(workGroup, name)
+
+          if (!ps) {
+            // Ensure — create if missing. CreatePreparedStatement upserts on
+            // name collision within the workgroup, so a crash-and-retry race
+            // converges rather than erroring.
+            try athena.createPreparedStatement({
+              WorkGroup: workGroup,
+              StatementName: name,
+              QueryStatement: news.queryStatement,
+              Description: news.description,
+            })
+          } else if (
+            ps.QueryStatement !== news.queryStatement
+            || (news.description !== undefined && ps.Description !== news.description)
+          ) {
+            // Sync — statement text and description are updatable in place.
+            try athena.updatePreparedStatement({
+              WorkGroup: workGroup,
+              StatementName: name,
+              QueryStatement: news.queryStatement,
+              Description: news.description,
+            })
+          }
+
+          try session.note(`${workGroup}/${name}`)
+          const final = try getOne(workGroup, name)
+          return final
+            ? toAttributes(final)
+            : {
+              statementName: name,
+              workGroup,
+              queryStatement: news.queryStatement,
+              description: news.description,
+            }
+        },
+        delete: effect ({ output }) => {
+          // Idempotent — the statement (or its whole workgroup) may already be
+          // gone; both surface as typed not-found tags.
+          athena
+            .deletePreparedStatement({
+              WorkGroup: output.workGroup,
+              StatementName: output.statementName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" } or { _tag: "WorkGroupNotFound" }: undefined as void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

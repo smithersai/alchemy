@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import * as Socket from "effect/socket/Socket";
 import { Runtime } from "foldkit";
 import { NotesApi } from "../NotesApi.api.ts";
-import { UserId } from "../User.id.ts";
+import { UserId } from "../User.id.vibe";
 import { auth } from "./auth.ts";
 import { Flags, init, Model, subscriptions, update, view } from "./Notes.ts";
 

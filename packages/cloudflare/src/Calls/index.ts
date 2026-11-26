@@ -1,2 +1,2 @@
-export * from "./App.ts";
-export * from "./TurnKey.ts";
+export * from "./App.vibe";
+export * from "./TurnKey.vibe";

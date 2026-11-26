@@ -1,7 +1,7 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Kubernetes from "@alchemy.run/kubernetes";
 import * as Effect from "effect/Effect";
-import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.ts";
+import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.vibe";
 
 export const seedEntries = [
   { id: "ada", message: "First computers, now clusters." },

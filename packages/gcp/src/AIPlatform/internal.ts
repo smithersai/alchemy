@@ -1,6 +1,6 @@
 import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import { tagRecord } from "alchemy/Tags";
-import { alchemyLabelKeys, stripInternalLabels } from "../Labels.ts";
+import { alchemyLabelKeys, stripInternalLabels } from "../Labels.vibe";
 
 export const MAX_NAME_LENGTH = 63;
 
@@ -13,7 +13,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const rfc1035 = (name: string): string => {
+export const rfc1035 = /** @throws {never} */ (name: string): string => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "-")
@@ -29,10 +29,10 @@ export const rfc1035 = (name: string): string => {
 export const normalizeLocation = (location: string | undefined, fallback: string) =>
   lastSegment(location ?? fallback).toLowerCase();
 
-export const parentOf = (project: string, location: string) =>
+export const parentOf = /** @throws {never} */ (project: string, location: string) =>
   `projects/${project}/locations/${location}`;
 
-export const userLabels = (
+export const userLabels = /** @throws {never} */ (
   labels: Record<string, string | undefined> | null | undefined,
 ): Record<string, string> => stripInternalLabels(tagRecord(labels));
 
@@ -107,7 +107,7 @@ export const resourceNameFromOperation = (
   return undefined;
 };
 
-export { waitForOperation } from "./operations.ts";
+export { waitForOperation } from "./operations.vibe";
 
 export const JOB_TERMINAL_STATES = new Set([
   "JOB_STATE_SUCCEEDED",

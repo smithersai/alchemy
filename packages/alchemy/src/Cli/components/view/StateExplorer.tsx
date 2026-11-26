@@ -11,7 +11,7 @@ import type { JSX } from "react";
 import { Screen, type ScreenController } from "../../../Interaction.ts";
 import type { InvalidStatePath, StateStoreError } from "../../../State/index.ts";
 import { theme } from "../../../Util/Theme.ts";
-import { formatYamlLines, matchYamlKey } from "../../PropertyDiff.ts";
+import { formatYamlLines, matchYamlKey } from "../../PropertyDiff.vibe";
 import {
   Box,
   KeyBar,

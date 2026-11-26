@@ -1,1 +1,1 @@
-export * from "./MembershipsFeature.ts";
+export * from "./MembershipsFeature.vibe";

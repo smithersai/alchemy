@@ -1,0 +1,413 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DataplexNotResolved,
+  collectPages,
+  fingerprint,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type EntryTypeAspectInfo = {
+  /** Required aspect type resource name for entries of this type. */
+  type?: string
+}
+
+export type EntryTypeAuthorization = {
+  /**
+   * IAM permission grantable on the Entry Group to instantiate Entries
+   * of Dataplex-owned types. Immutable.
+   */
+  alternateUsePermission?: string
+}
+
+export type EntryTypeProps = {
+  /**
+   * Entry type id (the `{entryType}` segment of
+   * `projects/{project}/locations/{location}/entryTypes/{entryType}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must be 1-63 characters, start with a letter, and match
+   * `[a-z]([a-z0-9-]*[a-z0-9])?`. Immutable — changing it replaces the
+   * entry type.
+   */
+  entryTypeId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the entry type. `US-CENTRAL1` is accepted and normalized
+   * to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User-friendly display name.
+   */
+  displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Classes this type belongs to (`TABLE`, `DATABASE`, `MODEL`, …).
+   */
+  typeAliases?: string[]
+  /**
+   * Platform that Entries of this type belong to.
+   */
+  platform?: string
+  /**
+   * System that Entries of this type belong to (`CloudSQL`, `MariaDB`, …).
+   */
+  system?: string
+  /**
+   * Aspect types required on Entries of this type.
+   */
+  requiredAspects?: EntryTypeAspectInfo[]
+  /**
+   * Authorization for this type. Immutable — changing it replaces the
+   * entry type.
+   */
+  authorization?: EntryTypeAuthorization
+}
+
+export type EntryType = Resource<
+  "GCP.Dataplex.EntryType",
+  EntryTypeProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Entry type id (last path segment). */
+    entryTypeId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-provided description. */
+    description: string | undefined
+    /** User-friendly display name. */
+    displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Type aliases. */
+    typeAliases: string[]
+    /** Platform. */
+    platform: string | undefined
+    /** System. */
+    system: string | undefined
+    /** Required aspect types. */
+    requiredAspects: EntryTypeAspectInfo[]
+    /** Alternate use permission, if set. */
+    alternateUsePermission: string | undefined
+    /** Server etag. */
+    etag: string | undefined
+    /** System-generated uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex Universal Catalog Entry Type — a template for creating
+ * Entries.
+ *
+ * Changing `entryTypeId`, `location`, or `authorization` replaces the
+ * type. Description, display name, labels, aliases, platform, system,
+ * and required aspects update in place.
+ *
+ * ### Creating an Entry Type
+ * **Example:** Generated name
+ * ```typescript
+ * const type = yield* GCP.Dataplex.EntryType("Table", {
+ *   typeAliases: ["TABLE"],
+ *   platform: "GCS",
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and labels
+ * ```typescript
+ * const type = yield* GCP.Dataplex.EntryType("Table", {
+ *   entryTypeId: "app-table",
+ *   displayName: "App table",
+ *   system: "BigQuery",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating an Entry Type
+ * **Example:** Description and aliases
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const type = yield* GCP.Dataplex.EntryType("Table", {
+ *   entryTypeId: "app-table",
+ *   description: "table v2",
+ *   typeAliases: ["TABLE", "DATASET"],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const EntryType = Resource<EntryType>("GCP.Dataplex.EntryType")
+
+const resourceName = (project: string, location: string, entryTypeId: string): infer _ =>
+  `projects/${project}/locations/${location}/entryTypes/${entryTypeId}`
+
+const toAttrs = (type: dataplex.GoogleCloudDataplexV1EntryType, project: string): infer _ => {
+  const name = type.name ?? ""
+  const parsed = parseName(name, "entryTypes")
+  return {
+    name,
+    entryTypeId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    description: type.description,
+    displayName: type.displayName,
+    labels: userLabels(type.labels),
+    typeAliases: type.typeAliases ?? [],
+    platform: type.platform,
+    system: type.system,
+    requiredAspects: (type.requiredAspects ?? []).map((item) => ({
+      type: item.type,
+    })),
+    alternateUsePermission: type.authorization?.alternateUsePermission,
+    etag: type.etag,
+    uid: type.uid,
+    createTime: type.createTime,
+    updateTime: type.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(dataplex.getProjectsLocationsEntryTypes({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listTypes = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (try collectPages(
+      dataplex.listProjectsLocationsEntryTypes.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.entryTypes,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))
+  return try listAtLocation(project, region, collect)
+}
+
+export const EntryTypeProvider = (): infer _ =>
+  Provider.succeed(EntryType, {
+    stables: ["name", "entryTypeId", "project", "location", "alternateUsePermission", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousAuth = olds?.authorization?.alternateUsePermission ?? output?.alternateUsePermission ?? ""
+      const nextAuth = resolved.authorization?.alternateUsePermission ?? previousAuth
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.entryTypeId ?? output?.entryTypeId,
+            nextId: resolved.entryTypeId ?? olds?.entryTypeId ?? output?.entryTypeId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: nextAuth !== previousAuth,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const entryTypeId = try toPhysicalId(
+        id,
+        olds?.entryTypeId,
+        output?.entryTypeId,
+        "entrytype",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, entryTypeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listTypes(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const entryTypeId = try toPhysicalId(
+        id,
+        news.entryTypeId,
+        output?.entryTypeId,
+        "entrytype",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, entryTypeId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const desiredAspects = news.requiredAspects
+      const desiredAliases = news.typeAliases
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsEntryTypes({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              entryTypeId,
+              body: {
+                description: news.description,
+                displayName: news.displayName,
+                labels: desiredLabels,
+                typeAliases: desiredAliases,
+                platform: news.platform,
+                system: news.system,
+                requiredAspects: desiredAspects,
+                authorization: news.authorization,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try Effect.undefined;
+          default: throw e;
+        }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new DataplexNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
+      const aliasesChanged = desiredAliases !== undefined
+        && (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAliases), catch: (e) => e })))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.typeAliases), catch: (e) => e }),
+          ))
+      const platformChanged = news.platform !== undefined && (current.platform ?? "") !== news.platform
+      const systemChanged = news.system !== undefined && (current.system ?? "") !== news.system
+      const aspectsChanged = desiredAspects !== undefined
+        && (try Effect.orDie(Effect.try({ try: () => fingerprint(desiredAspects), catch: (e) => e })))
+          !== (try Effect.orDie(
+            Effect.try({ try: fingerprint.bind(undefined, current.requiredAspects), catch: (e) => e }),
+          ))
+
+      if (
+        labelsChanged
+        || descriptionChanged
+        || displayNameChanged
+        || aliasesChanged
+        || platformChanged
+        || systemChanged
+        || aspectsChanged
+      ) {
+        const operation = try retryQuota(
+          dataplex.patchProjectsLocationsEntryTypes({
+            name: current.name ?? name,
+            updateMask: [
+              labelsChanged ? "labels" : undefined,
+              descriptionChanged ? "description" : undefined,
+              displayNameChanged ? "displayName" : undefined,
+              aliasesChanged ? "typeAliases" : undefined,
+              platformChanged ? "platform" : undefined,
+              systemChanged ? "system" : undefined,
+              aspectsChanged ? "requiredAspects" : undefined,
+            ]
+              .filter((field): field is string => field !== undefined)
+              .join(","),
+            body: {
+              name: current.name ?? name,
+              etag: current.etag,
+              labels: desiredLabels,
+              description: news.description,
+              displayName: news.displayName,
+              typeAliases: desiredAliases ?? current.typeAliases,
+              platform: news.platform ?? current.platform,
+              system: news.system ?? current.system,
+              requiredAspects: desiredAspects ?? current.requiredAspects,
+            },
+          }),
+        )
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (dataplex
+          .deleteProjectsLocationsEntryTypes({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict" || error._tag === "TooManyRequests",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

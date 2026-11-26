@@ -1,0 +1,284 @@
+import * as sns from "@distilled.cloud/aws/sns"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Redacted from "effect/Redacted"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export type PlatformApplicationArn = string
+
+export interface PlatformApplicationProps {
+  /**
+   * Name of the platform application. Up to 256 characters of letters,
+   * numbers, underscores, hyphens, and periods.
+   * @default ${app}-${stage}-${id}
+   */
+  name?: string
+  /**
+   * Push notification platform, e.g. `GCM` (Firebase Cloud Messaging),
+   * `APNS`, `APNS_SANDBOX`, `ADM`, or `BAIDU`. Changing the platform
+   * replaces the application.
+   */
+  platform: string
+  /**
+   * Platform credential — the FCM API key / service account JSON (GCM), the
+   * APNS private key, or the ADM client secret. SNS validates the credential
+   * at creation time. Write-only: SNS never returns it, so it is pushed on
+   * create/adopt and whenever the configured value changes.
+   */
+  platformCredential: Redacted.Redacted<string>
+  /**
+   * Platform principal — the APNS SSL certificate or ADM client id. Not
+   * applicable for GCM. Write-only like `platformCredential`.
+   */
+  platformPrincipal?: Redacted.Redacted<string>
+  /**
+   * Additional mutable SNS platform application attributes keyed by AWS
+   * attribute name, such as `EventEndpointCreated`, `EventDeliveryFailure`,
+   * `SuccessFeedbackRoleArn`, or `SuccessFeedbackSampleRate`.
+   */
+  attributes?: Record<string, string>
+}
+
+export interface PlatformApplication extends
+  Resource<
+    "AWS.SNS.PlatformApplication",
+    PlatformApplicationProps,
+    {
+      /** ARN of the platform application. */
+      platformApplicationArn: PlatformApplicationArn
+      /** Name of the platform application. */
+      name: string
+      /** Push notification platform (e.g. `GCM`, `APNS`). */
+      platform: string
+      /** Whether the platform application is enabled (credentials valid). */
+      enabled: boolean
+      /** Observed non-sensitive SNS attributes keyed by AWS attribute name. */
+      attributes: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SNS platform application for mobile push notifications (FCM,
+ * APNS, ADM, Baidu).
+ *
+ * A platform application holds the push service credentials; device tokens
+ * are registered against it at runtime with the
+ * `CreatePlatformEndpoint` binding, and messages are delivered with
+ * `PublishToEndpoint`. SNS validates the credential when the application is
+ * created, so a real push-service credential is required.
+ * ### Creating Platform Applications
+ * **Example:** FCM (GCM) Application
+ * ```typescript
+ * import * as SNS from "@alchemy.run/aws/SNS";
+ * import * as Redacted from "effect/Redacted";
+ *
+ * const app = yield* SNS.PlatformApplication("PushApp", {
+ *   platform: "GCM",
+ *   platformCredential: Redacted.make(process.env.FCM_API_KEY!),
+ * });
+ * ```
+ *
+ * **Example:** APNS Application
+ * ```typescript
+ * const app = yield* SNS.PlatformApplication("IosPushApp", {
+ *   platform: "APNS",
+ *   platformCredential: Redacted.make(apnsPrivateKey),
+ *   platformPrincipal: Redacted.make(apnsCertificate),
+ * });
+ * ```
+ *
+ * ### Runtime Endpoints
+ * **Example:** Register a Device Token at Runtime
+ * ```typescript
+ * // init
+ * const createEndpoint = yield* SNS.CreatePlatformEndpoint(app);
+ * const publishToEndpoint = yield* SNS.PublishToEndpoint(app);
+ *
+ * // runtime
+ * const endpoint = yield* createEndpoint({ Token: deviceToken });
+ * yield* publishToEndpoint({
+ *   TargetArn: endpoint.EndpointArn!,
+ *   Message: "hello",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PlatformApplication = Resource<PlatformApplication>("AWS.SNS.PlatformApplication")
+
+export const PlatformApplicationProvider = (): infer _ =>
+  Provider.succeed(PlatformApplication, {
+    list: effect () => {
+      const applications = Array.from(
+        try (sns.listPlatformApplications.pages({})
+          |> Stream.runCollect(%)),
+      ).flatMap((page) => page.PlatformApplications ?? [])
+
+      return applications.flatMap((application) => {
+        const arn = application.PlatformApplicationArn
+        if (!arn) return []
+        return [toApplicationAttributes(arn, application.Attributes)]
+      })
+    },
+    read: effect ({ id, olds, output }) => {
+      const arn = output?.platformApplicationArn ?? (try toApplicationArn(id, olds ?? { platform: "" }))
+      return try readApplication(arn)
+    },
+    stables: ["platformApplicationArn", "name", "platform"],
+    diff: effect ({ id, news, olds }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (resolved.platform !== olds.platform) {
+        return { action: "replace" } as const
+      }
+      const oldName = try toApplicationName(id, olds)
+      const newName = try toApplicationName(id, resolved)
+      if (oldName !== newName) {
+        return { action: "replace" } as const
+      }
+    },
+    reconcile: effect ({ id, news, olds, output, session }) => {
+      const name = try toApplicationName(id, news)
+      const arn = output?.platformApplicationArn ?? (try toApplicationArn(id, news))
+
+      // Observe — the credential attributes are write-only, so observation
+      // covers existence plus the non-sensitive mutable attributes.
+      const observed = (effect {
+        return (toAttributeMap(
+          (try sns
+            .getPlatformApplicationAttributes({ PlatformApplicationArn: arn })).Attributes,
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
+
+      const credentialAttributes: Record<string, string> = {
+        PlatformCredential: Redacted.value(news.platformCredential),
+        ...(news.platformPrincipal
+          ? { PlatformPrincipal: Redacted.value(news.platformPrincipal) }
+          : undefined),
+      }
+      const desiredAttributes = toAttributeMap(news.attributes)
+
+      // Ensure — create carries the full attribute set (credentials +
+      // mutable attributes) in one call.
+      if (observed === undefined) {
+        const created = try sns.createPlatformApplication({
+          Name: name,
+          Platform: news.platform,
+          Attributes: { ...desiredAttributes, ...credentialAttributes },
+        })
+        const platformApplicationArn = created.PlatformApplicationArn ?? arn
+        try session.note(platformApplicationArn)
+        const state = try readApplication(platformApplicationArn)
+        return state ?? toApplicationAttributes(platformApplicationArn, desiredAttributes)
+      }
+
+      // Sync — mutable non-secret attributes diff observed vs desired;
+      // removed previously-managed keys reset to "". Credentials cannot be
+      // observed, so they are pushed on adoption (`olds` absent) or when the
+      // configured value changes (`olds` is only a hint to skip a no-op).
+      const updates: Record<string, string> = {}
+      for (const [key, value] of Object.entries(desiredAttributes)) {
+        if (observed[key] !== value) {
+          updates[key] = value
+        }
+      }
+      for (const key of Object.keys(toAttributeMap(olds?.attributes))) {
+        if (!(key in desiredAttributes)) {
+          updates[key] = ""
+        }
+      }
+
+      const credentialChanged = olds === undefined
+        || Redacted.value(olds.platformCredential) !== Redacted.value(news.platformCredential)
+        || (olds.platformPrincipal === undefined) !== (news.platformPrincipal === undefined)
+        || (olds.platformPrincipal !== undefined
+          && news.platformPrincipal !== undefined
+          && Redacted.value(olds.platformPrincipal) !== Redacted.value(news.platformPrincipal))
+      if (credentialChanged) {
+        Object.assign(updates, credentialAttributes)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        try sns.setPlatformApplicationAttributes({
+          PlatformApplicationArn: arn,
+          Attributes: updates,
+        })
+      }
+
+      try session.note(arn)
+      const state = try readApplication(arn)
+      return state ?? toApplicationAttributes(arn, desiredAttributes)
+    },
+    delete: effect ({ output }) => {
+      // `DeletePlatformApplication` is idempotent — deleting a non-existent
+      // application succeeds — so only genuine failures propagate.
+      try sns.deletePlatformApplication({
+        PlatformApplicationArn: output.platformApplicationArn,
+      })
+    },
+  })
+
+const toApplicationName = effect (
+  id: string,
+  props: Pick<PlatformApplicationProps, "name">,
+) => {
+  if (props.name) {
+    return props.name
+  }
+  return try createPhysicalName({ id, maxLength: 256 })
+}
+
+const toApplicationArn = effect (
+  id: string,
+  props: Pick<PlatformApplicationProps, "name" | "platform">,
+) => {
+  const name = try toApplicationName(id, props)
+  const { accountId, region } = try AWSEnvironment.current
+  return `arn:aws:sns:${region}:${accountId}:app/${props.platform}/${name}`
+}
+
+const toAttributeMap = (
+  attributes: Record<string, string | undefined> | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(attributes ?? {}).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  )
+
+const toApplicationAttributes = (
+  arn: string,
+  attributes: Record<string, string | undefined> | undefined,
+): infer _ => {
+  const observed = toAttributeMap(attributes)
+  // arn:aws:sns:{region}:{account}:app/{Platform}/{Name}
+  const [, platform = "", name = ""] = arn.split(":").at(-1)?.split("/") ?? []
+  return {
+    platformApplicationArn: arn,
+    name,
+    platform,
+    enabled: observed.Enabled !== "false",
+    attributes: observed,
+  }
+}
+
+const readApplication = effect (arn: string) => {
+  const observed = (effect {
+    return (toAttributeMap(
+      (try sns
+        .getPlatformApplicationAttributes({ PlatformApplicationArn: arn })).Attributes,
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
+  if (observed === undefined) {
+    return undefined
+  }
+  return toApplicationAttributes(arn, observed)
+}

@@ -1,1 +1,1 @@
-export { waitForOperation } from "./internal.ts";
+export { waitForOperation } from "./internal.vibe";

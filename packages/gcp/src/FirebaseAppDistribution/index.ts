@@ -1,1 +1,1 @@
-export * from "./Group.ts";
+export * from "./Group.vibe";

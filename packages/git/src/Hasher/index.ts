@@ -16,10 +16,10 @@ export {
   type HasherShape,
   type HashPartOptions,
   type HashPartResult,
-} from "./Hasher.ts";
-export { HashError, HASH_ROUTE } from "./Protocol.ts";
-export { HasherLambda } from "./Lambda.ts";
-export { default as HasherFunction } from "./LambdaFunction.ts";
+} from "./Hasher.vibe";
+export { HashError, HASH_ROUTE } from "./Protocol.vibe";
+export { HasherLambda } from "./Lambda.vibe";
+export { default as HasherFunction } from "./LambdaFunction.vibe";
 export {
   boundScan,
   decodeHashResponse,
@@ -30,7 +30,7 @@ export {
   RESPONSE_BUDGET_BYTES,
   type HashEvent,
   type HashResponse,
-} from "./LambdaEvent.ts";
+} from "./LambdaEvent.vibe";
 export {
   HasherWorkerLoader,
   LOADER_CHUNK_BYTES,

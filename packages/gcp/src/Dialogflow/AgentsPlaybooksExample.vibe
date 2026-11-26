@@ -1,0 +1,425 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectionParent,
+  encodeOwnership,
+  encodeOwnershipLine,
+  fingerprint,
+  hasOwnershipMarker,
+  internalLabels,
+  lastSegment,
+  locationOf,
+  namedAgents,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  projectOf,
+  sameText,
+  toResourceId,
+  retryQuota,
+} from "./internal.vibe"
+
+export type ExampleConversationState =
+  | "OUTPUT_STATE_UNSPECIFIED"
+  | "OUTPUT_STATE_OK"
+  | "OUTPUT_STATE_CANCELLED"
+  | "OUTPUT_STATE_FAILED"
+  | "OUTPUT_STATE_ESCALATED"
+  | "OUTPUT_STATE_PENDING"
+
+export type ExampleAction = {
+  /** User utterance. */
+  userUtterance?: { text?: string }
+  /** Agent utterance. */
+  agentUtterance?: { text?: string }
+  /** Tool use. */
+  toolUse?: {
+    tool?: string
+    action?: string
+    displayName?: string
+  }
+  /** Playbook invocation. */
+  playbookInvocation?: {
+    playbook?: string
+    displayName?: string
+  }
+  /** Flow invocation. */
+  flowInvocation?: {
+    flow?: string
+    displayName?: string
+  }
+}
+
+export type AgentsPlaybooksExampleProps = {
+  /**
+   * Parent playbook resource name
+   * `projects/{project}/locations/{location}/agents/{agent}/playbooks/{playbook}`.
+   * Immutable — changing it replaces the example.
+   */
+  playbook: string
+  /**
+   * Example id (the `{example}` segment). Server-assigned when omitted.
+   * Immutable — changing it replaces the example.
+   */
+  exampleId?: string
+  /**
+   * Human-readable name. Examples have no labels field, so Alchemy
+   * stamps ownership into `displayName` and `description`.
+   */
+  displayName?: string
+  /**
+   * End state of the example conversation.
+   * @default "OUTPUT_STATE_OK"
+   */
+  conversationState?: ExampleConversationState | (string & {})
+  /**
+   * Ordered conversation actions. Defaults to a single user utterance
+   * followed by an agent utterance.
+   */
+  actions?: ExampleAction[]
+  /** Human-readable description. */
+  description?: string
+  /** Language code (`en`, `en-US`, …). */
+  languageCode?: string
+  /** Preceding conversation summary used as playbook input. */
+  playbookInput?: { precedingConversationSummary?: string }
+  /** Playbook output summary. */
+  playbookOutput?: { executionSummary?: string }
+}
+
+export type AgentsPlaybooksExample = Resource<
+  "GCP.Dialogflow.AgentsPlaybooksExample",
+  AgentsPlaybooksExampleProps,
+  {
+    /** Full resource name `.../playbooks/{playbook}/examples/{example}`. */
+    name: string
+    /** Example id (last path segment). */
+    exampleId: string
+    /** Parent playbook resource name. */
+    playbook: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** Conversation end state. */
+    conversationState: string | undefined
+    /** Conversation actions. */
+    actions: ExampleAction[] | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Language code. */
+    languageCode: string | undefined
+    /** Token count. */
+    tokenCount: string | undefined
+    /** RFC3339 create timestamp. */
+    createTime: string | undefined
+    /** RFC3339 update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX playbook example (few-shot conversation).
+ *
+ * Examples have no labels field — Alchemy stamps ownership into
+ * `displayName` and `description` so `list` / nuke can find them. Parent
+ * playbook and id are immutable. Display name, conversation state,
+ * actions, and description update in place.
+ *
+ * ### Creating an Example
+ * **Example:** Greeting conversation
+ * ```typescript
+ * const example = yield* GCP.Dialogflow.AgentsPlaybooksExample("Hello", {
+ *   playbook: playbook.name,
+ *   displayName: "hello",
+ *   conversationState: "OUTPUT_STATE_OK",
+ *   actions: [
+ *     { userUtterance: { text: "hello" } },
+ *     { agentUtterance: { text: "Hi, how can I help?" } },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsPlaybooksExample = Resource<AgentsPlaybooksExample>(
+  "GCP.Dialogflow.AgentsPlaybooksExample",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsPlaybooksExampleNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsPlaybooksExampleNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const DEFAULT_STATE: ExampleConversationState = "OUTPUT_STATE_OK"
+const DEFAULT_ACTIONS: ExampleAction[] = [
+  { userUtterance: { text: "hello" } },
+  { agentUtterance: { text: "Hi, how can I help?" } },
+]
+
+const resourceName = (playbook: string, exampleId: string): infer _ => `${playbook}/examples/${exampleId}`
+
+const actionsOf = (
+  actions: dialogflow.GoogleCloudDialogflowCxV3ActionList | undefined,
+): ExampleAction[] | undefined => {
+  if (actions === undefined) return undefined
+  return actions.map((action) => ({
+    userUtterance: action.userUtterance ? { text: action.userUtterance.text } : undefined,
+    agentUtterance: action.agentUtterance ? { text: action.agentUtterance.text } : undefined,
+    toolUse: action.toolUse
+      ? {
+        tool: action.toolUse.tool,
+        action: action.toolUse.action,
+        displayName: action.toolUse.displayName,
+      }
+      : undefined,
+    playbookInvocation: action.playbookInvocation
+      ? {
+        playbook: action.playbookInvocation.playbook,
+        displayName: action.playbookInvocation.displayName,
+      }
+      : undefined,
+    flowInvocation: action.flowInvocation
+      ? {
+        flow: action.flowInvocation.flow,
+        displayName: action.flowInvocation.displayName,
+      }
+      : undefined,
+  }))
+}
+
+const toAttrs = (
+  example: dialogflow.GoogleCloudDialogflowCxV3Example,
+  project: string,
+  playbookHint?: string,
+): infer _ => {
+  const name = example.name ?? ""
+  return {
+    name,
+    exampleId: lastSegment(name),
+    playbook: name.includes("/examples/")
+      ? collectionParent(name, "playbooks")
+      : (playbookHint ?? parentOf(name)),
+    location: locationOf(name),
+    project: projectOf(name) || project,
+    displayName: parseOwnership(example.displayName).text,
+    conversationState: example.conversationState,
+    actions: actionsOf(example.actions),
+    description: parseOwnership(example.description).text,
+    languageCode: example.languageCode,
+    tokenCount: example.tokenCount,
+    createTime: example.createTime,
+    updateTime: example.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsPlaybooksExamples({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsPlaybooksExamples.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.examples ?? []))
+        |> Stream.filter(
+          %,
+          (example) => hasOwnershipMarker(example.displayName) || hasOwnershipMarker(example.description),
+        )
+        |> Stream.map(%, (example) => toAttrs(example, project, parent))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const listPlaybooks = effect (agent: string) =>
+  (effect {
+    return (Array.from(
+      try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent: agent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (effect {
+    return (try effect {
+      const option = try (dialogflow.listProjectsLocationsAgentsPlaybooksExamples.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.examples ?? []))
+        |> Stream.filter(%, (example) => example.displayName === displayName)
+        |> Stream.runHead(%))
+      return (option._tag === "Some" ? option.value : undefined)
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const AgentsPlaybooksExampleProvider = (): infer _ =>
+  Provider.succeed(AgentsPlaybooksExample, {
+    stables: ["name", "exampleId", "playbook", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousParent = olds?.playbook ?? output?.playbook
+      if (previousParent !== undefined && resolved.playbook !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.exampleId ?? output?.exampleId
+      if (
+        previousId !== undefined
+        && resolved.exampleId !== undefined
+        && resolved.exampleId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const playbook = olds?.playbook ?? output?.playbook
+      const exampleId = try toResourceId(id, olds?.exampleId, output?.exampleId)
+      const name = output?.name ?? (playbook !== undefined ? resourceName(playbook, exampleId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined && playbook !== undefined) {
+        const ownership = try internalLabels(id)
+        existing = try findByDisplayName(
+          playbook,
+          try Effect.orDie(
+            Effect.try({ try: () => encodeOwnershipLine(ownership, olds?.displayName), catch: (e) => e }),
+          ),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, playbook)
+      const named = try ownedByAlchemy(id, existing.displayName)
+      const described = try ownedByAlchemy(id, existing.description)
+      return named || described ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const agents = try namedAgents(env.project)
+      const pages = try Effect.forEach(
+        agents,
+        effect (agent) => {
+          const playbooks = try listPlaybooks(agent.name)
+          const examples = try Effect.forEach(
+            playbooks,
+            effect (playbook) => (playbook.name ? try listAt(playbook.name, env.project) : []),
+            { concurrency: 4 },
+          )
+          return examples.flat()
+        },
+        { concurrency: 2 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const playbook = news.playbook
+        const exampleId = try toResourceId(id, news.exampleId, output?.exampleId)
+        const name = output?.name ?? resourceName(playbook, exampleId)
+        const ownership = try internalLabels(id)
+        const displayName = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+        )
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
+        const conversationState = news.conversationState ?? DEFAULT_STATE
+        const actions = news.actions ?? DEFAULT_ACTIONS
+        const body: dialogflow.GoogleCloudDialogflowCxV3Example = {
+          displayName,
+          description,
+          conversationState,
+          actions,
+          languageCode: news.languageCode,
+          playbookInput: news.playbookInput,
+          playbookOutput: news.playbookOutput,
+        }
+
+        let current = try getByName(output?.name ?? name)
+        if (current === undefined) {
+          current = try findByDisplayName(playbook, displayName)
+        }
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsPlaybooksExamples({
+              parent: playbook,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findByDisplayName(playbook, displayName);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsPlaybooksExampleNotResolved({ resourceName: name })
+        }
+
+        const currentName = current.name ?? name
+        const displayChanged = (current.displayName ?? "") !== displayName
+        const descriptionChanged = (current.description ?? "") !== description
+        const stateChanged = (current.conversationState ?? DEFAULT_STATE) !== conversationState
+        const value = actionsOf(current.actions)
+        const actionsChanged = (try Effect.orDie(Effect.try({
+          try: () => fingerprint(value),
+          catch: (e) => e,
+        }))) !== (try Effect.orDie(Effect.try({ try: () => fingerprint(actions), catch: (e) => e })))
+        const languageChanged = !sameText(current.languageCode, news.languageCode)
+        const inputChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.playbookInput), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.playbookInput), catch: (e) => e })))
+        const outputChanged =
+          (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.playbookOutput), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(news.playbookOutput), catch: (e) => e })))
+
+        if (
+          displayChanged
+          || descriptionChanged
+          || stateChanged
+          || actionsChanged
+          || languageChanged
+          || inputChanged
+          || outputChanged
+        ) {
+          current = try dialogflow.patchProjectsLocationsAgentsPlaybooksExamples({
+            // Repeated fields named in an update mask (`actions`) are
+            // silently ignored; the body is complete, so replace it whole.
+            name: currentName,
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project, playbook)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsPlaybooksExamples({
+            name: output.name,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> retryQuota(%)),
+  })

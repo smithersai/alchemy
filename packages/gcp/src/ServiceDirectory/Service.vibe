@@ -1,0 +1,425 @@
+import * as servicedirectory from "@distilled.cloud/gcp/servicedirectory_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+
+const MAX_SERVICE_ID_LENGTH = 63
+
+export type ServiceProps = {
+  /**
+   * Parent namespace. Full name
+   * `projects/{project}/locations/{location}/namespaces/{namespace}` or
+   * the namespace id (combined with `location`). Immutable — changing it
+   * replaces the service.
+   */
+  namespace: string
+  /**
+   * Location of the service (e.g. `us-central1`). Used when `namespace`
+   * is a bare id. Immutable — changing it replaces the service.
+   * `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Service id (the `{service}` segment of
+   * `projects/{project}/locations/{location}/namespaces/{namespace}/services/{service}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must be 1-63 characters and match
+   * `[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?`. Immutable — changing it
+   * replaces the service.
+   */
+  serviceId?: string
+  /**
+   * User annotations consumed by service clients. Alchemy ownership
+   * keys (`alchemy-stack` / `alchemy-stage` / `alchemy-id`) are merged
+   * in automatically — Service Directory services have no labels field.
+   * The entire map may contain at most 2000 characters.
+   */
+  annotations?: Record<string, string>
+}
+
+export type Service = Resource<
+  "GCP.ServiceDirectory.Service",
+  ServiceProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/namespaces/{namespace}/services/{service}`. */
+    name: string
+    /** Service id (last path segment). */
+    serviceId: string
+    /** Parent namespace resource name. */
+    namespace: string
+    /** Namespace id (last path segment of the parent). */
+    namespaceId: string
+    /** Project id. */
+    project: string
+    /** Location id (e.g. `us-central1`). */
+    location: string
+    /** User annotations (Alchemy ownership keys stripped). */
+    annotations: Record<string, string>
+    /** Server-assigned UUID4. */
+    uid: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Service Directory service — a named registration that holds
+ * endpoints and client-facing annotations.
+ *
+ * Changing `serviceId`, `namespace`, or `location` replaces the service.
+ * Annotations update in place. Services have no labels field; Alchemy
+ * stamps ownership into annotations so `list` / `pnpm nuke:gcp` can find
+ * them.
+ *
+ * ### Creating a Service
+ * **Example:** Generated name in a namespace
+ * ```typescript
+ * const ns = yield* GCP.ServiceDirectory.Namespace("Services", {});
+ * const api = yield* GCP.ServiceDirectory.Service("Api", {
+ *   namespace: ns.name,
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and annotations
+ * ```typescript
+ * const api = yield* GCP.ServiceDirectory.Service("Api", {
+ *   namespace: ns.name,
+ *   serviceId: "checkout",
+ *   annotations: { protocol: "http" },
+ * });
+ * ```
+ *
+ * ### Resolving Endpoints
+ * **Example:** Resolve the service at runtime
+ * ```typescript
+ * const resolve = yield* GCP.ServiceDirectory.Resolve(api);
+ * const { service } = yield* resolve();
+ * ```
+ *
+ * @resource
+ * @category ServiceDirectory
+ */
+export const Service = Resource<Service>("GCP.ServiceDirectory.Service")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ServiceNotResolved extends Data.TaggedError(
+  "GCP.ServiceDirectory.ServiceNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+const normalizeLocation = (location: string | undefined, defaultLocation: string): infer _ =>
+  lastSegment(location ?? defaultLocation).toLowerCase()
+
+const parseName = (name: string, defaultLocation: string): infer _ => {
+  const parts = name.split("/").filter((part) => part.length > 0)
+  const servicesAt = parts.lastIndexOf("services")
+  const namespacesAt = parts.lastIndexOf("namespaces")
+  const locationsAt = parts.lastIndexOf("locations")
+  const projectsAt = parts.lastIndexOf("projects")
+  const namespace = namespacesAt >= 0 ? parts.slice(0, namespacesAt + 2).join("/") : ""
+  return {
+    project: projectsAt >= 0 && parts[projectsAt + 1] ? parts[projectsAt + 1]! : "",
+    location: locationsAt >= 0 && parts[locationsAt + 1] ? parts[locationsAt + 1]! : defaultLocation,
+    namespace,
+    namespaceId: namespacesAt >= 0 && parts[namespacesAt + 1] ? parts[namespacesAt + 1]! : "",
+    serviceId: servicesAt >= 0 && parts[servicesAt + 1] ? parts[servicesAt + 1]! : lastSegment(name),
+  }
+}
+
+const resolveParent = (
+  project: string,
+  namespace: string,
+  location: string | undefined,
+  region: string,
+): infer _ => {
+  if (namespace.includes("/")) {
+    const parsed = parseName(
+      namespace.includes("/services/") ? namespace : `${namespace}/services/_`,
+      region,
+    )
+    return {
+      parent: parsed.namespace,
+      location: parsed.location,
+      project: parsed.project || project,
+      namespaceId: parsed.namespaceId,
+    }
+  }
+  const loc = normalizeLocation(location, region)
+  return {
+    parent: `projects/${project}/locations/${loc}/namespaces/${namespace}`,
+    location: loc,
+    project,
+    namespaceId: namespace,
+  }
+}
+
+const resourceName = (parent: string, serviceId: string): infer _ => `${parent}/services/${serviceId}`
+
+const locationParent = (project: string, location: string): infer _ => `projects/${project}/locations/${location}`
+
+const userAnnotations = (
+  annotations: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(annotations))
+
+const toId = effect (id: string, serviceId: string | undefined, existing?: string) => {
+  if (serviceId !== undefined) return serviceId
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_SERVICE_ID_LENGTH,
+    lowercase: true,
+  })
+  const named = /^[a-z]/.test(generated) ? generated : `s${generated}`
+  return named.replace(/-+$/g, "").slice(0, MAX_SERVICE_ID_LENGTH).replace(/-+$/g, "")
+}
+
+const toAttrs = (service: servicedirectory.Service, project: string, region: string): infer _ => {
+  const name = service.name ?? ""
+  const parsed = parseName(name, region)
+  return {
+    name,
+    serviceId: parsed.serviceId,
+    namespace: parsed.namespace,
+    namespaceId: parsed.namespaceId,
+    project: parsed.project || project,
+    location: parsed.location,
+    annotations: userAnnotations(service.annotations),
+    uid: service.uid,
+  }
+}
+
+const getByName = effect (name: string) =>
+  servicedirectory
+    .getProjectsLocationsNamespacesServices({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const hasAlchemyAnnotation = (annotations: Record<string, string | undefined> | null | undefined): infer _ =>
+  Object.keys(annotations ?? {}).some((key) => key.startsWith("alchemy-"))
+
+const listServicesAt = effect (parent: string, project: string, region: string) =>
+  (effect {
+    return (try effect {
+      const found: ReturnType<typeof toAttrs>[] = []
+      let pageToken: string | undefined
+      do {
+        const response = try servicedirectory.listProjectsLocationsNamespacesServices({
+          parent,
+          pageSize: 1000,
+          pageToken,
+        })
+        for (const service of response.services ?? []) {
+          if (hasAlchemyAnnotation(service.annotations)) {
+            found.push(toAttrs(service, project, region))
+          }
+        }
+        pageToken = response.nextPageToken
+      } while (pageToken !== undefined && pageToken !== "")
+      return found
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[]; default: throw e; }
+
+const listNamespaceNamesAt = effect (parent: string) =>
+  (effect {
+    return (try effect {
+      const found: string[] = []
+      let pageToken: string | undefined
+      do {
+        const response = try servicedirectory.listProjectsLocationsNamespaces({
+          parent,
+          pageSize: 1000,
+          pageToken,
+        })
+        for (const namespace of response.namespaces ?? []) {
+          if (namespace.name) found.push(namespace.name)
+        }
+        pageToken = response.nextPageToken
+      } while (pageToken !== undefined && pageToken !== "")
+      return found
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+export const ServiceProvider = (): infer _ =>
+  Provider.succeed(Service, {
+    stables: ["name", "serviceId", "namespace", "namespaceId", "project", "location", "uid"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.serviceId ?? output?.serviceId
+      const nextId = resolved.serviceId ?? previousId
+      const idChanged = previousId !== undefined && nextId !== undefined && nextId !== previousId
+
+      const previousParent = output?.namespace ?? olds?.namespace
+      const previousParentId = previousParent ? lastSegment(previousParent) : undefined
+      const nextParentId = lastSegment(resolved.namespace)
+      const parentChanged = previousParentId !== undefined && previousParentId !== nextParentId
+
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = resolved.namespace.includes("/")
+        ? parseName(
+          resolved.namespace.includes("/services/") ? resolved.namespace : `${resolved.namespace}/services/_`,
+          env.region,
+        ).location
+        : normalizeLocation(resolved.location ?? output?.location, env.region)
+
+      if (idChanged || parentChanged || previousLocation !== nextLocation) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceId = try toId(id, olds?.serviceId, output?.serviceId)
+      const namespaceRef = olds?.namespace ?? output?.namespace
+      const name = output?.name
+        ?? (namespaceRef
+          ? resourceName(
+            resolveParent(
+              env.project,
+              namespaceRef,
+              olds?.location ?? output?.location,
+              env.region,
+            ).parent,
+            serviceId,
+          )
+          : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.annotations), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const fallback = [locationParent(env.project, env.region)]
+      const found: ReturnType<typeof toAttrs>[] = []
+      let pageToken: string | undefined
+      do {
+        const response = servicedirectory
+          .listProjectsLocations({
+            name: `projects/${env.project}`,
+            pageSize: 100,
+            pageToken,
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: {
+              locations: [
+                {
+                  name: fallback[0],
+                  locationId: env.region,
+                } satisfies servicedirectory.Location,
+              ],
+              nextPageToken: undefined as string | undefined,
+            };
+            default: throw e;
+          }
+        const parents = (response.locations ?? [])
+          .map((location) => location.name)
+          .filter((name): name is string => !!name)
+        const namespacePages = try Effect.forEach(
+          parents.length > 0 ? parents : fallback,
+          effect (parent) => try listNamespaceNamesAt(parent),
+          { concurrency: 4 },
+        )
+        const namespaceNames = namespacePages.flat()
+        const servicePages = try Effect.forEach(
+          namespaceNames,
+          effect (parent) => try listServicesAt(parent, env.project, env.region),
+          { concurrency: 4 },
+        )
+        for (const services of servicePages) {
+          found.push(...services)
+        }
+        pageToken = response.nextPageToken
+      } while (pageToken !== undefined && pageToken !== "")
+      return found
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = resolveParent(
+        env.project,
+        news.namespace,
+        news.location ?? output?.location,
+        env.region,
+      )
+      const serviceId = try toId(id, news.serviceId, output?.serviceId)
+      const name = resourceName(parent.parent, serviceId)
+      const desiredAnnotations = {
+        ...try Effect.orDie(Effect.try({ try: () => tagRecord(news.annotations), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = servicedirectory
+          .createProjectsLocationsNamespacesServices({
+            parent: parent.parent,
+            serviceId,
+            body: {
+              annotations: desiredAnnotations,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ServiceNotResolved({ resourceName: name })
+      }
+
+      const observedAnnotations = tagRecord(current.annotations)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedAnnotations, desiredAnnotations), catch: (e) => e }),
+      )
+      if (upsert.length > 0 || removed.length > 0) {
+        current = try servicedirectory.patchProjectsLocationsNamespacesServices({
+          name,
+          updateMask: "annotations",
+          body: {
+            name,
+            annotations: desiredAnnotations,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      ;(effect {
+        return (try (servicedirectory.deleteProjectsLocationsNamespacesServices({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("1 second"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

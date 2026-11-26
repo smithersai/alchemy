@@ -1,10 +1,10 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Admin from "./src/Admin.ts";
-import Home from "./src/Home.ts";
-import Orders from "./src/Orders.ts";
-import Products from "./src/Products.ts";
+import Admin from "./src/Admin.vibe";
+import Home from "./src/Home.vibe";
+import Orders from "./src/Orders.vibe";
+import Products from "./src/Products.vibe";
 
 /**
  * One URL, four Workers, no gateway Worker in between.

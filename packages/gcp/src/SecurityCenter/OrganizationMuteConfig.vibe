@@ -1,0 +1,282 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_MUTE_TYPE,
+  encodeDescription,
+  hasOwnershipMarker,
+  lastSegment,
+  organizationIdOf,
+  organizationParent,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  SecuritycenterNotResolved,
+  toPhysicalId,
+  tryResolveOrganization,
+  updateMaskOf,
+} from "./internal.vibe"
+
+export type OrganizationMuteConfigProps = {
+  /**
+   * Mute config id (the `{muteConfig}` segment of
+   * `organizations/{organization}/muteConfigs/{muteConfig}`). If omitted,
+   * a unique id is generated from the stack, stage, and logical id.
+   * Letters, digits, and hyphens; max 63 characters. Immutable — changing
+   * it replaces the config.
+   */
+  muteConfigId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the config.
+   */
+  organization?: string
+  /**
+   * Finding filter selecting findings to mute. Required.
+   */
+  filter: string
+  /**
+   * Mute config type. Immutable — changing it replaces the config.
+   * @default "STATIC"
+   */
+  type?: scc.GoogleCloudSecuritycenterV1MuteConfigTypeEnum | (string & {})
+  /**
+   * RFC3339 expiry for `DYNAMIC` mute configs.
+   */
+  expiryTime?: string
+  /**
+   * Human-readable display name.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Mute configs have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+}
+
+export type OrganizationMuteConfig = Resource<
+  "GCP.SecurityCenter.OrganizationMuteConfig",
+  OrganizationMuteConfigProps,
+  {
+    /** Full resource name `organizations/{organization}/muteConfigs/{muteConfig}`. */
+    name: string
+    /** Mute config id (last path segment). */
+    muteConfigId: string
+    /** Organization resource name. */
+    organization: string
+    /** Organization id. */
+    organizationId: string
+    /** Project id of the deploying stack. */
+    project: string
+    /** Finding filter. */
+    filter: string
+    /** Mute config type. */
+    type: string | undefined
+    /** RFC3339 expiry, if set. */
+    expiryTime: string | undefined
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Most recent editor of the config. */
+    mostRecentEditor: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Security Command Center mute config.
+ *
+ * Mute configs have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Mute config id, organization,
+ * and type are identity. Filter, description, display name, and expiry
+ * update in place.
+ *
+ * ### Creating a Mute Config
+ * **Example:** Mute low-severity findings
+ * ```typescript
+ * const mute = yield* GCP.SecurityCenter.OrganizationMuteConfig("Low", {
+ *   filter: 'severity="LOW"',
+ *   description: "mute low findings",
+ * });
+ * ```
+ *
+ * **Example:** Named config on an explicit organization
+ * ```typescript
+ * const mute = yield* GCP.SecurityCenter.OrganizationMuteConfig("Low", {
+ *   organization: "organizations/123456789",
+ *   muteConfigId: "mute-low",
+ *   filter: 'severity="LOW"',
+ *   type: "STATIC",
+ * });
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const OrganizationMuteConfig = Resource<OrganizationMuteConfig>(
+  "GCP.SecurityCenter.OrganizationMuteConfig",
+)
+
+const resourceName = (organization: string, muteConfigId: string): infer _ =>
+  `${organization}/muteConfigs/${muteConfigId}`
+
+const toAttrs = (
+  config: scc.GoogleCloudSecuritycenterV1MuteConfig,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseName(name, "muteConfigs")
+  const ownership = parseOwnership(config.description)
+  return {
+    name,
+    muteConfigId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    project,
+    filter: config.filter ?? "",
+    type: config.type,
+    expiryTime: config.expiryTime,
+    displayName: config.displayName,
+    description: ownership.text,
+    mostRecentEditor: config.mostRecentEditor,
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getOrganizationsMuteConfigs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const OrganizationMuteConfigProvider = (): infer _ =>
+  Provider.succeed(OrganizationMuteConfig, {
+    stables: ["name", "muteConfigId", "organization", "organizationId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return (
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.muteConfigId ?? output?.muteConfigId, resolved.muteConfigId)
+              ?? replaceOn(
+                olds?.organization ?? output?.organization,
+                resolved.organization !== undefined ? organizationParent(resolved.organization) : undefined,
+              )
+              ?? replaceOn(olds?.type ?? output?.type, resolved.type),
+          catch: (e) => e,
+        }))
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const muteConfigId = try toPhysicalId(id, olds?.muteConfigId, output?.muteConfigId)
+      const name = output?.name ?? resourceName(organization, muteConfigId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      return (effect {
+        return (Array.from(
+          try (scc.listOrganizationsMuteConfigs
+            .pages({ parent: organization, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.muteConfigs ?? []))
+            |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
+            |> Stream.map(%, (config) => toAttrs(config, organization, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const muteConfigId = try toPhysicalId(id, news.muteConfigId, output?.muteConfigId)
+      const name = resourceName(organization, muteConfigId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const filter = news.filter
+      const type = news.type ?? DEFAULT_MUTE_TYPE
+      const expiryTime = news.expiryTime
+      const displayName = news.displayName
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = scc
+          .createOrganizationsMuteConfigs({
+            parent: organization,
+            muteConfigId,
+            body: { filter, type, expiryTime, displayName, description },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecuritycenterNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const updateMask = updateMaskOf(
+        !sameText(current.filter, filter) ? "filter" : undefined,
+        !sameText(current.description, description) ? "description" : undefined,
+        !sameText(current.displayName, displayName) ? "displayName" : undefined,
+        !sameText(current.expiryTime, expiryTime) ? "expiryTime" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchOrganizationsMuteConfigs({
+          name: currentName,
+          updateMask,
+          body: { filter, expiryTime, displayName, description },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteOrganizationsMuteConfigs({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

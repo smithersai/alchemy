@@ -1,0 +1,298 @@
+import * as Effect from "effect/Effect"
+import * as omics from "@distilled.cloud/aws/omics"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { fetchOmicsTags, syncOmicsTags } from "./internal.vibe"
+
+/**
+ * Coerce a definition zip that survived engine plan/state serialization back
+ * into a `Uint8Array`. The engine round-trips a `Uint8Array` prop as an
+ * index-keyed plain object (`{"0":80,"1":75,...}`), so a provider that carries
+ * binary members must rebuild the array before encoding the request.
+ */
+const coerceBytes = (value: unknown): Uint8Array | undefined => {
+  if (value === undefined) return undefined
+  if (value instanceof Uint8Array) return value
+  if (Array.isArray(value)) return Uint8Array.from(value as number[])
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value as Record<string, number>)
+      .map(([k, v]) => [Number(k), v] as const)
+      .sort((a, b) => a[0] - b[0])
+    return Uint8Array.from(entries.map(([, v]) => v))
+  }
+  return undefined
+}
+
+export interface WorkflowProps {
+  /**
+   * A name for the workflow. If omitted, a unique name is generated from the
+   * app, stage, and logical ID. Mutable.
+   */
+  name?: string
+  /**
+   * A description for the workflow. Mutable.
+   */
+  description?: string
+  /**
+   * The workflow engine. Immutable — changing it replaces the workflow.
+   * @default "WDL"
+   */
+  engine?: "WDL" | "NEXTFLOW" | "CWL"
+  /**
+   * The definition of the workflow, as a zip archive of the workflow source
+   * files. Provided as raw bytes. Mutually exclusive with `definitionUri`.
+   * Immutable — changing it replaces the workflow.
+   */
+  definitionZip?: Uint8Array
+  /**
+   * The S3 URI of a zip archive containing the workflow definition. Mutually
+   * exclusive with `definitionZip`. Immutable — changing it replaces the
+   * workflow.
+   */
+  definitionUri?: string
+  /**
+   * The path of the main definition file for the workflow within the zip
+   * archive. Immutable.
+   */
+  main?: string
+  /**
+   * A parameter template describing the workflow's input parameters.
+   * Immutable.
+   */
+  parameterTemplate?: Record<string, { description?: string; optional?: boolean }>
+  /**
+   * The default static storage capacity (in gibibytes) for runs that use this
+   * workflow. Mutable.
+   */
+  storageCapacity?: number
+  /**
+   * The storage type for runs that use this workflow. Mutable.
+   * @default "DYNAMIC"
+   */
+  storageType?: "STATIC" | "DYNAMIC"
+  /**
+   * The computational accelerators used by the workflow. Immutable.
+   */
+  accelerators?: "GPU"
+  /**
+   * Tags to apply to the workflow. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Workflow extends
+  Resource<
+    "AWS.Omics.Workflow",
+    WorkflowProps,
+    {
+      /**
+       * ID of the workflow.
+       */
+      workflowId: string
+      /**
+       * ARN of the workflow.
+       */
+      workflowArn: string
+      /**
+       * Name of the workflow.
+       */
+      name: string
+      /**
+       * Workflow status (e.g. `ACTIVE`, `CREATING`, `UPDATING`, `FAILED`).
+       */
+      status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon HealthOmics private workflow — a bioinformatics workflow (WDL,
+ * Nextflow, or CWL) that is executed as one or more runs.
+ *
+ * A workflow name is auto-generated from the app, stage, and logical ID
+ * unless you provide one. The workflow definition (`engine`, `definitionZip`,
+ * `definitionUri`, `main`, `parameterTemplate`, `accelerators`) is immutable —
+ * changing any of it replaces the workflow. `name`, `description`,
+ * `storageCapacity`, and `storageType` are updated in place.
+ * ### Creating a Workflow
+ * **Example:** Workflow from an inline definition zip
+ * ```typescript
+ * import * as Omics from "@alchemy.run/aws/Omics";
+ *
+ * const workflow = yield* Omics.Workflow("Hello", {
+ *   engine: "WDL",
+ *   main: "main.wdl",
+ *   definitionZip: myZipBytes,
+ * });
+ * ```
+ *
+ * **Example:** Workflow from an S3-hosted definition
+ * ```typescript
+ * const workflow = yield* Omics.Workflow("Hello", {
+ *   engine: "NEXTFLOW",
+ *   definitionUri: "s3://my-bucket/workflows/hello.zip",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Workflow = Resource<Workflow>("AWS.Omics.Workflow")
+
+export const WorkflowProvider = (): infer _ =>
+  Provider.effect(
+    Workflow,
+    effect {
+      const createName = effect (id: string, props: { name?: string | undefined }) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 96 }))
+
+      // A freshly created workflow is CREATING until its definition is
+      // validated; wait until it reaches a terminal state before returning so
+      // downstream runs (and deletes) don't race the async provisioning.
+      const waitUntilReady = effect (workflowId: string) => {
+        const final = try (omics.getWorkflow({ id: workflowId })
+          |> Effect.repeat(%, {
+            schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(11)]),
+            until: (w) => w.status === "ACTIVE" || w.status === "FAILED",
+          }))
+        if (final.status === "FAILED") {
+          throw try Effect.orDie(Effect.try({
+            try: () =>
+              omics.ValidationException.make({
+                message: `Workflow ${workflowId} failed: ${final.statusMessage ?? "unknown"}`,
+              }),
+            catch: (e) => e,
+          }))
+        }
+        return final
+      }
+
+      return Workflow.Provider.of({
+        stables: ["workflowId", "workflowArn"],
+        list: effect () =>
+          Array.from(
+            try (omics.listWorkflows.items({})
+              |> Stream.map(%, (item) => ({
+                workflowId: item.id!,
+                workflowArn: item.arn!,
+                name: item.name ?? "",
+                status: item.status ?? "",
+              }))
+              |> Stream.runCollect(%)),
+          ),
+        read: effect ({ id, output }) => {
+          if (output?.workflowId === undefined) return undefined
+          const found = omics
+            .getWorkflow({ id: output.workflowId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined;
+              default: throw e;
+            }
+          if (found === undefined || found.id === undefined) return undefined
+          const attrs = {
+            workflowId: found.id,
+            workflowArn: found.arn!,
+            name: found.name ?? "",
+            status: found.status ?? "",
+          }
+          const tags = try fetchOmicsTags(found.arn!)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const prev = olds ?? {}
+          if (
+            (prev.engine ?? "WDL") !== (news.engine ?? "WDL")
+            || (prev.definitionUri ?? "") !== (news.definitionUri ?? "")
+            || (prev.main ?? "") !== (news.main ?? "")
+            || (prev.accelerators ?? "") !== (news.accelerators ?? "")
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.name ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          let workflow = output?.workflowId === undefined
+            ? undefined
+            : omics
+              .getWorkflow({ id: output.workflowId }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: undefined;
+                default: throw e;
+              }
+
+          if (workflow === undefined || workflow.id === undefined) {
+            const created = try omics.createWorkflow({
+              name,
+              description: news.description,
+              engine: news.engine ?? "WDL",
+              definitionZip: coerceBytes(news.definitionZip),
+              definitionUri: news.definitionUri,
+              main: news.main,
+              parameterTemplate: news.parameterTemplate,
+              storageCapacity: news.storageCapacity,
+              storageType: news.storageType,
+              accelerators: news.accelerators,
+              requestId: `alchemy-${id}`,
+              tags: desiredTags,
+            })
+            try waitUntilReady(created.id!)
+            workflow = try omics.getWorkflow({ id: created.id! })
+          } else {
+            const patch: {
+              name?: string
+              description?: string
+              storageType?: string
+              storageCapacity?: number
+            } = {}
+            if (news.name !== undefined && news.name !== workflow.name) {
+              patch.name = news.name
+            }
+            if (news.description !== undefined && news.description !== workflow.description) {
+              patch.description = news.description
+            }
+            if (news.storageType !== undefined && news.storageType !== workflow.storageType) {
+              patch.storageType = news.storageType
+            }
+            if (
+              news.storageCapacity !== undefined
+              && news.storageCapacity !== workflow.storageCapacity
+            ) {
+              patch.storageCapacity = news.storageCapacity
+            }
+            if (Object.keys(patch).length > 0) {
+              try omics.updateWorkflow({ id: workflow.id, ...patch })
+              workflow = try omics.getWorkflow({ id: workflow.id })
+            }
+          }
+
+          try syncOmicsTags(workflow.arn!, desiredTags)
+
+          try session.note(workflow.id!)
+          return {
+            workflowId: workflow.id!,
+            workflowArn: workflow.arn!,
+            name: workflow.name ?? name,
+            status: workflow.status ?? "",
+          }
+        },
+        delete: effect ({ output }) => {
+          omics
+            .deleteWorkflow({ id: output.workflowId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

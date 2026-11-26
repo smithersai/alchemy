@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import { makeBucketBinding } from "./BucketBinding.ts";
 import type {
   BucketCredentials,
@@ -12,7 +12,7 @@ import type {
   BucketObject,
   PresignPutOptions,
   PutOptions,
-} from "./BucketTypes.ts";
+} from "./BucketTypes.vibe";
 import {
   makeBucketAccess,
   objectFrom,

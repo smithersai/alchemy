@@ -1,0 +1,377 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DataplexNotResolved,
+  collectPages,
+  fingerprint,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type DataProductAccessGroup = dataplex.GoogleCloudDataplexV1DataProductAccessGroup
+
+export type DataProductAccessApprovalConfig = dataplex.GoogleCloudDataplexV1DataProductAccessApprovalConfig
+
+export type DataProductProps = {
+  /**
+   * Data product id. If omitted, a unique name is generated. Must match
+   * `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`. Immutable — changing it
+   * replaces the product.
+   */
+  dataProductId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * product.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-friendly display name. Required.
+   */
+  displayName: string
+  /**
+   * Description of the data product.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Emails of the data product owners. Required.
+   */
+  ownerEmails: string[]
+  /**
+   * Base64-encoded icon (max 3 MiB).
+   */
+  icon?: string
+  /**
+   * Access groups keyed by group id.
+   */
+  accessGroups?: Record<string, DataProductAccessGroup>
+  /**
+   * Access-approval configuration.
+   */
+  accessApprovalConfig?: DataProductAccessApprovalConfig
+}
+
+export type DataProduct = Resource<
+  "GCP.Dataplex.DataProduct",
+  DataProductProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Data product id (last path segment). */
+    dataProductId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Owner emails. */
+    ownerEmails: string[]
+    /** Icon payload. */
+    icon: string | undefined
+    /** Access groups. */
+    accessGroups: Record<string, DataProductAccessGroup | undefined> | undefined
+    /** Access-approval configuration. */
+    accessApprovalConfig: DataProductAccessApprovalConfig | undefined
+    /** Number of attached data assets. */
+    assetCount: number | undefined
+    /** Server etag. */
+    etag: string | undefined
+    /** System uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex Data Product — a curated collection of data assets packaged
+ * for a use case.
+ *
+ * Location and product id are immutable. Display name, description,
+ * labels, owners, icon, access groups, and approval config update in
+ * place.
+ *
+ * ### Creating a Data Product
+ * **Example:** Product with an owner
+ * ```typescript
+ * const product = yield* GCP.Dataplex.DataProduct("Sales", {
+ *   displayName: "Sales mart",
+ *   ownerEmails: ["owner@example.com"],
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const DataProduct = Resource<DataProduct>("GCP.Dataplex.DataProduct")
+
+const resourceName = (project: string, location: string, dataProductId: string): infer _ =>
+  `projects/${project}/locations/${location}/dataProducts/${dataProductId}`
+
+const toAttrs = (product: dataplex.GoogleCloudDataplexV1DataProduct, project: string): infer _ => {
+  const name = product.name ?? ""
+  const parsed = parseName(name, "dataProducts")
+  return {
+    name,
+    dataProductId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: product.displayName,
+    description: product.description,
+    labels: userLabels(product.labels),
+    ownerEmails: [...(product.ownerEmails ?? [])],
+    icon: product.icon,
+    accessGroups: product.accessGroups,
+    accessApprovalConfig: product.accessApprovalConfig,
+    assetCount: product.assetCount,
+    etag: product.etag,
+    uid: product.uid,
+    createTime: product.createTime,
+    updateTime: product.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(dataplex.getProjectsLocationsDataProducts({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listProducts = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (effect {
+      return ((try collectPages(
+        dataplex.listProjectsLocationsDataProducts.pages({
+          parent,
+          pageSize: 1000,
+        }),
+        (page) => page.dataProducts,
+      )).filter((item) => hasAlchemyLabelMap(item.labels)))
+    }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: [];
+      default: throw e;
+    }
+  return try listAtLocation(project, region, collect)
+}
+
+export const listAlchemyDataProducts = effect (project: string, region: string) => try listProducts(project, region)
+
+export const DataProductProvider = (): infer _ =>
+  Provider.succeed(DataProduct, {
+    stables: ["name", "dataProductId", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.dataProductId ?? output?.dataProductId,
+            nextId: resolved.dataProductId ?? olds?.dataProductId ?? output?.dataProductId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const dataProductId = try toPhysicalId(
+        id,
+        olds?.dataProductId,
+        output?.dataProductId,
+        "dataproduct",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, dataProductId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listProducts(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const dataProductId = try toPhysicalId(
+        id,
+        news.dataProductId,
+        output?.dataProductId,
+        "dataproduct",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, dataProductId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = retryQuota(
+          dataplex.createProjectsLocationsDataProducts({
+            parent: parentOf(env.project, location),
+            dataProductId,
+            body: {
+              displayName: news.displayName,
+              description: news.description,
+              labels: desiredLabels,
+              ownerEmails: news.ownerEmails,
+              icon: news.icon,
+              accessGroups: news.accessGroups,
+              accessApprovalConfig: news.accessApprovalConfig,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new DataplexNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayNameChanged = (current.displayName ?? "") !== news.displayName
+      const ownersChanged = (try Effect.orDie(
+        Effect.try({ try: fingerprint.bind(undefined, [...(current.ownerEmails ?? [])].sort()), catch: (e) => e }),
+      ))
+        !== (try Effect.orDie(
+          Effect.try({ try: () => fingerprint([...(news.ownerEmails ?? [])].sort()), catch: (e) => e }),
+        ))
+      const iconChanged = (current.icon ?? "") !== (news.icon ?? "")
+      const groupsChanged =
+        (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.accessGroups), catch: (e) => e })))
+        !== (try Effect.orDie(Effect.try({
+          try: () => fingerprint(news.accessGroups),
+          catch: (e) => e,
+        })))
+      const approvalChanged = (try Effect.orDie(Effect.try({
+        try: fingerprint.bind(undefined, current.accessApprovalConfig),
+        catch: (e) => e,
+      }))) !== (try Effect.orDie(Effect.try({
+        try: () => fingerprint(news.accessApprovalConfig),
+        catch: (e) => e,
+      })))
+
+      if (
+        labelsChanged
+        || descriptionChanged
+        || displayNameChanged
+        || ownersChanged
+        || iconChanged
+        || groupsChanged
+        || approvalChanged
+      ) {
+        const operation = try dataplex.patchProjectsLocationsDataProducts({
+          name: current.name ?? name,
+          updateMask: [
+            labelsChanged ? "labels" : undefined,
+            descriptionChanged ? "description" : undefined,
+            displayNameChanged ? "displayName" : undefined,
+            ownersChanged ? "ownerEmails" : undefined,
+            iconChanged ? "icon" : undefined,
+            groupsChanged ? "accessGroups" : undefined,
+            approvalChanged ? "accessApprovalConfig" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name: current.name ?? name,
+            etag: current.etag,
+            displayName: news.displayName,
+            description: news.description,
+            labels: desiredLabels,
+            ownerEmails: news.ownerEmails,
+            icon: news.icon,
+            accessGroups: news.accessGroups,
+            accessApprovalConfig: news.accessApprovalConfig,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (dataplex
+          .deleteProjectsLocationsDataProducts({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

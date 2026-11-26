@@ -1,0 +1,46 @@
+import { Credentials } from "@distilled.cloud/gcp/Credentials"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import * as GCPBindings from "../GCPBindings.vibe"
+import { type BindingIam, grantFor } from "../HttpBinding.vibe"
+import type { Pipeline } from "./Pipeline.vibe"
+
+/**
+ * Shared HTTP scaffolding for Data Pipelines bindings.
+ * NOT exported from index.ts.
+ *
+ * Distilled ops are `OperationMethod`s: yield them once at Layer construction
+ * (after providing Credentials + HttpClient) so the inner runtime Effect is
+ * `Effect<A, E>` and does not leak `GcpOpContext`.
+ */
+export const makePipelineHttpBinding = effect <I extends { name?: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation:
+    & (((input: I) => A!E)!never!(Credentials | HttpClient.HttpClient))
+    & ((input: I) => A!E!(Credentials | HttpClient.HttpClient))
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (pipeline: Pipeline) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${pipeline})`({
+        iam: [try Effect.orDie(Effect.try({ try: () => grantFor(options.iam, pipeline.name), catch: (e) => e }))],
+      })
+    }
+    const name = try pipeline.name.asEffect()
+    return effect (
+      request?: Omit<I, "name"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const pipelineName = try name
+          return try run({
+            ...request,
+            name: pipelineName,
+          } as I)
+        },
+        `${options.tag}(${pipeline.LogicalId})`,
+      )
+  }
+}

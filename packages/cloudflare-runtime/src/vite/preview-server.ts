@@ -10,7 +10,7 @@ import type { BindingHooks, Module } from "../core/index.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../core/internal/constants.ts";
 import * as Runtime from "../core/Runtime.ts";
 import * as RuntimeServices from "../core/RuntimeServices.ts";
-import { PlatformServices } from "../Platform.ts";
+import { PlatformServices } from "../Platform.vibe";
 import type { CloudflareVitePluginOptions } from "./plugin.ts";
 
 /**

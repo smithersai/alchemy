@@ -1,0 +1,49 @@
+/// <reference types="@cloudflare/workers-types" />
+
+import { makeLanguageModelLayer } from "../AI/LanguageModel.vibe"
+import { AI, WorkersAIError, type AIClient } from "./AI.vibe"
+import * as Binding from "./Binding.vibe"
+import { makeBindingLayer } from "./BindingLayer.vibe"
+
+/** The binding value produced by calling {@link AI} (declared on `env` or `yield*`-ed). */
+export type AIBinding = Binding.Binding<AI["key"], AIClient, AI>
+
+/**
+ * The layer that provides the Effect-native interface for the Cloudflare
+ * Workers AI binding.
+ *
+ * Provide it on the Worker effect (`Effect.provide(Cloudflare.Workers.AIBinding)`)
+ * so that yielding an {@link AI} binding attaches the native `ai` binding to
+ * the surrounding Worker at deploy time and, at runtime, resolves to the
+ * Effect-native {@link AIClient} (wrapping the raw `Ai` handle so `run` /
+ * `models` return Effects and `model(...)` yields a `LanguageModel` layer).
+ */
+export const AIBinding = makeBindingLayer<AI, Ai, AIClient>(AI, (raw) => {
+  const self: AIClient = {
+    raw,
+    run: effect (model, inputs, options) => {
+      const ai = try raw
+      return try tryPromise(() => ai.run(model, inputs, options))
+    },
+    models: effect (params) => {
+      const ai = try raw
+      return try tryPromise(() => ai.models(params))
+    },
+    model: (options) =>
+      makeLanguageModelLayer({
+        ...options,
+        client: self,
+      }),
+  }
+  return self
+})
+
+const tryPromise = effect <T>(fn: () => Promise<T>): T!WorkersAIError =>
+  try Effect.tryPromise({
+    try: fn,
+    catch: (error) =>
+      new WorkersAIError({
+        message: error instanceof Error ? error.message : "Unknown Workers AI runtime error",
+        cause: error,
+      }),
+  })

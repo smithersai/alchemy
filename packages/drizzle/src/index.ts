@@ -1,4 +1,4 @@
-export * from "./D1.ts";
+export * from "./D1.vibe";
 
 // The tagged errors drizzle's effect drivers fail with — re-exported so
 // consumers can reference them without reaching into drizzle-orm
@@ -10,8 +10,8 @@ export {
   EffectTransactionRollbackError,
   MigratorInitError,
 } from "drizzle-orm/effect-core";
-export * from "./Providers.ts";
-export * from "./Schema.ts";
+export * from "./Providers.vibe";
+export * from "./Schema.vibe";
 // MySQL and Postgres are deliberately NOT re-exported here: their drivers
 // (`@effect/sql-mysql2`/`mysql2`, `@effect/sql-pg`/`pg`) are optional peer
 // dependencies, and keeping them out of the barrel keeps them out of every

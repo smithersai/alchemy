@@ -1,0 +1,289 @@
+import * as ag from "@distilled.cloud/aws/api-gateway"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import * as Redacted from "effect/Redacted"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { apiKeyArn, syncTags } from "./common.vibe"
+
+export interface ApiKeyProps {
+  /**
+   * Friendly name for the API key.
+   *
+   * If omitted, Alchemy generates a deterministic physical name from the
+   * stack, stage, logical ID, and instance ID.
+   */
+  name?: string
+  /**
+   * Human-readable description shown in API Gateway.
+   */
+  description?: string
+  /**
+   * Whether clients can use the key.
+   *
+   * @default true
+   */
+  enabled?: boolean
+  /**
+   * Appends a distinct suffix to the generated key value when AWS generates it.
+   */
+  generateDistinctId?: boolean
+  /**
+   * Write-only value when creating; never stored in resource state or outputs.
+   * Wrap with `Redacted.make` so state encoding preserves redaction.
+   */
+  value?: Redacted.Redacted<string>
+  /**
+   * Stage associations to attach directly to this API key.
+   */
+  stageKeys?: ag.StageKey[]
+  /**
+   * External customer identifier associated with the key.
+   */
+  customerId?: string
+  /**
+   * User-defined tags. Alchemy internal tags are merged automatically.
+   */
+  tags?: Record<string, string>
+}
+
+/** @resource */
+export interface ApiKey extends
+  Resource<
+    "AWS.ApiGateway.ApiKey",
+    ApiKeyProps,
+    {
+      id: string
+      name: string | undefined
+      enabled: boolean | undefined
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * API Gateway API key for usage plans and `apiKeyRequired` methods.
+ *
+ * ### API keys
+ * **Example:** Generated key
+ * ```typescript
+ * const key = yield* ApiGateway.ApiKey("PartnerKey", {
+ *   generateDistinctId: true,
+ * });
+ * ```
+ */
+const ApiKeyResource = Resource<ApiKey>("AWS.ApiGateway.ApiKey")
+
+export { ApiKeyResource as ApiKey }
+
+const resolvedValue = (value: Redacted.Redacted<string> | undefined): infer _ =>
+  value ? Redacted.value(value) : undefined
+
+const generatedName = effect (id: string, props: ApiKeyProps) => (props.name ? props.name : try createPhysicalName({
+  id,
+  maxLength: 128,
+}))
+
+const readByName = effect (id: string, name: string) => {
+  const keys = try ag.getApiKeys
+    .items({ nameQuery: name, limit: 500, includeValues: false })
+    .pipe(Stream.runCollect)
+
+  for (const key of keys) {
+    if (key.name !== name || !key.id) continue
+    if (try hasAlchemyTags(id, key.tags)) {
+      return key
+    }
+  }
+  return undefined
+}
+
+export const ApiKeyProvider = (): infer _ =>
+  Provider.effect(
+    ApiKeyResource,
+    effect {
+      return {
+        stables: ["id"] as const,
+        diff: effect ({ news: newsIn, olds }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          const news = resolved as ApiKeyProps
+          if (
+            // API Gateway never returns the key value after create, so rotating
+            // a user-supplied value is modeled as replacement instead of patch.
+            resolvedValue(news.value) !== resolvedValue(olds.value)
+            || news.customerId !== olds.customerId
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ output }) => {
+          if (!output?.id) return undefined
+          const k = ag
+            .getApiKey({ apiKey: output.id, includeValue: false }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: undefined;
+              default: throw e;
+            }
+          if (!k?.id) return undefined
+          return {
+            id: k.id,
+            name: k.name,
+            enabled: k.enabled,
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(k.tags), catch: (e) => e })),
+          }
+        },
+        list: effect () =>
+          Array.from(
+            try (ag.getApiKeys.pages({ limit: 500, includeValues: false })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.items ?? [])
+              .filter((k): k is ag.ApiKey & { id: string } => !!k.id)
+              .map((k) => ({
+                id: k.id,
+                name: k.name,
+                enabled: k.enabled,
+                tags: tagRecord(k.tags),
+              }))
+          ),
+        reconcile: effect ({ id, news: newsIn, output, session }) => {
+          const { region } = try AWSEnvironment.current
+          const resolved_ = try Effect.orDie(
+            Effect.try({ try: () => isResolved(newsIn) ? newsIn : undefined, catch: (e) => e }),
+          )
+          if (resolved_ === undefined) {
+            return try Effect.die("ApiKey props were not resolved")
+          }
+          const news = resolved_ as ApiKeyProps
+          const name = try generatedName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // Observe — find the API key. We try the cached id first, fall
+          // back to scanning by name with the alchemy ownership filter so
+          // the reconciler converges after an out-of-band recreate or an
+          // adoption that bypassed our id cache.
+          let observed = output?.id
+            ? ag
+              .getApiKey({ apiKey: output.id, includeValue: false }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: undefined;
+                default: throw e;
+              }
+            : undefined
+          if (!observed?.id) {
+            observed = try readByName(id, name)
+          }
+
+          // Ensure — create if missing. Tolerate `ConflictException` as a
+          // race with a peer reconciler or a stray key with the same name:
+          // re-look up by name and treat the alchemy-owned hit as observed.
+          if (!observed?.id) {
+            const created = ag
+              .createApiKey({
+                name,
+                description: news.description,
+                enabled: news.enabled,
+                generateDistinctId: news.generateDistinctId,
+                // Distilled's CreateApiKeyRequest.value is SensitiveString —
+                // it accepts the Redacted directly and unwraps on encode, so
+                // the plaintext never passes through alchemy code.
+                value: news.value,
+                stageKeys: news.stageKeys,
+                customerId: news.customerId,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try effect {
+                  const existing = try readByName(id, name)
+                  if (existing) return existing
+                  throw try Effect.orDie(Effect.try({
+                    try: () =>
+                      ag.ConflictException.make({
+                        message: `API key '${name}' already exists and is not managed by alchemy`,
+                      }),
+                    catch: (e) => e,
+                  }))
+                };
+                default: throw e;
+              }
+            if (!created.id) return try Effect.die("createApiKey missing id")
+            try session.note(`Created API key ${created.id}`)
+            observed = try ag.getApiKey({
+              apiKey: created.id,
+              includeValue: false,
+            })
+          }
+
+          const apiKeyId = observed.id!
+
+          // Sync mutable scalar fields — observed ↔ desired patch list.
+          const patches: ag.PatchOperation[] = []
+          if (news.name !== undefined && news.name !== observed.name) {
+            patches.push({
+              op: "replace",
+              path: "/name",
+              value: news.name,
+            })
+          }
+          if (news.description !== undefined && news.description !== observed.description) {
+            patches.push({
+              op: "replace",
+              path: "/description",
+              value: news.description,
+            })
+          }
+          if (news.enabled !== undefined && news.enabled !== observed.enabled) {
+            patches.push({
+              op: "replace",
+              path: "/enabled",
+              value: String(news.enabled),
+            })
+          }
+          if (patches.length > 0) {
+            try ag.updateApiKey({
+              apiKey: apiKeyId,
+              patchOperations: patches,
+            })
+          }
+
+          // Sync tags — diff observed cloud tags against desired so adoption
+          // converges without fighting whatever tag set was already there.
+          const observedTags = try Effect.orDie(Effect.try({ try: () => tagRecord(observed.tags), catch: (e) => e }))
+          if (!(try Effect.orDie(Effect.try({ try: () => deepEqual(observedTags, desiredTags), catch: (e) => e })))) {
+            try syncTags({
+              resourceArn: try Effect.orDie(Effect.try({ try: () => apiKeyArn(region, apiKeyId), catch: (e) => e })),
+              oldTags: observedTags,
+              newTags: desiredTags,
+            })
+          }
+
+          try session.note(`Reconciled API key ${apiKeyId}`)
+          const final = try ag.getApiKey({
+            apiKey: apiKeyId,
+            includeValue: false,
+          })
+          if (!final.id) return try Effect.die("getApiKey missing id")
+          return {
+            id: final.id,
+            name: final.name,
+            enabled: final.enabled,
+            tags: try Effect.orDie(Effect.try({ try: () => tagRecord(final.tags), catch: (e) => e })),
+          }
+        },
+        delete: effect ({ output, session }) => {
+          ag
+            .deleteApiKey({ apiKey: output.id }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: undefined as void;
+              default: throw e;
+            }
+          try session.note(`Deleted API key ${output.id}`)
+        },
+      }
+    },
+  )

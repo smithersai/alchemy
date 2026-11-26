@@ -1,4 +1,4 @@
-import { frameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { frameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /** The framework-integration package that drives the React Router build. */
 export const REACT_ROUTER_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/react-router";

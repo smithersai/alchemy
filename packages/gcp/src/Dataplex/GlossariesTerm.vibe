@@ -1,0 +1,316 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  expandParent,
+  hasAlchemyLabelMap,
+  listGlossaries,
+  listTerms,
+  normalizeLocation,
+  parseResourceName,
+  replaceIfChanged,
+  toPhysicalRfc1035,
+  userLabels,
+} from "./shared.vibe"
+
+export type GlossariesTermProps = {
+  /**
+   * Parent glossary. Full name
+   * `projects/{project}/locations/{location}/glossaries/{glossary}` or the
+   * glossary id (combined with `location`). Immutable — changing it
+   * replaces the term.
+   */
+  glossary: string
+  /**
+   * Immediate parent in the glossary tree — the glossary itself or a
+   * category
+   * `.../glossaries/{glossary}/categories/{category}`. Defaults to
+   * `glossary`.
+   */
+  parent?: string
+  /**
+   * Region used when `glossary` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Term id (the `{term}` segment of
+   * `.../glossaries/{glossary}/terms/{term}`). If omitted, a unique name
+   * is generated from the stack, stage, and logical id. Immutable —
+   * changing it replaces the term.
+   */
+  termId?: string
+  /**
+   * User-friendly display name. Defaults to the term id.
+   */
+  displayName?: string
+  /**
+   * Rich-text description attached to catalog entries.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type GlossariesTerm = Resource<
+  "GCP.Dataplex.GlossariesTerm",
+  GlossariesTermProps,
+  {
+    /** Full resource name `.../glossaries/{glossary}/terms/{term}`. */
+    name: string
+    /** Term id (last path segment). */
+    termId: string
+    /** Parent glossary resource name. */
+    glossary: string
+    /** Immediate parent (glossary or category). */
+    parent: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-friendly display name. */
+    displayName: string | undefined
+    /** Description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-assigned uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex glossary term — a defined business concept that can be
+ * attached to catalog entries.
+ *
+ * Changing `glossary`, `termId`, or `location` replaces the term. Display
+ * name, description, labels, and immediate parent update in place.
+ *
+ * ### Creating a Term
+ * **Example:** Term under a glossary
+ * ```typescript
+ * const term = yield* GCP.Dataplex.GlossariesTerm("Customer", {
+ *   glossary: glossary.name,
+ *   displayName: "Customer",
+ *   description: "a paying account",
+ *   labels: { env: "dev" },
+ * });
+ * ```
+ *
+ * **Example:** Named term
+ * ```typescript
+ * const term = yield* GCP.Dataplex.GlossariesTerm("Customer", {
+ *   glossary: glossary.name,
+ *   termId: "customer",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const GlossariesTerm = Resource<GlossariesTerm>("GCP.Dataplex.GlossariesTerm")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class GlossariesTermNotResolved extends Data.TaggedError(
+  "GCP.Dataplex.GlossariesTermNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const glossaryOf = (glossary: string, project: string, location: string): infer _ =>
+  expandParent(glossary, project, location, "glossaries")
+
+const resourceName = (glossary: string, termId: string): infer _ => `${glossary}/terms/${termId}`
+
+const toAttrs = (term: dataplex.GoogleCloudDataplexV1GlossaryTerm, project: string): infer _ => {
+  const name = term.name ?? ""
+  const parsed = parseResourceName(name, "terms")
+  const glossary = parseResourceName(name, "glossaries")
+  return {
+    name,
+    termId: parsed.id,
+    glossary: glossary.parent ? `${glossary.parent}/glossaries/${glossary.id}` : parsed.parent,
+    parent: term.parent ?? parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: term.displayName,
+    description: term.description,
+    labels: userLabels(term.labels),
+    uid: term.uid,
+    createTime: term.createTime,
+    updateTime: term.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  dataplex
+    .getProjectsLocationsGlossariesTerms({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const GlossariesTermProvider = (): infer _ =>
+  Provider.succeed(GlossariesTerm, {
+    stables: ["name", "termId", "glossary", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.termId ?? output?.termId
+      const nextId = resolved.termId ?? previousId
+      const previousGlossary = olds?.glossary ?? output?.glossary
+      const nextGlossary = resolved.glossary ?? previousGlossary
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      if (
+        (try Effect.orDie(Effect.try({ try: () => replaceIfChanged(previousId, nextId), catch: (e) => e })))
+        || (try Effect.orDie(
+          Effect.try({ try: () => replaceIfChanged(previousGlossary, nextGlossary), catch: (e) => e }),
+        ))
+        || (output !== undefined && previousLocation !== nextLocation)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousGlossary === nextGlossary
+            && previousLocation === nextLocation
+            && previousId !== undefined
+            && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const glossary = glossaryOf(olds?.glossary ?? output?.glossary ?? "", env.project, location)
+      const termId = try toPhysicalRfc1035(id, olds?.termId, output?.termId)
+      const name = output?.name ?? resourceName(glossary, termId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const glossaries = try listGlossaries(env.project, env.region)
+      const terms = try Effect.forEach(
+        glossaries.filter((glossary) => (glossary.name ?? "").length > 0),
+        effect (glossary) => try listTerms(glossary.name!),
+        { concurrency: 4 },
+      )
+      return terms
+        .flat()
+        .filter((term) => hasAlchemyLabelMap(term.labels))
+        .map((term) => toAttrs(term, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const glossary = glossaryOf(news.glossary, env.project, location)
+      const termId = try toPhysicalRfc1035(id, news.termId, output?.termId)
+      const name = output?.name ?? resourceName(glossary, termId)
+      const immediateParent = news.parent ?? glossary
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = dataplex
+          .createProjectsLocationsGlossariesTerms({
+            parent: glossary,
+            termId,
+            body: {
+              parent: immediateParent,
+              displayName: news.displayName,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new GlossariesTermNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const parentChanged = (current.parent ?? "") !== immediateParent
+
+      if (labelsChanged || displayNameChanged || descriptionChanged || parentChanged) {
+        const updateMask = [
+          labelsChanged ? "labels" : undefined,
+          displayNameChanged ? "display_name" : undefined,
+          descriptionChanged ? "description" : undefined,
+          parentChanged ? "parent" : undefined,
+        ].filter((field): field is string => field !== undefined)
+        current = try dataplex.patchProjectsLocationsGlossariesTerms({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            parent: immediateParent,
+            displayName: news.displayName,
+            description: news.description,
+            labels: desiredLabels,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      dataplex
+        .deleteProjectsLocationsGlossariesTerms({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

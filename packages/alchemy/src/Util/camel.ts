@@ -1,4 +1,4 @@
-import { isPlainObject } from "./data.ts";
+import { isPlainObject } from "./data.vibe";
 
 export const camelCaseKey = (key: string) =>
   key.replace(/^_+/, "").replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());

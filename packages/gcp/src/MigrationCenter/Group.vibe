@@ -1,0 +1,291 @@
+import * as mc from "@distilled.cloud/gcp/migrationcenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  fieldMask,
+  hasAlchemyLabelMap,
+  locationParent,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type GroupProps = {
+  /**
+   * Group id (the `{group}` segment of
+   * `projects/{project}/locations/{location}/groups/{group}`). If omitted,
+   * a unique RFC1035 name is generated. Immutable — changing it replaces
+   * the group.
+   */
+  groupId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * group. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-friendly display name.
+   */
+  displayName?: string
+  /**
+   * Free-text description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type Group = Resource<
+  "GCP.MigrationCenter.Group",
+  GroupProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Group id (last path segment). */
+    groupId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-friendly display name. */
+    displayName: string | undefined
+    /** Free-text description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Migration Center asset group used to bundle related assets and
+ * generate reports.
+ *
+ * Changing `groupId` or `location` replaces the group. Display name,
+ * description, and labels update in place.
+ *
+ * ### Creating a Group
+ * **Example:** Generated name
+ * ```typescript
+ * const group = yield* GCP.MigrationCenter.Group("Workloads", {
+ *   displayName: "workloads",
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Explicit id
+ * ```typescript
+ * const group = yield* GCP.MigrationCenter.Group("Workloads", {
+ *   groupId: "app-workloads",
+ *   description: "production vms",
+ * });
+ * ```
+ *
+ * @resource
+ * @category MigrationCenter
+ */
+export const Group = Resource<Group>("GCP.MigrationCenter.Group")
+
+const resourceName = (project: string, location: string, groupId: string): infer _ =>
+  `${locationParent(project, location)}/groups/${groupId}`
+
+const toAttrs = (group: mc.Group, project: string, region: string): infer _ => {
+  const name = group.name ?? ""
+  const parsed = parseName(name, "groups", region)
+  return {
+    name,
+    groupId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: group.displayName,
+    description: group.description,
+    labels: userLabels(group.labels),
+    createTime: group.createTime,
+    updateTime: group.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : mc
+  .getProjectsLocationsGroups({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  (effect {
+    return (Array.from(
+      try (mc.listProjectsLocationsGroups
+        .pages({
+          parent: `projects/${project}/locations/-`,
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.groups ?? []))
+        |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (effect {
+      return (Array.from(
+        try (mc.listProjectsLocationsGroups
+          .pages({
+            parent: try Effect.orDie(Effect.try({ try: () => locationParent(project, region), catch: (e) => e })),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.groups ?? []))
+          |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+          |> Stream.runCollect(%)),
+      ))
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.Group[]; default: throw e; };
+    default: throw e;
+  }
+
+export const GroupProvider = (): infer _ =>
+  Provider.succeed(Group, {
+    stables: ["name", "groupId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.groupId ?? output?.groupId,
+            nextId: resolved.groupId ?? olds?.groupId ?? output?.groupId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const groupId = try toPhysicalId(id, olds?.groupId, output?.groupId, "group")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, groupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const groupId = try toPhysicalId(id, news.groupId, output?.groupId, "group")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, groupId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const displayName = news.displayName ?? groupId
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = mc
+          .createProjectsLocationsGroups({
+            parent: locationParent(env.project, location),
+            groupId,
+            body: {
+              displayName,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayNameChanged = (current.displayName ?? "") !== displayName
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const mask = fieldMask([
+        labelsChanged && "labels",
+        displayNameChanged && "displayName",
+        descriptionChanged && "description",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try mc.patchProjectsLocationsGroups({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description: news.description,
+            labels: desiredLabels,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (mc.deleteProjectsLocationsGroups({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

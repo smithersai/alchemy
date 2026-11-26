@@ -22,17 +22,17 @@ import * as Path from "effect/Path";
 import * as Scope from "effect/Scope";
 import packageJson from "../../package.json" with { type: "json" };
 import * as Interaction from "../Interaction.ts";
-import { logShutdown } from "../Util/Shutdown.ts";
-import { checkLatestVersion } from "./checkVersion.ts";
+import { logShutdown } from "../Util/Shutdown.vibe";
+import { checkLatestVersion } from "./checkVersion.vibe";
 import {
   compatibilityCommand,
   compatibilityCommands,
   type CompatibilityCommand,
-} from "./commands/compat.ts";
+} from "./commands/compat.vibe";
 import { handleCliErrors } from "./commands/errors.ts";
-import { VersionCheck } from "./commands/instrument.ts";
-import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.ts";
-import { selectCliServices } from "./selectCli.ts";
+import { VersionCheck } from "./commands/instrument.vibe";
+import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.vibe";
+import { selectCliServices } from "./selectCli.vibe";
 
 const commandMetadata = [
   ["provider", "Manage cloud provider prerequisites and utilities"],
@@ -69,25 +69,25 @@ const loadContributions = () =>
 const loadCommand = async (name: CommandName) => {
   switch (name) {
     case "provider":
-      return (await import("./commands/provider.ts")).providerCommand(await loadContributions());
+      return (await import("./commands/provider.vibe")).providerCommand(await loadContributions());
     case "deploy":
-      return (await import("./commands/deploy.ts")).deployCommand;
+      return (await import("./commands/deploy.vibe")).deployCommand;
     case "dev":
-      return (await import("./commands/dev.ts")).devCommand;
+      return (await import("./commands/dev.vibe")).devCommand;
     case "destroy":
-      return (await import("./commands/deploy.ts")).destroyCommand;
+      return (await import("./commands/deploy.vibe")).destroyCommand;
     case "plan":
-      return (await import("./commands/deploy.ts")).planCommand;
+      return (await import("./commands/deploy.vibe")).planCommand;
     case "logs":
-      return (await import("./commands/logs.ts")).logsCommand;
+      return (await import("./commands/logs.vibe")).logsCommand;
     case "profile":
       return (await import("./commands/profile/index.ts")).profileCommand;
     case "state":
-      return (await import("./commands/state.ts")).stateCommand;
+      return (await import("./commands/state.vibe")).stateCommand;
     case "drift":
-      return (await import("./commands/drift.ts")).driftCommand;
+      return (await import("./commands/drift.vibe")).driftCommand;
     case "unsafe":
-      return (await import("./commands/nuke.ts")).unsafeCommand;
+      return (await import("./commands/nuke.vibe")).unsafeCommand;
   }
 };
 

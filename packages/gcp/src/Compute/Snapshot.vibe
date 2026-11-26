@@ -1,0 +1,468 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { type WaitComputeOptions, waitGlobalOperation, waitRegionOperation, waitZoneOperation } from "./operations.vibe"
+
+export type SnapshotProps = {
+  /**
+   * Snapshot name (RFC1035, 1-63 characters). If omitted, a unique name is
+   * generated from the stack, stage, and logical id. Changing the name
+   * replaces the snapshot.
+   */
+  snapshotName?: string
+  /**
+   * Source disk URL or relative path used to create the snapshot
+   * (`projects/{project}/zones/{zone}/disks/{disk}`,
+   * `zones/{zone}/disks/{disk}`, or a full self-link). Immutable —
+   * changing it replaces the snapshot.
+   */
+  sourceDisk: string
+  /**
+   * Source instant snapshot URL. Immutable — changing it replaces the
+   * snapshot. Mutually exclusive with creating from a different source
+   * disk.
+   */
+  sourceInstantSnapshot?: string
+  /**
+   * Optional description. Immutable — changing it replaces the snapshot.
+   */
+  description?: string
+  /**
+   * Snapshot type (`STANDARD` or `ARCHIVE`). Immutable — changing it
+   * replaces the snapshot.
+   * @default "STANDARD"
+   */
+  snapshotType?: compute.SnapshotSnapshotTypeEnum | (string & {})
+  /**
+   * Cloud Storage locations to store the snapshot (regional or
+   * multi-regional codes such as `us-central1` or `us`). Immutable —
+   * changing it replaces the snapshot.
+   */
+  storageLocations?: string[]
+  /**
+   * Snapshot chain name for advanced chargeback tracking. Immutable —
+   * changing it replaces the snapshot.
+   */
+  chainName?: string
+  /**
+   * Attempt an application-consistent snapshot by flushing the guest OS.
+   * Input-only; not persisted on the resource.
+   */
+  guestFlush?: boolean
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type Snapshot = Resource<
+  "GCP.Compute.Snapshot",
+  SnapshotProps,
+  {
+    /** Snapshot name. */
+    snapshotName: string
+    /** Server-assigned numeric id. */
+    snapshotId: string | undefined
+    /** Project id. */
+    project: string
+    /** Source disk URL. */
+    sourceDisk: string | undefined
+    /** Server-assigned source disk id. */
+    sourceDiskId: string | undefined
+    /** Source instant snapshot URL, if any. */
+    sourceInstantSnapshot: string | undefined
+    /** Snapshot type (`STANDARD` or `ARCHIVE`). */
+    snapshotType: string | undefined
+    /** Cloud Storage locations. */
+    storageLocations: string[]
+    /** Snapshot chain name, if set. */
+    chainName: string | undefined
+    /** Optional description. */
+    description: string | undefined
+    /** Server-reported status (`READY`, `CREATING`, …). */
+    status: string | undefined
+    /** Size of the source disk in GB. */
+    diskSizeGb: string | undefined
+    /** Storage used by the snapshot, in bytes. */
+    storageBytes: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Compute Engine self-link. */
+    selfLink: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A global Compute Engine persistent-disk snapshot.
+ *
+ * Snapshots are created from a source disk (or instant snapshot). Name,
+ * source, type, storage locations, chain name, and description are
+ * immutable — changing them replaces the snapshot. Labels are updated
+ * in place via `snapshots.setLabels`.
+ *
+ * ### Creating a Snapshot
+ * **Example:** Snapshot of a disk
+ * ```typescript
+ * const disk = yield* GCP.Compute.Disk("data", {
+ *   zone: "us-central1-a",
+ *   sizeGb: 10,
+ * });
+ * const snapshot = yield* GCP.Compute.Snapshot("nightly", {
+ *   sourceDisk: disk.selfLink,
+ * });
+ * ```
+ *
+ * **Example:** Explicit name, archive type, and labels
+ * ```typescript
+ * const snapshot = yield* GCP.Compute.Snapshot("nightly", {
+ *   snapshotName: "app-data-nightly",
+ *   sourceDisk: "zones/us-central1-a/disks/app-data",
+ *   snapshotType: "ARCHIVE",
+ *   storageLocations: ["us-central1"],
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const Snapshot = Resource<Snapshot>("GCP.Compute.Snapshot")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SnapshotNotResolved extends Data.TaggedError("GCP.Compute.SnapshotNotResolved")<{
+  snapshotName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SnapshotNotReady extends Data.TaggedError("GCP.Compute.SnapshotNotReady")<{
+  snapshotName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SnapshotFailed extends Data.TaggedError("GCP.Compute.SnapshotFailed")<{
+  snapshotName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SnapshotStillExists extends Data.TaggedError("GCP.Compute.SnapshotStillExists")<{
+  snapshotName: string
+  status: string
+}> {}
+
+const DEFAULT_SNAPSHOT_TYPE = "STANDARD"
+
+const lastSegment = (value: string | undefined): string | undefined => {
+  if (value === undefined || value.length === 0) return undefined
+  const parts = value.split("/")
+  return parts[parts.length - 1] || value
+}
+
+const canonicalizeSource = (source: string | undefined): string => {
+  if (source === undefined || source.length === 0) return ""
+  const cleaned = source.split("?")[0] ?? source
+  const zonal = cleaned.match(/(zones\/[^/]+\/disks\/[^/]+)$/)
+  if (zonal?.[1] !== undefined) return zonal[1]
+  const regional = cleaned.match(/(regions\/[^/]+\/disks\/[^/]+)$/)
+  if (regional?.[1] !== undefined) return regional[1]
+  const instant = cleaned.match(/(zones\/[^/]+\/instantSnapshots\/[^/]+)$/)
+  if (instant?.[1] !== undefined) return instant[1]
+  return cleaned.replace(/^https?:\/\/[^/]+\//, "")
+}
+
+const sameLocations = (
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): boolean => {
+  const a = [...(left ?? [])].map((value) => value.toLowerCase()).sort()
+  const b = [...(right ?? [])].map((value) => value.toLowerCase()).sort()
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  return /^[a-z]/.test(generated) ? generated : `s${generated}`.slice(0, 63)
+}
+
+const toAttrs = (snapshot: compute.Snapshot, project: string): infer _ => ({
+  snapshotName: snapshot.name ?? snapshot.id ?? "",
+  snapshotId: snapshot.id,
+  project,
+  sourceDisk: snapshot.sourceDisk,
+  sourceDiskId: snapshot.sourceDiskId,
+  sourceInstantSnapshot: snapshot.sourceInstantSnapshot,
+  snapshotType: snapshot.snapshotType,
+  storageLocations: snapshot.storageLocations ?? [],
+  chainName: snapshot.chainName,
+  description: snapshot.description,
+  status: snapshot.status,
+  diskSizeGb: snapshot.diskSizeGb,
+  storageBytes: snapshot.storageBytes,
+  labels: userLabels(snapshot.labels),
+  selfLink: snapshot.selfLink,
+  creationTimestamp: snapshot.creationTimestamp,
+})
+
+const getByName = effect (project: string, snapshot: string) =>
+  compute
+    .getSnapshots({ project, snapshot }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitSnapshotReady = effect (project: string, snapshotName: string) =>
+  try (effect {
+    return try effect {
+      const snapshot = try getByName(project, snapshotName)
+      return (snapshot?.status === "FAILED" ? throw new SnapshotFailed({ snapshotName, status: "FAILED" }) : snapshot)
+    }
+  }
+    |> Effect.filterOrFail(
+      %,
+      (snapshot): snapshot is compute.Snapshot => snapshot !== undefined && snapshot.status === "READY",
+      (snapshot) =>
+        new SnapshotNotReady({
+          snapshotName,
+          status: snapshot?.status ?? "MISSING",
+        }),
+    )
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Compute.SnapshotNotReady",
+      times: 72,
+      schedule: Schedule.spaced("5 seconds"),
+    }))
+
+const waitSnapshotGone = effect (project: string, snapshotName: string) =>
+  try (effect {
+    return try effect {
+      const snapshot = try getByName(project, snapshotName)
+      return (snapshot === undefined ? try Effect.void : throw new SnapshotStillExists({
+        snapshotName,
+        status: snapshot.status ?? "UNKNOWN",
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error instanceof SnapshotStillExists,
+      times: 18,
+      schedule: Schedule.spaced("3 seconds"),
+    }))
+
+const waitSnapshotOperation = effect (
+  project: string,
+  operation: compute.Operation,
+  options?: WaitComputeOptions,
+) => {
+  const zone = lastSegment(operation.zone)
+  const region = lastSegment(operation.region)
+  return zone !== undefined
+    ? try waitZoneOperation(project, zone, operation, options)
+    : region !== undefined
+    ? try waitRegionOperation(project, region, operation, options)
+    : try waitGlobalOperation(project, operation, options)
+}
+
+export const SnapshotProvider = (): infer _ =>
+  Provider.succeed(Snapshot, {
+    stables: [
+      "snapshotName",
+      "snapshotId",
+      "project",
+      "sourceDisk",
+      "sourceDiskId",
+      "sourceInstantSnapshot",
+      "snapshotType",
+      "storageLocations",
+      "chainName",
+      "selfLink",
+      "creationTimestamp",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+
+      const previousName = olds?.snapshotName ?? output?.snapshotName
+      const nextName = resolved.snapshotName ?? previousName
+      const previousSource = canonicalizeSource(olds?.sourceDisk ?? output?.sourceDisk)
+      const nextSource = canonicalizeSource(resolved.sourceDisk)
+      const previousInstant = canonicalizeSource(
+        olds?.sourceInstantSnapshot ?? output?.sourceInstantSnapshot,
+      )
+      const nextInstant = canonicalizeSource(resolved.sourceInstantSnapshot)
+      const previousType = olds?.snapshotType ?? output?.snapshotType ?? DEFAULT_SNAPSHOT_TYPE
+      const nextType = resolved.snapshotType ?? DEFAULT_SNAPSHOT_TYPE
+      const previousDescription = olds?.description ?? output?.description ?? ""
+      const nextDescription = resolved.description ?? ""
+      const previousChain = olds?.chainName ?? output?.chainName ?? ""
+      const nextChain = resolved.chainName ?? ""
+      const locationsSpecified = resolved.storageLocations !== undefined
+      const locationsChanged = locationsSpecified
+        && !sameLocations(resolved.storageLocations, olds?.storageLocations ?? output?.storageLocations)
+
+      const replace = (previousName !== undefined && nextName !== undefined && previousName !== nextName)
+        || (nextSource.length > 0 && previousSource.length > 0 && previousSource !== nextSource)
+        || previousInstant !== nextInstant
+        || previousType !== nextType
+        || previousDescription !== nextDescription
+        || previousChain !== nextChain
+        || locationsChanged
+
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousName !== undefined && nextName !== undefined && previousName === nextName,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const snapshotName = try toName(id, olds?.snapshotName, output?.snapshotName)
+      const existing = try getByName(env.project, snapshotName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (compute.listSnapshots
+          .items({
+            project: env.project,
+            filter: "labels.alchemy-id:*",
+            maxResults: 500,
+          })
+          |> Stream.filter(
+            %,
+            (snapshot) => Object.keys(snapshot.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+          )
+          |> Stream.map(%, (snapshot) => toAttrs(snapshot, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const snapshotName = try toName(id, news.snapshotName, output?.snapshotName)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(env.project, snapshotName)
+      if (current?.status === "DELETING") {
+        try waitSnapshotGone(env.project, snapshotName)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        const inserted = compute
+          .insertSnapshots({
+            project: env.project,
+            body: {
+              name: snapshotName,
+              sourceDisk: news.sourceDisk,
+              sourceInstantSnapshot: news.sourceInstantSnapshot,
+              description: news.description,
+              labels: desiredLabels,
+              snapshotType: news.snapshotType,
+              storageLocations: news.storageLocations,
+              chainName: news.chainName,
+              guestFlush: news.guestFlush,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (inserted !== undefined) {
+          try waitSnapshotOperation(env.project, inserted, {
+            ignore: ["RESOURCE_ALREADY_EXISTS"],
+          })
+        }
+        current = try waitSnapshotReady(env.project, snapshotName)
+      }
+
+      if (current === undefined) {
+        throw new SnapshotNotResolved({ snapshotName })
+      }
+
+      if (current.status !== "READY") {
+        current = try waitSnapshotReady(env.project, snapshotName)
+      }
+
+      if (current === undefined) {
+        throw new SnapshotNotResolved({ snapshotName })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      if (upsert.length > 0 || removed.length > 0) {
+        const labeled = try compute.setLabelsSnapshots({
+          project: env.project,
+          resource: snapshotName,
+          body: {
+            labels: desiredLabels,
+            labelFingerprint: current.labelFingerprint,
+          },
+        })
+        try waitSnapshotOperation(env.project, labeled)
+        current = try getByName(env.project, snapshotName)
+      }
+
+      if (current === undefined) {
+        throw new SnapshotNotResolved({ snapshotName })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const deleted = try (effect {
+        return compute
+          .deleteSnapshots({
+            project: output.project,
+            snapshot: output.snapshotName,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))
+      if (deleted !== undefined) {
+        try waitSnapshotOperation(output.project, deleted, {
+          ignore: ["RESOURCE_NOT_FOUND"],
+        })
+      }
+      try waitSnapshotGone(output.project, output.snapshotName)
+    },
+  })

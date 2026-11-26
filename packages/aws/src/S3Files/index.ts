@@ -1,2 +1,2 @@
-export * from "./AccessPoint.ts";
-export * from "./FileSystem.ts";
+export * from "./AccessPoint.vibe";
+export * from "./FileSystem.vibe";

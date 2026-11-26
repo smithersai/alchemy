@@ -26,7 +26,7 @@ kubectl --context kind-alchemy -n my-app logs job/<smokeTest>
 bun run destroy
 ```
 
-`--stage prod` targets a kubeconfig context named `prod` and pushes to `ghcr.io/you`. Edit `src/infra.ts` for your cluster and registry first, as described in [Part 5](https://alchemy.run/kubernetes/tutorial/part-5).
+`--stage prod` targets a kubeconfig context named `prod` and pushes to `ghcr.io/you`. Edit `src/infra.vibe` for your cluster and registry first, as described in [Part 5](https://alchemy.run/kubernetes/tutorial/part-5).
 
 ## Test
 

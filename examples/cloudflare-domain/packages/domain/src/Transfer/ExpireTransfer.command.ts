@@ -1,6 +1,6 @@
 import * as Domain from "@alchemy.run/domain";
-import { TransferFailed } from "./FailTransfer.command.ts";
-import { TransferId } from "./Transfer.id.ts";
+import { TransferFailed } from "./FailTransfer.command.vibe";
+import { TransferId } from "./Transfer.id.vibe";
 
 /**
  * The approval window closed. Scheduled by `TransferApprovalDeadline`; it

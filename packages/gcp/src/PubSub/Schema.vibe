@@ -1,0 +1,261 @@
+import * as pubsub from "@distilled.cloud/gcp/pubsub_v1"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export type SchemaType = "AVRO" | "PROTOCOL_BUFFER"
+
+export type SchemaProps = {
+  /**
+   * Schema id (the `{schema}` segment of `projects/{project}/schemas/{schema}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must start with a letter and be 3-255 characters.
+   * Immutable — changing it replaces the schema.
+   */
+  schemaId?: string
+  /**
+   * Schema definition language. Immutable — changing it replaces the schema.
+   */
+  type: SchemaType
+  /**
+   * Schema definition. Must be a valid Avro JSON schema or Protocol Buffer
+   * file matching `type`. Updates commit a new revision (Pub/Sub allows
+   * up to 20 revisions per schema).
+   */
+  definition: string
+}
+
+export type Schema = Resource<
+  "GCP.PubSub.Schema",
+  SchemaProps,
+  {
+    /** Full resource name `projects/{project}/schemas/{schema}`. */
+    name: string
+    /** Schema id (last path segment). */
+    schemaId: string
+    /** Project id. */
+    project: string
+    /** Schema definition language. */
+    type: string | undefined
+    /** Schema definition (latest revision). */
+    definition: string | undefined
+    /** Latest revision id. */
+    revisionId: string | undefined
+    /** RFC3339 timestamp when the latest revision was created. */
+    revisionCreateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google Cloud Pub/Sub schema used to validate published messages.
+ *
+ * Pub/Sub schemas have no labels field. Ownership is by resource name;
+ * `list` returns every schema in the project so `pnpm nuke:gcp` can
+ * clean leaked test schemas.
+ *
+ * ### Creating a Schema
+ * **Example:** Generated name (Avro)
+ * ```typescript
+ * const schema = yield* GCP.PubSub.Schema("Events", {
+ *   type: "AVRO",
+ *   definition: JSON.stringify({
+ *     type: "record",
+ *     name: "Event",
+ *     fields: [{ name: "id", type: "string" }],
+ *   }),
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and Protocol Buffer definition
+ * ```typescript
+ * const schema = yield* GCP.PubSub.Schema("Events", {
+ *   schemaId: "order-events",
+ *   type: "PROTOCOL_BUFFER",
+ *   definition: 'syntax = "proto3";\nmessage Event { string id = 1; }',
+ * });
+ * ```
+ *
+ * ### Updating a Schema
+ * Change `definition` on the same logical id; the schema keeps its name and
+ * a new revision is committed.
+ *
+ * **Example:** Commit a compatible Avro revision
+ * ```typescript
+ * const schema = yield* GCP.PubSub.Schema("Events", {
+ *   type: "AVRO",
+ *   definition: JSON.stringify({
+ *     type: "record",
+ *     name: "Event",
+ *     fields: [
+ *       { name: "id", type: "string" },
+ *       { name: "count", type: "int", default: 0 },
+ *     ],
+ *   }),
+ * });
+ * ```
+ *
+ * @resource
+ * @category PubSub
+ */
+export const Schema = Resource<Schema>("GCP.PubSub.Schema")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SchemaNotResolved extends Data.TaggedError("GCP.PubSub.SchemaNotResolved")<{
+  resourceName: string
+}> {}
+
+const canonicalName = (name: string): infer _ => name.split("@")[0] ?? name
+
+const schemaIdOf = (name: string): infer _ => {
+  const withoutRevision = canonicalName(name)
+  return withoutRevision.split("/").pop() ?? withoutRevision
+}
+
+const resourceName = (project: string, schemaId: string): infer _ => `projects/${project}/schemas/${schemaId}`
+
+const toId = effect (id: string, schemaId: string | undefined, existing?: string) => {
+  if (schemaId !== undefined) return schemaId
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 255,
+    lowercase: true,
+  })
+  return /^[a-z]/.test(generated) ? generated : `s${generated}`.slice(0, 255)
+}
+
+const toAttrs = (schema: pubsub.Pubsub_Schema, project: string): infer _ => {
+  const name = canonicalName(schema.name ?? "")
+  return {
+    name,
+    schemaId: schemaIdOf(name),
+    project,
+    type: schema.type,
+    definition: schema.definition,
+    revisionId: schema.revisionId,
+    revisionCreateTime: schema.revisionCreateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  pubsub
+    .getProjectsSchemas({ name: canonicalName(name), view: "FULL" }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const definitionsEqual = (left: string | undefined, right: string | undefined): infer _ => {
+  const a = (left ?? "").trim()
+  const b = (right ?? "").trim()
+  if (a === b) return true
+  try {
+    return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b))
+  } catch {
+    return false
+  }
+}
+
+export const SchemaProvider = (): infer _ =>
+  Provider.succeed(Schema, {
+    stables: ["name", "schemaId", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.schemaId ?? output?.schemaId
+      const nextId = resolved.schemaId ?? previousId
+      const nameChanged = previousId !== undefined && resolved.schemaId !== undefined
+        && resolved.schemaId !== previousId
+      const previousType = olds?.type ?? output?.type
+      const typeChanged = previousType !== undefined && previousType !== resolved.type
+      if (nameChanged) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      if (typeChanged) {
+        return {
+          action: "replace" as const,
+          deleteFirst: nextId !== undefined && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const schemaId = try toId(id, olds?.schemaId, output?.schemaId)
+      const name = canonicalName(output?.name ?? resourceName(env.project, schemaId))
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      return toAttrs(existing, env.project)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (pubsub.listProjectsSchemas
+          .pages({
+            parent: `projects/${env.project}`,
+            pageSize: 1000,
+            view: "FULL",
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.schemas ?? []))
+          |> Stream.map(%, (schema) => toAttrs(schema, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const schemaId = try toId(id, news.schemaId, output?.schemaId)
+      const name = resourceName(env.project, schemaId)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = pubsub
+          .createProjectsSchemas({
+            parent: `projects/${env.project}`,
+            schemaId,
+            body: {
+              type: news.type,
+              definition: news.definition,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SchemaNotResolved({ resourceName: name })
+      }
+
+      if (!definitionsEqual(current.definition, news.definition)) {
+        current = try pubsub.commitProjectsSchemas({
+          name,
+          body: {
+            schema: {
+              name,
+              type: news.type,
+              definition: news.definition,
+            },
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      pubsub
+        .deleteProjectsSchemas({ name: canonicalName(output.name) }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })

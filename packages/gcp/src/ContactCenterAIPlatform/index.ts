@@ -1,1 +1,1 @@
-export * from "./ContactCenter.ts";
+export * from "./ContactCenter.vibe";

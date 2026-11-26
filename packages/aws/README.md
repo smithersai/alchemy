@@ -76,3 +76,11 @@ export default Alchemy.Stack(
 - [Setup](https://alchemy.run/aws/setup)
 - [Tutorial](https://alchemy.run/aws/tutorial/part-1)
 - [API reference](https://alchemy.run/providers)
+
+## Source compatibility checks
+
+From the repository root, run `node --test packages/aws/test/native-migration.test.mjs` after installing workspace dependencies. These checks compile the affected AWS sources, exercise pagination failures and generated inputs, and verify nonthrowing foreign-helper contracts.
+
+Factories that perform synchronous module resolution remain TypeScript so resolution failures keep their existing timing. The Step Functions program's pipe protocol also remains TypeScript because `pipeArguments` accepts JavaScript's `IArguments` object.
+
+Thin CodeArtifact and DataExchange HTTP bindings remain TypeScript where their synchronous resource callbacks can throw. Their shared callback types do not admit a thrown value; retaining the TypeScript modules preserves both that public signature and the existing defect behavior. Resource diff guards explicitly preserve defects from reading unresolved inputs.

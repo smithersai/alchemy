@@ -1,0 +1,265 @@
+import * as vision from "@distilled.cloud/gcp/vision_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_PRODUCT_CATEGORY,
+  deleteProduct,
+  getProduct,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  productLabelsOf,
+  productNameOf,
+  replaceOnIdentity,
+  sameProductLabels,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type ProductLabel = {
+  /** Label key (max 128 bytes). */
+  key: string
+  /** Label value (max 128 bytes). */
+  value: string
+}
+
+export type ProductProps = {
+  /**
+   * Product Search location. Immutable — changing it replaces the
+   * product.
+   * @default "us-west1"
+   */
+  location?: string
+  /**
+   * Product id (the `{product}` segment of
+   * `projects/{project}/locations/{location}/products/{product}`). If
+   * omitted, a unique id is generated. Immutable — changing it replaces
+   * the product. At most 128 characters; cannot contain `/`.
+   */
+  productId?: string
+  /**
+   * User-facing name (max 4096 characters).
+   * @default the product id
+   */
+  displayName?: string
+  /**
+   * User-provided metadata (max 4096 characters).
+   */
+  description?: string
+  /**
+   * Immutable product category. One of `homegoods-v2`, `apparel-v2`,
+   * `toys-v2`, `packagedgoods-v1`, or `general-v1`. Changing it replaces
+   * the product.
+   * @default "homegoods-v2"
+   */
+  productCategory?: string
+  /**
+   * Search labels used to filter Product Search results.
+   */
+  productLabels?: ProductLabel[]
+}
+
+export type Product = Resource<
+  "GCP.Vision.Product",
+  ProductProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/products/{product}`. */
+    name: string
+    /** Product id (last path segment). */
+    productId: string
+    /** Project id. */
+    project: string
+    /** Product Search location. */
+    location: string
+    /** User-facing display name. */
+    displayName: string | undefined
+    /** User-provided metadata. */
+    description: string | undefined
+    /** Product category. */
+    productCategory: string | undefined
+    /** Product search labels. */
+    productLabels: ProductLabel[]
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Vision Product Search product. Products hold reference images
+ * and can be added to one or more product sets.
+ *
+ * Products have no labels field (`productLabels` are search filters), so
+ * ownership rests on the deterministic product id: a product found without
+ * prior state is reported as unowned and only taken over with `--adopt`.
+ * Location, product id, and `productCategory` are identity — changing any
+ * of them replaces the product. Display name, description, and labels
+ * update in place.
+ *
+ * ### Creating a Product
+ * **Example:** Generated id
+ * ```typescript
+ * const product = yield* GCP.Vision.Product("Shoe", {
+ *   displayName: "Trail runner",
+ *   productCategory: "apparel-v2",
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and labels
+ * ```typescript
+ * const product = yield* GCP.Vision.Product("Shoe", {
+ *   location: "us-west1",
+ *   productId: "trail-runner",
+ *   displayName: "Trail runner",
+ *   productCategory: "apparel-v2",
+ *   productLabels: [{ key: "color", value: "blue" }],
+ * });
+ * ```
+ *
+ * ### Updating a Product
+ * **Example:** Rename and add a label
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const product = yield* GCP.Vision.Product("Shoe", {
+ *   location: "us-west1",
+ *   productId: "trail-runner",
+ *   displayName: "Trail runner v2",
+ *   productCategory: "apparel-v2",
+ *   productLabels: [{ key: "color", value: "green" }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Vision
+ */
+export const Product = Resource<Product>("GCP.Vision.Product")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProductNotResolved extends Data.TaggedError("GCP.Vision.ProductNotResolved")<{
+  resourceName: string
+}> {}
+
+const toAttrs = (product: vision.Product, project: string): infer _ => {
+  const name = product.name ?? ""
+  const parsed = parseResourceName(name, project, "products")
+  return {
+    name,
+    productId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: product.displayName,
+    description: product.description,
+    productCategory: product.productCategory,
+    productLabels: productLabelsOf(product.productLabels),
+  }
+}
+
+export const ProductProvider = (): infer _ =>
+  Provider.succeed(Product, {
+    stables: ["name", "productId", "project", "location", "productCategory"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousCategory = olds?.productCategory ?? output?.productCategory
+      const nextCategory = resolved.productCategory ?? previousCategory ?? DEFAULT_PRODUCT_CATEGORY
+      return replaceOnIdentity({
+        previousId: olds?.productId ?? output?.productId,
+        nextId: resolved.productId,
+        previousParent: locationParent(
+          env.project,
+          normalizeLocation(olds?.location ?? output?.location),
+        ),
+        nextParent: locationParent(
+          env.project,
+          normalizeLocation(resolved.location ?? output?.location),
+        ),
+        extra: previousCategory !== undefined && previousCategory !== nextCategory,
+      })
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const name = output?.name
+        ?? productNameOf(env.project, location, olds?.productId ?? output?.productId ?? "")
+      const existing = try getProduct(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location)
+      const productId = try toResourceId(id, news.productId, output?.productId)
+      const displayName = news.displayName ?? productId
+      const description = news.description
+      const productCategory = news.productCategory ?? output?.productCategory ?? DEFAULT_PRODUCT_CATEGORY
+      const productLabels = productLabelsOf(news.productLabels)
+      const name = output?.name ?? productNameOf(env.project, location, productId)
+
+      let current = try getProduct(name)
+
+      if (current === undefined) {
+        const created = vision
+          .createProjectsLocationsProducts({
+            parent: locationParent(env.project, location),
+            productId,
+            body: {
+              displayName,
+              description,
+              productCategory,
+              productLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getProduct(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ProductNotResolved({
+          resourceName: name || productNameOf(env.project, location, productId),
+        })
+      }
+
+      const currentName = current.name ?? name
+      const observedLabels = productLabelsOf(current.productLabels)
+      const updateMask = updateMaskOf(
+        sameText(current.displayName, displayName) ? undefined : "display_name",
+        sameText(current.description, description) ? undefined : "description",
+        sameProductLabels(observedLabels, productLabels) ? undefined : "product_labels",
+      )
+
+      if (updateMask.length > 0) {
+        current = try vision.patchProjectsLocationsProducts({
+          name: currentName,
+          updateMask,
+          body: {
+            name: currentName,
+            displayName,
+            description,
+            productLabels,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try deleteProduct(output.name)
+      try waitUntilGone(getProduct(output.name))
+    },
+  })

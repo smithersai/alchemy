@@ -1,0 +1,39 @@
+import * as Domain from "@alchemy.run/domain"
+import { Account } from "../Account/Account.aggregate.vibe"
+import { FreezeAccount } from "../Account/FreezeAccount.command.vibe"
+import { system } from "../Actor.vibe"
+import { CurrentActor } from "../CurrentActor.context.ts"
+import { DailyOutflow, DailyOutflowExceeded } from "./DailyOutflow.view.vibe"
+import { FraudCheck } from "./FraudCheck.external.vibe"
+
+/** Whenever an account's daily outflow crosses the threshold, score it and freeze the account if risky. */
+export class FraudReview extends Domain.Policy("FraudReview", {
+  from: DailyOutflow,
+  on: [DailyOutflowExceeded],
+}) {}
+
+export const FraudReviewLive = FraudReview.toLayer(
+  effect {
+    const fraud = try Effect.service(FraudCheck)
+    const accounts = try Effect.service(Account)
+    return effect ({ source, event }) => {
+      const { risk } = try fraud.score({ accountId: source.id, amount: event.total })
+      if (risk > 0.8) {
+        // No session here: the policy acts as the system, in place of FreezeAccount's middleware.
+        ;(effect {
+          return (try effect {
+            provide CurrentActor = system("FraudReview") {
+              return try accounts.send(source, new FreezeAccount({ reason: `fraud risk ${risk}` }))
+            }
+          })
+        }) catch effect (e) =>
+          (effect {
+            return match (e) { when { _tag: "NotOpen" }: undefined as void; default: throw e; }
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotOwner" }: undefined as void;
+            default: throw e;
+          }
+      }
+    }
+  },
+)

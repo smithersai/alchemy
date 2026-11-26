@@ -1,0 +1,6 @@
+import test from "node:test";
+import { checkExample } from "../../compiler-helper.mjs";
+
+test("cloudflare-git-artifacts has no example-local compiler errors", { timeout: 120000 }, () => {
+  checkExample("cloudflare-git-artifacts");
+});

@@ -1,4 +1,4 @@
-export * from "./Errors.ts";
+export * from "./Errors.vibe";
 // Operations report progress as typed events: log records `onEvent` observes.
 export {
   Event,
@@ -8,8 +8,8 @@ export {
   type PlanningPhase,
   type ResourceAnnotated,
   type ResourceStatusChanged,
-} from "../Events.ts";
-export { layer, type Services } from "./Runtime.ts";
+} from "../Events.vibe";
+export { layer, type Services } from "./Runtime.vibe";
 export {
   apply,
   hasChanges,
@@ -20,19 +20,19 @@ export {
   type PlanOutput,
   type PlanSummary,
   type StackPlan,
-} from "./Operations.ts";
+} from "./Operations.vibe";
 export {
   DEFAULT_ENTRYPOINT,
   importStack,
   StackEntrypointError,
   type Target,
-} from "./Entrypoint.ts";
+} from "./Entrypoint.vibe";
 
 export type { ConfiguredStack } from "../Stack.ts";
 
-export * as Drift from "./Drift.ts";
-export * as Logs from "./Logs.ts";
-export * as Nuke from "./Nuke.ts";
-export * as Profile from "./Profile.ts";
-export * as Provider from "./Provider.ts";
-export * as State from "./State.ts";
+export * as Drift from "./Drift.vibe";
+export * as Logs from "./Logs.vibe";
+export * as Nuke from "./Nuke.vibe";
+export * as Profile from "./Profile.vibe";
+export * as Provider from "./Provider.vibe";
+export * as State from "./State.vibe";

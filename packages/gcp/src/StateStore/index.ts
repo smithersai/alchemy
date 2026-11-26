@@ -1,1 +1,1 @@
-export { makeGcsState, state, type GcsStateOptions } from "./State.ts";
+export { makeGcsState, state, type GcsStateOptions } from "./State.vibe";

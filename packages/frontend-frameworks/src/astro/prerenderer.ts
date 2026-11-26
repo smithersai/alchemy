@@ -43,7 +43,7 @@ import * as Exit from "effect/Exit";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
-import { PlatformServices } from "../Platform.ts";
+import { PlatformServices } from "../Platform.vibe";
 import { readFramedPrerenderResponse } from "./prerender-response.ts";
 import type { PrerenderRequest, StaticPathsResponse } from "./runtime/prerender-types.ts";
 import { PRERENDER_ENDPOINT, STATIC_PATHS_ENDPOINT } from "./runtime/utils/prerender-constants.ts";

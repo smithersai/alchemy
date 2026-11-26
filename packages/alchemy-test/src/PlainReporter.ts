@@ -10,8 +10,9 @@
  */
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { LogEntry } from "./Model.ts";
+import type { LogEntry } from "./Model.vibe";
 import { formatPlanPreview } from "./Plan.ts";
+import { currentFile } from "./Registry.ts";
 import { Reporter, type RunSummary, type TestEvent, type TestResult } from "./Reporter.ts";
 import { writeDirect } from "./StrayOutput.ts";
 
@@ -75,8 +76,6 @@ interface ReporterState {
   collectTotal: number;
   collectDone: number;
   collectStartedAt: number;
-  /** Last file whose import finished — the next one is what's importing now. */
-  collectCurrent: string;
   lastCollectRender: number;
   /** An un-terminated in-place progress line is on the terminal. */
   collectLinePending: boolean;
@@ -114,8 +113,8 @@ const renderCollect = (state: ReporterState, force: boolean): void => {
   // A pty that reports 0 columns (e.g. under `script`) is unknown, not narrow.
   const columns = process.stdout.columns || 120;
   const room = columns - head.length - 2;
-  const tail =
-    state.collectCurrent !== "" && room > 12 ? ` ${state.collectCurrent.slice(-room)}` : "";
+  const activeFile = currentFile();
+  const tail = activeFile !== undefined && room > 12 ? ` ${activeFile.slice(-room)}` : "";
   if (isTty) {
     state.collectLinePending = true;
     writeDirect(`\r\u001B[2K${dim(head + tail)}`);
@@ -128,7 +127,6 @@ const renderCollect = (state: ReporterState, force: boolean): void => {
 const finishCollect = (state: ReporterState): void => {
   state.collecting = false;
   clearCollectLine(state);
-  state.collectCurrent = "";
   renderCollect(state, true);
   if (state.collectLinePending) {
     state.collectLinePending = false;
@@ -204,7 +202,6 @@ const onEvent = (event: TestEvent, state: ReporterState): Effect.Effect<void> =>
     case "FileCollected":
       return Effect.sync(() => {
         state.collectDone += 1;
-        state.collectCurrent = event.file;
         renderCollect(state, false);
       });
     case "RunStart":
@@ -376,7 +373,6 @@ export const PlainReporterLive: Layer.Layer<Reporter> = Layer.sync(Reporter)(() 
     collectTotal: 0,
     collectDone: 0,
     collectStartedAt: Date.now(),
-    collectCurrent: "",
     lastCollectRender: 0,
     collectLinePending: false,
     collecting: false,

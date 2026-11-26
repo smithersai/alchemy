@@ -1,0 +1,363 @@
+import * as Effect from "effect/Effect"
+import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { toWireDays } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import {
+  AgentCoreProvisioningFailed,
+  createAgentCoreName,
+  readAgentCoreTags,
+  retryWhileConflict,
+  syncAgentCoreTags,
+  unredact,
+} from "./internal.vibe"
+
+/**
+ * A single long-term memory extraction strategy (semantic, summary, user
+ * preference, episodic, or custom). Passed through to the AgentCore API
+ * unchanged — see the AWS SDK `MemoryStrategyInput` shape.
+ */
+export type MemoryStrategy = control.MemoryStrategyInput
+
+export interface MemoryProps {
+  /**
+   * Name of the memory. Must match `[a-zA-Z][a-zA-Z0-9_]{0,47}` (underscores,
+   * no hyphens). If omitted, a deterministic physical name is generated from
+   * the app, stage, and logical ID. Changing the name triggers a replacement.
+   */
+  name?: string
+  /**
+   * A description of the memory.
+   */
+  description?: string
+  /**
+   * How long until short-term memory events expire (7-365 days), e.g.
+   * `"30 days"` or `Duration.days(30)` (a bare number is milliseconds).
+   * @default 90 days
+   */
+  eventExpiryDuration?: Duration.Input
+  /**
+   * The ARN of a KMS key used to encrypt the memory. Changing it triggers a
+   * replacement.
+   */
+  encryptionKeyArn?: string
+  /**
+   * The ARN of an IAM role AgentCore Memory assumes to run long-term
+   * extraction strategies. Required when `memoryStrategies` use managed
+   * extraction models.
+   */
+  memoryExecutionRoleArn?: string
+  /**
+   * Long-term memory extraction strategies. Create-only: changing the
+   * strategy list triggers a replacement (in-place strategy modification is
+   * not reconciled).
+   */
+  memoryStrategies?: MemoryStrategy[]
+  /**
+   * Tags to apply to the memory. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Memory extends
+  Resource<
+    "AWS.BedrockAgentCore.Memory",
+    MemoryProps,
+    {
+      /**
+       * The unique identifier of the memory.
+       */
+      memoryId: string
+      /**
+       * The ARN of the memory.
+       */
+      memoryArn: string
+      /**
+       * Name of the memory.
+       */
+      name: string
+      /**
+       * Current status of the memory (e.g. `ACTIVE`).
+       */
+      status: string
+    }
+  >
+{}
+
+/**
+ * An Amazon Bedrock AgentCore Memory — managed short- and long-term memory
+ * for AI agents.
+ *
+ * Short-term memory stores raw session events (turn-by-turn conversation);
+ * optional `memoryStrategies` asynchronously extract long-term records
+ * (semantic facts, summaries, user preferences) into queryable namespaces.
+ *
+ * Provisioning is asynchronous: the provider waits for the memory to reach
+ * `ACTIVE` (~2-3 minutes) before returning.
+ *
+ * ### Creating Memories
+ * **Example:** Short-Term Memory Only
+ * ```typescript
+ * import * as AgentCore from "@alchemy.run/aws/BedrockAgentCore";
+ *
+ * const memory = yield* AgentCore.Memory("SessionMemory", {
+ *   eventExpiryDuration: "30 days",
+ * });
+ * ```
+ *
+ * **Example:** Memory with a Semantic Long-Term Strategy
+ * ```typescript
+ * const memory = yield* AgentCore.Memory("AgentMemory", {
+ *   eventExpiryDuration: "90 days",
+ *   memoryStrategies: [
+ *     {
+ *       semanticMemoryStrategy: {
+ *         name: "facts",
+ *         namespaces: ["facts/{actorId}"],
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Using Memory from a Function
+ * **Example:** Record and Query Events
+ * ```typescript
+ * // init
+ * const createEvent = yield* AgentCore.CreateEvent(memory);
+ * const listEvents = yield* AgentCore.ListEvents(memory);
+ *
+ * return {
+ *   fetch: Effect.gen(function* () {
+ *     // runtime
+ *     yield* createEvent({
+ *       actorId: "user-1",
+ *       sessionId: "session-1",
+ *       eventTimestamp: new Date(),
+ *       payload: [
+ *         {
+ *           conversational: {
+ *             role: "USER",
+ *             content: { text: "My favorite color is teal." },
+ *           },
+ *         },
+ *       ],
+ *     });
+ *     const events = yield* listEvents({
+ *       actorId: "user-1",
+ *       sessionId: "session-1",
+ *     });
+ *     return HttpServerResponse.json({ count: events.events.length });
+ *   }),
+ * };
+ * ```
+ *
+ * @resource
+ */
+export const Memory = Resource<Memory>("AWS.BedrockAgentCore.Memory")
+
+/** Statuses indicating an in-flight transition to wait out. */
+const MEMORY_TRANSIENT = new Set(["CREATING", "UPDATING"])
+
+export const MemoryProvider = (): infer _ =>
+  Provider.effect(
+    Memory,
+    effect {
+      const createName = effect (id: string, props: Pick<MemoryProps, "name">) =>
+        props.name ?? (try createAgentCoreName(id))
+
+      const getMemoryOrUndefined = effect (memoryId: string) =>
+        (effect {
+          return (try control.getMemory({ memoryId })).memory
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      // Memory summaries carry no name, so find-by-name hydrates each
+      // non-deleting summary and matches on the fetched name.
+      const findByName = effect (name: string) => {
+        const pages = try control.listMemories.pages({}).pipe(Stream.runCollect)
+        const summaries = Array.from(pages).flatMap((page) => page.memories ?? [])
+        const hydrated = try Effect.forEach(
+          summaries,
+          effect (
+            s,
+          ) => (s.id === undefined || s.status === "DELETING"
+            ? undefined
+            : try getMemoryOrUndefined(s.id)),
+          { concurrency: 5 },
+        )
+        return hydrated.find((m) => m !== undefined && m.name === name)
+      }
+
+      const waitForSettled = effect (memoryId: string) =>
+        try (getMemoryOrUndefined(memoryId)
+          |> Effect.repeat(%, {
+            schedule: Schedule.fixed("5 seconds"),
+            until: (m) => m === undefined || !MEMORY_TRANSIENT.has(m.status),
+            times: 60,
+          }))
+
+      const toAttributes = (memory: control.Memory): infer _ => ({
+        memoryId: memory.id,
+        memoryArn: memory.arn,
+        name: memory.name,
+        status: memory.status,
+      })
+
+      return Memory.Provider.of({
+        stables: ["memoryId", "memoryArn", "name"],
+
+        list: effect () => {
+          const pages = try control.listMemories.pages({}).pipe(Stream.runCollect)
+          const summaries = Array.from(pages).flatMap((page) => page.memories ?? [])
+          const hydrated = try Effect.forEach(
+            summaries,
+            effect (s) => (s.id === undefined || s.status === "DELETING"
+              ? undefined
+              : try getMemoryOrUndefined(s.id)),
+            { concurrency: 5 },
+          )
+          return hydrated.filter((m) => m !== undefined).map(toAttributes)
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const memory = output?.memoryId
+            ? try getMemoryOrUndefined(output.memoryId)
+            : try findByName(try createName(id, olds ?? ({} as MemoryProps)))
+          if (memory === undefined || memory.status === "DELETING") {
+            return undefined
+          }
+          const attrs = toAttributes(memory)
+          const tags = try readAgentCoreTags(memory.arn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldProps = olds ?? ({} as MemoryProps)
+          const oldName = try createName(id, oldProps)
+          const newName = try createName(id, news ?? ({} as MemoryProps))
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          if ((oldProps.encryptionKeyArn ?? undefined) !== (news?.encryptionKeyArn ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          // Strategy lists are create-only: in-place strategy mutation uses a
+          // different (Modify) input shape and partial updates — replace.
+          if (
+            JSON.stringify(oldProps.memoryStrategies ?? [])
+            !== JSON.stringify(news?.memoryStrategies ?? [])
+          ) {
+            return { action: "replace" } as const
+          }
+          // description / eventExpiryDuration / execution role / tags converge
+          // via update.
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const props = news ?? ({} as MemoryProps)
+          const name = output?.name ?? (try createName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...props.tags, ...internalTags }
+          const eventExpiryDuration = toWireDays(props.eventExpiryDuration) ?? 90
+
+          // 1. OBSERVE — cloud state is authoritative; output is an id cache.
+          let memory = output?.memoryId ? try getMemoryOrUndefined(output.memoryId) : undefined
+          if (memory === undefined) {
+            memory = try findByName(name)
+          }
+
+          // 2. ENSURE — create if missing; tolerate the name-exists race.
+          if (memory === undefined) {
+            const created = (effect {
+              return (try control
+                .createMemory({
+                  name,
+                  description: props.description,
+                  eventExpiryDuration,
+                  encryptionKeyArn: props.encryptionKeyArn,
+                  memoryExecutionRoleArn: props.memoryExecutionRoleArn,
+                  memoryStrategies: props.memoryStrategies,
+                  tags: desiredTags,
+                })).memory
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try findByName(name);
+              default: throw e;
+            }
+            memory = created ?? (try findByName(name))
+          }
+          if (memory === undefined) {
+            throw new AgentCoreProvisioningFailed({
+              message: `memory '${name}' was neither created nor found`,
+            })
+          }
+
+          // Wait out CREATING/UPDATING (~2-3 minutes on create).
+          memory = (try waitForSettled(memory.id)) ?? memory
+          if (memory.status === "FAILED") {
+            throw new AgentCoreProvisioningFailed({
+              message: `memory '${name}' failed: ${memory.failureReason ?? "unknown"}`,
+            })
+          }
+
+          // 3. SYNC — converge mutable settings from OBSERVED state.
+          const drifted = (unredact(memory.description) ?? undefined)
+              !== (props.description ?? unredact(memory.description))
+            || memory.eventExpiryDuration !== eventExpiryDuration
+            || (memory.memoryExecutionRoleArn ?? undefined)
+              !== (props.memoryExecutionRoleArn ?? memory.memoryExecutionRoleArn)
+          if (drifted) {
+            try control.updateMemory({
+              memoryId: memory.id,
+              description: props.description,
+              eventExpiryDuration,
+              memoryExecutionRoleArn: props.memoryExecutionRoleArn,
+            })
+            memory = (try waitForSettled(memory.id)) ?? memory
+          }
+
+          // 3b. SYNC TAGS against observed cloud tags.
+          try syncAgentCoreTags(memory.arn, desiredTags)
+
+          // 4. RETURN fresh attributes.
+          try session.note(memory.id)
+          return toAttributes(memory)
+        },
+
+        // Deletion is initiated with deleteMemory and completes server-side in
+        // ~30s. Wait until fully gone so an immediate re-create of the same
+        // name cannot hit the lingering DELETING record.
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (control.deleteMemory({ memoryId: output.memoryId })
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+          try (effect {
+            return (effect {
+              return ((try control.getMemory({ memoryId: output.memoryId })).memory.status as string)
+            }) catch effect (
+              e,
+            ) => match (e) { when { _tag: "ResourceNotFoundException" }: "GONE" as string; default: throw e; }
+          }
+            |> Effect.repeat(%, {
+              schedule: Schedule.fixed("5 seconds"),
+              until: (status) => status === "GONE",
+              times: 36,
+            }))
+        },
+      })
+    },
+  )

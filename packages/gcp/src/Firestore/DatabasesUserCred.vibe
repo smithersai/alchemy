@@ -1,0 +1,266 @@
+import * as firestore from "@distilled.cloud/gcp/firestore_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { databaseIdOf, databaseNameOf, lastSegment, parseDatabaseName, toResourceId } from "./internal.vibe"
+
+export type DatabasesUserCredProps = {
+  /**
+   * Parent database. Full name `projects/{project}/databases/{database}`
+   * or the database id. User creds require an Enterprise edition
+   * database with MongoDB-compatible API access enabled. Immutable —
+   * changing it replaces the creds.
+   */
+  database: string
+  /**
+   * User creds id (the `{user_creds}` segment of
+   * `.../databases/{database}/userCreds/{user_creds}`). If omitted, a
+   * unique name is generated. Must be 4-63 characters, match
+   * `[a-z][a-z0-9-]*[a-z0-9]`, and must not look like a UUID.
+   * Immutable — changing it replaces the creds.
+   */
+  userCredsId?: string
+  /**
+   * Disable the creds. Enable/disable updates in place.
+   * @default false
+   */
+  disabled?: boolean
+}
+
+export type DatabasesUserCred = Resource<
+  "GCP.Firestore.DatabasesUserCred",
+  DatabasesUserCredProps,
+  {
+    /** Full resource name `.../databases/{database}/userCreds/{user_creds}`. */
+    name: string
+    /** User creds id (last path segment). */
+    userCredsId: string
+    /** Parent database resource name. */
+    database: string
+    /** Parent database id. */
+    databaseId: string
+    /** Project id. */
+    project: string
+    /** Whether the creds are disabled. */
+    disabled: boolean
+    /** Server-reported state (`ENABLED`, `DISABLED`). */
+    state: string | undefined
+    /**
+     * Plaintext server-generated password. Only populated on create and
+     * password reset; later reads preserve the last known value.
+     */
+    securePassword: string | undefined
+    /** Resource Identity principal, if any. */
+    principal: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * User credentials for a Cloud Firestore database with MongoDB
+ * compatibility.
+ *
+ * User creds are owned by the parent database and require Enterprise
+ * edition with the MongoDB-compatible API enabled. The plaintext
+ * password is returned only on create (and password reset); later
+ * reads keep the last known value from state. Enable/disable updates
+ * in place. Changing `userCredsId` or `database` replaces the creds.
+ *
+ * User creds have no labels field: `read` reports creds it finds without
+ * prior state as unowned (adopt them with `--adopt`).
+ *
+ * ### Creating User Creds
+ * **Example:** Enabled creds on an Enterprise database
+ * ```typescript
+ * const database = yield* GCP.Firestore.Database("App", {
+ *   location: "us-central1",
+ *   databaseEdition: "ENTERPRISE",
+ *   mongodbCompatibleDataAccessMode: "DATA_ACCESS_MODE_ENABLED",
+ * });
+ * const creds = yield* GCP.Firestore.DatabasesUserCred("AppUser", {
+ *   database: database.name,
+ * });
+ * ```
+ *
+ * **Example:** Disabled creds
+ * ```typescript
+ * const creds = yield* GCP.Firestore.DatabasesUserCred("AppUser", {
+ *   database: database.name,
+ *   disabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Firestore
+ */
+export const DatabasesUserCred = Resource<DatabasesUserCred>("GCP.Firestore.DatabasesUserCred")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class UserCredNotResolved extends Data.TaggedError("GCP.Firestore.UserCredNotResolved")<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class UserCredStillExists extends Data.TaggedError("GCP.Firestore.UserCredStillExists")<{
+  resourceName: string
+}> {}
+
+const resourceName = (databaseName: string, userCredsId: string): infer _ => `${databaseName}/userCreds/${userCredsId}`
+
+const toAttrs = (
+  creds: firestore.GoogleFirestoreAdminV1UserCreds,
+  project: string,
+  securePassword?: string,
+): DatabasesUserCred["Attributes"] => {
+  const name = creds.name ?? ""
+  const parsed = parseDatabaseName(name)
+  const state = creds.state
+  return {
+    name,
+    userCredsId: parsed.userCredsId || lastSegment(name),
+    database: databaseNameOf(parsed.project || project, parsed.databaseId),
+    databaseId: parsed.databaseId,
+    project: parsed.project || project,
+    disabled: state === "DISABLED",
+    state,
+    securePassword: creds.securePassword ?? securePassword,
+    principal: creds.resourceIdentity?.principal,
+    createTime: creds.createTime,
+    updateTime: creds.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  firestore
+    .getProjectsDatabasesUserCreds({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const listOnDatabase = effect (parent: string) =>
+  (effect {
+    return ((try firestore.listProjectsDatabasesUserCreds({ parent })).userCreds ?? [])
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as firestore.GoogleFirestoreAdminV1UserCreds[];
+    default: throw e;
+  }
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (creds) => creds === undefined, () => new UserCredStillExists({ resourceName: name }))
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Firestore.UserCredStillExists",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    })
+    |> Effect.asVoid(%))
+
+const syncEnabled = effect (
+  name: string,
+  disabled: boolean,
+  current: firestore.GoogleFirestoreAdminV1UserCreds,
+) => {
+  const isDisabled = current.state === "DISABLED"
+  if (isDisabled === disabled) return current
+  return disabled
+    ? try firestore.disableProjectsDatabasesUserCreds({ name, body: {} })
+    : try firestore.enableProjectsDatabasesUserCreds({ name, body: {} })
+}
+
+export const DatabasesUserCredProvider = (): infer _ =>
+  Provider.succeed(DatabasesUserCred, {
+    stables: ["name", "userCredsId", "database", "databaseId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.userCredsId ?? output?.userCredsId
+      const nextId = resolved.userCredsId ?? previousId
+      const previousDatabase = databaseIdOf(
+        olds?.database ?? output?.database ?? output?.databaseId ?? "",
+      )
+      const nextDatabase = databaseIdOf(resolved.database)
+      if (
+        (previousId !== undefined && nextId !== undefined && previousId !== nextId)
+        || (previousDatabase.length > 0 && previousDatabase !== nextDatabase)
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const userCredsId = try toResourceId(id, olds?.userCredsId, output?.userCredsId)
+      const databaseRef = olds?.database ?? output?.database
+      const name = output?.name
+        ?? (databaseRef !== undefined
+          ? resourceName(databaseNameOf(env.project, databaseRef), userCredsId)
+          : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, output?.securePassword)
+      // No labels field: without prior state they may not be ours.
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = databaseNameOf(env.project, news.database)
+      const userCredsId = try toResourceId(id, news.userCredsId, output?.userCredsId)
+      const name = resourceName(parent, userCredsId)
+      const disabled = news.disabled === true
+
+      let current = try getByName(output?.name ?? name)
+      let createdPassword = output?.securePassword
+
+      if (current === undefined) {
+        const created = firestore
+          .createProjectsDatabasesUserCreds({
+            parent,
+            userCredsId,
+            body: {},
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try effect {
+              const found = (try listOnDatabase(parent)).find((item) => lastSegment(item.name ?? "") === userCredsId)
+                ?? undefined
+              return (found !== undefined ? found : try getByName(name))
+            };
+            default: throw e;
+          }
+        current = created ?? undefined
+        if (current?.securePassword !== undefined) {
+          createdPassword = current.securePassword
+        }
+      }
+
+      if (current === undefined) {
+        throw new UserCredNotResolved({ resourceName: name })
+      }
+
+      current = try syncEnabled(current.name ?? name, disabled, current)
+      return toAttrs(current, env.project, createdPassword)
+    },
+
+    delete: effect ({ output }) => {
+      firestore
+        .deleteProjectsDatabasesUserCreds({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+      try waitUntilGone(output.name)
+    },
+  })

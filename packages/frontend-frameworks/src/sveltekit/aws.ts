@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { rolldown } from "rolldown";
+import vibelang from "vibelang-unplugin/rolldown";
 import { runBuildChild } from "../core/BuildChild.ts";
 /**
  * `@alchemy.run/frontend-frameworks/sveltekit/aws` — the AWS Lambda deploy
@@ -206,6 +207,8 @@ const makeAwsAdapterTarget = (config: SvelteKitAwsTargetConfig = {}): SvelteKitT
               cwd: root,
               input: entry,
               platform: "node",
+              // Compiles each `.vibe` module the server graph reaches.
+              plugins: [vibelang()],
               resolve: {
                 conditionNames: ["node", "import", "module"],
               },

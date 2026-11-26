@@ -1,0 +1,282 @@
+import * as Effect from "effect/Effect"
+import * as contacts from "@distilled.cloud/aws/ssm-contacts"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface RotationProps {
+  /**
+   * The name of the rotation. Changing it replaces the rotation.
+   *
+   * @default ${app}-${id}-${stage}-${suffix}
+   */
+  name?: string
+
+  /**
+   * ARNs of the contacts on call, in shift order.
+   */
+  contactIds: string[]
+
+  /**
+   * When the rotation goes into effect, as an ISO-8601 timestamp
+   * (e.g. `"2026-01-01T00:00:00Z"`).
+   */
+  startTime?: string
+
+  /**
+   * The IANA time zone the rotation's activity is based on
+   * (e.g. `"America/Los_Angeles"`).
+   */
+  timeZoneId: string
+
+  /**
+   * How often the rotation hands off between contacts: daily, weekly, or
+   * monthly hand-off settings plus the number of simultaneous on-calls and
+   * optional shift coverage windows.
+   */
+  recurrence: contacts.RecurrenceSettings
+
+  /**
+   * Tags applied to the rotation. Alchemy ownership tags are merged in
+   * automatically.
+   */
+  tags?: Record<string, string>
+}
+
+/** @resource */
+export interface Rotation extends
+  Resource<
+    "AWS.SSMContacts.Rotation",
+    RotationProps,
+    {
+      /** ARN of the rotation. */
+      rotationArn: string
+      /** Name of the rotation. */
+      name: string
+      /** When the rotation goes into effect (ISO-8601). */
+      startTime: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Incident Manager on-call rotation — a recurring schedule that rotates
+ * engagement duty between contacts. Attach rotations to an
+ * `ONCALL_SCHEDULE` contact via its engagement plan's `RotationIds`.
+ *
+ * ### Creating Rotations
+ * **Example:** Daily hand-off rotation
+ * ```typescript
+ * const rotation = yield* SSMContacts.Rotation("Primary", {
+ *   contactIds: [alice.contactArn, bob.contactArn],
+ *   timeZoneId: "America/Los_Angeles",
+ *   startTime: "2026-01-01T00:00:00Z",
+ *   recurrence: {
+ *     NumberOfOnCalls: 1,
+ *     RecurrenceMultiplier: 1,
+ *     DailySettings: [{ HourOfDay: 9, MinuteOfHour: 0 }],
+ *   },
+ * });
+ * ```
+ */
+const RotationResource = Resource<Rotation>("AWS.SSMContacts.Rotation")
+
+export { RotationResource as Rotation }
+
+const normalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(normalize)
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .sort(([l], [r]) => l.localeCompare(r))
+        .map(([k, v]) => [k, normalize(v)]),
+    )
+  }
+  return value
+}
+const same = (l: unknown, r: unknown): infer _ => JSON.stringify(normalize(l)) === JSON.stringify(normalize(r))
+
+export const RotationProvider = (): infer _ =>
+  Provider.effect(
+    RotationResource,
+    effect {
+      const createName = effect (id: string, props: { name?: string }) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 200 }))
+
+      const rotationArn = effect (name: string) => {
+        const { accountId, region } = try AWSEnvironment.current
+        return `arn:aws:ssm-contacts:${region}:${accountId}:rotation/${name}`
+      }
+
+      const getRotation = effect (arn: string) =>
+        contacts.getRotation({ RotationId: arn }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRotationArn" }: undefined;
+          default: throw e;
+        }
+
+      const readTags = effect (arn: string) =>
+        (effect {
+          const tags = ((try contacts.listTagsForResource({ ResourceARN: arn })).Tags ?? []).flatMap((t) =>
+            t.Key !== undefined && t.Value !== undefined
+              ? [{ Key: t.Key, Value: t.Value }]
+              : []
+          )
+          return (try Effect.orDie(Effect.try({
+            try: () =>
+              tagRecord(
+                tags,
+              ),
+            catch: (e) => e,
+          })))
+        }) catch () => ({})
+
+      const buildAttrs = (rotation: contacts.GetRotationResult): Rotation["Attributes"] => ({
+        rotationArn: rotation.RotationArn,
+        name: rotation.Name,
+        startTime: rotation.StartTime.toISOString(),
+      })
+
+      return RotationResource.Provider.of({
+        stables: ["rotationArn", "name"],
+
+        list: effect () =>
+          Array.from(
+            try (contacts.listRotations.items({})
+              |> Stream.runCollect(%)),
+          ).map((rotation) => ({
+            rotationArn: rotation.RotationArn,
+            name: rotation.Name,
+            startTime: rotation.StartTime?.toISOString(),
+          })),
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.name ?? (try createName(id, olds ?? {}))
+          const arn = output?.rotationArn ?? (try rotationArn(name))
+          const rotation = try getRotation(arn)
+          if (rotation === undefined) return undefined
+          const attrs = buildAttrs(rotation)
+          const tags = try readTags(rotation.RotationArn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        // The name is create-only (updateRotation cannot rename); contacts,
+        // start time, time zone, and recurrence update in place.
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.name ?? (try createName(id, news))
+          const arn = output?.rotationArn ?? (try rotationArn(name))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+          const desiredStart = news.startTime !== undefined ? new Date(news.startTime) : undefined
+
+          // 1. OBSERVE
+          let rotation = try getRotation(arn)
+
+          // 2. ENSURE — create if missing; tolerate the already-exists race.
+          if (rotation === undefined) {
+            try session.note(`creating rotation ${name}`)
+            ;(effect {
+              return (try (contacts
+                .createRotation({
+                  Name: name,
+                  ContactIds: news.contactIds,
+                  StartTime: desiredStart,
+                  TimeZoneId: news.timeZoneId,
+                  Recurrence: news.recurrence,
+                  Tags: createTagsList(desiredTags),
+                })
+                |> Effect.asVoid(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined as void;
+              default: throw e;
+            }
+            rotation = (try getRotation(arn))!
+          }
+
+          // 3. SYNC contacts / start time / time zone / recurrence —
+          //    observed vs desired (epoch-second granularity for the start
+          //    time, matching the wire format).
+          const contactsDelta = !same(rotation.ContactIds, news.contactIds)
+          const timeZoneDelta = rotation.TimeZoneId !== news.timeZoneId
+          const startDelta = desiredStart !== undefined
+            && Math.floor(rotation.StartTime.getTime() / 1000)
+              !== Math.floor(desiredStart.getTime() / 1000)
+          const recurrenceDelta = !same(
+            {
+              MonthlySettings: rotation.Recurrence.MonthlySettings ?? [],
+              WeeklySettings: rotation.Recurrence.WeeklySettings ?? [],
+              DailySettings: rotation.Recurrence.DailySettings ?? [],
+              NumberOfOnCalls: rotation.Recurrence.NumberOfOnCalls,
+              ShiftCoverages: rotation.Recurrence.ShiftCoverages ?? {},
+              RecurrenceMultiplier: rotation.Recurrence.RecurrenceMultiplier,
+            },
+            {
+              MonthlySettings: news.recurrence.MonthlySettings ?? [],
+              WeeklySettings: news.recurrence.WeeklySettings ?? [],
+              DailySettings: news.recurrence.DailySettings ?? [],
+              NumberOfOnCalls: news.recurrence.NumberOfOnCalls,
+              ShiftCoverages: news.recurrence.ShiftCoverages ?? {},
+              RecurrenceMultiplier: news.recurrence.RecurrenceMultiplier,
+            },
+          )
+          if (contactsDelta || timeZoneDelta || startDelta || recurrenceDelta) {
+            try contacts.updateRotation({
+              RotationId: rotation.RotationArn,
+              ContactIds: news.contactIds,
+              StartTime: desiredStart,
+              TimeZoneId: news.timeZoneId,
+              Recurrence: news.recurrence,
+            })
+          }
+
+          // 3b. SYNC tags — diff against OBSERVED cloud tags.
+          const currentTags = try readTags(rotation.RotationArn)
+          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          if (upsert.length > 0) {
+            try contacts.tagResource({
+              ResourceARN: rotation.RotationArn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0) {
+            try contacts.untagResource({
+              ResourceARN: rotation.RotationArn,
+              TagKeys: removed,
+            })
+          }
+
+          // 4. RETURN fresh attributes.
+          const final = (try getRotation(rotation.RotationArn))!
+          try session.note(final.RotationArn)
+          return buildAttrs(final)
+        },
+
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (contacts.deleteRotation({ RotationId: output.rotationArn })
+              |> Effect.asVoid(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

@@ -5,7 +5,7 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import { BetterAuth } from "../../../src/index.ts";
-import { Neon as NeonDatabase } from "../../../src/Neon.ts";
+import { Neon as NeonDatabase } from "../../../src/Neon.vibe";
 
 export const PgProject = Neon.Project("BetterAuthNeonWorkerPg");
 

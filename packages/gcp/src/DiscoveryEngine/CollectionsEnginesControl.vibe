@@ -1,0 +1,314 @@
+import * as discoveryengine from "@distilled.cloud/gcp/discoveryengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { parentBefore, parseResourceName, sameJson, sameStringList, toResourceId } from "./internal.vibe"
+
+export type CollectionsEnginesControlProps = {
+  /**
+   * Parent Engine resource name
+   * `projects/{project}/locations/{location}/collections/{collection}/engines/{engine}`.
+   * Immutable — changing it replaces the control.
+   */
+  engine: string
+  /**
+   * Control id (1-63 characters, `a-z`, `_`, `-`). If omitted, a unique
+   * id is generated. Immutable — changing it replaces the control.
+   */
+  controlId?: string
+  /**
+   * Human-readable name.
+   */
+  displayName?: string
+  /**
+   * Solution the control belongs to. Immutable.
+   * @default "SOLUTION_TYPE_SEARCH"
+   */
+  solutionType?: discoveryengine.GoogleCloudDiscoveryengineV1ControlSolutionTypeEnum
+  /**
+   * Use cases. Required when `solutionType` is `SOLUTION_TYPE_SEARCH`.
+   * @default ["SEARCH_USE_CASE_SEARCH"]
+   */
+  useCases?: discoveryengine.GoogleCloudDiscoveryengineV1ControlUseCasesItemEnumList
+  /**
+   * Conditions that must match before the action runs.
+   */
+  conditions?: discoveryengine.GoogleCloudDiscoveryengineV1ConditionList
+  /**
+   * Redirect-type action.
+   */
+  redirectAction?: discoveryengine.GoogleCloudDiscoveryengineV1ControlRedirectAction
+  /**
+   * Filter-type action.
+   */
+  filterAction?: discoveryengine.GoogleCloudDiscoveryengineV1ControlFilterAction
+  /**
+   * Synonyms-type action.
+   */
+  synonymsAction?: discoveryengine.GoogleCloudDiscoveryengineV1ControlSynonymsAction
+  /**
+   * Boost-type action.
+   */
+  boostAction?: discoveryengine.GoogleCloudDiscoveryengineV1ControlBoostAction
+  /**
+   * Promote-type action.
+   */
+  promoteAction?: discoveryengine.GoogleCloudDiscoveryengineV1ControlPromoteAction
+}
+
+export type CollectionsEnginesControl = Resource<
+  "GCP.DiscoveryEngine.CollectionsEnginesControl",
+  CollectionsEnginesControlProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Control id (last path segment). */
+    controlId: string
+    /** Parent engine resource name. */
+    engine: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Collection id. */
+    collectionId: string
+    /** Display name. */
+    displayName: string | undefined
+    /** Solution type. */
+    solutionType: string | undefined
+    /** Use cases. */
+    useCases: string[]
+    /** Serving configs this control is attached to. */
+    associatedServingConfigIds: string[]
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Discovery Engine Control on a collection Engine — redirects,
+ * filters, synonyms, boosts, or promotions applied at serving time.
+ *
+ * Without labels, ownership rests on the deterministic id: `read` reports a
+ * resource it finds without prior state as unowned (adopt it with `--adopt`).
+ * Parent engine, control id, and solution type are immutable, and so is the
+ * action (changing it replaces the control); display name, use cases, and
+ * conditions update in place.
+ *
+ * ### Creating a Control
+ * **Example:** Synonym control
+ * ```typescript
+ * const control = yield* GCP.DiscoveryEngine.CollectionsEnginesControl(
+ *   "Synonyms",
+ *   {
+ *     engine: engine.name,
+ *     displayName: "hello-hi",
+ *     synonymsAction: { synonyms: ["hello", "hi"] },
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a Control
+ * **Example:** Change synonyms
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const control = yield* GCP.DiscoveryEngine.CollectionsEnginesControl(
+ *   "Synonyms",
+ *   {
+ *     engine: engine.name,
+ *     synonymsAction: { synonyms: ["hello", "hi", "hey"] },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DiscoveryEngine
+ */
+export const CollectionsEnginesControl = Resource<CollectionsEnginesControl>(
+  "GCP.DiscoveryEngine.CollectionsEnginesControl",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CollectionsEnginesControlNotResolved extends Data.TaggedError(
+  "GCP.DiscoveryEngine.CollectionsEnginesControlNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (engine: string, controlId: string): infer _ => `${engine}/controls/${controlId}`
+
+const solutionOf = (
+  value: discoveryengine.GoogleCloudDiscoveryengineV1ControlSolutionTypeEnum | undefined,
+): infer _ => value ?? "SOLUTION_TYPE_SEARCH"
+
+const useCasesOf = (
+  value: discoveryengine.GoogleCloudDiscoveryengineV1ControlUseCasesItemEnumList | undefined,
+  solutionType: string,
+): discoveryengine.GoogleCloudDiscoveryengineV1ControlUseCasesItemEnumList | undefined => {
+  if (value && value.length > 0) return value
+  if (solutionType === "SOLUTION_TYPE_SEARCH") {
+    return ["SEARCH_USE_CASE_SEARCH"]
+  }
+  return undefined
+}
+
+const getByName = effect (name: string) =>
+  discoveryengine
+    .getProjectsLocationsCollectionsEnginesControls({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+const toAttrs = (control: discoveryengine.GoogleCloudDiscoveryengineV1Control, project: string): infer _ => {
+  const name = control.name ?? ""
+  const parsed = parseResourceName(name, "controls")
+  return {
+    name,
+    controlId: parsed.id,
+    engine: parentBefore(name, "controls"),
+    project: parsed.project || project,
+    location: parsed.location,
+    collectionId: parsed.collectionId,
+    displayName: control.displayName,
+    solutionType: control.solutionType,
+    useCases: [...(control.useCases ?? [])],
+    associatedServingConfigIds: [...(control.associatedServingConfigIds ?? [])],
+  }
+}
+
+const bodyOf = (
+  news: CollectionsEnginesControlProps,
+  displayName: string,
+  solutionType: discoveryengine.GoogleCloudDiscoveryengineV1ControlSolutionTypeEnum,
+  useCases: discoveryengine.GoogleCloudDiscoveryengineV1ControlUseCasesItemEnumList | undefined,
+): discoveryengine.GoogleCloudDiscoveryengineV1Control => ({
+  displayName,
+  solutionType,
+  useCases,
+  conditions: news.conditions,
+  redirectAction: news.redirectAction,
+  filterAction: news.filterAction,
+  synonymsAction: news.synonymsAction,
+  boostAction: news.boostAction,
+  promoteAction: news.promoteAction,
+})
+
+export const CollectionsEnginesControlProvider = (): infer _ =>
+  Provider.succeed(CollectionsEnginesControl, {
+    stables: ["name", "controlId", "engine", "project", "location", "collectionId", "solutionType"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousEngine = olds?.engine ?? output?.engine
+      const previousId = olds?.controlId ?? output?.controlId
+      const nextId = resolved.controlId ?? previousId
+      const previousSolution = solutionOf(
+        olds?.solutionType
+          ?? (output?.solutionType as CollectionsEnginesControlProps["solutionType"]),
+      )
+      const nextSolution = solutionOf(
+        resolved.solutionType
+          ?? (output?.solutionType as CollectionsEnginesControlProps["solutionType"]),
+      )
+      if (
+        (previousEngine !== undefined && resolved.engine !== previousEngine)
+        || (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousSolution !== nextSolution
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      // A control's action is immutable ("updateMask contains an immutable
+      // path synonyms_action"), so any action change replaces it.
+      if (
+        olds !== undefined
+        && (!sameJson(olds.redirectAction, resolved.redirectAction)
+          || !sameJson(olds.filterAction, resolved.filterAction)
+          || !sameJson(olds.synonymsAction, resolved.synonymsAction)
+          || !sameJson(olds.boostAction, resolved.boostAction)
+          || !sameJson(olds.promoteAction, resolved.promoteAction))
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.engine ?? output?.engine
+      const childId = try toResourceId(id, olds?.controlId, output?.controlId)
+      const name = output?.name ?? (parent !== undefined ? resourceName(parent, childId) : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const controlId = try toResourceId(id, news.controlId, output?.controlId)
+      const displayName = news.displayName ?? controlId
+      const solutionType = solutionOf(news.solutionType)
+      const useCases = useCasesOf(news.useCases, solutionType)
+      const fallbackName = output?.name ?? resourceName(news.engine, controlId)
+      const desired = bodyOf(news, displayName, solutionType, useCases)
+
+      let current = try getByName(fallbackName)
+
+      if (current === undefined) {
+        const created = discoveryengine
+          .createProjectsLocationsCollectionsEnginesControls({
+            parent: news.engine,
+            controlId,
+            body: desired,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(fallbackName); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new CollectionsEnginesControlNotResolved({
+          resourceName: fallbackName,
+        })
+      }
+
+      const name = current.name ?? fallbackName
+      const displayNameChanged = (current.displayName ?? "") !== displayName
+      const useCasesChanged = !sameStringList(current.useCases, useCases)
+      const conditionsChanged = !sameJson(current.conditions, news.conditions)
+
+      // Actions are immutable; diff replaces the control when they change.
+      if (displayNameChanged || useCasesChanged || conditionsChanged) {
+        current = try discoveryengine.patchProjectsLocationsCollectionsEnginesControls({
+          name,
+          updateMask: [
+            displayNameChanged ? "display_name" : undefined,
+            useCasesChanged ? "use_cases" : undefined,
+            conditionsChanged ? "conditions" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: { name, ...desired },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      discoveryengine
+        .deleteProjectsLocationsCollectionsEnginesControls({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+    },
+  })

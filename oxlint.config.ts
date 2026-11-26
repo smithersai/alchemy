@@ -16,6 +16,8 @@ export default defineConfig({
     "demos/**",
     "**/fixtures/**",
     "**/*.test.ts",
+    // Each vibelang compile writes a declaration sidecar beside its .vibe module.
+    "**/*.d.vibe.ts",
   ],
   rules: {
     "no-irregular-whitespace": "off",

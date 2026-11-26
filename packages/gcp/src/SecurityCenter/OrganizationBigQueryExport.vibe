@@ -1,0 +1,275 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeDescription,
+  hasOwnershipMarker,
+  lastSegment,
+  organizationIdOf,
+  organizationParent,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  SecuritycenterNotResolved,
+  toPhysicalId,
+  tryResolveOrganization,
+  updateMaskOf,
+} from "./internal.vibe"
+
+export type OrganizationBigQueryExportProps = {
+  /**
+   * Export id (the `{export}` segment of
+   * `organizations/{organization}/bigQueryExports/{export}`). If omitted,
+   * a unique id is generated from the stack, stage, and logical id.
+   * Letters, digits, and hyphens; max 63 characters. Immutable — changing
+   * it replaces the export.
+   */
+  exportId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the export.
+   */
+  organization?: string
+  /**
+   * Destination dataset
+   * (`projects/{project}/datasets/{dataset}`).
+   */
+  dataset: string
+  /**
+   * Finding filter. Empty or omitted exports every finding under the
+   * parent.
+   */
+  filter?: string
+  /**
+   * Human-readable description. BigQuery exports have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+}
+
+export type OrganizationBigQueryExport = Resource<
+  "GCP.SecurityCenter.OrganizationBigQueryExport",
+  OrganizationBigQueryExportProps,
+  {
+    /** Full resource name `organizations/{organization}/bigQueryExports/{export}`. */
+    name: string
+    /** Export id (last path segment). */
+    exportId: string
+    /** Organization resource name. */
+    organization: string
+    /** Organization id. */
+    organizationId: string
+    /** Project id of the deploying stack. */
+    project: string
+    /** Destination dataset. */
+    dataset: string
+    /** Finding filter. */
+    filter: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Principal Security Command Center uses to write to the dataset. */
+    principal: string | undefined
+    /** Most recent editor of the export. */
+    mostRecentEditor: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Security Command Center BigQuery export.
+ *
+ * Exports have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Export id and organization
+ * are identity. Dataset, filter, and description update in place.
+ *
+ * ### Creating a BigQuery Export
+ * **Example:** Export active findings to a dataset
+ * ```typescript
+ * const dataset = yield* GCP.BigQuery.Dataset("SccFindings", {
+ *   location: "US",
+ *   forceDestroy: true,
+ * });
+ * const exp = yield* GCP.SecurityCenter.OrganizationBigQueryExport(
+ *   "Findings",
+ *   {
+ *     dataset: `projects/${dataset.project}/datasets/${dataset.datasetId}`,
+ *     filter: 'state="ACTIVE"',
+ *     description: "active findings",
+ *   },
+ * );
+ * ```
+ *
+ * **Example:** Named export on an explicit organization
+ * ```typescript
+ * const exp = yield* GCP.SecurityCenter.OrganizationBigQueryExport(
+ *   "Findings",
+ *   {
+ *     organization: "organizations/123456789",
+ *     exportId: "active-findings",
+ *     dataset: "projects/my-project/datasets/scc",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const OrganizationBigQueryExport = Resource<OrganizationBigQueryExport>(
+  "GCP.SecurityCenter.OrganizationBigQueryExport",
+)
+
+const resourceName = (organization: string, exportId: string): infer _ => `${organization}/bigQueryExports/${exportId}`
+
+const toAttrs = (
+  exp: scc.GoogleCloudSecuritycenterV1BigQueryExport,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = exp.name ?? ""
+  const parsed = parseName(name, "bigQueryExports")
+  const ownership = parseOwnership(exp.description)
+  return {
+    name,
+    exportId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    project,
+    dataset: exp.dataset ?? "",
+    filter: exp.filter,
+    description: ownership.text,
+    principal: exp.principal,
+    mostRecentEditor: exp.mostRecentEditor,
+    createTime: exp.createTime,
+    updateTime: exp.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getOrganizationsBigQueryExports({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const OrganizationBigQueryExportProvider = (): infer _ =>
+  Provider.succeed(OrganizationBigQueryExport, {
+    stables: ["name", "exportId", "organization", "organizationId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return (
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.exportId ?? output?.exportId, resolved.exportId)
+              ?? replaceOn(
+                olds?.organization ?? output?.organization,
+                resolved.organization !== undefined ? organizationParent(resolved.organization) : undefined,
+              ),
+          catch: (e) => e,
+        }))
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const exportId = try toPhysicalId(id, olds?.exportId, output?.exportId)
+      const name = output?.name ?? resourceName(organization, exportId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      return (effect {
+        return (Array.from(
+          try (scc.listOrganizationsBigQueryExports
+            .pages({ parent: organization, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.bigQueryExports ?? []))
+            |> Stream.filter(%, (exp) => hasOwnershipMarker(exp.description))
+            |> Stream.map(%, (exp) => toAttrs(exp, organization, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const exportId = try toPhysicalId(id, news.exportId, output?.exportId)
+      const name = resourceName(organization, exportId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const dataset = news.dataset
+      const filter = news.filter
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = scc
+          .createOrganizationsBigQueryExports({
+            parent: organization,
+            bigQueryExportId: exportId,
+            body: { dataset, filter, description },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecuritycenterNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const updateMask = updateMaskOf(
+        !sameText(current.dataset, dataset) ? "dataset" : undefined,
+        !sameText(current.filter, filter) ? "filter" : undefined,
+        !sameText(current.description, description) ? "description" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchOrganizationsBigQueryExports({
+          name: currentName,
+          updateMask,
+          body: { dataset, filter, description },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteOrganizationsBigQueryExports({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

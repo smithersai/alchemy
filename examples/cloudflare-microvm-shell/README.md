@@ -13,7 +13,7 @@ browser terminal ──ws──▶ Worker ──▶ Durable Object ──https /
   control plane (`RunMicrovm` / `GetMicrovm` / `CreateAuthToken`), and on each
   WebSocket upgrade provisions the session's VM and hands its endpoint + auth
   token to the Durable Object.
-- **Durable Object** (`src/shell-session.ts`) owns one terminal session: it
+- **Durable Object** (`src/shell-session.vibe`) owns one terminal session: it
   keeps the VM coordinates in storage (so the VM is reused across commands, not
   re-booted), POSTs each command to the VM's streaming `/exec` route, and
   forwards stdout/stderr to the browser chunk-by-chunk.
@@ -21,6 +21,10 @@ browser terminal ──ws──▶ Worker ──▶ Durable Object ──https /
   both the image declaration and the in-VM server. The bundled Effect program
   spawns `sh -c <command>` (scoped `ChildProcessSpawner`) and streams its
   interleaved stdout/stderr, ending with an `__EXIT__:<code>` trailer.
+
+The session resolves `DurableObjectState` during instance initialization and
+closes over it in its RPC methods. Storage reads and writes still run per call;
+the Worker does not need the Durable Object’s server-side state service.
 
 ## Run it in dev
 

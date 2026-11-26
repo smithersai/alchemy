@@ -1,0 +1,321 @@
+import * as ssoAdmin from "@distilled.cloud/aws/sso-admin"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { normalizeDurationInput } from "alchemy/Util/Duration"
+import * as Duration from "effect/Duration"
+import type { Providers } from "../Providers.vibe"
+import { resolveInstance, retryIdentityCenter } from "./common.vibe"
+
+export error PermissionSetUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface PermissionSetProps {
+  /**
+   * Explicit IAM Identity Center instance ARN.
+   * If omitted, Alchemy adopts the only visible instance.
+   */
+  instanceArn?: string
+  /**
+   * Permission set name.
+   */
+  name: string
+  /**
+   * Optional human-readable description.
+   */
+  description?: string
+  /**
+   * Optional session duration, e.g. `"8 hours"` or `Duration.hours(8)`.
+   * Sent to Identity Center as an ISO-8601 string such as `PT8H` (a bare
+   * number is milliseconds).
+   */
+  sessionDuration?: Duration.Input
+  /**
+   * Optional relay state passed to supported applications.
+   */
+  relayState?: string
+}
+
+export interface PermissionSet extends
+  Resource<
+    "AWS.IdentityCenter.PermissionSet",
+    PermissionSetProps,
+    {
+      /** The Identity Center instance the permission set lives in. */
+      instanceArn: string
+      /** The ARN of the permission set. */
+      permissionSetArn: string
+      /** The name of the permission set. */
+      name: string
+      /** The description of the permission set. */
+      description: string | undefined
+      /** The session duration in ISO-8601 format (e.g. `PT8H`). */
+      sessionDuration: string | undefined
+      /** The relay state URL users land on after federating, if set. */
+      relayState: string | undefined
+      /** When the permission set was created. */
+      createdDate: Date | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An IAM Identity Center permission set.
+ * ### Creating Permission Sets
+ * **Example:** Administrator Access
+ * ```typescript
+ * const admin = yield* PermissionSet("AdministratorAccess", {
+ *   name: "AdministratorAccess",
+ *   description: "Administrator access for platform engineers",
+ *   sessionDuration: "8 hours",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PermissionSet = Resource<PermissionSet>("AWS.IdentityCenter.PermissionSet")
+
+export const PermissionSetProvider = (): infer _ =>
+  Provider.effect(
+    PermissionSet,
+    effect {
+      return {
+        stables: ["permissionSetArn", "instanceArn"],
+        list: effect () => {
+          // Permission sets live on an Identity Center instance. Resolve
+          // the single enabled SSO instance, enumerate every permission
+          // set ARN via `listPermissionSets` (exhaustively paginated by
+          // the distilled `.items` stream), then hydrate each into the
+          // exact `read` shape via `describePermissionSet` (bounded
+          // concurrency, typed per-item not-found handled inside
+          // `readPermissionSetByArn`).
+          const instance = try resolveInstance()
+          const arns = try ssoAdmin.listPermissionSets
+            .items({
+              InstanceArn: instance.InstanceArn!,
+              MaxResults: 100,
+            })
+            .pipe(Stream.runCollect)
+          const rows = try Effect.forEach(
+            arns,
+            effect (permissionSetArn) =>
+              try readPermissionSetByArn({
+                instanceArn: instance.InstanceArn!,
+                permissionSetArn,
+              }),
+            { concurrency: 10 },
+          )
+          return rows.filter((row): row is PermissionSet["Attributes"] => row !== undefined)
+        },
+        diff: effect ({ olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (olds?.instanceArn !== resolved.instanceArn || olds?.name !== resolved.name) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          if (output?.permissionSetArn && output.instanceArn) {
+            return try readPermissionSetByArn({
+              instanceArn: output.instanceArn,
+              permissionSetArn: output.permissionSetArn,
+            })
+          }
+
+          if (!olds) {
+            return undefined
+          }
+
+          return try readPermissionSetByName(olds)
+        },
+        reconcile: effect ({ news, output, session }) => {
+          const instance = try resolveInstance(output?.instanceArn ?? news.instanceArn)
+          const desiredSessionDuration = news.sessionDuration !== undefined
+            ? toIsoSessionDuration(news.sessionDuration)
+            : undefined
+
+          // Observe — find the permission set by ARN (when we already
+          // have one) or by name on the resolved instance.
+          let existing = (output?.permissionSetArn
+            ? try readPermissionSetByArn({
+              instanceArn: instance.InstanceArn!,
+              permissionSetArn: output.permissionSetArn,
+            })
+            : undefined)
+            ?? (try readPermissionSetByName({
+              ...news,
+              instanceArn: instance.InstanceArn,
+            }))
+
+          // Ensure — create the permission set if missing.
+          if (!existing) {
+            const response = try retryIdentityCenter(
+              ssoAdmin.createPermissionSet({
+                InstanceArn: instance.InstanceArn!,
+                Name: news.name,
+                Description: news.description,
+                SessionDuration: desiredSessionDuration,
+                RelayState: news.relayState,
+              }),
+            )
+
+            const createdArn = response.PermissionSet?.PermissionSetArn
+            existing = (createdArn
+              ? try readPermissionSetByArn({
+                instanceArn: instance.InstanceArn!,
+                permissionSetArn: createdArn,
+              })
+              : undefined)
+              ?? (try readPermissionSetByName({
+                ...news,
+                instanceArn: instance.InstanceArn,
+              }))
+
+            if (!existing) {
+              throw new PermissionSetUnexpectedResponse({
+                message: `permission set '${news.name}' not found after create`,
+              })
+            }
+
+            try session.note(existing.permissionSetArn)
+            return existing
+          }
+
+          // Sync mutable attributes — `updatePermissionSet` overwrites
+          // description, sessionDuration, relayState. Diff against
+          // observed cloud state so adoption converges; only call when
+          // there's a real delta.
+          if (
+            (existing.description ?? undefined) !== news.description
+            || (existing.sessionDuration ?? undefined) !== desiredSessionDuration
+            || (existing.relayState ?? undefined) !== news.relayState
+          ) {
+            try retryIdentityCenter(
+              ssoAdmin.updatePermissionSet({
+                InstanceArn: existing.instanceArn,
+                PermissionSetArn: existing.permissionSetArn,
+                Description: news.description,
+                SessionDuration: desiredSessionDuration,
+                RelayState: news.relayState,
+              }),
+            )
+
+            const updated = try readPermissionSetByArn({
+              instanceArn: existing.instanceArn,
+              permissionSetArn: existing.permissionSetArn,
+            })
+            if (!updated) {
+              throw new PermissionSetUnexpectedResponse({
+                message: `permission set '${existing.permissionSetArn}' not found after update`,
+              })
+            }
+            try session.note(updated.permissionSetArn)
+            return updated
+          }
+
+          try session.note(existing.permissionSetArn)
+          return existing
+        },
+        delete: effect ({ output }) => {
+          try retryIdentityCenter(
+            effect {
+              return ssoAdmin
+                .deletePermissionSet({
+                  InstanceArn: output.instanceArn,
+                  PermissionSetArn: output.permissionSetArn,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: undefined as void;
+                  default: throw e;
+                }
+            },
+          )
+        },
+      }
+    },
+  )
+
+/**
+ * Format a {@link Duration.Input} as the canonical ISO-8601 duration string
+ * (`PT8H`, `PT1H30M`, …) the `SessionDuration` wire field expects. ISO-8601
+ * is semantically part of the AWS field, so only the normalization (state
+ * round-trip re-hydration) comes from the central Duration util.
+ */
+const toIsoSessionDuration = (input: Duration.Input): string => {
+  const totalSeconds = Math.round(Duration.toSeconds(normalizeDurationInput(input)))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const parts = [
+    hours > 0 ? `${hours}H` : "",
+    minutes > 0 ? `${minutes}M` : "",
+    seconds > 0 || totalSeconds === 0 ? `${seconds}S` : "",
+  ].join("")
+  return `PT${parts}`
+}
+
+const readPermissionSetByArn = effect ({
+  instanceArn,
+  permissionSetArn,
+}: {
+  instanceArn: string
+  permissionSetArn: string
+}) => {
+  const response = try retryIdentityCenter(
+    effect {
+      return ssoAdmin
+        .describePermissionSet({
+          InstanceArn: instanceArn,
+          PermissionSetArn: permissionSetArn,
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
+    },
+  )
+
+  const permissionSet = response?.PermissionSet
+  if (!permissionSet?.PermissionSetArn || !permissionSet.Name) {
+    return undefined
+  }
+
+  return {
+    instanceArn,
+    permissionSetArn: permissionSet.PermissionSetArn,
+    name: permissionSet.Name,
+    description: permissionSet.Description,
+    sessionDuration: permissionSet.SessionDuration,
+    relayState: permissionSet.RelayState,
+    createdDate: permissionSet.CreatedDate,
+  } satisfies PermissionSet["Attributes"]
+}
+
+const readPermissionSetByName = effect ({
+  instanceArn,
+  name,
+}: Pick<PermissionSetProps, "instanceArn" | "name">) => {
+  const instance = try resolveInstance(instanceArn)
+  const arns = try ssoAdmin.listPermissionSets
+    .items({
+      InstanceArn: instance.InstanceArn!,
+      MaxResults: 100,
+    })
+    .pipe(Stream.runCollect)
+
+  for (const permissionSetArn of arns) {
+    const permissionSet = try readPermissionSetByArn({
+      instanceArn: instance.InstanceArn!,
+      permissionSetArn,
+    })
+    if (permissionSet?.name === name) {
+      return permissionSet
+    }
+  }
+
+  return undefined
+}

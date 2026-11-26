@@ -1,0 +1,312 @@
+import * as ds from "@distilled.cloud/gcp/datastream_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  fingerprint,
+  hasAlchemyLabelMap,
+  normalizeLocation,
+  parseName,
+  privateConnectionOf,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  settleOperation,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+import { listPrivateConnections } from "./PrivateConnection.vibe"
+
+export type PrivateConnectionsRouteProps = {
+  /**
+   * Parent private connection. Full name
+   * `projects/{project}/locations/{location}/privateConnections/{privateConnection}`
+   * or the connection id (combined with `location`). Immutable —
+   * changing it replaces the route.
+   */
+  privateConnection: string
+  /**
+   * Region used when `privateConnection` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Route id (the `{route}` segment of
+   * `{privateConnection}/routes/{route}`). If omitted, a unique RFC1035
+   * name is generated. Immutable — changing it replaces the route.
+   */
+  routeId?: string
+  /**
+   * User-friendly display name. The API has no patch method — changing
+   * display name replaces the route.
+   */
+  displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   * The API has no patch method — changing labels replaces the route.
+   */
+  labels?: Record<string, string>
+  /**
+   * Destination address for the route (hostname or IP). Immutable —
+   * changing it replaces the route.
+   */
+  destinationAddress: string
+  /**
+   * Destination port for the route. Immutable — changing it replaces
+   * the route.
+   */
+  destinationPort?: number
+}
+
+export type PrivateConnectionsRoute = Resource<
+  "GCP.Datastream.PrivateConnectionsRoute",
+  PrivateConnectionsRouteProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Route id (last path segment). */
+    routeId: string
+    /** Parent private connection resource name. */
+    privateConnection: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-friendly display name. */
+    displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Destination address. */
+    destinationAddress: string | undefined
+    /** Destination port. */
+    destinationPort: number | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Datastream route attached to a private connection. Routes advertise
+ * a destination address (and optional port) through the private
+ * connection's VPC peering or PSC interface.
+ *
+ * The API has no patch method. `routeId`, parent private connection,
+ * destination address/port, display name, and labels are replacement
+ * triggers.
+ *
+ * ### Creating a Route
+ * **Example:** Advertise a database host
+ * ```typescript
+ * const peering = yield* GCP.Datastream.PrivateConnection("DsPeer", {
+ *   vpcPeeringConfig: {
+ *     vpc: network.networkName,
+ *     subnet: "10.9.0.0/29",
+ *   },
+ * });
+ * const route = yield* GCP.Datastream.PrivateConnectionsRoute("DbHost", {
+ *   privateConnection: peering.name,
+ *   destinationAddress: "10.0.0.8",
+ *   destinationPort: 3306,
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Datastream
+ */
+export const PrivateConnectionsRoute = Resource<PrivateConnectionsRoute>(
+  "GCP.Datastream.PrivateConnectionsRoute",
+)
+
+const resourceName = (privateConnection: string, routeId: string): infer _ => `${privateConnection}/routes/${routeId}`
+
+const toAttrs = (item: ds.Route, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "routes", region)
+  return {
+    name,
+    routeId: parsed.id,
+    privateConnection: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: item.displayName,
+    labels: userLabels(item.labels),
+    destinationAddress: item.destinationAddress,
+    destinationPort: item.destinationPort,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : ds
+  .getProjectsLocationsPrivateConnectionsRoutes({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listRoutes = effect (parent: string) =>
+  collectPages(
+    ds.listProjectsLocationsPrivateConnectionsRoutes.pages({
+      parent,
+      pageSize: 1000,
+    }),
+    (page) => page.routes,
+  ) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as ds.Route[]; default: throw e; }
+
+const listOwned = effect (project: string, region: string) => {
+  const connections = try listPrivateConnections(project, region)
+  const pages = try Effect.forEach(
+    connections.filter((item) => (item.name ?? "").length > 0),
+    effect (item) => try listRoutes(item.name!),
+    { concurrency: 4 },
+  )
+  return pages.flat().filter((route) => hasAlchemyLabelMap(route.labels))
+}
+
+export const PrivateConnectionsRouteProvider = (): infer _ =>
+  Provider.succeed(PrivateConnectionsRoute, {
+    stables: ["name", "routeId", "privateConnection", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousAddress = olds?.destinationAddress ?? output?.destinationAddress
+      const nextAddress = resolved.destinationAddress ?? previousAddress
+      const previousPort = olds?.destinationPort ?? output?.destinationPort
+      const nextPort = resolved.destinationPort ?? previousPort
+      const previousDisplay = olds?.displayName ?? output?.displayName
+      const nextDisplay = resolved.displayName ?? previousDisplay
+      const previousLabels = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(olds?.labels ?? output?.labels), catch: (e) => e }),
+      )
+      const nextLabels = try Effect.orDie(
+        Effect.try({ try: () => fingerprint(resolved.labels ?? olds?.labels ?? output?.labels), catch: (e) => e }),
+      )
+      const previousParent = olds?.privateConnection ?? output?.privateConnection
+      const nextParent = resolved.privateConnection ?? previousParent
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.routeId ?? output?.routeId,
+            nextId: resolved.routeId ?? olds?.routeId ?? output?.routeId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent,
+            nextParent,
+            extra: (olds !== undefined || output !== undefined)
+              && (previousAddress !== nextAddress
+                || previousPort !== nextPort
+                || previousDisplay !== nextDisplay
+                || previousLabels !== nextLabels),
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parentId = olds?.privateConnection ?? output?.privateConnection
+      // Recovering an interrupted create whose parent never resolved: no
+      // route can exist without its private connection.
+      if (typeof parentId !== "string" || parentId.length === 0) {
+        return undefined
+      }
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => privateConnectionOf(parentId, env.project, location), catch: (e) => e }),
+      )
+      const routeId = try toPhysicalId(id, olds?.routeId, output?.routeId, "route")
+      const name = output?.name ?? resourceName(parent, routeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => privateConnectionOf(news.privateConnection, env.project, location), catch: (e) => e }),
+      )
+      const routeId = try toPhysicalId(id, news.routeId, output?.routeId, "route")
+      const name = resourceName(parent, routeId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const displayName = news.displayName ?? routeId
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = ds
+          .createProjectsLocationsPrivateConnectionsRoutes({
+            parent,
+            routeId,
+            body: {
+              displayName,
+              labels: desiredLabels,
+              destinationAddress: news.destinationAddress,
+              destinationPort: news.destinationPort,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        try settleOperation(created)
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (ds
+          .deleteProjectsLocationsPrivateConnectionsRoutes({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      try settleOperation(operation, { notFoundOk: true })
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

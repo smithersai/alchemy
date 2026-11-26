@@ -1,0 +1,475 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { waitGlobalOperation } from "./operations.vibe"
+
+export type TargetSslProxyProxyHeader = compute.TargetSslProxyProxyHeaderEnum
+
+const DEFAULT_PROXY_HEADER: TargetSslProxyProxyHeader = "NONE"
+
+export type TargetSslProxyProps = {
+  /**
+   * TargetSslProxy name (RFC1035, 1-63 characters). If omitted, a unique
+   * name is generated from the stack, stage, and logical id. Changing it
+   * replaces the resource.
+   */
+  targetSslProxyName?: string
+  /**
+   * Optional description. Alchemy ownership is stored in a `[alchemy …]`
+   * prefix so `list` / nuke can find resources (Compute TargetSslProxy
+   * has no labels field and no update API for description). Changing it
+   * replaces the resource.
+   */
+  description?: string
+  /**
+   * Backend service this proxy forwards decrypted traffic to. Accepts a
+   * BackendService self-link, a
+   * `projects/{project}/global/backendServices/{name}` path, or the
+   * BackendService name. The backend service protocol must be `SSL`.
+   */
+  service: string
+  /**
+   * SslCertificate URLs used to terminate SSL. Accepts self-links,
+   * `projects/{project}/global/sslCertificates/{name}` paths, or
+   * certificate names. At least one is required unless `certificateMap`
+   * is set. Up to 15 classic certificates.
+   */
+  sslCertificates?: string[]
+  /**
+   * Certificate Manager map URL
+   * (`//certificatemanager.googleapis.com/projects/{project}/locations/{location}/certificateMaps/{name}`).
+   * When set, `sslCertificates` is ignored. Global SSL proxies only.
+   */
+  certificateMap?: string
+  /**
+   * SslPolicy URL applied to client TLS. Empty string clears the policy.
+   */
+  sslPolicy?: string
+  /**
+   * Proxy header appended before sending data to the backend (`NONE` or
+   * `PROXY_V1`).
+   * @default "NONE"
+   */
+  proxyHeader?: TargetSslProxyProxyHeader | (string & {})
+}
+
+export type TargetSslProxy = Resource<
+  "GCP.Compute.TargetSslProxy",
+  TargetSslProxyProps,
+  {
+    /** TargetSslProxy name. */
+    targetSslProxyName: string
+    /** Project id. */
+    project: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** URL of the attached BackendService. */
+    service: string
+    /** SslCertificate URLs. */
+    sslCertificates: string[]
+    /** Certificate Manager map URL, if set. */
+    certificateMap: string | undefined
+    /** SslPolicy URL, if set. */
+    sslPolicy: string | undefined
+    /** Proxy header prepended to backend connections. */
+    proxyHeader: string | undefined
+    /** Server-defined URL. */
+    selfLink: string | undefined
+    /** Server-assigned numeric id. */
+    targetSslProxyId: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+    /** Resource kind. */
+    kind: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A global Compute Engine target SSL proxy.
+ *
+ * Target SSL proxies terminate SSL/TLS for Proxy Network Load Balancers
+ * (SSL proxy). A forwarding rule points at the proxy; the proxy points at
+ * a backend service (protocol `SSL`) and one or more SSL certificates (or
+ * a Certificate Manager map).
+ *
+ * This resource maps to the global `targetSslProxies` collection. Compute
+ * TargetSslProxy has no labels field — Alchemy ownership is stored in the
+ * description so nuke can find leaked proxies. Description is immutable
+ * after create.
+ *
+ * ### Creating a Target SSL Proxy
+ * **Example:** Generated name in front of an SSL backend
+ * ```typescript
+ * const check = yield* GCP.Compute.HealthCheck("ssl", {
+ *   type: "TCP",
+ *   tcpHealthCheck: { port: 443 },
+ * });
+ * const backend = yield* GCP.Compute.BackendService("ssl", {
+ *   protocol: "SSL",
+ *   healthChecks: [check.selfLink],
+ * });
+ * const cert = yield* GCP.Compute.SslCertificate("tls", {
+ *   certificate: pemCertificate,
+ *   privateKey: pemPrivateKey,
+ * });
+ * const proxy = yield* GCP.Compute.TargetSslProxy("ssl", {
+ *   service: backend.name,
+ *   sslCertificates: [cert.sslCertificateName],
+ * });
+ * ```
+ *
+ * **Example:** Explicit name, PROXY protocol, and description
+ * ```typescript
+ * const proxy = yield* GCP.Compute.TargetSslProxy("ssl", {
+ *   targetSslProxyName: "web-ssl",
+ *   service: backend.selfLink,
+ *   sslCertificates: [cert.selfLink],
+ *   proxyHeader: "PROXY_V1",
+ *   description: "public ssl",
+ * });
+ * ```
+ *
+ * ### Updating a Target SSL Proxy
+ * **Example:** Swap the backend and certificates
+ * ```typescript
+ * const proxy = yield* GCP.Compute.TargetSslProxy("ssl", {
+ *   targetSslProxyName: "web-ssl",
+ *   service: nextBackend.name,
+ *   sslCertificates: [nextCert.sslCertificateName],
+ *   proxyHeader: "PROXY_V1",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const TargetSslProxy = Resource<TargetSslProxy>("GCP.Compute.TargetSslProxy")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TargetSslProxyNotResolved extends Data.TaggedError(
+  "GCP.Compute.TargetSslProxyNotResolved",
+)<{
+  targetSslProxyName: string
+}> {}
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  return /^[a-z]/.test(generated) ? generated : `s${generated}`.slice(0, 63)
+}
+
+const encodeDescription = (
+  labels: Record<string, string>,
+  description: string | undefined,
+): string => {
+  const marker = `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${
+    labels[alchemyLabelKeys.stage]
+  } ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`
+  return description ? `${marker}\n${description}` : marker
+}
+
+const parseDescription = (
+  description: string | undefined,
+): {
+  labels: Record<string, string>
+  description: string | undefined
+} => {
+  if (!description?.startsWith("[alchemy ")) {
+    return { labels: {}, description }
+  }
+  const end = description.indexOf("]")
+  if (end < 0) return { labels: {}, description }
+  const labels: Record<string, string> = {}
+  for (const part of description.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = description.slice(end + 1).replace(/^\n/, "")
+  return { labels, description: rest.length > 0 ? rest : undefined }
+}
+
+const resourceTail = (value: string | undefined): string => {
+  if (value === undefined || value.length === 0) return ""
+  const parts = value.split("/").filter((part) => part.length > 0)
+  return parts[parts.length - 1] ?? ""
+}
+
+const toServiceRef = (project: string, service: string): string => {
+  if (service.includes("/")) return service
+  return `projects/${project}/global/backendServices/${service}`
+}
+
+const toSslCertRef = (project: string, cert: string): string => {
+  if (cert.includes("/")) return cert
+  return `projects/${project}/global/sslCertificates/${cert}`
+}
+
+const sameResourceList = (
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): infer _ => {
+  const a = [...(left ?? [])].map(resourceTail).sort()
+  const b = [...(right ?? [])].map(resourceTail).sort()
+  return a.length === b.length && a.every((value, i) => value === b[i])
+}
+
+const toAttrs = (proxy: compute.TargetSslProxy, project: string): infer _ => {
+  const parsed = parseDescription(proxy.description)
+  return {
+    targetSslProxyName: proxy.name ?? proxy.id ?? "",
+    project,
+    description: parsed.description,
+    service: proxy.service ?? "",
+    sslCertificates: [...(proxy.sslCertificates ?? [])],
+    certificateMap: proxy.certificateMap,
+    sslPolicy: proxy.sslPolicy,
+    proxyHeader: proxy.proxyHeader,
+    selfLink: proxy.selfLink,
+    targetSslProxyId: proxy.id,
+    creationTimestamp: proxy.creationTimestamp,
+    kind: proxy.kind,
+  }
+}
+
+const getByName = effect (project: string, targetSslProxy: string) =>
+  compute
+    .getTargetSslProxies({ project, targetSslProxy }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: undefined;
+      default: throw e;
+    }
+
+export const TargetSslProxyProvider = (): infer _ =>
+  Provider.succeed(TargetSslProxy, {
+    stables: ["targetSslProxyName", "project", "targetSslProxyId", "selfLink", "creationTimestamp"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousName = olds?.targetSslProxyName ?? output?.targetSslProxyName
+      const nextName = resolved.targetSslProxyName
+      if (previousName !== undefined && nextName !== undefined && previousName !== nextName) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousDescription = olds?.description ?? output?.description
+      if (
+        (olds !== undefined || output !== undefined)
+        && previousDescription !== resolved.description
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const targetSslProxyName = try toName(
+        id,
+        olds?.targetSslProxyName,
+        output?.targetSslProxyName,
+      )
+      const existing = try getByName(env.project, targetSslProxyName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (compute.listTargetSslProxies
+          .items({ project: env.project, maxResults: 500 })
+          |> Stream.filter(%, (proxy) => {
+            const { labels } = parseDescription(proxy.description)
+            return Object.keys(labels).some((key) => key.startsWith("alchemy-"))
+          })
+          |> Stream.map(%, (proxy) => toAttrs(proxy, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const targetSslProxyName = try toName(
+        id,
+        news.targetSslProxyName,
+        output?.targetSslProxyName,
+      )
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredService = toServiceRef(env.project, news.service)
+      const desiredCerts = (news.sslCertificates ?? []).map((cert) => toSslCertRef(env.project, cert))
+      const desiredProxyHeader = news.proxyHeader ?? DEFAULT_PROXY_HEADER
+
+      let current = try getByName(env.project, targetSslProxyName)
+
+      if (current === undefined) {
+        const body: compute.TargetSslProxy = {
+          name: targetSslProxyName,
+          description: desiredDescription,
+          service: desiredService,
+        }
+        if (desiredCerts.length > 0) {
+          body.sslCertificates = desiredCerts
+        }
+        if (news.certificateMap !== undefined) {
+          body.certificateMap = news.certificateMap
+        }
+        if (news.sslPolicy !== undefined) {
+          body.sslPolicy = news.sslPolicy
+        }
+        if (news.proxyHeader !== undefined) {
+          body.proxyHeader = news.proxyHeader
+        }
+        ;(effect {
+          return (try waitGlobalOperation(
+            env.project,
+            try compute
+              .insertTargetSslProxies({
+                project: env.project,
+                body,
+              }),
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        current = try getByName(env.project, targetSslProxyName)
+      }
+
+      if (current === undefined) {
+        throw new TargetSslProxyNotResolved({
+          targetSslProxyName,
+        })
+      }
+
+      if (resourceTail(current.service) !== resourceTail(desiredService)) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setBackendServiceTargetSslProxies({
+              project: env.project,
+              targetSslProxy: targetSslProxyName,
+              body: { service: desiredService },
+            }),
+        )
+        current = try getByName(env.project, targetSslProxyName)
+        if (current === undefined) {
+          throw new TargetSslProxyNotResolved({
+            targetSslProxyName,
+          })
+        }
+      }
+
+      if (
+        news.sslCertificates !== undefined
+        && !sameResourceList(current.sslCertificates, desiredCerts)
+      ) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setSslCertificatesTargetSslProxies({
+              project: env.project,
+              targetSslProxy: targetSslProxyName,
+              body: { sslCertificates: desiredCerts },
+            }),
+        )
+        current = try getByName(env.project, targetSslProxyName)
+        if (current === undefined) {
+          throw new TargetSslProxyNotResolved({
+            targetSslProxyName,
+          })
+        }
+      }
+
+      if (
+        news.certificateMap !== undefined
+        && (current.certificateMap ?? "") !== news.certificateMap
+      ) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setCertificateMapTargetSslProxies({
+              project: env.project,
+              targetSslProxy: targetSslProxyName,
+              body: { certificateMap: news.certificateMap },
+            }),
+        )
+        current = try getByName(env.project, targetSslProxyName)
+        if (current === undefined) {
+          throw new TargetSslProxyNotResolved({
+            targetSslProxyName,
+          })
+        }
+      }
+
+      if ((current.proxyHeader ?? DEFAULT_PROXY_HEADER) !== desiredProxyHeader) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setProxyHeaderTargetSslProxies({
+              project: env.project,
+              targetSslProxy: targetSslProxyName,
+              body: { proxyHeader: desiredProxyHeader },
+            }),
+        )
+        current = try getByName(env.project, targetSslProxyName)
+        if (current === undefined) {
+          throw new TargetSslProxyNotResolved({
+            targetSslProxyName,
+          })
+        }
+      }
+
+      if (news.sslPolicy !== undefined && (current.sslPolicy ?? "") !== news.sslPolicy) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setSslPolicyTargetSslProxies({
+              project: env.project,
+              targetSslProxy: targetSslProxyName,
+              body: { sslPolicy: news.sslPolicy },
+            }),
+        )
+        current = try getByName(env.project, targetSslProxyName)
+        if (current === undefined) {
+          throw new TargetSslProxyNotResolved({
+            targetSslProxyName,
+          })
+        }
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const operation = compute
+        .deleteTargetSslProxies({
+          project: env.project,
+          targetSslProxy: output.targetSslProxyName,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+      if (operation !== undefined) {
+        waitGlobalOperation(env.project, operation) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined as void;
+          default: throw e;
+        }
+      }
+    },
+  })

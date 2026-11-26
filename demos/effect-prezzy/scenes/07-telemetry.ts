@@ -7,13 +7,13 @@ export default defineScene({
     "Axiom datasets for traces and logs and an ingest token that can write to those two datasets and nothing else, all named after the stage. Axiom.Telemetry is a Layer: providing it is the whole wiring. Spans come from code that is already Effect: links.create, links.get, clicks.record, plus the HTTP server and SQL spans.",
   async run(s) {
     await s.sync({
-      except: ["src/Observability.ts", "src/Api.ts", "src/Links.ts", "alchemy.run.ts"],
+      except: ["src/Observability.vibe", "src/Api.vibe", "src/Links.vibe", "alchemy.run.ts"],
     });
-    await s.editor.show("src/Observability.ts");
+    await s.editor.show("src/Observability.vibe");
     s.pause(1);
-    await s.editor.show("src/Api.ts");
+    await s.editor.show("src/Api.vibe");
     s.pause(0.5);
-    await s.editor.show("src/Links.ts");
+    await s.editor.show("src/Links.vibe");
     s.pause(0.5);
     await s.editor.show("alchemy.run.ts");
     s.pause(1);

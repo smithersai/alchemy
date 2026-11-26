@@ -249,7 +249,7 @@ Example:
 After each binding/resource implementation, update:
 
 1. `packages/aws/src/<Service>/index.ts`
-2. `packages/aws/src/Providers.ts`
+2. `packages/aws/src/Providers.vibe`
 
 If registration is missing, audit should flag it.
 
@@ -458,7 +458,7 @@ The audit should help enforce:
 
 1. Missing bindings from distilled operations.
 2. Missing registration in `index.ts`.
-3. Missing registration in `Providers.ts`.
+3. Missing registration in `Providers.vibe`.
 4. Missing `describe("<BindingName>")` blocks in `Bindings.test.ts`.
 5. Avoidable `Resource: ["*"]` usage in non-zero-arity bindings.
 

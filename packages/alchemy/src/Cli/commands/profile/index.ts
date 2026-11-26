@@ -1,1 +1,1 @@
-export { profileCommand } from "./commands.ts";
+export { profileCommand } from "./commands.vibe";

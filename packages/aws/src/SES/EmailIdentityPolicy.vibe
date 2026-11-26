@@ -1,0 +1,263 @@
+import * as Effect from "effect/Effect"
+import * as sesv2 from "@distilled.cloud/aws/sesv2"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { normalizePolicyDocument, stringifyPolicyDocument, type PolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface EmailIdentityPolicyProps {
+  /**
+   * The email address or domain identity the sending-authorization policy is
+   * attached to. Typically the `emailIdentity` output of a
+   * `SES.EmailIdentity`. Changing it replaces the policy.
+   */
+  emailIdentity: string
+  /**
+   * Name of the policy. May contain letters, numbers, dashes and underscores,
+   * up to 64 characters. If omitted, a deterministic physical name is
+   * generated from the app, stage, and logical ID. Changing it replaces the
+   * policy.
+   */
+  policyName?: string
+  /**
+   * The IAM policy document that grants sending authorization. Equivalent
+   * document representations are ignored when detecting drift.
+   */
+  policy: PolicyDocument
+}
+
+export interface EmailIdentityPolicy extends
+  Resource<
+    "AWS.SES.EmailIdentityPolicy",
+    EmailIdentityPolicyProps,
+    {
+      /** The identity the policy is attached to. */
+      emailIdentity: string
+      /** Name of the policy. */
+      policyName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SES v2 sending-authorization policy attached to an email identity —
+ * lets the identity owner authorize other AWS accounts or IAM principals to
+ * send email using the identity.
+ *
+ * SES stores the policy document as JSON; Alchemy serializes the typed IAM
+ * policy at the API boundary and compares its normalized content for drift.
+ * ### Attaching a Policy
+ * **Example:** Authorize Another Account to Send
+ * ```typescript
+ * import * as SES from "@alchemy.run/aws/SES";
+ *
+ * const identity = yield* SES.EmailIdentity("Sender", {
+ *   emailIdentity: "mail.example.com",
+ * });
+ *
+ * const policy = yield* SES.EmailIdentityPolicy("AllowPartner", {
+ *   emailIdentity: identity.emailIdentity,
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: "arn:aws:iam::111122223333:root" },
+ *         Action: ["ses:SendEmail"],
+ *         Resource: identity.identityArn,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Explicit Policy Name
+ * ```typescript
+ * // Without policyName a deterministic name is derived from app/stage/id.
+ * const policy = yield* SES.EmailIdentityPolicy("AllowPartner", {
+ *   emailIdentity: identity.emailIdentity,
+ *   policyName: "partner-send",
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: "arn:aws:iam::111122223333:root" },
+ *         Action: ["ses:SendEmail"],
+ *         Resource: identity.identityArn,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Restrict the Grant with Conditions
+ * ```typescript
+ * const policy = yield* SES.EmailIdentityPolicy("AllowPartnerScoped", {
+ *   emailIdentity: identity.emailIdentity,
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: "arn:aws:iam::111122223333:root" },
+ *         Action: ["ses:SendEmail", "ses:SendRawEmail"],
+ *         Resource: identity.identityArn,
+ *         Condition: {
+ *           StringEquals: { "ses:FromAddress": "noreply@mail.example.com" },
+ *         },
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Several Policies on One Identity
+ * ```typescript
+ * // Each policy is a separate resource keyed by its own name.
+ * for (const partner of ["111122223333", "444455556666"]) {
+ *   yield* SES.EmailIdentityPolicy(`Allow${partner}`, {
+ *     emailIdentity: identity.emailIdentity,
+ *     policyName: `partner-${partner}`,
+ *     policy: {
+ *       Version: "2012-10-17",
+ *       Statement: [
+ *         {
+ *           Effect: "Allow",
+ *           Principal: { AWS: `arn:aws:iam::${partner}:root` },
+ *           Action: ["ses:SendEmail"],
+ *           Resource: identity.identityArn,
+ *         },
+ *       ],
+ *     },
+ *   });
+ * }
+ * ```
+ *
+ * @resource
+ */
+export const EmailIdentityPolicy = Resource<EmailIdentityPolicy>("AWS.SES.EmailIdentityPolicy")
+
+export const EmailIdentityPolicyProvider = (): infer _ =>
+  Provider.effect(
+    EmailIdentityPolicy,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<EmailIdentityPolicyProps, "policyName">,
+      ) => props.policyName ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      // Returns the policy-name -> document map for the identity, or undefined
+      // when the identity itself no longer exists.
+      const getPolicies = effect (emailIdentity: string) =>
+        (effect {
+          return ((try sesv2.getEmailIdentityPolicies({ EmailIdentity: emailIdentity })).Policies ?? {})
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      return EmailIdentityPolicy.Provider.of({
+        // Deleting a policy requires its parent identity to still exist, so
+        // the identity must outlive every policy nuke tears down.
+        nuke: { dependsOn: ["AWS.SES.EmailIdentity"] },
+        stables: ["emailIdentity", "policyName"],
+
+        // Policies are keyed by their parent identity, so enumeration walks
+        // every identity and reads its policy map. getPolicies already treats
+        // a vanished identity as "no policies".
+        list: effect () => {
+          const pages = try sesv2.listEmailIdentities.pages({}).pipe(Stream.runCollect)
+          const identities = Array.from(pages)
+            .flatMap((page) => page.EmailIdentities ?? [])
+            .flatMap((info) => (info.IdentityName ? [info.IdentityName] : []))
+          const nested = try Effect.forEach(
+            identities,
+            effect (emailIdentity) =>
+              Object.keys((try getPolicies(emailIdentity)) ?? {}).map((policyName) => ({
+                emailIdentity,
+                policyName,
+              })),
+            { concurrency: 2 },
+          )
+          return nested.flat()
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const emailIdentity = output?.emailIdentity ?? olds?.emailIdentity
+          if (emailIdentity === undefined) return undefined
+          const policyName = output?.policyName ?? (try createName(id, olds ?? {}))
+          const policies = try getPolicies(emailIdentity)
+          if (policies === undefined || policies[policyName] === undefined) {
+            return undefined
+          }
+          // Policies carry no tags, so existence at our deterministic name is
+          // treated as ownership.
+          return { emailIdentity, policyName }
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName || olds.emailIdentity !== news.emailIdentity) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output }) => {
+          const emailIdentity = output?.emailIdentity ?? news.emailIdentity
+          const policyName = output?.policyName ?? (try createName(id, news))
+
+          // 1. OBSERVE — cloud state is authoritative.
+          const policies = try getPolicies(emailIdentity)
+          const existing = policies?.[policyName]
+          const desiredPolicy = stringifyPolicyDocument(news.policy)
+
+          if (existing === undefined) {
+            // 2. ENSURE — create; AlreadyExists is a race → converge via update.
+            sesv2
+              .createEmailIdentityPolicy({
+                EmailIdentity: emailIdentity,
+                PolicyName: policyName,
+                Policy: desiredPolicy,
+              }) catch effect (e) => match (e) {
+                when { _tag: "AlreadyExistsException" }: try sesv2.updateEmailIdentityPolicy({
+                  EmailIdentity: emailIdentity,
+                  PolicyName: policyName,
+                  Policy: desiredPolicy,
+                });
+                default: throw e;
+              }
+          } else {
+            // 3. SYNC — update only when the stored document differs.
+            const changed = normalizePolicyDocument(existing) !== normalizePolicyDocument(news.policy)
+            if (changed) {
+              try sesv2.updateEmailIdentityPolicy({
+                EmailIdentity: emailIdentity,
+                PolicyName: policyName,
+                Policy: desiredPolicy,
+              })
+            }
+          }
+
+          return { emailIdentity, policyName }
+        },
+
+        delete: effect ({ output }) => {
+          // deleteEmailIdentityPolicy succeeds even if the policy is absent; a
+          // missing identity means the policy is already gone.
+          sesv2
+            .deleteEmailIdentityPolicy({
+              EmailIdentity: output.emailIdentity,
+              PolicyName: output.policyName,
+            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined as void; default: throw e; }
+        },
+      })
+    },
+  )

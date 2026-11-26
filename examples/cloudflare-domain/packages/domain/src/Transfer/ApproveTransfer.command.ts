@@ -1,10 +1,10 @@
 import * as Domain from "@alchemy.run/domain";
-import { AccountId } from "../Account/Account.id.ts";
+import { AccountId } from "../Account/Account.id.vibe";
 import { NotPermitted } from "../Account/ChangeOwner.command.ts";
-import { Actor } from "../Actor.ts";
-import { Cents } from "../Money.ts";
+import { Actor } from "../Actor.vibe";
+import { Cents } from "../Money.vibe";
 import { Session } from "../Session.middleware.ts";
-import { TransferId } from "./Transfer.id.ts";
+import { TransferId } from "./Transfer.id.vibe";
 
 /** The transfer is not waiting for approval: it never needed it, or it expired. */
 export class NotAwaitingApproval extends Domain.Rejection("NotAwaitingApproval") {}

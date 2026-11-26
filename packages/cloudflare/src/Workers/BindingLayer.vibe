@@ -1,0 +1,53 @@
+import * as CoreBinding from "alchemy/Binding"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import type { Binding } from "./Binding.vibe"
+import { isWorker, WorkerEnvironment } from "./Worker.vibe"
+
+/**
+ * Native runtime layer for a Worker-only {@link Binding}. Registers the native
+ * binding on the host Worker at deploy time (via `binding.toWorkerBinding()`)
+ * and builds the Effect-native client from the lazy `env[name]` accessor.
+ *
+ * Factored out of `Binding.ts` (which must stay free of `Worker.ts` to avoid an
+ * import cycle through the contract files). Each binding's layer is a one-liner:
+ * `export const XBinding = makeBindingLayer(X, makeXClient)`.
+ */
+export const makeBindingLayer = <Self, Runtime, Client>(
+  tag: Self,
+  makeClient: (
+    raw: Runtime!never!RuntimeContext,
+    binding: Binding<string, Client, Self>,
+  ) => Client,
+): Layer.Layer<Self, never, WorkerEnvironment> =>
+  Layer.effect(
+    tag as never,
+    effect {
+      const env = try Effect.service(WorkerEnvironment)
+      return effect (binding: Binding<string, Client>) => {
+        // Deploy-time only: register the native binding on the host Worker.
+        if (!globalThis.__ALCHEMY_RUNTIME__) {
+          const host = try CoreBinding.Host
+          const worker = try Effect.orDie(
+            Effect.try({ try: () => isWorker(host) ? host : undefined, catch: (e) => e }),
+          )
+          if (worker !== undefined) {
+            try worker.bind(binding.name, {
+              bindings: [try Effect.orDie(Effect.try({ try: () => binding.toWorkerBinding(), catch: (e) => e }))],
+              // Dev-only local-emulation opt-out, contributed as a parallel
+              // channel (like `hyperdrives`) so the wire binding stays pure.
+              ...(binding.devRemote ? { devRemote: { [binding.name]: true } } : {}),
+            })
+          }
+        }
+        // Lazy: `WorkerEnvironment` is only populated at exec phase.
+        const raw = effect {
+          return try (effect {
+            return (env as Record<string, Runtime>)[binding.name]!
+          } as Runtime!never!RuntimeContext)
+        }
+        return makeClient(raw, binding as Binding<string, Client, Self>)
+      }
+    },
+  ) as Layer.Layer<Self, never, WorkerEnvironment>

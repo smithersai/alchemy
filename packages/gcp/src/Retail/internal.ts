@@ -91,7 +91,10 @@ export const slugNoDigits = (name: string, maxLength: number, minLength = 4): st
   return next.length > 0 ? next : "resource";
 };
 
-export const productIdOf = (name: string, maxLength = MAX_PRODUCT_ID_LENGTH) => {
+export const productIdOf = /** @throws {never} */ (
+  name: string,
+  maxLength = MAX_PRODUCT_ID_LENGTH,
+) => {
   let next = name
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, "-")
@@ -146,15 +149,17 @@ export const fingerprint = (value: unknown): string => JSON.stringify(canonical(
 
 export const sameJson = (left: unknown, right: unknown) => fingerprint(left) === fingerprint(right);
 
-export const sameStringList = (
+export const sameStringList = /** @throws {never} */ (
   left: readonly string[] | undefined,
   right: readonly string[] | undefined,
 ) => fingerprint([...(left ?? [])].sort()) === fingerprint([...(right ?? [])].sort());
 
-export const sameText = (left: string | undefined, right: string | undefined) =>
-  (left ?? "") === (right ?? "");
+export const sameText = /** @throws {never} */ (
+  left: string | undefined,
+  right: string | undefined,
+) => (left ?? "") === (right ?? "");
 
-export const updateMaskOf = (...fields: Array<string | undefined>) =>
+export const updateMaskOf = /** @throws {never} */ (...fields: Array<string | undefined>) =>
   fields.filter((field): field is string => field !== undefined).join(",");
 
 export const replaceOnIdentity = (input: {

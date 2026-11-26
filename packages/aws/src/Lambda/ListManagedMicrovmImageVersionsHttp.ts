@@ -1,6 +1,6 @@
 import * as microvms from "@distilled.cloud/aws/lambda-microvms";
-import { ListManagedMicrovmImageVersions } from "./ListManagedMicrovmImageVersions.ts";
-import { makeAccountBinding } from "./MicrovmBinding.ts";
+import { ListManagedMicrovmImageVersions } from "./ListManagedMicrovmImageVersions.vibe";
+import { makeAccountBinding } from "./MicrovmBinding.vibe";
 
 export const ListManagedMicrovmImageVersionsHttp = makeAccountBinding({
   binding: ListManagedMicrovmImageVersions,

@@ -39,7 +39,7 @@ import {
   make,
   type ReactRouterTarget,
   type ReactRouterTargetConfig,
-} from "./ReactRouter.ts";
+} from "./ReactRouter.vibe";
 
 /** The server entry file name React Router's server pass emits. */
 export const SERVER_ENTRY_FILE_NAME = DEFAULT_SERVER_BUILD_FILE;

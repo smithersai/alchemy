@@ -1,0 +1,390 @@
+import * as dlp from "@distilled.cloud/gcp/dlp_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, stripInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  encodeOwnership,
+  hasHybridOwnership,
+  hasOwnershipMarker,
+  hybridLabels,
+  jsonEqual,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+} from "./internal.vibe"
+
+type InspectJobConfig = dlp.GooglePrivacyDlpV2InspectJobConfig
+type RiskAnalysisJobConfig = dlp.GooglePrivacyDlpV2RiskAnalysisJobConfig
+
+const LOCATION = "global"
+const MAX_JOB_ID_LENGTH = 64
+
+const stripJobPrefix = (jobId: string): infer _ => jobId.replace(/^[ir]-/, "")
+
+const prefixedJobId = (jobId: string, risk: boolean): infer _ => {
+  const bare = stripJobPrefix(jobId)
+  return `${risk ? "r" : "i"}-${bare}`
+}
+
+const toJobId = effect (id: string, requested: string | undefined, existing: string | undefined) => {
+  if (requested !== undefined) {
+    return stripJobPrefix(requested).slice(0, MAX_JOB_ID_LENGTH)
+  }
+  if (existing !== undefined) return stripJobPrefix(existing)
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_JOB_ID_LENGTH,
+    lowercase: true,
+  })
+  const next = /^[a-zA-Z]/.test(generated) ? generated : `d${generated}`
+  return next.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, MAX_JOB_ID_LENGTH)
+}
+
+const DEFAULT_INSPECT_JOB: InspectJobConfig = {
+  inspectConfig: { infoTypes: [{ name: "EMAIL_ADDRESS" }] },
+  storageConfig: { hybridOptions: {} },
+}
+
+export type LocationsDlpJobProps = {
+  /**
+   * Job id (the `{dlpJob}` segment of
+   * `projects/{project}/locations/{location}/dlpJobs/{dlpJob}`). If
+   * omitted, a unique name is generated. Must match `[a-zA-Z0-9_-]+` and
+   * is at most 64 characters. Immutable — changing it replaces the job.
+   */
+  jobId?: string
+  /**
+   * Processing location (`global`, `us`, `europe-west1`, …). Immutable —
+   * changing it replaces the job. `us-central1` is not a valid DLP job
+   * location.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Inspect-job configuration. Defaults to a hybrid EMAIL_ADDRESS
+   * inspect job. DlpJob has no update API — changing this replaces the
+   * job.
+   */
+  inspectJob?: InspectJobConfig
+  /**
+   * Risk-analysis job configuration. Mutually exclusive with
+   * `inspectJob`. Immutable after create.
+   */
+  riskJob?: RiskAnalysisJobConfig
+}
+
+export type LocationsDlpJob = Resource<
+  "GCP.DLP.LocationsDlpJob",
+  LocationsDlpJobProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/dlpJobs/{id}`. */
+    name: string
+    /** Job id (last path segment). */
+    jobId: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Job type (`INSPECT_JOB` or `RISK_ANALYSIS_JOB`). */
+    type: string | undefined
+    /** Job state (`PENDING`, `RUNNING`, `ACTIVE`, `DONE`, …). */
+    state: string | undefined
+    /** Inspect-job configuration, Alchemy labels stripped. */
+    inspectJob: InspectJobConfig | undefined
+    /** Risk-analysis job configuration. */
+    riskJob: RiskAnalysisJobConfig | undefined
+    /** Trigger that created this job, if any. */
+    jobTriggerName: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 start timestamp. */
+    startTime: string | undefined
+    /** RFC3339 end timestamp. */
+    endTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A regional Cloud DLP job (`projects.locations.dlpJobs`).
+ *
+ * Creating a DlpJob starts it immediately. Inspect jobs are stored as
+ * `i-{jobId}` and risk jobs as `r-{jobId}`. There is no update API, so
+ * reconcile is observe-ensure (create if missing). Delete cancels a
+ * running/active job, then deletes it. DLP jobs have no labels field —
+ * Alchemy stamps ownership into hybrid inspect `storageConfig.hybridOptions`
+ * (labels + description) so `list` / nuke can find them.
+ *
+ * ### Creating a DLP Job
+ * **Example:** Hybrid inspect job
+ * ```typescript
+ * const job = yield* GCP.DLP.LocationsDlpJob("Scan", {
+ *   inspectJob: {
+ *     inspectConfig: { infoTypes: [{ name: "EMAIL_ADDRESS" }] },
+ *     storageConfig: { hybridOptions: { description: "inbox" } },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category DLP
+ */
+export const LocationsDlpJob = Resource<LocationsDlpJob>("GCP.DLP.LocationsDlpJob")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class LocationsDlpJobNotResolved extends Data.TaggedError(
+  "GCP.DLP.LocationsDlpJobNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, jobId: string, risk = false): infer _ =>
+  `${locationParent(project, location)}/dlpJobs/${prefixedJobId(jobId, risk)}`
+
+const stampInspectJob = (
+  inspectJob: InspectJobConfig | undefined,
+  ownership: Record<string, string>,
+): InspectJobConfig | undefined => {
+  if (inspectJob === undefined) return undefined
+  const storage = inspectJob.storageConfig
+  const isHybrid = storage === undefined
+    || storage.hybridOptions !== undefined
+    || (storage.cloudStorageOptions === undefined
+      && storage.bigQueryOptions === undefined
+      && storage.datastoreOptions === undefined)
+  if (!isHybrid) return inspectJob
+  const userHybrid = storage?.hybridOptions ?? {}
+  return {
+    ...inspectJob,
+    storageConfig: {
+      ...storage,
+      hybridOptions: {
+        ...userHybrid,
+        labels: {
+          ...tagRecord(userHybrid.labels),
+          ...hybridLabels(ownership),
+        },
+        description: encodeOwnership(ownership, userHybrid.description),
+      },
+    },
+  }
+}
+
+const userInspectJob = (inspectJob: InspectJobConfig | undefined): InspectJobConfig | undefined => {
+  if (inspectJob === undefined) return undefined
+  const hybrid = inspectJob.storageConfig?.hybridOptions
+  if (hybrid === undefined) return inspectJob
+  const parsed = parseOwnership(hybrid.description)
+  return {
+    ...inspectJob,
+    storageConfig: {
+      ...inspectJob.storageConfig,
+      hybridOptions: {
+        ...hybrid,
+        description: parsed.text,
+        labels: stripInternalLabels(tagRecord(hybrid.labels)),
+      },
+    },
+  }
+}
+
+const hybridOf = (job: dlp.GooglePrivacyDlpV2DlpJob): infer _ =>
+  job.inspectDetails?.requestedOptions?.jobConfig?.storageConfig?.hybridOptions
+
+const jobOwned = (job: dlp.GooglePrivacyDlpV2DlpJob): infer _ => {
+  const hybrid = hybridOf(job)
+  return hasOwnershipMarker(hybrid?.description) || hasHybridOwnership(hybrid?.labels)
+}
+
+const toAttrs = (job: dlp.GooglePrivacyDlpV2DlpJob, project: string): infer _ => {
+  const name = job.name ?? ""
+  return {
+    name,
+    jobId: lastSegment(name),
+    location: locationOf(name, LOCATION),
+    project,
+    type: job.type,
+    state: job.state,
+    inspectJob: userInspectJob(job.inspectDetails?.requestedOptions?.jobConfig),
+    riskJob: job.riskDetails?.requestedOptions?.jobConfig,
+    jobTriggerName: job.jobTriggerName,
+    createTime: job.createTime,
+    startTime: job.startTime,
+    endTime: job.endTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dlp
+  .getProjectsLocationsDlpJobs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listType = effect (parent: string, type: "INSPECT_JOB" | "RISK_ANALYSIS_JOB") =>
+  collectPages(
+    dlp.listProjectsLocationsDlpJobs.pages({
+      parent,
+      pageSize: 100,
+      type,
+    }),
+    (page) => page.jobs,
+  ) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as dlp.GooglePrivacyDlpV2DlpJob[]; default: throw e; }
+
+export const LocationsDlpJobProvider = (): infer _ =>
+  Provider.succeed(LocationsDlpJob, {
+    stables: ["name", "jobId", "location", "project", "createTime", "type"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.jobId ?? output?.jobId
+      const idChanged = previousId !== undefined && resolved.jobId !== undefined && resolved.jobId !== previousId
+      const previousLocation = olds?.location ?? output?.location
+      const locationChanged = previousLocation !== undefined
+        && (try Effect.orDie(
+          Effect.try({ try: () => normalizeLocation(resolved.location, LOCATION), catch: (e) => e }),
+        ))
+          !== (try Effect.orDie(
+            Effect.try({ try: () => normalizeLocation(previousLocation, LOCATION), catch: (e) => e }),
+          ))
+      const inspectChanged = output !== undefined
+        && resolved.inspectJob !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: jsonEqual.bind(undefined, userInspectJob(resolved.inspectJob), output.inspectJob),
+            catch: (e) => e,
+          }),
+        ))
+      const riskChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          output !== undefined
+          && resolved.riskJob !== undefined
+          && !jsonEqual(resolved.riskJob, output.riskJob),
+        catch: (e) => e,
+      }))
+      if (idChanged || locationChanged) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      if (inspectChanged || riskChanged) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, LOCATION), catch: (e) => e }),
+      )
+      const jobId = try toJobId(id, olds?.jobId, output?.jobId)
+      const name = output?.name
+        ?? resourceName(
+          env.project,
+          location,
+          jobId,
+          olds?.riskJob !== undefined || output?.type === "RISK_ANALYSIS_JOB",
+        )
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const hybrid = hybridOf(existing)
+      const owned = try ownedByAlchemy(id, hybrid?.description)
+      return owned
+          || (try Effect.orDie(Effect.try({ try: () => hasHybridOwnership(hybrid?.labels), catch: (e) => e })))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, LOCATION), catch: (e) => e }),
+      )
+      const inspect = try listType(parent, "INSPECT_JOB")
+      const risk = try listType(parent, "RISK_ANALYSIS_JOB")
+      const rows = try Effect.forEach(
+        [...inspect, ...risk],
+        effect (job) => {
+          let current = job
+          if (
+            current.inspectDetails === undefined
+            && current.riskDetails === undefined
+            && current.name
+          ) {
+            current = (try getByName(current.name)) ?? current
+          }
+          if (!jobOwned(current)) return undefined
+          return toAttrs(current, env.project)
+        },
+        { concurrency: 8 },
+      )
+      return rows.filter((row) => row !== undefined)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, LOCATION), catch: (e) => e }),
+      )
+      const jobId = try toJobId(id, news.jobId, output?.jobId)
+      const name = resourceName(env.project, location, jobId, news.riskJob !== undefined)
+      const ownership = try createInternalLabels(id)
+      const inspectJob = stampInspectJob(
+        news.riskJob === undefined ? (news.inspectJob ?? DEFAULT_INSPECT_JOB) : news.inspectJob,
+        ownership,
+      )
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = dlp
+          .createProjectsLocationsDlpJobs({
+            parent: locationParent(env.project, location),
+            body: {
+              jobId,
+              inspectJob,
+              riskJob: news.riskJob,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new LocationsDlpJobNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      dlp
+        .cancelProjectsLocationsDlpJobs({ name: output.name, body: {} }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "BadRequest" } or { _tag: "Conflict" }: try Effect.void;
+          default: throw e;
+        }
+      try (effect {
+        return dlp.deleteProjectsLocationsDlpJobs({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      }
+        |> Effect.retry(%, {
+          while: (e) => e._tag === "BadRequest" || e._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.exponential("500 millis"),
+        }))
+    },
+  })

@@ -1,0 +1,179 @@
+import * as Effect from "effect/Effect"
+import * as databrew from "@distilled.cloud/aws/databrew"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { cleanMap, databrewArn, fetchObservedTags, retryWhileConflict, syncTags } from "./internal.vibe"
+
+export interface ScheduleProps {
+  /**
+   * Name of the schedule. If omitted, a unique name is generated. Changing
+   * the name replaces the schedule.
+   * @default a generated physical name
+   */
+  scheduleName?: string
+  /**
+   * The cron expression (in AWS cron format, evaluated in UTC) that
+   * determines when the associated jobs run, e.g.
+   * `cron(0 12 * * ? *)` for every day at noon UTC.
+   */
+  cronExpression: string
+  /**
+   * Names of the DataBrew jobs the schedule starts.
+   */
+  jobNames?: string[]
+  /**
+   * Tags to apply to the schedule. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Schedule extends
+  Resource<
+    "AWS.DataBrew.Schedule",
+    ScheduleProps,
+    {
+      /** Name of the schedule. */
+      scheduleName: string
+      /** ARN of the schedule. */
+      scheduleArn: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An AWS Glue DataBrew schedule — a cron expression that starts one or more
+ * DataBrew jobs at recurring times. The schedule definition is free; only
+ * the job runs it triggers are billed.
+ * ### Creating Schedules
+ * **Example:** Nightly Job Schedule
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const schedule = yield* AWS.DataBrew.Schedule("Nightly", {
+ *   cronExpression: "cron(0 3 * * ? *)",
+ *   jobNames: [job.jobName],
+ * });
+ * ```
+ *
+ * **Example:** Schedule Without Jobs (attach later)
+ * ```typescript
+ * const schedule = yield* AWS.DataBrew.Schedule("Standing", {
+ *   cronExpression: "cron(0 12 ? * MON-FRI *)",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Schedule = Resource<Schedule>("AWS.DataBrew.Schedule")
+
+export const ScheduleProvider = (): infer _ =>
+  Provider.effect(
+    Schedule,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { scheduleName?: string | undefined },
+      ) => props.scheduleName ?? (try createPhysicalName({ id, maxLength: 255 }))
+
+      const observe = effect (name: string) =>
+        databrew
+          .describeSchedule({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      return Schedule.Provider.of({
+        stables: ["scheduleName", "scheduleArn"],
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const pages = try databrew.listSchedules.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.Schedules ?? [])
+            .map((s) => ({
+              scheduleName: s.Name,
+              scheduleArn: s.ResourceArn ?? databrewArn(region, accountId, "schedule", s.Name),
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.scheduleName ?? (try createName(id, olds ?? {}))
+          const schedule = try observe(name)
+          if (schedule === undefined) return undefined
+          const arn = schedule.ResourceArn ?? databrewArn(region, accountId, "schedule", name)
+          const attrs = { scheduleName: name, scheduleArn: arn }
+          const tags = cleanMap(schedule.Tags)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        diff: effect ({ id, news: _newsInput, olds }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          // cronExpression and jobNames are UpdateSchedule-able
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.scheduleName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE
+          const schedule = try observe(name)
+
+          // 2. ENSURE / 3. SYNC — UpdateSchedule is a full PUT
+          if (schedule === undefined) {
+            databrew
+              .createSchedule({
+                Name: name,
+                CronExpression: news.cronExpression,
+                JobNames: news.jobNames,
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: undefined as void;
+                default: throw e;
+              }
+          } else if (
+            schedule.CronExpression !== news.cronExpression
+            || JSON.stringify(schedule.JobNames ?? []) !== JSON.stringify(news.jobNames ?? [])
+          ) {
+            try databrew.updateSchedule({
+              Name: name,
+              CronExpression: news.cronExpression,
+              JobNames: news.jobNames,
+            })
+          }
+
+          const arn = schedule?.ResourceArn ?? databrewArn(region, accountId, "schedule", name)
+
+          // 3b. SYNC TAGS against observed cloud tags
+          const observedTags = try fetchObservedTags(arn)
+          try syncTags(arn, observedTags, desiredTags)
+
+          try session.note(name)
+          return { scheduleName: name, scheduleArn: arn }
+        },
+
+        delete: effect ({ output }) => {
+          retryWhileConflict(databrew.deleteSchedule({ Name: output.scheduleName })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

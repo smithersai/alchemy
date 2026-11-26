@@ -14,12 +14,12 @@ GET /files ─────────> Api <───────────�
 
 - `src/resources.ts` — the `Uploads` bucket and the `Files` Firestore
   database (named, `FIRESTORE_NATIVE`).
-- `src/Api.ts` — public `GCP.Function`:
+- `src/Api.vibe` — public `GCP.Function`:
   - `PUT /files/:name` stores the body at `uploads/:name` and returns `202`.
   - `GET /files/:name` returns the stored bytes.
   - `GET /files` lists the indexed metadata.
   - `DELETE /files/:name` deletes the object and its metadata.
-- `src/Indexer.ts` — private `GCP.Function` consuming `OBJECT_FINALIZE`
+- `src/Indexer.vibe` — private `GCP.Function` consuming `OBJECT_FINALIZE`
   events for `uploads/`. It reads the exact object generation the event
   names, computes its sha256, and writes `files/:name`. Uploads never wait
   on the hash.

@@ -1,0 +1,142 @@
+import * as frauddetector from "@distilled.cloud/aws/frauddetector"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readFraudDetectorTags, syncFraudDetectorTags } from "./internal.vibe"
+
+export interface LabelProps {
+  /**
+   * Name of the label. If omitted, a unique lowercase name is generated from
+   * the app, stage, and logical ID. Changing the name replaces the label.
+   */
+  name?: string
+  /**
+   * Human-readable description. This is an in-place update.
+   */
+  description?: string
+  /**
+   * User-defined tags for the label.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Label extends
+  Resource<
+    "AWS.FraudDetector.Label",
+    LabelProps,
+    {
+      /** The name of the label. */
+      name: string
+      /** The ARN of the label. */
+      arn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Fraud Detector label — a classification (e.g. `fraud`, `legit`)
+ * used to tag stored events for supervised model training. Event types
+ * reference labels; they are cheap metadata objects.
+ *
+ * ### Creating a Label
+ * **Example:** Fraud and Legit Labels
+ * ```typescript
+ * const fraud = yield* FraudDetector.Label("fraud", {
+ *   description: "confirmed fraudulent event",
+ * });
+ * const legit = yield* FraudDetector.Label("legit", {});
+ * ```
+ *
+ * @resource
+ */
+export const Label = Resource<Label>("AWS.FraudDetector.Label")
+
+export const LabelProvider = (): infer _ =>
+  Provider.effect(
+    Label,
+    effect {
+      const createName = effect (id: string, props: LabelProps) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 64, lowercase: true }))
+
+      /** Look a label up by name; typed not-found → undefined. */
+      const get = effect (name: string) => {
+        const response = frauddetector
+          .getLabels({ name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+        return response?.labels?.[0]
+      }
+
+      const toAttrs = (label: frauddetector.Label): infer _ => ({
+        name: label.name!,
+        arn: label.arn!,
+      })
+
+      return {
+        stables: ["name", "arn"],
+
+        diff: effect ({ id, olds = {}, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, resolved)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.name ?? (try createName(id, olds ?? {}))
+          const label = try get(name)
+          if (label === undefined) return undefined
+          const attrs = toAttrs(label)
+          const tags = try readFraudDetectorTags(label.arn!)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news = {}, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // putLabel is an idempotent upsert — call it to converge whether
+          // creating or updating the description.
+          try frauddetector.putLabel({
+            name,
+            description: news.description,
+          })
+
+          const label = try get(name)
+          // Sync tags — diff against OBSERVED cloud tags.
+          try syncFraudDetectorTags(label!.arn!, desiredTags)
+
+          try session.note(name)
+          return toAttrs(label!)
+        },
+
+        delete: effect ({ output }) => {
+          frauddetector.deleteLabel({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "ValidationException" }: undefined as void;
+            default: throw e;
+          }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (frauddetector.getLabels.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => (page.labels ?? []).map(toAttrs)),
+      }
+    },
+  )

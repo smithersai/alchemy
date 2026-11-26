@@ -24,24 +24,24 @@ import * as Logger from "effect/Logger";
 import { MinimumLogLevel } from "effect/References";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironmentService.ts";
-import cloudflare_workers from "./cloudflare_workers.ts";
-import { isScopeEjected } from "./HttpServer.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironmentService.vibe";
+import cloudflare_workers from "./cloudflare_workers.vibe";
+import { isScopeEjected } from "./HttpServer.vibe";
 import {
   ErrorTag,
   type RpcErrorEnvelope,
   type RpcStreamEnvelope,
   encodeRpcError,
   toRpcStream,
-} from "./Rpc.ts";
-import type { Worker } from "./Worker.ts";
+} from "./Rpc.vibe";
+import type { Worker } from "./Worker.vibe";
 import {
   ExportedHandlerMethods,
   WorkerEnvironment,
   WorkerExecutionContext,
   fromExecutionContext,
-} from "./WorkerRuntime.ts";
-import type { WorkerRuntimeContext } from "./WorkerRuntimeContext.ts";
+} from "./WorkerRuntime.vibe";
+import type { WorkerRuntimeContext } from "./WorkerRuntimeContext.vibe";
 
 /**
  * The isolate-lifetime artifacts produced by a single layer build: the built

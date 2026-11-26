@@ -1,0 +1,289 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  MAX_LABEL_LENGTH,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  sameJson,
+  toResourceId,
+} from "./ownership.vibe"
+
+type QaAnswerLabel = {
+  /** Skip this question. */
+  skipValue?: boolean
+  /** Not-applicable value. */
+  naValue?: boolean
+  /** Answer-choice key. */
+  key?: string
+  /** Numeric value. */
+  numValue?: number
+  /** Boolean value. */
+  boolValue?: boolean
+  /** String value. */
+  strValue?: string
+}
+
+export type ConversationsFeedbackLabelProps = {
+  /**
+   * Parent Conversation resource name
+   * (`projects/{project}/locations/{location}/conversations/{conversation}`).
+   * Immutable — changing it replaces the feedback label.
+   */
+  parent: string
+  /**
+   * Feedback label id (the `{feedback_label}` segment). If omitted, a
+   * unique id is generated. Immutable — changing it replaces the label.
+   */
+  feedbackLabelId?: string
+  /**
+   * Topic-modeling string label. Feedback labels have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  label?: string
+  /**
+   * Resource being labeled (scorecard question, issue model, or generator).
+   */
+  labeledResource?: string
+  /**
+   * Quality-AI answer label.
+   */
+  qaAnswerLabel?: QaAnswerLabel
+}
+
+export type ConversationsFeedbackLabel = Resource<
+  "GCP.ContactCenterInsights.ConversationsFeedbackLabel",
+  ConversationsFeedbackLabelProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Feedback label id (last path segment). */
+    feedbackLabelId: string
+    /** Parent conversation resource name. */
+    parent: string
+    /** Region id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User label with the Alchemy ownership prefix stripped. */
+    label: string | undefined
+    /** Resource being labeled. */
+    labeledResource: string | undefined
+    /** Quality-AI answer label. */
+    qaAnswerLabel: QaAnswerLabel | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A feedback label on a Contact Center Insights conversation.
+ *
+ * Parent conversation and feedback label id are immutable. Feedback
+ * labels have no labels map — Alchemy stamps ownership into the `label`
+ * string. The label text, labeled resource, and QA answer update in
+ * place.
+ *
+ * ### Creating a Feedback Label
+ * **Example:** Topic-modeling label
+ * ```typescript
+ * const label = yield* GCP.ContactCenterInsights.ConversationsFeedbackLabel(
+ *   "Topic",
+ *   {
+ *     parent: conversation.name,
+ *     label: "billing",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const ConversationsFeedbackLabel = Resource<ConversationsFeedbackLabel>(
+  "GCP.ContactCenterInsights.ConversationsFeedbackLabel",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ConversationsFeedbackLabelNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.ConversationsFeedbackLabelNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (parent: string, feedbackLabelId: string): infer _ => `${parent}/feedbackLabels/${feedbackLabelId}`
+
+const toQa = (
+  value: cci.GoogleCloudContactcenterinsightsV1QaAnswerAnswerValue | QaAnswerLabel | undefined,
+): QaAnswerLabel | undefined => {
+  if (value === undefined) return undefined
+  return {
+    skipValue: value.skipValue,
+    naValue: value.naValue,
+    key: value.key,
+    numValue: value.numValue,
+    boolValue: value.boolValue,
+    strValue: value.strValue,
+  }
+}
+
+const toAttrs = (label: cci.GoogleCloudContactcenterinsightsV1FeedbackLabel, project: string): infer _ => {
+  const name = label.name ?? ""
+  const parsed = parseOwnership(label.label)
+  return {
+    name,
+    feedbackLabelId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    label: parsed.text,
+    labeledResource: label.labeledResource,
+    qaAnswerLabel: toQa(label.qaAnswerLabel),
+    createTime: label.createTime,
+    updateTime: label.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? undefined : cci
+  .getProjectsLocationsConversationsFeedbackLabels({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: undefined;
+    default: throw e;
+  })
+
+const listAll = effect (parent: string, project: string) =>
+  (effect {
+    return (Array.from(
+      try (cci.listAllFeedbackLabelsProjectsLocations.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.feedbackLabels ?? []))
+        |> Stream.filter(%, (label) => hasOwnershipMarker(label.label))
+        |> Stream.filter(%, (label) => !label.name?.includes("/datasets/"))
+        |> Stream.map(%, (label) => toAttrs(label, project))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const ConversationsFeedbackLabelProvider = (): infer _ =>
+  Provider.succeed(ConversationsFeedbackLabel, {
+    stables: ["name", "feedbackLabelId", "parent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && resolved.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.feedbackLabelId ?? output?.feedbackLabelId
+      if (
+        previousId !== undefined
+        && resolved.feedbackLabelId !== undefined
+        && resolved.feedbackLabelId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const feedbackLabelId = try toResourceId(
+        id,
+        olds?.feedbackLabelId,
+        output?.feedbackLabelId,
+      )
+      const name = output?.name
+        ?? (olds?.parent !== undefined ? resourceName(olds.parent, feedbackLabelId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.label))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAll(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const feedbackLabelId = try toResourceId(
+        id,
+        news.feedbackLabelId,
+        output?.feedbackLabelId,
+      )
+      const name = resourceName(news.parent, feedbackLabelId)
+      const ownership = try createInternalLabels(id)
+      const label = encodeOwnershipLine(ownership, news.label, MAX_LABEL_LENGTH)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsConversationsFeedbackLabels({
+            parent: news.parent,
+            feedbackLabelId,
+            body: {
+              label,
+              labeledResource: news.labeledResource,
+              qaAnswerLabel: news.qaAnswerLabel,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ConversationsFeedbackLabelNotResolved({ resourceName: name })
+      }
+
+      const labelChanged = (current.label ?? "") !== label
+      const resourceChanged = (current.labeledResource ?? "") !== (news.labeledResource ?? "")
+      const qaChanged = !sameJson(toQa(current.qaAnswerLabel), news.qaAnswerLabel)
+
+      if (labelChanged || resourceChanged || qaChanged) {
+        current = try cci.patchProjectsLocationsConversationsFeedbackLabels({
+          name: current.name ?? name,
+          updateMask: [
+            labelChanged ? "label" : undefined,
+            resourceChanged ? "labeled_resource" : undefined,
+            qaChanged ? "qa_answer_label" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name: current.name ?? name,
+            label,
+            labeledResource: news.labeledResource,
+            qaAnswerLabel: news.qaAnswerLabel,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsConversationsFeedbackLabels({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+    },
+  })

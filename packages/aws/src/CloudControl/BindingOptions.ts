@@ -1,4 +1,4 @@
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 
 /**
  * Bind-time options shared by the handler-invoking Cloud Control bindings

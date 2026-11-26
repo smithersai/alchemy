@@ -1,0 +1,49 @@
+import { Option } from "effect"
+import { Server } from "foldkit/experimental"
+import * as Url from "foldkit/url"
+import { notFoundResponse } from "./entry.server.platform.ts"
+import { Flags, init, view } from "./main.vibe"
+import { urlToAppRoute } from "./route.vibe"
+
+export const renderDocument = Server.renderDocument
+export { prerenderPaths } from "./route.vibe"
+
+export const renderPage = (request: Request): Promise<Server.EntryResult> =>
+  runPromise(
+    effect {
+      const url = try Effect.orDie(
+        Effect.try({ try: () => new URL(request.url), catch: (error) => error }),
+      )
+      const route = try Effect.orDie(
+        Effect.try({
+          try: () => urlToAppRoute(Option.getOrThrow(Url.fromString(request.url))),
+          catch: (error) => error,
+        }),
+      )
+      if (route._tag === "NotFound") {
+        return try Effect.orDie(
+          Effect.try({ try: () => Server.Responded(notFoundResponse()), catch: (error) => error }),
+        )
+      }
+      const count = Number(url.searchParams.get("count") ?? 0)
+      const renderedApplication = try Server.renderToString(
+        { routing: {}, Flags, init, view },
+        {
+          url: request.url,
+          flags: { initialCount: Number.isSafeInteger(count) ? count : 0 },
+        },
+      )
+
+      return try Effect.orDie(
+        Effect.try({
+          try: () =>
+            route._tag === "Counter"
+              ? Server.Rendered(renderedApplication, {
+                headers: { "cache-control": "private, no-store" },
+              })
+              : Server.Rendered(renderedApplication),
+          catch: (error) => error,
+        }),
+      )
+    },
+  )

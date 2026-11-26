@@ -1,1 +1,1 @@
-export * from "./BotManagement.ts";
+export * from "./BotManagement.vibe";

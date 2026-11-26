@@ -1,0 +1,60 @@
+import * as AWS from "@alchemy.run/aws"
+import * as SQL from "@alchemy.run/sql/Postgres"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { Network } from "./Network.vibe"
+
+export error SqlError {
+  message: string
+  cause?: unknown
+}
+
+export service Database: {
+  query<Row extends Record<string, unknown> = Record<string, unknown>>(
+    statement: string,
+    values?: ReadonlyArray<unknown>,
+  ): ReadonlyArray<Row>!SqlError!RuntimeContext;
+} {
+  static readonly key = "Sql"
+}
+
+export const DatabaseAurora = Layer.effect(
+  Database,
+  effect {
+    const { vpc, databaseSecurityGroup } = try Network
+    const database = try AWS.RDS.Aurora("Database", {
+      subnetIds: vpc.privateSubnetIds,
+      securityGroupIds: [databaseSecurityGroup.groupId],
+    })
+
+    const connect = try AWS.RDS.Connect(database.cluster, {
+      secret: database.secret,
+      subnetIds: vpc.privateSubnetIds,
+      securityGroupIds: [databaseSecurityGroup.groupId],
+    })
+
+    // `Connect` resolves credentials per invocation; the pool opens on the
+    // first query and closes when the invocation settles.
+    const sql = try SQL.Postgres({
+      url: connect |> Effect.map(%, (connection) => connection.url),
+    })
+
+    return Database.of({
+      query: <Row extends Record<string, unknown>>(
+        statement: string,
+        values: ReadonlyArray<unknown> = [],
+      ) =>
+        sql.unsafe<Row>(statement, values)
+        |> Effect.mapError(
+          %,
+          (cause) =>
+            new SqlError({
+              message: `Failed to execute SQL statement: ${statement}`,
+              cause,
+            }),
+        ),
+    })
+  },
+)

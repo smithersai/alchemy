@@ -1,0 +1,367 @@
+import * as sasportal from "@distilled.cloud/gcp/sasportal_v1alpha1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  decodeSignedDevice,
+  deviceBody,
+  deviceConfigOf,
+  deviceGrantsOf,
+  deviceMetadataOf,
+  encodeOwnershipLine,
+  expandCustomer,
+  findDeviceBySerial,
+  findOwnedCustomerDevice,
+  frequencyRangesOf,
+  getCustomerDevice,
+  hasOwnershipMarker,
+  lastSegment,
+  listCustomerDevices,
+  MAX_DISPLAY_NAME_LENGTH,
+  ownedByAlchemy,
+  ownershipLabels,
+  parentOf,
+  parseOwnership,
+  replaceOnIdentity,
+  retryDelete,
+  sameJson,
+  sameText,
+  scanOwnedCustomerDevice,
+  signedDeviceBody,
+  toDisplayName,
+  updateMaskOf,
+  waitUntilGone,
+  listCustomers,
+  type DeviceConfig,
+  type DeviceGrant,
+  type DeviceMetadata,
+  type FrequencyRange,
+} from "./internal.vibe"
+
+export type SignedCustomersDeviceProps = {
+  /**
+   * Parent SAS customer, as `customers/{customer}` or the customer id.
+   * Immutable — changing it replaces the device.
+   */
+  parent: string
+  /**
+   * Server-assigned device resource name
+   * (`customers/{customer}/devices/{device}`). Immutable — changing it
+   * replaces the device.
+   */
+  name?: string
+  /**
+   * JSON Web Token signed with a CPI private key. Payload must be the
+   * JSON encoding of the device. Create-only.
+   */
+  encodedDevice: string
+  /**
+   * Unique installer id (CPI ID) from the Certified Professional
+   * Installers database. Create-only.
+   */
+  installerId: string
+  /**
+   * Display name. SAS Portal devices have no labels field, so Alchemy
+   * stamps ownership into a `[alchemy …]` prefix after create and
+   * strips it from attributes.
+   */
+  displayName?: string
+  /**
+   * Manufacturer serial number, if known. Used to locate a device
+   * after a signed create when ownership has not been stamped yet.
+   */
+  serialNumber?: string
+  /**
+   * FCC identifier of the CBSD, if known.
+   */
+  fccId?: string
+  /**
+   * Frequency ranges available for new grants.
+   */
+  grantRangeAllowlists?: FrequencyRange[]
+  /**
+   * Device configuration supplied through the SAS Portal API.
+   */
+  preloadedConfig?: DeviceConfig
+  /**
+   * Overridable device metadata (ICG, CCG, antenna model).
+   */
+  deviceMetadata?: DeviceMetadata
+}
+
+export type SignedCustomersDevice = Resource<
+  "GCP.SasPortal.SignedCustomersDevice",
+  SignedCustomersDeviceProps,
+  {
+    /** Resource name `customers/{customer}/devices/{device}`. */
+    name: string
+    /** Device id (last path segment). */
+    deviceId: string
+    /** Parent resource name. */
+    parent: string
+    /** Project id used when the device was reconciled. */
+    project: string
+    /** User-facing display name with the Alchemy prefix stripped. */
+    displayName: string | undefined
+    /** Manufacturer serial number. */
+    serialNumber: string | undefined
+    /** FCC identifier. */
+    fccId: string | undefined
+    /** Grant-range allowlists. */
+    grantRangeAllowlists: FrequencyRange[] | undefined
+    /** Portal-supplied configuration. */
+    preloadedConfig: DeviceConfig | undefined
+    /** Current SAS-registered configuration. */
+    activeConfig: DeviceConfig | undefined
+    /** Overridable device metadata. */
+    deviceMetadata: DeviceMetadata | undefined
+    /** Device state. */
+    state: string | undefined
+    /** Grants held by the device. */
+    grants: DeviceGrant[] | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A CPI-signed Spectrum Access System (SAS) Portal CBSD under a customer.
+ *
+ * Signed create takes a CPI-signed JWT. After the device exists,
+ * Alchemy stamps ownership into `displayName` for `list` / nuke and
+ * syncs mutable fields with the ordinary device patch API.
+ *
+ * ### Creating a Signed Device
+ * **Example:** CPI-signed CBSD
+ * ```typescript
+ * const device = yield* GCP.SasPortal.SignedCustomersDevice("Cbsd", {
+ *   parent: "customers/123",
+ *   encodedDevice: jwt,
+ *   installerId: "cpi-1",
+ *   displayName: "rooftop-1",
+ * });
+ * ```
+ *
+ * ### Updating a Signed Device
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Rename
+ * ```typescript
+ * const device = yield* GCP.SasPortal.SignedCustomersDevice("Cbsd", {
+ *   parent: "customers/123",
+ *   encodedDevice: jwt,
+ *   installerId: "cpi-1",
+ *   displayName: "rooftop-2",
+ * });
+ * ```
+ *
+ * @resource
+ * @category SasPortal
+ */
+export const SignedCustomersDevice = Resource<SignedCustomersDevice>(
+  "GCP.SasPortal.SignedCustomersDevice",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SignedCustomersDeviceNotResolved extends Data.TaggedError(
+  "GCP.SasPortal.SignedCustomersDeviceNotResolved",
+)<{
+  parent: string
+  resourceName: string
+}> {}
+
+const toAttrs = (device: sasportal.SasPortalDevice, parent: string, project: string): infer _ => {
+  const name = device.name ?? ""
+  return {
+    name,
+    deviceId: lastSegment(name),
+    parent: parentOf(name) || parent,
+    project,
+    displayName: parseOwnership(device.displayName).text,
+    serialNumber: device.serialNumber,
+    fccId: device.fccId,
+    grantRangeAllowlists: frequencyRangesOf(device.grantRangeAllowlists),
+    preloadedConfig: deviceConfigOf(device.preloadedConfig),
+    activeConfig: deviceConfigOf(device.activeConfig),
+    deviceMetadata: deviceMetadataOf(device.deviceMetadata),
+    state: device.state,
+    grants: deviceGrantsOf(device.grants),
+  }
+}
+
+export const SignedCustomersDeviceProvider = (): infer _ =>
+  Provider.succeed(SignedCustomersDevice, {
+    stables: ["name", "deviceId", "parent", "project", "serialNumber", "fccId"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousParent: olds?.parent ?? output?.parent,
+            nextParent: expandCustomer(resolved.parent),
+            previousId: olds?.name ?? output?.name,
+            nextId: resolved.name,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => expandCustomer(olds?.parent ?? output?.parent ?? ""), catch: (e) => e }),
+      )
+      const name = olds?.name ?? output?.name ?? ""
+      let existing = try getCustomerDevice(name)
+      let locatedParent = existing ? parentOf(existing.name ?? "") || parent : parent
+      if (existing === undefined) {
+        const found = (try findOwnedCustomerDevice(id, parent))
+          ?? (try scanOwnedCustomerDevice(id, parent))
+        existing = found?.row
+        locatedParent = found?.parent ?? locatedParent
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, locatedParent, env.project)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const parents = try listCustomers()
+      const pages = try Effect.forEach(
+        parents,
+        effect (entry) => {
+          const parent = entry.name ?? ""
+          return (parent.length === 0 ? [] : (try listCustomerDevices(parent))
+            .filter((row) => hasOwnershipMarker(row.displayName))
+            .map((row) => toAttrs(row, parent, env.project)))
+        },
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = try Effect.orDie(Effect.try({ try: () => expandCustomer(news.parent), catch: (e) => e }))
+      const decoded = try decodeSignedDevice(news.encodedDevice)
+      const ownership = try ownershipLabels(id)
+      const text = try toDisplayName(id, news.displayName ?? decoded?.displayName, output?.displayName)
+      const displayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnershipLine(
+            ownership,
+            text,
+            MAX_DISPLAY_NAME_LENGTH,
+          ),
+        catch: (e) => e,
+      }))
+      const serialNumber = news.serialNumber ?? output?.serialNumber ?? decoded?.serialNumber
+      const desired = try Effect.orDie(Effect.try({
+        try: () =>
+          deviceBody({
+            displayName,
+            serialNumber,
+            fccId: news.fccId ?? output?.fccId ?? decoded?.fccId,
+            grantRangeAllowlists: news.grantRangeAllowlists,
+            preloadedConfig: news.preloadedConfig,
+            deviceMetadata: news.deviceMetadata,
+          }),
+        catch: (e) => e,
+      }))
+
+      let current = try getCustomerDevice(news.name ?? output?.name ?? "")
+      if (current === undefined) {
+        const found = (try findOwnedCustomerDevice(id, parent))
+          ?? (try scanOwnedCustomerDevice(id, parent))
+        current = found?.row
+      }
+      if (current === undefined) {
+        const rows = try listCustomerDevices(parent)
+        current = try Effect.orDie(Effect.try({ try: () => findDeviceBySerial(rows, serialNumber), catch: (e) => e }))
+      }
+
+      if (current === undefined) {
+        const created = sasportal
+          .createSignedCustomersDevices({
+            parent,
+            body: signedDeviceBody({
+              encodedDevice: news.encodedDevice,
+              installerId: news.installerId,
+            }),
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try effect {
+              const found = try findOwnedCustomerDevice(id, parent)
+              if (found?.row !== undefined) return found.row
+              const rows = try listCustomerDevices(parent)
+              return findDeviceBySerial(rows, serialNumber)
+            };
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SignedCustomersDeviceNotResolved({
+          parent,
+          resourceName: news.name ?? output?.name ?? displayName,
+        })
+      }
+
+      const name = current.name ?? news.name ?? output?.name ?? ""
+      const nameChanged = !sameText(current.displayName, displayName)
+      const allowlistsChanged = news.grantRangeAllowlists !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, frequencyRangesOf(current.grantRangeAllowlists), news.grantRangeAllowlists),
+            catch: (e) => e,
+          }),
+        ))
+      const configChanged = news.preloadedConfig !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, deviceConfigOf(current.preloadedConfig), news.preloadedConfig),
+            catch: (e) => e,
+          }),
+        ))
+      const metadataChanged = news.deviceMetadata !== undefined
+        && !(try Effect.orDie(
+          Effect.try({
+            try: sameJson.bind(undefined, deviceMetadataOf(current.deviceMetadata), news.deviceMetadata),
+            catch: (e) => e,
+          }),
+        ))
+      if (nameChanged || allowlistsChanged || configChanged || metadataChanged) {
+        current = try sasportal.patchCustomersDevices({
+          name,
+          updateMask: updateMaskOf(
+            "displayName",
+            news.grantRangeAllowlists !== undefined ? "grantRangeAllowlists" : undefined,
+            news.preloadedConfig !== undefined ? "preloadedConfig" : undefined,
+            news.deviceMetadata !== undefined ? "deviceMetadata" : undefined,
+          ),
+          body: desired,
+        })
+      }
+
+      return toAttrs(current, parent, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryDelete(sasportal.deleteCustomersDevices({ name: output.name })) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+      try waitUntilGone(getCustomerDevice(output.name))
+    },
+  })

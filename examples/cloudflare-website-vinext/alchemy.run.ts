@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Backend from "./src/Backend.ts";
+import Backend from "./src/Backend.vibe";
 import { KV, DB } from "./src/Bindings";
 
 /** Do not bind `VINEXT_KV_CACHE` — Website.Vinext provisions it. */

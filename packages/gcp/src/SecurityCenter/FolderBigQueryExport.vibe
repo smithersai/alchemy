@@ -1,0 +1,265 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeDescription,
+  folderIdOf,
+  folderParent,
+  hasOwnershipMarker,
+  lastSegment,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveFolder,
+  sameText,
+  SecuritycenterNotResolved,
+  toPhysicalId,
+  tryResolveFolder,
+  updateMaskOf,
+} from "./internal.vibe"
+
+export type FolderBigQueryExportProps = {
+  /**
+   * Export id (the `{export}` segment of
+   * `folders/{folder}/bigQueryExports/{export}`). If omitted, a unique id
+   * is generated from the stack, stage, and logical id. Letters, digits,
+   * and hyphens; max 63 characters. Immutable — changing it replaces the
+   * export.
+   */
+  exportId?: string
+  /**
+   * Parent folder (`folders/{folder}` or the numeric id). Defaults to
+   * the project's Resource Manager folder ancestor.
+   * Immutable — changing it replaces the export.
+   */
+  folder?: string
+  /**
+   * Destination dataset
+   * (`projects/{project}/datasets/{dataset}`).
+   */
+  dataset: string
+  /**
+   * Finding filter. Empty or omitted exports every finding under the
+   * parent.
+   */
+  filter?: string
+  /**
+   * Human-readable description. BigQuery exports have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+}
+
+export type FolderBigQueryExport = Resource<
+  "GCP.SecurityCenter.FolderBigQueryExport",
+  FolderBigQueryExportProps,
+  {
+    /** Full resource name `folders/{folder}/bigQueryExports/{export}`. */
+    name: string
+    /** Export id (last path segment). */
+    exportId: string
+    /** Folder resource name. */
+    folder: string
+    /** Folder id. */
+    folderId: string
+    /** Project id of the deploying stack. */
+    project: string
+    /** Destination dataset. */
+    dataset: string
+    /** Finding filter. */
+    filter: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Principal Security Command Center uses to write to the dataset. */
+    principal: string | undefined
+    /** Most recent editor of the export. */
+    mostRecentEditor: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A folder-scoped Security Command Center BigQuery export.
+ *
+ * Exports have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Export id and folder are
+ * identity. Dataset, filter, and description update in place.
+ *
+ * ### Creating a BigQuery Export
+ * **Example:** Export active findings to a dataset
+ * ```typescript
+ * const dataset = yield* GCP.BigQuery.Dataset("SccFindings", {
+ *   location: "US",
+ *   forceDestroy: true,
+ * });
+ * const exp = yield* GCP.SecurityCenter.FolderBigQueryExport("Findings", {
+ *   dataset: `projects/${dataset.project}/datasets/${dataset.datasetId}`,
+ *   filter: 'state="ACTIVE"',
+ *   description: "active findings",
+ * });
+ * ```
+ *
+ * **Example:** Named export on an explicit folder
+ * ```typescript
+ * const exp = yield* GCP.SecurityCenter.FolderBigQueryExport("Findings", {
+ *   folder: "folders/123456789",
+ *   exportId: "active-findings",
+ *   dataset: "projects/my-project/datasets/scc",
+ * });
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const FolderBigQueryExport = Resource<FolderBigQueryExport>(
+  "GCP.SecurityCenter.FolderBigQueryExport",
+)
+
+const resourceName = (folder: string, exportId: string): infer _ => `${folder}/bigQueryExports/${exportId}`
+
+const toAttrs = (
+  exp: scc.GoogleCloudSecuritycenterV1BigQueryExport,
+  folder: string,
+  project: string,
+): infer _ => {
+  const name = exp.name ?? ""
+  const parsed = parseName(name, "bigQueryExports")
+  const ownership = parseOwnership(exp.description)
+  return {
+    name,
+    exportId: parsed.id || lastSegment(name),
+    folder,
+    folderId: folderIdOf(folder),
+    project,
+    dataset: exp.dataset ?? "",
+    filter: exp.filter,
+    description: ownership.text,
+    principal: exp.principal,
+    mostRecentEditor: exp.mostRecentEditor,
+    createTime: exp.createTime,
+    updateTime: exp.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getFoldersBigQueryExports({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const FolderBigQueryExportProvider = (): infer _ =>
+  Provider.succeed(FolderBigQueryExport, {
+    stables: ["name", "exportId", "folder", "folderId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return (
+        try Effect.orDie(Effect.try({
+          try: () =>
+            replaceOn(olds?.exportId ?? output?.exportId, resolved.exportId)
+              ?? replaceOn(
+                olds?.folder ?? output?.folder,
+                resolved.folder !== undefined ? folderParent(resolved.folder) : undefined,
+              ),
+          catch: (e) => e,
+        }))
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const folder = try resolveFolder(olds?.folder ?? output?.folder, output?.folder)
+      const exportId = try toPhysicalId(id, olds?.exportId, output?.exportId)
+      const name = output?.name ?? resourceName(folder, exportId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, folder, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const folder = try tryResolveFolder()
+      if (folder === undefined) return []
+      return (effect {
+        return (Array.from(
+          try (scc.listFoldersBigQueryExports.pages({ parent: folder, pageSize: 100 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.bigQueryExports ?? []))
+            |> Stream.filter(%, (exp) => hasOwnershipMarker(exp.description))
+            |> Stream.map(%, (exp) => toAttrs(exp, folder, env.project))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const folder = try resolveFolder(news.folder, output?.folder)
+      const exportId = try toPhysicalId(id, news.exportId, output?.exportId)
+      const name = resourceName(folder, exportId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const dataset = news.dataset
+      const filter = news.filter
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = scc
+          .createFoldersBigQueryExports({
+            parent: folder,
+            bigQueryExportId: exportId,
+            body: { dataset, filter, description },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecuritycenterNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const updateMask = updateMaskOf(
+        !sameText(current.dataset, dataset) ? "dataset" : undefined,
+        !sameText(current.filter, filter) ? "filter" : undefined,
+        !sameText(current.description, description) ? "description" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchFoldersBigQueryExports({
+          name: currentName,
+          updateMask,
+          body: { dataset, filter, description },
+        })
+      }
+
+      return toAttrs(current, folder, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteFoldersBigQueryExports({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

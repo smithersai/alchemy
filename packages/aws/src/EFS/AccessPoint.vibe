@@ -1,0 +1,359 @@
+import * as Effect from "effect/Effect"
+import { TaggedError as $MutableErrorBase } from "vibelang-runtime"
+import { $schemaErrorMatcher as $MutableErrorMatcher } from "vibelang-runtime"
+import * as efs from "@distilled.cloud/aws/efs"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export interface AccessPointPosixUser {
+  /** POSIX user ID applied to all file-system requests through this access point. */
+  uid: number
+  /** POSIX group ID applied to all file-system requests through this access point. */
+  gid: number
+  /** Secondary POSIX group IDs. */
+  secondaryGids?: number[]
+}
+
+export interface AccessPointRootDirectory {
+  /**
+   * Path on the file system to expose as the access point's root.
+   * @default "/"
+   */
+  path?: string
+  /**
+   * Ownership and permissions EFS applies when it creates the root directory
+   * on first mount. Required if `path` does not already exist on the file
+   * system (which is always the case for a freshly created file system).
+   */
+  creationInfo?: {
+    /** POSIX user ID that owns the created root directory. */
+    ownerUid: number
+    /** POSIX group ID that owns the created root directory. */
+    ownerGid: number
+    /** Octal permissions of the created root directory, e.g. `"750"`. */
+    permissions: string
+  }
+}
+
+export interface AccessPointProps {
+  /**
+   * ID of the EFS file system the access point exposes
+   * (e.g. `fileSystem.fileSystemId`). Cannot be changed after creation
+   * (replacement).
+   */
+  fileSystemId: string
+  /**
+   * POSIX identity enforced for all requests through this access point.
+   * Cannot be changed after creation (replacement).
+   */
+  posixUser?: AccessPointPosixUser
+  /**
+   * Directory on the file system exposed as the access point's root,
+   * optionally created on first mount with the given ownership/permissions.
+   * Cannot be changed after creation (replacement).
+   */
+  rootDirectory?: AccessPointRootDirectory
+  /**
+   * Tags to apply to the access point. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface AccessPoint extends
+  Resource<
+    "AWS.EFS.AccessPoint",
+    AccessPointProps,
+    {
+      /** The ID of the access point (e.g. `fsap-0123456789abcdef0`). */
+      accessPointId: string
+      /** The ARN of the access point. */
+      accessPointArn: string
+      /** The ID of the EFS file system the access point belongs to. */
+      fileSystemId: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An Amazon EFS access point — an application-specific entry point into a
+ * file system that enforces a POSIX identity and a root directory.
+ *
+ * Access points are how Lambda (and other serverless compute) mounts EFS:
+ * pass `accessPoint.accessPointArn` to a Lambda Function's
+ * `fileSystemConfigs`. The POSIX user and root directory are immutable —
+ * changing them replaces the access point.
+ * ### Creating Access Points
+ * **Example:** Access point with a POSIX identity and auto-created root
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const files = yield* AWS.EFS.FileSystem("Files");
+ * const accessPoint = yield* AWS.EFS.AccessPoint("FilesAccess", {
+ *   fileSystemId: files.fileSystemId,
+ *   posixUser: { uid: 1000, gid: 1000 },
+ *   rootDirectory: {
+ *     path: "/app",
+ *     creationInfo: { ownerUid: 1000, ownerGid: 1000, permissions: "750" },
+ *   },
+ * });
+ * ```
+ *
+ * ### Mounting into Lambda
+ * **Example:** Mount at /mnt/files
+ * ```typescript
+ * const fn = yield* AWS.Lambda.Function("Api", {
+ *   main: "./src/handler.ts",
+ *   vpc: { subnetIds: [subnetId], securityGroupIds: [securityGroupId] },
+ *   fileSystemConfigs: [
+ *     { arn: accessPoint.accessPointArn, localMountPath: "/mnt/files" },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AccessPoint = Resource<AccessPoint>("AWS.EFS.AccessPoint")
+
+/**
+ * Internal marker error used to drive the bounded wait for an access point
+ * to reach the `available` lifecycle state.
+ */
+export class AccessPointNotAvailable extends $MutableErrorBase("AccessPointNotAvailable")<{
+  accessPointId: string
+
+  state: string
+}> {
+  static {
+    $MutableErrorMatcher(this, "AccessPointNotAvailable", true)
+  }
+}
+
+/**
+ * Access points settle to `available` in seconds. Bounded poll (~60s),
+ * explicitly typed so declaration emit never widens the provider layer
+ * (see PATTERNS §7).
+ */
+const retryUntilAccessPointAvailable = effect <E extends { _tag: string }, R>(
+  self: efs.AccessPointDescription!E!R,
+): efs.AccessPointDescription!(E | AccessPointNotAvailable)!R =>
+  try Effect.retry(
+    Effect.flatMap(self, effect (ap) => (ap.LifeCycleState === "available" ? ap : throw new AccessPointNotAvailable({
+      accessPointId: ap.AccessPointId ?? "",
+      state: ap.LifeCycleState ?? "unknown",
+    }))),
+    {
+      while: (e) => e._tag === "AccessPointNotAvailable",
+      schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(30)]),
+    },
+  )
+
+const efsTagsToRecord = (tags: readonly efs.Tag[] | undefined): Record<string, string> =>
+  Object.fromEntries((tags ?? []).map((t) => [t.Key, t.Value]))
+
+const toWirePosixUser = (posixUser: AccessPointPosixUser | undefined): efs.PosixUser | undefined =>
+  posixUser === undefined
+    ? undefined
+    : {
+      Uid: posixUser.uid,
+      Gid: posixUser.gid,
+      ...(posixUser.secondaryGids !== undefined
+        ? { SecondaryGids: posixUser.secondaryGids }
+        : {}),
+    }
+
+const toWireRootDirectory = (
+  rootDirectory: AccessPointRootDirectory | undefined,
+): efs.RootDirectory | undefined =>
+  rootDirectory === undefined
+    ? undefined
+    : {
+      ...(rootDirectory.path !== undefined ? { Path: rootDirectory.path } : {}),
+      ...(rootDirectory.creationInfo !== undefined
+        ? {
+          CreationInfo: {
+            OwnerUid: rootDirectory.creationInfo.ownerUid,
+            OwnerGid: rootDirectory.creationInfo.ownerGid,
+            Permissions: rootDirectory.creationInfo.permissions,
+          },
+        }
+        : {}),
+    }
+
+export const AccessPointProvider = (): infer _ =>
+  Provider.effect(
+    AccessPoint,
+    effect {
+      const createToken = effect (id: string) => try createPhysicalName({ id, maxLength: 64 })
+
+      const findById = effect (accessPointId: string) =>
+        (effect {
+          return ((try efs.describeAccessPoints({ AccessPointId: accessPointId })).AccessPoints?.[0])
+        }) catch effect (e) => match (e) {
+          when { _tag: "AccessPointNotFound" }: undefined;
+          default: throw e;
+        }
+
+      const findByToken = effect (fileSystemId: string, token: string) =>
+        (effect {
+          return ((try efs.describeAccessPoints({ FileSystemId: fileSystemId })).AccessPoints?.find((ap) =>
+            ap.ClientToken === token
+          ))
+        }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: undefined; default: throw e; }
+
+      return AccessPoint.Provider.of({
+        stables: ["accessPointId", "accessPointArn", "fileSystemId"],
+
+        // Access points are only enumerable per file system, so walk every
+        // file system in the account/region.
+        list: effect () => {
+          const systems = Array.from(
+            try (efs.describeFileSystems.items({})
+              |> Stream.runCollect(%)),
+          )
+          const perSystem = try Effect.forEach(
+            systems,
+            effect (fs) =>
+              (effect {
+                return (((try efs.describeAccessPoints({ FileSystemId: fs.FileSystemId })).AccessPoints ?? [])
+                  .filter(
+                    (ap) => ap.AccessPointId !== undefined && ap.LifeCycleState !== "deleted",
+                  )
+                  .map((ap) => ({
+                    accessPointId: ap.AccessPointId!,
+                    accessPointArn: ap.AccessPointArn!,
+                    fileSystemId: ap.FileSystemId!,
+                  })))
+              }) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: []; default: throw e; },
+            { concurrency: 5 },
+          )
+          return perSystem.flat()
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const ap = output?.accessPointId
+            ? try findById(output.accessPointId)
+            : olds?.fileSystemId
+            ? try findByToken(olds.fileSystemId, try createToken(id))
+            : undefined
+          if (ap?.AccessPointId === undefined || ap.LifeCycleState === "deleted") {
+            return undefined
+          }
+          const attrs = {
+            accessPointId: ap.AccessPointId,
+            accessPointArn: ap.AccessPointArn!,
+            fileSystemId: ap.FileSystemId!,
+          }
+          return (try hasAlchemyTags(id, efsTagsToRecord(ap.Tags)))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        // posixUser, rootDirectory, and the file system are all immutable on
+        // an access point — any change replaces it. Only tags update in
+        // place.
+        diff: effect ({ news: _newsInput, olds }) => {
+          if (
+            !(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))
+            || olds === undefined
+          ) return undefined
+          const news = _newsInput as typeof olds
+          if (
+            news.fileSystemId !== olds.fileSystemId
+            || !(try Effect.orDie(
+              Effect.try({ try: () => deepEqual(news.posixUser, olds.posixUser), catch: (error) => error }),
+            ))
+            || !(try Effect.orDie(
+              Effect.try({ try: () => deepEqual(news.rootDirectory, olds.rootDirectory), catch: (error) => error }),
+            ))
+          ) {
+            return { action: "replace" } as const
+          }
+          // undefined → default update path (tag sync)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const token = try createToken(id)
+          const internalTags = try createInternalTags(id)
+
+          // 1. OBSERVE — output.accessPointId is only a cache; the client
+          //    token is the deterministic identity within the file system.
+          let ap = output?.accessPointId
+            ? try findById(output.accessPointId)
+            : try findByToken(news.fileSystemId, token)
+          if (ap?.LifeCycleState === "deleted") {
+            ap = undefined
+          }
+
+          // 2. ENSURE — create if missing. CreateAccessPoint is idempotent
+          //    on the client token; a concurrent identical create surfaces
+          //    the typed AccessPointAlreadyExists which we resolve by
+          //    describing the winner.
+          if (ap === undefined) {
+            ap = efs
+              .createAccessPoint({
+                ClientToken: token,
+                FileSystemId: news.fileSystemId,
+                PosixUser: toWirePosixUser(news.posixUser),
+                RootDirectory: toWireRootDirectory(news.rootDirectory),
+                Tags: Object.entries({ ...news.tags, ...internalTags }).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "AccessPointAlreadyExists" }: (try efs
+                  .describeAccessPoints({ AccessPointId: e.AccessPointId })).AccessPoints![0];
+                default: throw e;
+              }
+          }
+
+          const accessPointId = ap.AccessPointId!
+
+          ap = try retryUntilAccessPointAvailable(
+            effect {
+              return (try efs
+                .describeAccessPoints({ AccessPointId: accessPointId })).AccessPoints![0]
+            },
+          )
+
+          // 3. SYNC tags — diff against OBSERVED cloud tags so adoption
+          //    converges.
+          const observedTags = efsTagsToRecord(ap.Tags)
+          const { upsert, removed } = diffTags(observedTags, {
+            ...news.tags,
+            ...internalTags,
+          })
+          if (upsert.length > 0) {
+            try efs.tagResource({ ResourceId: accessPointId, Tags: upsert })
+          }
+          if (removed.length > 0) {
+            try efs.untagResource({
+              ResourceId: accessPointId,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(accessPointId)
+          return {
+            accessPointId,
+            accessPointArn: ap.AccessPointArn!,
+            fileSystemId: ap.FileSystemId!,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          efs
+            .deleteAccessPoint({ AccessPointId: output.accessPointId }) catch effect (e) => match (e) {
+              when { _tag: "AccessPointNotFound" }: undefined as void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

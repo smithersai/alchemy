@@ -6,12 +6,12 @@ export default defineScene({
   notes:
     "A D1 database with a migrations folder. yield* Cloudflare.D1.QueryDatabase(Db) is the binding: it grants this one database to this one Worker, with no account token shipped. Effect SQL on top. alchemy dev applied the migration to the local D1, and short links now redirect.",
   async run(s) {
-    await s.sync({ except: ["migrations/0001_links.sql", "src/Db.ts", "src/Api.ts"] });
+    await s.sync({ except: ["migrations/0001_links.sql", "src/Db.ts", "src/Api.vibe"] });
     await s.editor.show("migrations/0001_links.sql");
     s.pause(0.5);
     await s.editor.show("src/Db.ts");
     s.pause(0.5);
-    await s.editor.show("src/Api.ts");
+    await s.editor.show("src/Api.vibe");
     s.pause(1);
 
     await s.terminal(async (t) => {

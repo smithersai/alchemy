@@ -1,1 +1,1 @@
-export * from "./DataPolicy.ts";
+export * from "./DataPolicy.vibe";

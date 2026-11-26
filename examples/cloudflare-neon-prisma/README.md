@@ -9,7 +9,7 @@ const db = yield* Postgres(connection.connectionString, { contract });
 const users = yield* db.orm.public.User.all();
 ```
 
-`src/Api.ts` also derives row validators with `makeSchemas(contract)` and validates
+`src/Api.vibe` also derives row validators with `makeSchemas(contract)` and validates
 created rows. These are database row schemas, not public API definitions or create
 inputs. The Arktype bootstrap in `src/prisma/validation.ts` is required when the
 native authoring module runs in a Worker.

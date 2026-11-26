@@ -28,11 +28,18 @@ import {
   RunRef,
   Upstream,
 } from "../Protocol.ts";
-import { Bucket, Cache, COMMENT_MARKER, Database, RegistryConfig, tarballKey } from "./Bindings.ts";
-import * as GitHub from "./GitHub.ts";
-import * as KVCache from "./KVCache.ts";
-import { sweep } from "./Sweep.ts";
-import * as Tags from "./Tags.ts";
+import {
+  Bucket,
+  Cache,
+  COMMENT_MARKER,
+  Database,
+  RegistryConfig,
+  tarballKey,
+} from "./Bindings.vibe";
+import * as GitHub from "./GitHub.vibe";
+import * as KVCache from "./KVCache.vibe";
+import { sweep } from "./Sweep.vibe";
+import * as Tags from "./Tags.vibe";
 
 /** What GitHub says about a run. */
 const Run = Schema.Struct({

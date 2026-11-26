@@ -1,4 +1,5 @@
 import path from "node:path";
+import vibelang from "vibelang-vite";
 import { defineConfig } from "vitest/config";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
@@ -12,6 +13,7 @@ const project = (hooks: "stack" | "list") => ({
 });
 
 export default defineConfig({
+  plugins: [vibelang()],
   test: {
     root: packageRoot,
     include: ["vitest/**/*.test.ts"],

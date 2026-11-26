@@ -1,0 +1,310 @@
+import * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import {
+  inFleetWiseRegion,
+  readFleetWiseTags,
+  retryObservation,
+  stableEquals,
+  syncFleetWiseTags,
+  toFleetWiseTagList,
+} from "./internal.vibe"
+
+export error StateTemplateUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface StateTemplateProps {
+  /**
+   * Name of the state template. Must be 1-100 characters of
+   * `[a-zA-Z0-9:_-]`. If omitted, a deterministic physical name is
+   * generated. Changing the name replaces the state template.
+   */
+  stateTemplateName?: string
+  /**
+   * Human-readable description of the state template. Updated in place.
+   */
+  description?: string
+  /**
+   * ARN of the {@link SignalCatalog} the state template's signals come
+   * from. Changing it replaces the state template.
+   */
+  signalCatalogArn: string
+  /**
+   * Fully qualified names of the signals whose last-known state the
+   * template tracks, e.g. `["Vehicle.Speed"]`. Synced in place via
+   * add/remove deltas.
+   */
+  stateTemplateProperties: string[]
+  /**
+   * Vehicle attribute node paths added as extra dimensions on the state
+   * data, e.g. `["Vehicle.VIN"]`. Updated in place.
+   */
+  dataExtraDimensions?: string[]
+  /**
+   * Vehicle attribute node paths added as extra dimensions on the MQTT
+   * message metadata, e.g. `["Vehicle.VIN"]`. Updated in place.
+   */
+  metadataExtraDimensions?: string[]
+  /**
+   * User-defined tags for the state template.
+   */
+  tags?: Record<string, string>
+}
+
+export interface StateTemplate extends
+  Resource<
+    "AWS.IoTFleetWise.StateTemplate",
+    StateTemplateProps,
+    {
+      /** The name of the state template. */
+      stateTemplateName: string
+      /** The ARN of the state template. */
+      stateTemplateArn: string
+      /** The unique ID of the state template. */
+      stateTemplateId: string | undefined
+      /** The signal catalog the state template's signals come from. */
+      signalCatalogArn: string | undefined
+      /** The signals whose last-known state the template tracks. */
+      stateTemplateProperties: string[]
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT FleetWise state template — a definition of which signals'
+ * last-known state the Edge Agent reports for a {@link Vehicle}
+ * (associated via the vehicle's `stateTemplates` prop).
+ *
+ * Only the description, tracked properties, and extra dimensions are
+ * mutable — changing the name or signal catalog replaces the template.
+ * AWS IoT FleetWise is allowlist-gated and offered in
+ * `us-east-1`/`eu-central-1` only.
+ * ### Creating a State Template
+ * **Example:** Track Last-Known Speed
+ * ```typescript
+ * const template = yield* StateTemplate("SpeedState", {
+ *   signalCatalogArn: catalog.signalCatalogArn,
+ *   stateTemplateProperties: ["Vehicle.Speed"],
+ * });
+ * ```
+ *
+ * **Example:** Associate with a Vehicle
+ * ```typescript
+ * const vehicle = yield* Vehicle("TestVehicle", {
+ *   modelManifestArn: model.modelManifestArn,
+ *   decoderManifestArn: decoder.decoderManifestArn,
+ *   stateTemplates: [
+ *     {
+ *       identifier: template.stateTemplateName,
+ *       stateTemplateUpdateStrategy: { onChange: {} },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const StateTemplate = Resource<StateTemplate>("AWS.IoTFleetWise.StateTemplate")
+
+export const StateTemplateProvider = (): infer _ =>
+  Provider.effect(
+    StateTemplate,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { stateTemplateName?: string },
+      ) => (props.stateTemplateName ? props.stateTemplateName : try createPhysicalName({ id, maxLength: 100 }))
+
+      const readTemplate = effect (identifier: string) =>
+        (effect {
+          return (try (iotfleetwise.getStateTemplate({ identifier })
+            |> inFleetWiseRegion(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      const toAttrs = effect (template: iotfleetwise.GetStateTemplateResponse) => {
+        if (template.name === undefined || template.arn === undefined) {
+          throw new StateTemplateUnexpectedResponse({
+            message: `StateTemplate '${template.name}' is missing its ARN`,
+          })
+        }
+        return {
+          stateTemplateName: template.name,
+          stateTemplateArn: template.arn,
+          stateTemplateId: template.id,
+          signalCatalogArn: template.signalCatalogArn,
+          stateTemplateProperties: [...(template.stateTemplateProperties ?? [])],
+        }
+      }
+
+      return {
+        stables: ["stateTemplateName", "stateTemplateArn", "stateTemplateId"],
+
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+          // The backing signal catalog is fixed at creation.
+          if (olds.signalCatalogArn !== resolved.signalCatalogArn) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.stateTemplateName ?? (try toName(id, olds ?? {}))
+          const found = try readTemplate(name)
+          if (found?.arn === undefined) return undefined
+          const attrs = try toAttrs(found)
+          const tags = try readFleetWiseTags(found.arn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.stateTemplateName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readTemplate(name)
+
+          // 2. Ensure — create if missing; tolerate the AlreadyExists race.
+          if (observed === undefined) {
+            ;(effect {
+              return (try (iotfleetwise
+                .createStateTemplate({
+                  name,
+                  description: news.description,
+                  signalCatalogArn: news.signalCatalogArn,
+                  stateTemplateProperties: news.stateTemplateProperties,
+                  dataExtraDimensions: news.dataExtraDimensions,
+                  metadataExtraDimensions: news.metadataExtraDimensions,
+                  tags: try Effect.orDie(Effect.try({ try: () => toFleetWiseTagList(desiredTags), catch: (e) => e })),
+                })
+                |> inFleetWiseRegion(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined as void;
+              default: throw e;
+            }
+            observed = try (effect {
+              return try effect {
+                const template = try readTemplate(name)
+                return (template === undefined
+                  ? throw new StateTemplateUnexpectedResponse({
+                    message: `StateTemplate '${name}' not found`,
+                  })
+                  : template)
+              }
+            }
+              |> retryObservation(%))
+          }
+
+          // 3. Sync mutable aspects against OBSERVED cloud state.
+          const observedProperties = observed.stateTemplateProperties ?? []
+          const toAdd = news.stateTemplateProperties.filter(
+            (fqn) => !observedProperties.includes(fqn),
+          )
+          const toRemove = observedProperties.filter(
+            (fqn) => !news.stateTemplateProperties.includes(fqn),
+          )
+          const currentTemplate = observed
+          const descriptionChanged = news.description !== undefined && news.description !== observed.description
+          const dataDimensionsChanged = news.dataExtraDimensions !== undefined
+            && !(try Effect.orDie(Effect.try({
+              try: () => stableEquals(currentTemplate.dataExtraDimensions ?? [], news.dataExtraDimensions),
+              catch: (e) => e,
+            })))
+          const metadataDimensionsChanged = news.metadataExtraDimensions !== undefined
+            && !(try Effect.orDie(Effect.try({
+              try: () => stableEquals(currentTemplate.metadataExtraDimensions ?? [], news.metadataExtraDimensions),
+              catch: (e) => e,
+            })))
+          if (
+            toAdd.length > 0
+            || toRemove.length > 0
+            || descriptionChanged
+            || dataDimensionsChanged
+            || metadataDimensionsChanged
+          ) {
+            try (iotfleetwise
+              .updateStateTemplate({
+                identifier: name,
+                description: descriptionChanged ? news.description : undefined,
+                stateTemplatePropertiesToAdd: toAdd.length > 0 ? toAdd : undefined,
+                stateTemplatePropertiesToRemove: toRemove.length > 0 ? toRemove : undefined,
+                dataExtraDimensions: dataDimensionsChanged ? news.dataExtraDimensions : undefined,
+                metadataExtraDimensions: metadataDimensionsChanged
+                  ? news.metadataExtraDimensions
+                  : undefined,
+              })
+              |> inFleetWiseRegion(%))
+            observed = try (effect {
+              return try effect {
+                const template = try readTemplate(name)
+                return (template === undefined
+                  ? throw new StateTemplateUnexpectedResponse({
+                    message: `StateTemplate '${name}' not found`,
+                  })
+                  : template)
+              }
+            }
+              |> retryObservation(%))
+          }
+
+          // 3b. Sync tags against OBSERVED cloud tags.
+          const arn = observed.arn
+          if (arn !== undefined) {
+            try syncFleetWiseTags(arn, desiredTags)
+          }
+
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // DeleteStateTemplate is idempotent — deleting a missing template
+          // succeeds (its error union carries no not-found tag).
+          try (iotfleetwise
+            .deleteStateTemplate({ identifier: output.stateTemplateName })
+            |> inFleetWiseRegion(%))
+        },
+
+        list: effect () =>
+          try iotfleetwise.listStateTemplates.items({}).pipe(
+            Stream.runCollect,
+            Effect.map((chunk) =>
+              Array.from(chunk).flatMap((summary) =>
+                summary.name !== undefined && summary.arn !== undefined
+                  ? [
+                    {
+                      stateTemplateName: summary.name,
+                      stateTemplateArn: summary.arn,
+                      stateTemplateId: summary.id,
+                      signalCatalogArn: summary.signalCatalogArn,
+                      stateTemplateProperties: [] as string[],
+                    },
+                  ]
+                  : []
+              )
+            ),
+            inFleetWiseRegion,
+          ),
+      }
+    },
+  )

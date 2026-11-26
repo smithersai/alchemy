@@ -1,4 +1,4 @@
-import { frameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { frameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /**
  * The Next.js-on-Node framework module (`next build` + a custom

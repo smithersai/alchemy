@@ -1,0 +1,198 @@
+import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface LogStreamProps {
+  /**
+   * Name of the log group the stream belongs to.
+   * Changing this value replaces the log stream.
+   */
+  logGroupName: string
+  /**
+   * Name of the log stream. If omitted, a unique name is generated.
+   * Changing this value replaces the log stream.
+   */
+  logStreamName?: string
+}
+
+export interface LogStream extends
+  Resource<
+    "AWS.Logs.LogStream",
+    LogStreamProps,
+    {
+      logStreamName: string
+      logGroupName: string
+      logStreamArn?: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch Logs log stream — a sequence of log events within a log group.
+ *
+ * Most log streams are created automatically by the emitting service (Lambda
+ * creates its own streams under `/aws/lambda/...`); declare one explicitly
+ * only when writing custom log events via `putLogEvents`.
+ * ### Creating Log Streams
+ * **Example:** Custom Audit Stream
+ * ```typescript
+ * const stream = yield* LogStream("AuditStream", {
+ *   logGroupName: logGroup.logGroupName,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const LogStream = Resource<LogStream>("AWS.Logs.LogStream")
+
+export const LogStreamProvider = (): infer _ =>
+  Provider.effect(
+    LogStream,
+    effect {
+      const toLogStreamName = effect (
+        id: string,
+        props: { logStreamName?: string } = {},
+      ) => (props.logStreamName ? props.logStreamName : try createPhysicalName({ id, maxLength: 512 }))
+
+      const observe = effect (logGroupName: string, logStreamName: string) => {
+        const described = logs
+          .describeLogStreams({
+            logGroupName,
+            logStreamNamePrefix: logStreamName,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: { logStreams: [] };
+            default: throw e;
+          }
+        return (described.logStreams ?? []).find(
+          (stream) => stream.logStreamName === logStreamName,
+        )
+      }
+
+      return {
+        stables: ["logStreamName", "logGroupName", "logStreamArn"],
+        // No account-wide stream list — fan out over every log group.
+        list: effect () => {
+          const groups = Array.from(
+            try (logs.describeLogGroups.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.logGroups ?? [])
+            .map((group) => group.logGroupName)
+            .filter((name): name is string => name != null)
+          const perGroup = try Effect.forEach(
+            groups,
+            effect (logGroupName) =>
+              (effect {
+                return (Array.from(
+                  try (logs.describeLogStreams.pages({ logGroupName })
+                    |> Stream.runCollect(%)),
+                )
+                  .flatMap((page) => page.logStreams ?? [])
+                  .filter(
+                    (
+                      stream,
+                    ): stream is logs.LogStream & {
+                      logStreamName: string
+                    } => stream.logStreamName != null,
+                  )
+                  .map((stream) => ({
+                    logStreamName: stream.logStreamName,
+                    logGroupName,
+                    logStreamArn: stream.arn,
+                  })))
+              }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+            { concurrency: 10 },
+          )
+          return perGroup.flat()
+        },
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if (olds.logGroupName !== resolved.logGroupName) {
+            return { action: "replace" } as const
+          }
+          if ((try toLogStreamName(id, olds)) !== (try toLogStreamName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const logGroupName = output?.logGroupName ?? olds?.logGroupName
+          if (logGroupName === undefined) return undefined
+          const logStreamName = output?.logStreamName ?? (try toLogStreamName(id, olds ?? {}))
+          const observed = try observe(logGroupName, logStreamName)
+          if (!observed) return undefined
+          return {
+            logStreamName,
+            logGroupName,
+            logStreamArn: observed.arn,
+          }
+        },
+        // Existence-only resource: observe → if missing, create. Nothing on a
+        // log stream is mutable.
+        reconcile: effect ({ id, news, output, session }) => {
+          const logGroupName = news.logGroupName
+          const logStreamName = output?.logStreamName ?? (try toLogStreamName(id, news))
+
+          let observed = try observe(logGroupName, logStreamName)
+          if (!observed) {
+            logs
+              .createLogStream({ logGroupName, logStreamName }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: undefined as void;
+                default: throw e;
+              }
+            observed = try observe(logGroupName, logStreamName)
+          }
+
+          try session.note(`${logGroupName}:${logStreamName}`)
+
+          return {
+            logStreamName,
+            logGroupName,
+            logStreamArn: observed?.arn,
+          }
+        },
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (logs
+              .deleteLogStream({
+                logGroupName: output.logGroupName,
+                logStreamName: output.logStreamName,
+              })
+              |> Effect.retry(%, {
+                while: (error) =>
+                  error._tag === "OperationAbortedException"
+                  || error._tag === "ServiceUnavailableException",
+                schedule: Schedule.exponential(100),
+                times: 8,
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+
+          const remaining = try Effect.repeat(
+            observe(output.logGroupName, output.logStreamName),
+            {
+              schedule: Schedule.fixed("250 millis"),
+              until: (stream) => stream === undefined,
+              times: 20,
+            },
+          )
+          if (remaining !== undefined) {
+            return try Effect.die(
+              new Error(
+                `CloudWatch log stream ${output.logGroupName}:${output.logStreamName} remained observable after delete`,
+              ),
+            )
+          }
+        },
+      }
+    },
+  )

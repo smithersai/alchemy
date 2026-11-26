@@ -3,11 +3,11 @@ import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import * as IAM from "../IAM/index.ts";
-import type { Function as LambdaFunction } from "../Lambda/Function.ts";
+import type { Function as LambdaFunction } from "../Lambda/Function.vibe";
 import { qualifiedArnOf } from "../Lambda/QualifiedArn.ts";
-import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.ts";
-import { Schedule } from "./Schedule.ts";
-import type { ScheduleGroup } from "./ScheduleGroup.ts";
+import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.vibe";
+import { Schedule } from "./Schedule.vibe";
+import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 
 /**
  * The typed event a consumed schedule delivers to its handler. EventBridge
@@ -44,6 +44,8 @@ export interface ScheduleEvent {
 /**
  * Narrow an arbitrary Lambda invocation payload to a schedule event produced
  * by `consumeSchedule`.
+ *
+ * @throws {never}
  */
 export const isScheduleEvent = (event: any): event is ScheduleEvent =>
   event?.source === "alchemy.scheduler" && typeof event?.scheduleId === "string";

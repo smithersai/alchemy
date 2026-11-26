@@ -1,0 +1,217 @@
+import * as mediapackagev2 from "@distilled.cloud/aws/mediapackagev2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import {
+  deleteChannelWithEndpoints,
+  listGroupChannels,
+  retryWhileMpConflict,
+  syncMpTags,
+  toMpTagRecord,
+} from "./internal.vibe"
+
+export interface ChannelGroupProps {
+  /**
+   * Name of the channel group. Must be unique within the account/region and
+   * match `^[a-zA-Z0-9_-]+$`. If omitted, a unique name is generated.
+   * Changing the name replaces the channel group.
+   */
+  channelGroupName?: string
+  /**
+   * Optional description of the channel group (up to 1024 characters).
+   */
+  description?: string
+  /**
+   * User-defined tags for the channel group. Merged with internal Alchemy
+   * tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ChannelGroup extends
+  Resource<
+    "AWS.MediaPackageV2.ChannelGroup",
+    ChannelGroupProps,
+    {
+      /** Name of the channel group. */
+      channelGroupName: string
+      /** ARN of the channel group. */
+      channelGroupArn: string
+      /** Shared egress domain that serves all origin endpoints in the group. */
+      egressDomain: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Elemental MediaPackage v2 channel group — the top-level container
+ * for channels and origin endpoints. All channels and origin endpoints in a
+ * group share one egress domain, giving downstream players and CDNs
+ * predictable URLs for stream delivery.
+ *
+ * ### Creating a Channel Group
+ * **Example:** Basic Channel Group
+ * ```typescript
+ * import * as MediaPackageV2 from "@alchemy.run/aws/MediaPackageV2";
+ *
+ * const group = yield* MediaPackageV2.ChannelGroup("Live");
+ * ```
+ *
+ * **Example:** Channel Group with Description and Tags
+ * ```typescript
+ * const group = yield* MediaPackageV2.ChannelGroup("Live", {
+ *   description: "Live sports streams",
+ *   tags: { team: "media" },
+ * });
+ * ```
+ *
+ * ### Egress Domain
+ * **Example:** Use the shared egress domain
+ * ```typescript
+ * const group = yield* MediaPackageV2.ChannelGroup("Live");
+ * // e.g. abcde.egress.xyz.mediapackagev2.us-east-1.amazonaws.com
+ * const domain = group.egressDomain;
+ * ```
+ *
+ * @resource
+ */
+export const ChannelGroup = Resource<ChannelGroup>("AWS.MediaPackageV2.ChannelGroup")
+
+export const ChannelGroupProvider = (): infer _ =>
+  Provider.effect(
+    ChannelGroup,
+    effect {
+      const createName = effect (id: string, props: ChannelGroupProps) =>
+        props.channelGroupName ?? (try createPhysicalName({ id, maxLength: 256 }))
+
+      const toAttrs = (
+        group: { ChannelGroupName: string; Arn: string; EgressDomain: string },
+      ): infer _ => ({
+        channelGroupName: group.ChannelGroupName,
+        channelGroupArn: group.Arn,
+        egressDomain: group.EgressDomain,
+      })
+
+      /** Get a channel group by name; typed not-found → undefined. */
+      const getGroup = effect (channelGroupName: string) =>
+        mediapackagev2
+          .getChannelGroup({ ChannelGroupName: channelGroupName }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+
+      return {
+        stables: ["channelGroupName", "channelGroupArn", "egressDomain"],
+
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, resolved)
+          // The name is the group's identity; a change means a new group.
+          if (oldName !== newName) return { action: "replace" } as const
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.channelGroupName ?? (try createName(id, olds ?? {}))
+          const group = try getGroup(name)
+          if (group === undefined) return undefined
+          const attrs = toAttrs(group)
+          return (try hasAlchemyTags(
+              id,
+              try Effect.orDie(Effect.try({ try: () => toMpTagRecord(group.Tags), catch: (e) => e })),
+            ))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const name = output?.channelGroupName ?? (try createName(id, news))
+
+          // 1. Observe — cloud state is authoritative; output is an id cache.
+          let group = try getGroup(name)
+
+          // 2. Ensure — create if missing; a Conflict means a peer created it
+          //    concurrently, so fall through to observing the winner.
+          if (group === undefined) {
+            group = mediapackagev2
+              .createChannelGroup({
+                ChannelGroupName: name,
+                Description: news.description,
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try mediapackagev2.getChannelGroup({ ChannelGroupName: name });
+                default: throw e;
+              }
+          } else if ((news.description ?? "") !== (group.Description ?? "")) {
+            // 3. Sync — the description is the only mutable field.
+            group = try mediapackagev2.updateChannelGroup({
+              ChannelGroupName: name,
+              Description: news.description,
+            })
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncMpTags(
+            group.Arn,
+            try Effect.orDie(Effect.try({ try: () => toMpTagRecord(group.Tags), catch: (e) => e })),
+            desiredTags,
+          )
+
+          try session.note(name)
+          return toAttrs(group)
+        },
+
+        delete: effect ({ output }) => {
+          const channelGroupName = output.channelGroupName
+          // Reap child channels (and their origin endpoints) first. A normal
+          // stack destroy deletes children before the group, so this observes
+          // nothing — but an orphan sweep can target a group whose children
+          // it never enumerated, and deleting the group would then Conflict
+          // until the retry budget ran out and leak the group.
+          const channels = try listGroupChannels(channelGroupName)
+          try Effect.forEach(
+            channels,
+            effect (channel) => try deleteChannelWithEndpoints(channelGroupName, channel.ChannelName),
+            { concurrency: 5, discard: true },
+          )
+          // MediaPackage v2 deletes are idempotent (deleting a missing group
+          // succeeds), but the group transiently rejects deletion with a
+          // Conflict while its just-deleted channels are cleaned up.
+          try (mediapackagev2
+            .deleteChannelGroup({ ChannelGroupName: channelGroupName })
+            |> retryWhileMpConflict(%))
+        },
+
+        list: effect () => {
+          const items = Array.from(
+            try (mediapackagev2.listChannelGroups.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Items ?? [])
+          // The list shape omits the egress domain, so hydrate each item
+          // via get; a group can vanish between enumeration and hydration.
+          const groups = try Effect.forEach(
+            items,
+            effect (item) =>
+              (effect {
+                return (toAttrs(try mediapackagev2.getChannelGroup({ ChannelGroupName: item.ChannelGroupName })))
+              }) catch effect (
+                e,
+              ) => match (e) { when { _tag: "ResourceNotFoundException" }: undefined; default: throw e; },
+            { concurrency: 5 },
+          )
+          return groups.filter((g): g is ChannelGroup["Attributes"] => g !== undefined)
+        },
+      }
+    },
+  )

@@ -1,9 +1,10 @@
 import { foldkit } from "@foldkit/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
+import vibelang from "vibelang-vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [foldkit(), tailwindcss()],
+  plugins: [vibelang(), foldkit(), tailwindcss()],
   optimizeDeps: {
     entries: ["src/entry.ts"],
   },

@@ -1,1 +1,1 @@
-export * from "./CustomersConnectorConfig.ts";
+export * from "./CustomersConnectorConfig.vibe";

@@ -1,7 +1,7 @@
 import type { Conflict } from "@distilled.cloud/prisma";
 import { createDeploymentStart, createDeploymentStop } from "@distilled.cloud/prisma/management";
 import * as Effect from "effect/Effect";
-import { observeDeployment } from "./DeploymentObserve.ts";
+import { observeDeployment } from "./DeploymentObserve.vibe";
 
 const startConflictIsIdempotent = (deploymentId: string, error: Conflict) =>
   observeDeployment(deploymentId).pipe(

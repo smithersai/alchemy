@@ -1,0 +1,45 @@
+import * as Fly from "@alchemy.run/fly"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+
+/**
+ * HTTP Sprite. Yield FileSystem in init, not inside fetch.
+ * Config.Redacted is written onto the Sprite at deploy time.
+ */
+export default class Box extends Fly.Sprite<Box>()(
+  "Box",
+  {
+    main: import.meta.url,
+    urlAuth: "public",
+    port: 3000,
+  },
+  effect {
+    const marker = try Config.String("SPRITE_MARKER").pipe(
+      Config.withDefault("hello-from-fly-sprite"),
+    )
+    const apiKey = try Config.Redacted("API_KEY").pipe(
+      Config.withDefault(Redacted.make("unused")),
+    )
+    const fs = try Effect.service(FileSystem.FileSystem)
+    try (fs.makeDirectory("/tmp", { recursive: true })
+      |> Effect.orDie(%))
+    try (fs.writeFileString("/tmp/marker.txt", marker)
+      |> Effect.orDie(%))
+
+    return {
+      fetch: effect {
+        const request = try Effect.service(HttpServerRequest)
+        const url = new URL(request.url, "http://sprite")
+        if (url.pathname === "/health") {
+          return try HttpServerResponse.json({ ok: true })
+        }
+        void Redacted.value(apiKey)
+        return try HttpServerResponse.json({
+          ok: true,
+          marker,
+        })
+      },
+    }
+  },
+) {}

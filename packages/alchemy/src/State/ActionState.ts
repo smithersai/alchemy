@@ -1,4 +1,4 @@
-import type { NamespaceNode } from "../Namespace.ts";
+import type { NamespaceNode } from "../Namespace.vibe";
 
 /**
  * Persisted state for an {@link Action}. Actions share the same FQN

@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
-import { API_URL, call } from "./client.ts";
+import { API_URL, call } from "./client.vibe";
 import type { Link } from "./Link.ts";
 import "./styles.css";
 

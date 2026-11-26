@@ -1,0 +1,235 @@
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import { safeHttpEffect } from "alchemy/Http"
+import { makeEntrypointLayer, reifyBoundConfigProvider } from "alchemy/Runtime"
+import { RuntimeContext } from "alchemy/RuntimeContext"
+import { Self } from "alchemy/Self"
+import { StackContext } from "alchemy/StackContext"
+import * as ConfigProvider from "effect/ConfigProvider"
+import * as Context from "effect/Context"
+import * as Deferred from "effect/Deferred"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as EffectHttp from "effect/http/HttpEffect"
+import * as HttpServerRequest from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Layer from "effect/Layer"
+import * as Scope from "effect/Scope"
+import { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.vibe"
+import type { FunctionRuntimeContext } from "./FunctionRuntimeContext.vibe"
+
+// Process environment, SIGINT, Fetch Response, streams and WebSocket events (host access).
+module node_platform {
+  import { waitUntil as nativeWaitUntil } from "@neon/functions"
+  import * as Effect from "effect/Effect"
+  import * as Exit from "effect/Exit"
+  import * as Scope from "effect/Scope"
+  import { FunctionUpgradeSockets } from "./FunctionUpgrade.ts"
+
+  /** The Fetch API response, which a `.vibe` file can't name. */
+  export type WebResponse = Response
+
+  /** @throws {never} */
+  export function processEnv(): NodeJS.ProcessEnv {
+    return process.env
+  }
+
+  /** @throws {never} */
+  export function onceSigint(listener: () => void): void {
+    process.once("SIGINT", listener)
+  }
+
+  /** @throws {TypeError} */
+  const closeRequestScope = (scope: Scope.Closeable) => {
+    Scope.close(scope, Exit.void).pipe(
+      Effect.timeout("15 seconds"),
+      Effect.ignoreCause({ log: "Error" }),
+      Effect.runPromise,
+      nativeWaitUntil,
+    )
+  }
+
+  /** @throws {never} */
+  export function isWebResponse(value: unknown): value is Response {
+    return value instanceof Response
+  }
+
+  /**
+   * Neon attaches upgrade metadata to this exact object.
+   * @throws {never}
+   */
+  export function openUpgradeSocket(response: Response): WebSocket | undefined {
+    const socket = FunctionUpgradeSockets.get(response)
+    return socket && socket.readyState !== socket.CLOSED ? socket : undefined
+  }
+
+  /**
+   * Close the request scope when the socket closes or the request aborts.
+   * @throws {never}
+   */
+  export function watchUpgradeSocket(
+    socket: WebSocket,
+    request: Request,
+    scope: Scope.Closeable,
+  ): { readonly onClose: () => void; readonly unwatch: () => void } {
+    const onClose = () => closeRequestScope(scope)
+    socket.addEventListener("close", onClose, { once: true })
+    request.signal.addEventListener("abort", onClose, {
+      once: true,
+    })
+    return {
+      onClose,
+      unwatch: () => {
+        socket.removeEventListener("close", onClose)
+        request.signal.removeEventListener("abort", onClose)
+      },
+    }
+  }
+
+  /**
+   * The body outlives fetch; propagate actual request aborts to its producer.
+   * @throws {TypeError}
+   */
+  export function abortableResponse(
+    web: Response,
+    body: ReadableStream<Uint8Array>,
+    signal: AbortSignal,
+  ): Response {
+    return new Response(
+      body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(), {
+        signal,
+      }),
+      {
+        status: web.status,
+        statusText: web.statusText,
+        headers: web.headers,
+      },
+    )
+  }
+}
+
+import {
+  abortableResponse,
+  isWebResponse,
+  onceSigint,
+  openUpgradeSocket,
+  processEnv,
+  watchUpgradeSocket,
+  type WebResponse,
+} from node_platform
+
+/** Build a Node-only Fetch bridge once per process, with a fresh scope for every request. */
+export const makeFunctionBridge = (entrypoint: unknown) => {
+  const instanceScope = Scope.makeUnsafe()
+  const tag = Self as unknown as Context.Service<never, { RuntimeContext: FunctionRuntimeContext }>
+  const env = processEnv()
+  const platform = Layer.mergeAll(
+    NodeServices.layer,
+    FetchHttpClient.layer,
+    Layer.succeed(FunctionEnvironment, env),
+    Layer.succeed(
+      ConfigProvider.ConfigProvider,
+      reifyBoundConfigProvider(
+        ConfigProvider.orElse(
+          ConfigProvider.fromUnknown({ ALCHEMY_PHASE: "runtime" }),
+          ConfigProvider.fromEnv(),
+        ),
+        env,
+      ),
+    ),
+    Layer.succeed(StackContext, {
+      name: env.ALCHEMY_STACK_NAME ?? "NeonFunction",
+      stage: env.ALCHEMY_STAGE ?? "runtime",
+      bindings: {},
+      resources: {},
+      actions: {},
+    }),
+  )
+  const build = Layer.buildWithScope(
+    makeEntrypointLayer(tag, entrypoint).pipe(Layer.provideMerge(platform)),
+    instanceScope,
+  ).pipe(
+    Effect.flatMap((context) =>
+      tag.pipe(
+        Effect.flatMap((host) =>
+          host.RuntimeContext.handler.pipe(
+            Effect.map((handler) => ({
+              ...handler,
+              runtime: host.RuntimeContext,
+              built: context,
+            })),
+          )
+        ),
+        Effect.provideContext(context),
+      )
+    ),
+    Effect.cachedWithTTL((exit) => (Exit.isSuccess(exit) ? Infinity : 0)),
+    Effect.runSync,
+  )
+  const close = Scope.close(instanceScope, Exit.void).pipe(
+    Effect.timeout("4 seconds"),
+    Effect.ignoreCause({ log: "Error" }),
+  )
+  onceSigint(() => {
+    Effect.runFork(close)
+  })
+
+  return {
+    fetch: (request: Request) =>
+      (effect {
+        const built = try build
+        const response = try Deferred.make<WebResponse>()
+        const services = Context.mergeAll(
+          built.built,
+          built.context,
+          Context.make(RuntimeContext, built.runtime),
+          Context.make(FunctionRequest, request),
+          Context.make(HttpServerRequest.HttpServerRequest, HttpServerRequest.fromWeb(request)),
+        )
+        const handler = safeHttpEffect(built.dispatch(new URL(request.url).pathname)).pipe(
+          Effect.interruptible,
+        )
+        return try EffectHttp.toHandled(handler, (req, res) =>
+          effect {
+            const scope = try Effect.scope
+            const context = try Effect.context<never>()
+            const raw = res.body._tag === "Raw" ? res.body.body : undefined
+            if (isWebResponse(raw)) {
+              // Neon attaches upgrade metadata to this exact object.
+              const socket = try Effect.sync(() => openUpgradeSocket(raw))
+              if (socket) {
+                EffectHttp.scopeDisableClose(scope)
+                const { onClose, unwatch } = try Effect.sync(() =>
+                  watchUpgradeSocket(socket, request, scope as Scope.Closeable)
+                )
+                try Effect.addFinalizer(() => Effect.sync(() => unwatch()))
+                if (request.signal.aborted) try Effect.sync(() => onClose())
+              }
+              try Deferred.succeed(response, raw)
+              return
+            }
+            const withoutBody = req.method === "HEAD"
+            const transferred = HttpServerResponse.omitsBody(res, withoutBody)
+              ? res
+              : EffectHttp.scopeTransferToStream(res)
+            const web = HttpServerResponse.toWeb(transferred, {
+              withoutBody,
+              context,
+            })
+            // The body outlives fetch; propagate actual request aborts to its producer.
+            const stream = res.body._tag === "Stream" ? web.body : null
+            try Deferred.succeed(
+              response,
+              stream
+                ? try Effect.orDie(
+                  Effect.try({
+                    try: () => abortableResponse(web, stream, request.signal),
+                    catch: (e) => e,
+                  }),
+                )
+                : web,
+            )
+          }).pipe(Effect.andThen(Deferred.await(response)), Effect.provideContext(services))
+      }).pipe((effect) => Effect.runPromise(effect, { signal: request.signal })),
+  }
+}

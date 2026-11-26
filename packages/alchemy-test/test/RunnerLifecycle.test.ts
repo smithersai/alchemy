@@ -10,7 +10,7 @@ import * as Path from "effect/Path";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import type { FileSuite } from "../src/Model.ts";
+import type { FileSuite } from "../src/Model.vibe";
 import {
   Reporter,
   type ReporterService,

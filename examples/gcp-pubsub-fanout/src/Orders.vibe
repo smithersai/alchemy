@@ -1,0 +1,99 @@
+import * as GCP from "@alchemy.run/gcp"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import { randomUUID } from "./Orders.platform.ts"
+import { OrderEvents, type OrderEvent } from "./resources.ts"
+
+const badRequest = (error: string) => HttpServerResponse.json({ error }, { status: 400 })
+
+/**
+ * The public orders API — the producer.
+ *
+ * It publishes one event per state change and returns. It knows nothing
+ * about who consumes the events: adding a consumer is a new subscription
+ * on the topic, not a change here.
+ *
+ * - `POST /orders` — `{ email, total }` → publishes `order.created`,
+ *   returns `202 { orderId, eventId }`.
+ * - `POST /orders/:id/cancel` — `{ email }` → publishes `order.cancelled`,
+ *   returns `202 { orderId, eventId }`.
+ */
+export default class Orders extends GCP.Function<Orders>()(
+  "Orders",
+  {
+    main: import.meta.url,
+    invokerIamDisabled: true,
+  },
+  effect {
+    const events = try GCP.PubSub.WriteTopic(OrderEvents)
+
+    const publish = (event: OrderEvent) =>
+      events
+        .publish({
+          data: JSON.stringify(event),
+          // Subscription filters match attributes, never the body, so the
+          // type goes here as well.
+          attributes: { type: event.type },
+        })
+        .pipe(Effect.orDie)
+
+    const accepted = (event: OrderEvent) =>
+      HttpServerResponse.json({ orderId: event.orderId, eventId: event.eventId }, { status: 202 })
+
+    return {
+      fetch: effect {
+        const request = try HttpServerRequest
+        const url = new URL(request.originalUrl)
+        const segments = url.pathname.split("/").filter(Boolean)
+
+        if (request.method === "GET" && segments.length === 0) {
+          return HttpServerResponse.text("ok")
+        }
+
+        if (request.method !== "POST" || segments[0] !== "orders") {
+          return try HttpServerResponse.json({ error: "not found" }, { status: 404 })
+        }
+
+        const body = (try request.json.pipe(Effect.orElseSucceed(() => ({})))) as {
+          email?: unknown
+          total?: unknown
+        }
+        if (typeof body.email !== "string" || !body.email.includes("@")) {
+          return try badRequest("email is required")
+        }
+
+        if (segments.length === 1) {
+          if (typeof body.total !== "number" || body.total <= 0) {
+            return try badRequest("total must be a positive number")
+          }
+          const event: OrderEvent = {
+            eventId: try randomUUID(),
+            type: "order.created",
+            orderId: try randomUUID(),
+            email: body.email,
+            total: body.total,
+            occurredAt: new Date().toISOString(),
+          }
+          try publish(event)
+          return try accepted(event)
+        }
+
+        if (segments.length === 3 && segments[2] === "cancel") {
+          const event: OrderEvent = {
+            eventId: try randomUUID(),
+            type: "order.cancelled",
+            orderId: segments[1]!,
+            email: body.email,
+            total: 0,
+            occurredAt: new Date().toISOString(),
+          }
+          try publish(event)
+          return try accepted(event)
+        }
+
+        return try HttpServerResponse.json({ error: "not found" }, { status: 404 })
+      },
+    }
+  }.pipe(Effect.provide(GCP.PubSub.WriteTopicHttp)),
+) {}

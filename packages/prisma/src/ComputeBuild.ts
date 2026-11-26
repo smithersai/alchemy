@@ -10,7 +10,7 @@ import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import * as Redacted from "effect/Redacted";
 import type { Scope } from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { normalizeEntrypoint } from "./ComputeArchive.ts";
+import { normalizeEntrypoint } from "./ComputeArchive.vibe";
 
 export class ComputeBuildInvalidProps extends Data.TaggedError("ComputeBuildInvalidProps")<{
   readonly message: string;

@@ -1,1 +1,1 @@
-export * from "./RegionalHostname.ts";
+export * from "./RegionalHostname.vibe";

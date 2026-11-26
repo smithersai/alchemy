@@ -1,0 +1,185 @@
+import * as emailRouting from "@distilled.cloud/cloudflare/email-routing"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { resolveZoneId, type Reference } from "../Zone/index.ts"
+import { listAllZones } from "../Zone/lookup.vibe"
+
+type RoutingAttributes = Routing["Attributes"]
+
+const toAttributes = (
+  zoneId: string,
+  result: Pick<
+    emailRouting.GetEmailRoutingResponse,
+    "id" | "name" | "enabled" | "status" | "supportSubaddress"
+  >,
+): RoutingAttributes => ({
+  routingId: result.id,
+  zoneId,
+  name: result.name,
+  enabled: result.enabled,
+  status: (result.status ?? undefined) as RoutingStatus | undefined,
+  subaddressing: result.supportSubaddress ?? undefined,
+})
+
+export type RoutingStatus =
+  | "ready"
+  | "unconfigured"
+  | "misconfigured"
+  | "misconfigured/locked"
+  | "unlocked"
+
+export type RoutingProps = {
+  /**
+   * Zone to enable email routing on. Accepts a zone id, a zone name
+   * (`example.com`), or a `{ zoneId, name? }` object.
+   */
+  zone: Reference
+  /**
+   * Whether to enable Email Routing on the zone.
+   *
+   * @default true
+   */
+  enabled?: boolean
+  /**
+   * Whether routing rules honor subaddressing (plus addressing, RFC 5233):
+   * mail to `user+detail@example.com` matches the rule for
+   * `user@example.com`, with the full address kept in `message.to`. A rule
+   * for the exact subaddress still takes precedence. Omit to leave the
+   * setting as Cloudflare has it.
+   *
+   * @see https://developers.cloudflare.com/email-service/configuration/email-routing-addresses/#subaddressing
+   */
+  subaddressing?: boolean
+}
+
+export type Routing = Resource<
+  "Cloudflare.Email.Routing",
+  RoutingProps,
+  {
+    routingId: string
+    zoneId: string
+    name: string
+    enabled: boolean
+    status: RoutingStatus | undefined
+    /** Whether routing rules honor subaddressing (plus addressing). */
+    subaddressing: boolean | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * Enables Cloudflare Email Routing on a zone. This is the prerequisite for
+ * receiving mail at any address on the domain and for sending email from a
+ * Worker via `send_email` bindings.
+ * ### Enabling Email Routing
+ * **Example:** Enable on a zone you own
+ * ```typescript
+ * const routing = yield* Cloudflare.Email.Routing("Routing", {
+ *   zone: "example.com",
+ * });
+ * ```
+ *
+ * ### Subaddressing
+ * **Example:** Route `docs+anything@example.com` through the `docs@` rule
+ * ```typescript
+ * const routing = yield* Cloudflare.Email.Routing("Routing", {
+ *   zone: "example.com",
+ *   subaddressing: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @product Email
+ * @category Email
+ */
+export const Routing = Resource<Routing>("Cloudflare.Email.Routing", {
+  aliases: ["Cloudflare.EmailRouting"],
+})
+
+const resolve = effect (zone: Reference) => {
+  const { accountId } = try try Effect.service(CloudflareEnvironment)
+  return try resolveZoneId({
+    accountId,
+    zone,
+    hostname: typeof zone === "string" ? zone : (zone.name ?? ""),
+  })
+}
+
+export const RoutingProvider = (): infer _ =>
+  Provider.succeed(Routing, {
+    nuke: { singleton: true },
+    stables: ["zoneId", "routingId"],
+    list: effect () => {
+      const { accountId } = try try Effect.service(CloudflareEnvironment)
+      // Email Routing settings are a per-zone singleton — no account-wide
+      // enumeration API. Enumerate every zone in the account and read the
+      // settings in each (every zone has one).
+      const allZones = try listAllZones(accountId)
+      const rows = try Effect.forEach(
+        allZones.map((zone) => zone.id),
+        effect (zoneId) =>
+          (effect {
+            return (toAttributes(zoneId, try emailRouting.getEmailRouting({ zoneId })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "InvalidRoute" }: undefined;
+            default: throw e;
+          },
+        { concurrency: 10 },
+      )
+      return rows.filter((row): row is RoutingAttributes => row !== undefined)
+    },
+    diff: effect ({ news, output }) => {
+      if (!output) return undefined
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const zoneId = try resolve(resolved.zone)
+      if (zoneId !== output.zoneId) {
+        return { action: "replace" } as const
+      }
+      if ((resolved.enabled ?? true) !== output.enabled) {
+        return { action: "update" } as const
+      }
+      if (resolved.subaddressing !== undefined && resolved.subaddressing !== output.subaddressing) {
+        return { action: "update" } as const
+      }
+      // Every prop is compared above against the observed output, so an
+      // omitted `subaddressing` (keep the zone's setting) is not a change.
+      return { action: "noop" } as const
+    },
+    read: effect ({ output }) => {
+      if (!output?.zoneId) return undefined
+      const result = try emailRouting.getEmailRouting({
+        zoneId: output.zoneId,
+      })
+      return toAttributes(output.zoneId, result)
+    },
+    reconcile: effect ({ news, output }) => {
+      const zoneId = output?.zoneId ?? (try resolve(news.zone))
+      const desired = news.enabled ?? true
+
+      if (desired) {
+        const result = try emailRouting.enableEmailRouting({ zoneId })
+        // Subaddressing is a zone setting beside `enabled`; converge it only
+        // when declared, and only when it differs.
+        const subaddressing = news.subaddressing
+        if (subaddressing === undefined || result.supportSubaddress === subaddressing) {
+          return toAttributes(zoneId, result)
+        }
+        const edited = try emailRouting.edit({ zoneId, supportSubaddress: subaddressing })
+        return toAttributes(zoneId, edited)
+      } else {
+        const result = try emailRouting.disableEmailRouting({ zoneId })
+        return toAttributes(zoneId, result)
+      }
+    },
+    delete: effect ({ output }) => {
+      emailRouting
+        .disableEmailRouting({ zoneId: output.zoneId }) catch effect (e) => (undefined as void)
+    },
+  })

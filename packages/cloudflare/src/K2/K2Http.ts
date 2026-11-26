@@ -3,11 +3,11 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { Self } from "alchemy/Self";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Credentials } from "../Credentials.ts";
-import { requireLiveResource } from "../HttpBindingDev.ts";
-import { authorizeWith } from "../HttpClientUtils.ts";
+import { AccountApiToken } from "../ApiToken/AccountApiToken.vibe";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.vibe";
+import type { Credentials } from "../Credentials.vibe";
+import { requireLiveResource } from "../HttpBindingDev.vibe";
+import { authorizeWith } from "../HttpClientUtils.vibe";
 
 /**
  * Shared scaffolding for the HTTP-backed K2 services. Internal — not

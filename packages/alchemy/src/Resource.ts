@@ -4,22 +4,22 @@ import * as Effectable from "effect/Effectable";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import type { Pipeable } from "effect/Pipeable";
-import { AdoptPolicy } from "./AdoptPolicy.ts";
+import { AdoptPolicy } from "./AdoptPolicy.vibe";
 import { toFqn } from "./FQN.ts";
-import type { Input, InputProps, PropsInput } from "./Input.ts";
-import { CurrentNamespace, type NamespaceNode } from "./Namespace.ts";
+import type { Input, InputProps, PropsInput } from "./Input.vibe";
+import { CurrentNamespace, type NamespaceNode } from "./Namespace.vibe";
 import * as Output from "./Output.ts";
 import { Provider } from "./Provider.ts";
 import {
   ConflictingProviderModeError,
   ProviderModePolicy,
   type ProviderMode,
-} from "./ProviderMode.ts";
+} from "./ProviderMode.vibe";
 import { ref as makeRef } from "./Ref.ts";
-import { RemovalPolicy } from "./RemovalPolicy.ts";
-import { RenamePolicy } from "./Rename.ts";
-import { Self } from "./Self.ts";
-import { StackContext } from "./StackContext.ts";
+import { RemovalPolicy } from "./RemovalPolicy.vibe";
+import { RenamePolicy } from "./Rename.vibe";
+import { Self } from "./Self.vibe";
+import { StackContext } from "./StackContext.vibe";
 
 export type ResourceConstructor<R extends ResourceLike, Req = never> = {
   Type: R["Type"];
@@ -200,6 +200,7 @@ export type Resource<
 > = Pipeable &
   ResourceLike<Type, Props, Attributes, Binding, Providers> & {
     bind(sid: Input<string>, binding: Input<Binding>): Effect.Effect<void>;
+    /** @throws {never} */
     bind(
       template: TemplateStringsArray,
       ...args: any[]

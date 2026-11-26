@@ -1,0 +1,43 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Drizzle from "@alchemy.run/drizzle"
+import * as Neon from "@alchemy.run/neon"
+import * as Alchemy from "alchemy"
+import * as Effect from "effect/Effect"
+
+/**
+ * A Drizzle schema + Neon project + feature branch. The branch's
+ * `migrations` prop is wired to the schema resource, so the
+ * provider order becomes:
+ *
+ *   1. `Drizzle.Schema` regenerates pending migration SQL files.
+ *   2. `Neon.Branch` scans the directory and applies any new migrations
+ *      transactionally.
+ */
+export const NeonDb = effect {
+  const { stage } = try Effect.service(Alchemy.Stack)
+
+  const schema = try Drizzle.Schema("app-schema", {
+    schema: "./src/schema.ts",
+    out: "./migrations",
+  })
+
+  const project = stage.startsWith("pr-")
+    ? try Neon.Project.ref("app-db", { stage: `staging-${stage}` })
+    : try Neon.Project("app-db", {
+      region: "aws-us-east-1",
+    })
+
+  const branch = try Neon.Branch("app-branch", {
+    project,
+    migrations: schema,
+  })
+
+  return { project, branch, schema }
+}
+
+export const Hyperdrive = effect {
+  const { branch } = try NeonDb
+  return try Cloudflare.Hyperdrive.Connection("app-hyperdrive", {
+    origin: branch.origin,
+  })
+}

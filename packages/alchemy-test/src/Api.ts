@@ -10,8 +10,8 @@ import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import * as TestClock from "effect/testing/TestClock";
 import * as TestConsole from "effect/testing/TestConsole";
-import type { Exclusive, Hook, Mode, TestBody } from "./Model.ts";
-import { makeSuite } from "./Model.ts";
+import type { Exclusive, Hook, Mode, TestBody } from "./Model.vibe";
+import { makeSuite } from "./Model.vibe";
 import { currentFileSuite, currentSuite, withSuite } from "./Registry.ts";
 import { mergeTags, type Tags } from "./Tags.ts";
 

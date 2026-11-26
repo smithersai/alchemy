@@ -1,0 +1,91 @@
+import { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Chat from "effect/ai/Chat"
+import * as Arr from "effect/Array"
+import * as Layer from "effect/Layer"
+import { BackingPersistence, PersistenceError, type BackingPersistenceStore } from "effect/persistence/Persistence"
+import { DurableObjectState } from "../Workers/DurableObjectState.vibe"
+
+export const DurableObjectChatPersistence = Layer.effect(BackingPersistence)(
+  effect {
+    const state = try Effect.service(DurableObjectState)
+    const storage = state.storage
+
+    const wrapErr = (op: string, key?: string): infer _ => (cause: unknown): infer _ =>
+      PersistenceError.make({
+        message: `Failed to ${op}${key !== undefined ? ` key ${key}` : ""} in DurableObject storage`,
+        cause,
+      })
+
+    return BackingPersistence.of({
+      make: effect (storeId) =>
+        try effect {
+          const prefixed = (k: string): infer _ => `${storeId}:${k}`
+          return {
+            get: effect (key) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .get<object>(prefixed(key))
+                    |> Effect.mapError(%, wrapErr("get", key)))
+                }
+              },
+            getMany: effect (keys) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try effect {
+                    const map = try (storage.get<object>(keys.map(prefixed))
+                      |> Effect.mapError(%, wrapErr("getMany")))
+                    return keys.map((k) => map.get(prefixed(k))) as Arr.NonEmptyArray<object | undefined>
+                  }
+                }
+              },
+            set: effect (key, value, _ttl) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .put(prefixed(key), value)
+                    |> Effect.mapError(%, wrapErr("set", key)))
+                }
+              },
+            setMany: effect (entries) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .put(Object.fromEntries(entries.map(([k, v]) => [prefixed(k), v])))
+                    |> Effect.mapError(%, wrapErr("setMany")))
+                }
+              },
+            remove: effect (key) =>
+              try effect {
+                provide RuntimeContext.phantom {
+                  return try (storage
+                    .delete(prefixed(key))
+                    |> Effect.asVoid(%)
+                    |> Effect.mapError(%, wrapErr("remove", key)))
+                }
+              },
+            clear: effect {
+              return try effect {
+                provide RuntimeContext.phantom {
+                  return try (effect {
+                    return try effect {
+                      const map = try storage.list({ prefix: `${storeId}:` })
+
+                      const ks = [...map.keys()]
+                      if (ks.length === 0) return
+                      return try Effect.asVoid(storage.delete(ks))
+                    }
+                  }
+                    |> Effect.mapError(%, wrapErr("clear")))
+                }
+              }
+            },
+          } satisfies BackingPersistenceStore
+        },
+    })
+  },
+)
+
+export const layerChatDurableObject = Chat.layerPersisted({
+  storeId: "alchemy.chat",
+}).pipe(Layer.provide(DurableObjectChatPersistence))

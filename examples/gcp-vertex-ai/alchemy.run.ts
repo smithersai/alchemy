@@ -1,7 +1,7 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Chat from "./src/Chat.ts";
+import Chat from "./src/Chat.vibe";
 
 export default Alchemy.Stack(
   "GcpVertexAiExample",

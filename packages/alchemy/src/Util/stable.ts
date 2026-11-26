@@ -1,4 +1,4 @@
-import { isPlainObject } from "./data.ts";
+import { isPlainObject } from "./data.vibe";
 
 export const normalizeNulls = <T>(value: T): T => {
   if (value === null) {

@@ -1,9 +1,13 @@
 import { Resource } from "alchemy/Resource";
-import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } from "../Branch.ts";
-import type { Providers } from "../Providers.ts";
-import type { PostgresClusterSize } from "./PostgresClusterSize.ts";
-import type { PostgresDatabase } from "./PostgresDatabase.ts";
-import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.ts";
+import {
+  type BaseBranchAttributes,
+  type BaseBranchProps,
+  makeBranchProvider,
+} from "../Branch.vibe";
+import type { Providers } from "../Providers.vibe";
+import type { PostgresClusterSize } from "./PostgresClusterSize.vibe";
+import type { PostgresDatabase } from "./PostgresDatabase.vibe";
+import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.vibe";
 
 /**
  * Properties for creating or updating a {@link PostgresBranch}.

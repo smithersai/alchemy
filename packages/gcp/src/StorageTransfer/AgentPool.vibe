@@ -1,0 +1,285 @@
+import * as storagetransfer from "@distilled.cloud/gcp/storagetransfer_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  agentPoolIdOf,
+  agentPoolName,
+  createOwnership,
+  DEFAULT_AGENT_POOL,
+  encodeOwnership,
+  fieldMask,
+  MAX_AGENT_POOL_DISPLAY_NAME,
+  getAgentPool,
+  hasOwnershipMarker,
+  listAgentPools,
+  ownedByAlchemy,
+  parseOwnership,
+  retryApiDisabled,
+  sameValue,
+  sanitizeAgentPoolId,
+  toAgentPoolId,
+  waitAgentPoolCreated,
+  waitAgentPoolGone,
+} from "./internal.vibe"
+
+export type BandwidthLimit = {
+  /**
+   * Bandwidth rate in megabytes per second, distributed across all
+   * agents in the pool. Omit for no limit.
+   */
+  limitMbps?: string
+}
+
+export type AgentPoolProps = {
+  /**
+   * Agent pool id (the `{agent_pool}` segment of
+   * `projects/{project}/agentPools/{agent_pool}`). If omitted, a unique
+   * name is generated from the stack, stage, and logical id. Must match
+   * `^(?!goog)[a-z]([a-z0-9-._~]*[a-z0-9])?$` and is at most 128
+   * characters. Immutable — changing it replaces the pool.
+   */
+  agentPoolId?: string
+  /**
+   * Client-specified description (combined with Alchemy ownership, max
+   * 127 characters). Agent pools have no labels field, so ownership is
+   * stored in a `[alchemy …]` prefix and stripped from attributes.
+   */
+  displayName?: string
+  /**
+   * Bandwidth cap for the pool. Unspecified means no limit.
+   */
+  bandwidthLimit?: BandwidthLimit
+}
+
+export type AgentPool = Resource<
+  "GCP.StorageTransfer.AgentPool",
+  AgentPoolProps,
+  {
+    /** Full resource name `projects/{project}/agentPools/{agent_pool}`. */
+    name: string
+    /** Agent pool id (last path segment). */
+    agentPoolId: string
+    /** Project id. */
+    project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** Pool state (`CREATING`, `CREATED`, `DELETING`). */
+    state: string | undefined
+    /** Configured bandwidth limit, if any. */
+    bandwidthLimit: BandwidthLimit | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Storage Transfer Service agent pool for on-premises (POSIX) agents.
+ *
+ * Agent pools have no labels field, so Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. Name is identity — changing
+ * `agentPoolId` replaces the pool. `displayName` and `bandwidthLimit`
+ * update in place.
+ *
+ * ### Creating an Agent Pool
+ * **Example:** Generated id
+ * ```typescript
+ * const pool = yield* GCP.StorageTransfer.AgentPool("OnPrem", {
+ *   displayName: "warehouse scanners",
+ * });
+ * ```
+ *
+ * **Example:** Named pool with a bandwidth cap
+ * ```typescript
+ * const pool = yield* GCP.StorageTransfer.AgentPool("OnPrem", {
+ *   agentPoolId: "warehouse-scanners",
+ *   displayName: "warehouse scanners",
+ *   bandwidthLimit: { limitMbps: "120" },
+ * });
+ * ```
+ *
+ * ### Updating an Agent Pool
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Raise the bandwidth cap
+ * ```typescript
+ * const pool = yield* GCP.StorageTransfer.AgentPool("OnPrem", {
+ *   displayName: "warehouse scanners",
+ *   bandwidthLimit: { limitMbps: "250" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category StorageTransfer
+ */
+export const AgentPool = Resource<AgentPool>("GCP.StorageTransfer.AgentPool")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentPoolNotResolved extends Data.TaggedError(
+  "GCP.StorageTransfer.AgentPoolNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toBandwidth = (
+  limit: storagetransfer.BandwidthLimit | BandwidthLimit | undefined,
+): BandwidthLimit | undefined => {
+  const limitMbps = limit?.limitMbps
+  if (limitMbps === undefined || limitMbps.length === 0) return undefined
+  return { limitMbps }
+}
+
+const toAttrs = (pool: storagetransfer.AgentPool, project: string): infer _ => {
+  const name = pool.name ?? ""
+  return {
+    name,
+    agentPoolId: agentPoolIdOf(name),
+    project,
+    displayName: parseOwnership(pool.displayName).text,
+    state: pool.state,
+    bandwidthLimit: toBandwidth(pool.bandwidthLimit),
+  }
+}
+
+export const AgentPoolProvider = (): infer _ =>
+  Provider.succeed(AgentPool, {
+    stables: ["name", "agentPoolId", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previous = olds?.agentPoolId ?? output?.agentPoolId
+      if (
+        try Effect.orDie(Effect.try({
+          try: () =>
+            previous !== undefined
+            && resolved.agentPoolId !== undefined
+            && sanitizeAgentPoolId(resolved.agentPoolId) !== previous,
+          catch: (e) => e,
+        }))
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const agentPoolId = try toAgentPoolId(id, olds?.agentPoolId, output?.agentPoolId)
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => agentPoolName(env.project, agentPoolId), catch: (e) => e })))
+      const existing = try getAgentPool(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pools = try listAgentPools(env.project)
+      return pools
+        .filter(
+          (pool) =>
+            agentPoolIdOf(pool.name ?? "") !== DEFAULT_AGENT_POOL
+            && hasOwnershipMarker(pool.displayName),
+        )
+        .map((pool) => toAttrs(pool, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const agentPoolId = try toAgentPoolId(id, news.agentPoolId, output?.agentPoolId)
+      const name = try Effect.orDie(
+        Effect.try({ try: () => agentPoolName(env.project, agentPoolId), catch: (e) => e }),
+      )
+      const ownership = try createOwnership(id)
+      const desiredDisplayName = try Effect.orDie(Effect.try({
+        try: () =>
+          encodeOwnership(
+            ownership,
+            news.displayName,
+            MAX_AGENT_POOL_DISPLAY_NAME,
+          ),
+        catch: (e) => e,
+      }))
+      const desiredLimit = toBandwidth(news.bandwidthLimit)
+
+      let current = try getAgentPool(output?.name ?? name)
+      if (current?.state === "DELETING") {
+        try waitAgentPoolGone(name)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        const created = retryApiDisabled(
+          storagetransfer.createProjectsAgentPools({
+            projectId: env.project,
+            agentPoolId,
+            body: {
+              displayName: desiredDisplayName,
+              bandwidthLimit: desiredLimit,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getAgentPool(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current !== undefined && current.state === "CREATING") {
+        current = (try waitAgentPoolCreated(name)) ?? current
+      }
+
+      if (current === undefined) {
+        throw new AgentPoolNotResolved({ resourceName: name })
+      }
+
+      const displayChanged = (current.displayName ?? "") !== desiredDisplayName
+      const left = toBandwidth(current.bandwidthLimit)
+      const limitChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameValue(left, desiredLimit),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          fieldMask([
+            displayChanged ? "display_name" : undefined,
+            limitChanged ? "bandwidth_limit" : undefined,
+          ]),
+        catch: (e) => e,
+      }))
+
+      if (updateMask.length > 0) {
+        current = try storagetransfer.patchProjectsAgentPools({
+          name: current.name ?? name,
+          updateMask,
+          body: {
+            displayName: desiredDisplayName,
+            bandwidthLimit: desiredLimit,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.agentPoolId === DEFAULT_AGENT_POOL) return
+      try (effect {
+        return storagetransfer.deleteProjectsAgentPools({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      }
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.exponential("500 millis"),
+        }))
+    },
+  })

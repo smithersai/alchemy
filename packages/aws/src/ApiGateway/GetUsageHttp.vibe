@@ -1,0 +1,43 @@
+import * as ag from "@distilled.cloud/aws/api-gateway"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { RegisterApiGatewayBinding } from "./BindingHttp.vibe"
+import { GetUsage, type GetUsageRequest } from "./GetUsage.vibe"
+import type { UsagePlan } from "./UsagePlan.vibe"
+
+/**
+ * HTTP implementation of the {@link GetUsage} binding. Grants
+ * `apigateway:GET` on the plan's `/usage` path and calls the API with the
+ * host Function's credentials.
+ */
+export const GetUsageHttp = Layer.effect(
+  GetUsage,
+  effect {
+    const registerApiGatewayBinding = try RegisterApiGatewayBinding
+    const getUsage = try AWSBindings.withCredentials(ag.getUsage)
+    return effect <P extends UsagePlan>(usagePlan: P) => {
+      const UsagePlanId = try usagePlan.id.asEffect()
+      try registerApiGatewayBinding({
+        cap: "AWS.ApiGateway.GetUsage",
+        target: usagePlan,
+        verb: "GET",
+        paths: (region) => [
+          Output.interpolate`arn:aws:apigateway:${region}::/usageplans/${usagePlan.id}/usage`,
+        ],
+      })
+      return effect (
+        request: GetUsageRequest,
+      ) =>
+        try withSpan(
+          effect {
+            return try getUsage({
+              ...request,
+              usagePlanId: try UsagePlanId,
+            })
+          },
+          `AWS.ApiGateway.GetUsage(${usagePlan.LogicalId})`,
+        )
+    }
+  },
+)

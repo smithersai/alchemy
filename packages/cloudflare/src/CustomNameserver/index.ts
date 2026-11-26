@@ -1,1 +1,1 @@
-export * from "./CustomNameserver.ts";
+export * from "./CustomNameserver.vibe";

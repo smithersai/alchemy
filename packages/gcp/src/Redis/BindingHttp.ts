@@ -1,6 +1,6 @@
-import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
-import type { AclPolicy } from "./AclPolicy.ts";
-import type { Instance } from "./Instance.ts";
+import { makeNamedHttpBinding, type BindingIam, type GcpHttpOp } from "../HttpBinding.vibe";
+import type { AclPolicy } from "./AclPolicy.vibe";
+import type { Instance } from "./Instance.vibe";
 
 /**
  * Shared HTTP scaffolding for Memorystore Redis ACL policy bindings.

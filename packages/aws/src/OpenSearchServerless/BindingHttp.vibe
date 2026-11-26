@@ -1,0 +1,97 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { Collection } from "./Collection.vibe"
+
+/**
+ * Shared scaffolding for the OpenSearch Serverless runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, makeAoss…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation, the IAM action list, and
+ * (for collection-scoped operations) the injected collection `id` is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a collection-scoped operation: the runtime
+ * callable injects the bound {@link Collection}'s ID as `id` and the
+ * deploy-time half grants `actions` on the collection's ARN.
+ */
+export const makeAossCollectionHttpBinding = effect <I extends { id?: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.OpenSearchServerless.CreateIndex`. */
+  tag: string
+  /** The distilled operation; `id` is injected from the collection. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the collection ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (collection: Collection) => {
+    const CollectionId = try collection.collectionId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${collection})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${collection.collectionArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "id">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            id: try CollectionId,
+          } as I)
+        },
+        `${options.tag}(${collection.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level operation (no collection
+ * argument): the deploy-time half grants `actions` on `*` — the account
+ * settings, policy stats, and lifecycle-policy read actions do not support
+ * resource-level scoping.
+ */
+export const makeAossAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.OpenSearchServerless.GetAccountSettings`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

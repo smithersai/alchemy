@@ -3,4 +3,4 @@ export {
   DialogflowOperationPending,
   resourceNameFromOperation,
   waitForOperation,
-} from "./internal.ts";
+} from "./internal.vibe";

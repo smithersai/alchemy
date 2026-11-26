@@ -1,0 +1,93 @@
+import * as autoscaling from "@distilled.cloud/aws/auto-scaling"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { AutoScalingGroup } from "./AutoScalingGroup.vibe"
+import {
+  InstanceRefresh,
+  type CancelInstanceRefreshRequest,
+  type DescribeInstanceRefreshesRequest,
+  type StartInstanceRefreshRequest,
+} from "./InstanceRefresh.vibe"
+
+// Bespoke (not the shared scaffold): a multi-operation client over the four
+// instance refresh operations behind one two-statement IAM grant (the write
+// actions are group-scoped, Describe* only supports `*`).
+export const InstanceRefreshHttp = Layer.effect(
+  InstanceRefresh,
+  effect {
+    const bind = try AWSBindings.Bind
+    const start = try AWSBindings.withCredentials(autoscaling.startInstanceRefresh)
+    const cancel = try AWSBindings.withCredentials(autoscaling.cancelInstanceRefresh)
+    const rollback = try AWSBindings.withCredentials(autoscaling.rollbackInstanceRefresh)
+    const describe = try AWSBindings.withCredentials(autoscaling.describeInstanceRefreshes)
+
+    return effect (group: AutoScalingGroup) => {
+      const AutoScalingGroupName = try group.autoScalingGroupName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.AutoScaling.InstanceRefresh(${group})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: [
+                "autoscaling:StartInstanceRefresh",
+                "autoscaling:CancelInstanceRefresh",
+                "autoscaling:RollbackInstanceRefresh",
+              ],
+              Resource: [group.autoScalingGroupArn],
+            },
+            {
+              Effect: "Allow",
+              Action: ["autoscaling:DescribeInstanceRefreshes"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return {
+        start: effect (
+          request?: StartInstanceRefreshRequest | undefined,
+        ) =>
+          try withSpan(
+            effect {
+              return try start({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.StartInstanceRefresh(${group.LogicalId})`,
+          ),
+        cancel: effect (
+          request?: CancelInstanceRefreshRequest | undefined,
+        ) =>
+          try withSpan(
+            effect {
+              return try cancel({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.CancelInstanceRefresh(${group.LogicalId})`,
+          ),
+        rollback: effect () =>
+          try withSpan(
+            effect {
+              return try rollback({
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.RollbackInstanceRefresh(${group.LogicalId})`,
+          ),
+        describe: effect (request?: DescribeInstanceRefreshesRequest | undefined) =>
+          try withSpan(
+            effect {
+              return try describe({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.DescribeInstanceRefreshes(${group.LogicalId})`,
+          ),
+      }
+    }
+  },
+)

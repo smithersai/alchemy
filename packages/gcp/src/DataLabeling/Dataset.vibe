@@ -1,0 +1,249 @@
+import * as datalabeling from "@distilled.cloud/gcp/datalabeling_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  findOwned,
+  hasOwnershipMarker,
+  ignoreGone,
+  listDatasets,
+  noRetryLayer,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  projectParent,
+  replaceOnIdentity,
+  retryDelete,
+  retryTransient,
+  sameText,
+  toDisplayName,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type DatasetProps = {
+  /**
+   * Dataset id (the `{dataset}` segment of
+   * `projects/{project}/datasets/{dataset}`). Server-assigned on create.
+   * Immutable — changing it replaces the dataset.
+   */
+  datasetId?: string
+  /**
+   * Display name. Maximum 64 characters. Required by the API; Alchemy
+   * falls back to a generated name. Immutable — changing it replaces
+   * the dataset.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Datasets have no labels field, so
+   * Alchemy stamps ownership into this field. Immutable — changing it
+   * replaces the dataset.
+   */
+  description?: string
+}
+
+export type Dataset = Resource<
+  "GCP.DataLabeling.Dataset",
+  DatasetProps,
+  {
+    /** Full resource name `projects/{project}/datasets/{dataset}`. */
+    name: string
+    /** Dataset id (last path segment). */
+    datasetId: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Number of data items in the dataset. */
+    dataItemCount: string | undefined
+    /** Original import configs, if data has been imported. */
+    inputConfigs: datalabeling.GoogleCloudDatalabelingV1beta1InputConfigList | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** Last migration time to Vertex AI, if any. */
+    lastMigrateTime: string | undefined
+    /** Related resources blocking changes. */
+    blockingResources: string[] | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Labeling dataset — a container for data items and annotated
+ * datasets produced by labeling tasks.
+ *
+ * Dataset ids are server-assigned. Display name and description are
+ * immutable after create. There is no labels API, so Alchemy stamps
+ * ownership into `description` so `list` / nuke can find them.
+ *
+ * ### Creating a Dataset
+ * **Example:** Generated display name
+ * ```typescript
+ * const dataset = yield* GCP.DataLabeling.Dataset("Images", {});
+ * ```
+ *
+ * **Example:** Named dataset with a description
+ * ```typescript
+ * const dataset = yield* GCP.DataLabeling.Dataset("Images", {
+ *   displayName: "product-photos",
+ *   description: "sku images for classification",
+ * });
+ * ```
+ *
+ * @resource
+ * @category DataLabeling
+ */
+export const Dataset = Resource<Dataset>("GCP.DataLabeling.Dataset")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetNotResolved extends Data.TaggedError("GCP.DataLabeling.DatasetNotResolved")<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, datasetId: string): infer _ => `${projectParent(project)}/datasets/${datasetId}`
+
+const toAttrs = (dataset: datalabeling.GoogleCloudDatalabelingV1beta1Dataset, project: string): infer _ => {
+  const name = dataset.name ?? ""
+  const parsed = parseResourceName(name, "datasets")
+  return {
+    name,
+    datasetId: parsed.id,
+    project: parsed.project || project,
+    displayName: dataset.displayName,
+    description: parseOwnership(dataset.description).text,
+    dataItemCount: dataset.dataItemCount,
+    inputConfigs: dataset.inputConfigs,
+    createTime: dataset.createTime,
+    lastMigrateTime: dataset.lastMigrateTime,
+    blockingResources: dataset.blockingResources,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    provide noRetryLayer {
+      return try datalabeling.getProjectsDatasets({ name })
+    }
+  })
+}) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try Effect.undefined;
+  when { _tag: "BadGateway" }: try Effect.undefined;
+  default: throw e;
+})
+
+const findByOwnership = effect (id: string, project: string) => {
+  const rows = try listDatasets(try Effect.orDie(Effect.try({ try: () => projectParent(project), catch: (e) => e })))
+  return try findOwned(id, rows, (row) => row.description)
+}
+
+export const DatasetProvider = (): infer _ =>
+  Provider.succeed(Dataset, {
+    stables: ["name", "datasetId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const extra = try Effect.orDie(Effect.try({
+        try: () =>
+          (resolved.displayName !== undefined
+            && output?.displayName !== undefined
+            && !sameText(resolved.displayName, output.displayName))
+          || (olds !== undefined && !sameText(resolved.description, output?.description)),
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.datasetId ?? output?.datasetId,
+            nextId: resolved.datasetId,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const datasetId = olds?.datasetId
+        ?? output?.datasetId
+        ?? (output?.name
+          ? (try Effect.orDie(Effect.try({ try: () => parseResourceName(output.name, "datasets"), catch: (e) => e })))
+            .id
+          : "")
+      const name = output?.name ?? (datasetId.length > 0 ? resourceName(env.project, datasetId) : "")
+      const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const rows = try listDatasets(
+        try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e })),
+      )
+      return rows
+        .filter((row) => hasOwnershipMarker(row.description))
+        .map((row) => toAttrs(row, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const datasetId = news.datasetId ?? output?.datasetId
+      const name = output?.name ?? (datasetId !== undefined ? resourceName(env.project, datasetId) : "")
+      const ownership = try createInternalLabels(id)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
+
+      let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+
+      if (current === undefined) {
+        const created = retryTransient(
+          datalabeling.createProjectsDatasets({
+            parent: projectParent(env.project),
+            body: {
+              dataset: {
+                displayName,
+                description,
+              },
+            },
+          }),
+        ) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try findByOwnership(id, env.project);
+          default: throw e;
+        }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DatasetNotResolved({
+          resourceName: name
+            || (try Effect.orDie(Effect.try({ try: () => projectParent(env.project), catch: (e) => e }))),
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try (datalabeling
+        .deleteProjectsDatasets({ name: output.name })
+        |> retryDelete(%)
+        |> ignoreGone(%))
+      try waitUntilGone(getByName(output.name))
+    },
+  })

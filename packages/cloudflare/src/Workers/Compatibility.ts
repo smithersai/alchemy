@@ -3,8 +3,8 @@ import {
   NODEJS_COMPAT_DEFAULT_ON,
   withDefaultFlags,
 } from "@alchemy.run/cloudflare-runtime/core/internal/constants";
-import { isPythonMain } from "./Sources/Python.ts";
-import type { WorkerProps } from "./Worker.ts";
+import { isPythonMain } from "./Sources/Python.vibe";
+import type { WorkerProps } from "./Worker.vibe";
 
 /**
  * The Effect worker bridge builds its layer stack once per isolate and shares

@@ -9,7 +9,7 @@ import {
   relativeClientDirExpression,
   writeNodeServeEntry,
 } from "../core/NodeServe.ts";
-import { make, type FoldkitTarget, type FoldkitTargetConfig } from "./Foldkit.ts";
+import { make, type FoldkitTarget, type FoldkitTargetConfig } from "./Foldkit.vibe";
 
 const fail = (message: string, cause?: unknown) =>
   new DeployTargetError({ platform: "node", message, cause });

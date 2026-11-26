@@ -9,7 +9,7 @@ import {
   readServerModulesFromDisk,
   sortServerModules,
 } from "../core/index.ts";
-import { make, type FoldkitTarget, type FoldkitTargetConfig } from "./Foldkit.ts";
+import { make, type FoldkitTarget, type FoldkitTargetConfig } from "./Foldkit.vibe";
 
 export interface FoldkitAwsTargetConfig extends FoldkitTargetConfig {
   /** Stream Lambda responses. @default true */

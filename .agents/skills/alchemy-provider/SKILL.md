@@ -833,7 +833,7 @@ that asserts the response comes through the CDN (a cache header, or the
 CDN hostname) and that a server-rendered route hits the function; a
 `<Framework>.local.test.ts` for `alchemy dev`; and a shared
 `PropSurface.test.ts`. It also gets an `examples/<provider>-website-<framework>`
-example listed in `scripts/test-examples.ts`, and a page under
+example listed in `scripts/test-examples.vibe`, and a page under
 `website/src/content/docs/<provider>/frontend/`.
 
 ## Step 8 — close the loop
@@ -955,7 +955,7 @@ workspace project with the layout of `examples/gcp-pubsub-worker`:
   `test/dev.test.ts`.
 
 Register every example in the root `tsconfig.json` references and in
-`scripts/test-examples.ts`, and run its test against the testing profile
+`scripts/test-examples.vibe`, and run its test against the testing profile
 before you call it done. Track examples as rows in `INDEX.md` like any
 other deliverable.
 

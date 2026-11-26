@@ -1,0 +1,279 @@
+import * as binaryauthorization from "@distilled.cloud/gcp/binaryauthorization_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  createOwnership,
+  DEFAULT_PLATFORM,
+  encodeDescription,
+  gkePolicyOf,
+  hasOwnershipMarker,
+  listPlatformPolicies,
+  missingGet,
+  ownedBy,
+  parseDescription,
+  parsePolicyName,
+  policyName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+} from "./internal.vibe"
+
+export type GkePolicy = binaryauthorization.GkePolicy
+
+export type PlatformsPolicyProps = {
+  /**
+   * Policy id (the `{policy}` segment of
+   * `projects/{project}/platforms/{platform}/policies/{policy}`). If omitted,
+   * a unique RFC1035 id is generated. Immutable — changing it replaces the
+   * policy.
+   */
+  policyId?: string
+  /**
+   * Platform this policy applies to (`gke` or `cloudRun`). Immutable —
+   * changing it replaces the policy.
+   * @default "gke"
+   */
+  platform?: string
+  /**
+   * Human-readable comment. Platform policies have no labels field, so
+   * Alchemy stamps ownership into this field for `list` / nuke and strips
+   * the marker from attributes.
+   */
+  description?: string
+  /**
+   * GKE-specific policy. Empty (the default) allows every image. When
+   * `checkSets` is non-empty the last entry must be an unscoped catch-all.
+   */
+  gkePolicy?: GkePolicy
+}
+
+export type PlatformsPolicy = Resource<
+  "GCP.BinaryAuthorization.PlatformsPolicy",
+  PlatformsPolicyProps,
+  {
+    /** Full name `projects/{project}/platforms/{platform}/policies/{policy}`. */
+    name: string
+    /** Policy id (last path segment). */
+    policyId: string
+    /** Platform id (`gke`, `cloudRun`, …). */
+    platform: string
+    /** Project id. */
+    project: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** GKE-specific policy, if set. */
+    gkePolicy: GkePolicy | undefined
+    /** Server-assigned checksum for optimistic concurrency. */
+    etag: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Binary Authorization platform policy. Platform policies apply to a
+ * specific runtime (`gke` by default) and evaluate images independently of
+ * the project-level admission policy.
+ *
+ * Platform policies have no labels field, so Alchemy stamps ownership into
+ * `description` for `list` / nuke. `policyId` and `platform` are identity —
+ * changing either replaces the policy. Description and `gkePolicy` update
+ * in place via replace.
+ *
+ * ### Creating a Platform Policy
+ * **Example:** Allow all images on GKE
+ * ```typescript
+ * const policy = yield* GCP.BinaryAuthorization.PlatformsPolicy(
+ *   "Default",
+ *   {},
+ * );
+ * ```
+ *
+ * **Example:** Allowlist Google system images
+ * ```typescript
+ * const policy = yield* GCP.BinaryAuthorization.PlatformsPolicy(
+ *   "Default",
+ *   {
+ *     policyId: "gke-default",
+ *     description: "allowlisted system images",
+ *     gkePolicy: {
+ *       imageAllowlist: {
+ *         allowPattern: ["gcr.io/google-containers/*"],
+ *       },
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a Platform Policy
+ * **Example:** Add a catch-all always-deny check
+ * ```typescript
+ * const policy = yield* GCP.BinaryAuthorization.PlatformsPolicy(
+ *   "Default",
+ *   {
+ *     gkePolicy: {
+ *       checkSets: [
+ *         {
+ *           displayName: "default",
+ *           checks: [{ displayName: "deny", alwaysDeny: true }],
+ *         },
+ *       ],
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category BinaryAuthorization
+ */
+export const PlatformsPolicy = Resource<PlatformsPolicy>("GCP.BinaryAuthorization.PlatformsPolicy")
+
+const getByName = missingGet(binaryauthorization.getProjectsPlatformsPolicies)
+
+const toAttrs = (
+  policy: binaryauthorization.PlatformPolicy,
+  project: string,
+): PlatformsPolicy["Attributes"] => {
+  const name = policy.name ?? ""
+  const parsed = parsePolicyName(name)
+  const { description } = parseDescription(policy.description)
+  return {
+    name,
+    policyId: parsed.policyId,
+    platform: parsed.platform,
+    project: parsed.project || project,
+    description,
+    gkePolicy: policy.gkePolicy,
+    etag: policy.etag,
+    updateTime: policy.updateTime,
+  }
+}
+
+const toBody = (
+  news: PlatformsPolicyProps,
+  description: string,
+  etag: string | undefined,
+): binaryauthorization.PlatformPolicy => ({
+  description,
+  etag,
+  gkePolicy: gkePolicyOf(news.gkePolicy),
+})
+
+export const PlatformsPolicyProvider = (): infer _ =>
+  Provider.succeed(PlatformsPolicy, {
+    stables: ["name", "policyId", "platform", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.policyId ?? output?.policyId,
+            nextId: resolved.policyId,
+            previousParent: olds?.platform ?? output?.platform,
+            nextParent: resolved.platform ?? output?.platform ?? DEFAULT_PLATFORM,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const policyId = try toPhysicalId(id, olds?.policyId, output?.policyId, "policy")
+      const platform = olds?.platform ?? output?.platform ?? DEFAULT_PLATFORM
+      const name = output?.name
+        ?? (try Effect.orDie(Effect.try({ try: () => policyName(env.project, platform, policyId), catch: (e) => e })))
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseDescription(existing.description), catch: (e) => e }),
+      )
+      return (try ownedBy(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listPlatformPolicies(env.project)
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const policyId = try toPhysicalId(id, news.policyId, output?.policyId, "policy")
+      const platform = news.platform ?? output?.platform ?? DEFAULT_PLATFORM
+      const name = try Effect.orDie(
+        Effect.try({ try: () => policyName(env.project, platform, policyId), catch: (e) => e }),
+      )
+      const ownership = try createOwnership(id)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const desiredGke = try Effect.orDie(Effect.try({ try: () => gkePolicyOf(news.gkePolicy), catch: (e) => e }))
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          binaryauthorization.createProjectsPlatformsPolicies({
+            parent: `projects/${env.project}/platforms/${platform}`,
+            policyId,
+            body: toBody(news, desiredDescription, undefined),
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = !sameText(current.description, desiredDescription)
+      const gkeChanged = !(try Effect.orDie(
+        Effect.try({ try: sameJson.bind(undefined, gkePolicyOf(current.gkePolicy), desiredGke), catch: (e) => e }),
+      ))
+
+      if (descriptionChanged || gkeChanged) {
+        current = try retryTransient(
+          binaryauthorization.replacePlatformPolicyProjectsPlatformsPolicies({
+            name: current.name ?? name,
+            body: toBody(news, desiredDescription, current.etag),
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      binaryauthorization
+        .deleteProjectsPlatformsPolicies({
+          name: output.name,
+          etag: output.etag,
+        }) catch effect (e) =>
+          (effect {
+            return match (e) {
+              when { _tag: "Conflict" }: try binaryauthorization.deleteProjectsPlatformsPolicies({
+                name: output.name,
+              });
+              default: throw e;
+            }
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

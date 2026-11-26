@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import type { LogEntry } from "./Model.ts";
+import type { LogEntry } from "./Model.vibe";
 import { formatPlanPreview } from "./Plan.ts";
 import type { TestEvent } from "./Reporter.ts";
 

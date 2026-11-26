@@ -1,0 +1,274 @@
+import * as Effect from "effect/Effect"
+import * as quicksight from "@distilled.cloud/aws/quicksight"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { readQuickSightTags, syncQuickSightTags, toWireTags, waitForSettled } from "./internal.vibe"
+
+export error AnalysisUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/**
+ * Properties for an Amazon QuickSight analysis — an editable workspace built
+ * from a template or an inline definition, which can be published as a
+ * dashboard.
+ */
+export interface AnalysisProps {
+  /**
+   * Unique id of the analysis within the account. Stable — changing it
+   * replaces the analysis. If omitted, a unique id is generated.
+   */
+  analysisId?: string
+
+  /**
+   * Display name of the analysis.
+   */
+  name: string
+
+  /**
+   * Source of the analysis content — a template to clone. Provide either
+   * `sourceEntity` or `definition`.
+   */
+  sourceEntity?: quicksight.AnalysisSourceEntity
+
+  /**
+   * Inline definition of the analysis content. Provide either `definition`
+   * or `sourceEntity`.
+   */
+  definition?: quicksight.AnalysisDefinition
+
+  /**
+   * Parameters passed to the analysis's datasets.
+   */
+  parameters?: quicksight.Parameters
+
+  /**
+   * Resource-level permissions on the analysis.
+   */
+  permissions?: quicksight.ResourcePermission[]
+
+  /**
+   * ARN of the theme applied to the analysis.
+   */
+  themeArn?: string
+
+  /**
+   * When deleting, whether to skip the recovery window and delete
+   * immediately. Recommended for ephemeral/test analyses so they don't
+   * linger in a recoverable state.
+   * @default true
+   */
+  forceDeleteWithoutRecovery?: boolean
+
+  /**
+   * Tags to apply to the analysis.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Analysis extends
+  Resource<
+    "AWS.QuickSight.Analysis",
+    AnalysisProps,
+    {
+      /** Unique id of the analysis within the account. */
+      analysisId: string
+      /** ARN of the analysis. */
+      arn: string
+      /** Display name of the analysis. */
+      name: string
+      /** Current lifecycle status (e.g. `CREATION_SUCCESSFUL`). */
+      status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon QuickSight analysis — an editable workspace built from a template
+ * or an inline definition, which can be published as a dashboard.
+ *
+ * QuickSight requires an active account subscription in the region. Without
+ * one, create operations fail with the typed `QuickSightSubscriptionRequired`
+ * error.
+ *
+ * ### Creating an Analysis
+ * **Example:** Analysis from a Template
+ * ```typescript
+ * const analysis = yield* Analysis("explore-sales", {
+ *   name: "Explore Sales",
+ *   sourceEntity: {
+ *     SourceTemplate: {
+ *       Arn: templateArn,
+ *       DataSetReferences: [
+ *         { DataSetPlaceholder: "sales", DataSetArn: dataset.arn },
+ *       ],
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Analysis = Resource<Analysis>("AWS.QuickSight.Analysis")
+
+export const AnalysisProvider = (): infer _ =>
+  Provider.effect(
+    Analysis,
+    effect {
+      const toId = effect (
+        id: string,
+        props: Partial<AnalysisProps>,
+      ) => (props.analysisId ? props.analysisId : try createPhysicalName({ id, maxLength: 64 }))
+
+      const readAnalysis = effect (accountId: string, analysisId: string) => {
+        const response = quicksight
+          .describeAnalysis({ AwsAccountId: accountId, AnalysisId: analysisId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+        const analysis = response?.Analysis
+        if (analysis === undefined || analysis.Status === "DELETED") {
+          return undefined
+        }
+        return analysis
+      }
+
+      const settle = effect (accountId: string, analysisId: string) =>
+        try waitForSettled(
+          analysisId,
+          effect {
+            return try effect {
+              const a = try readAnalysis(accountId, analysisId)
+              return (a === undefined ? undefined : { ...a, status: a.Status })
+            }
+          },
+        )
+
+      const toAttrs = (analysis: quicksight.Analysis): infer _ => ({
+        analysisId: analysis.AnalysisId!,
+        arn: analysis.Arn!,
+        name: analysis.Name ?? "",
+        status: analysis.Status ?? "",
+      })
+
+      return Analysis.Provider.of({
+        stables: ["analysisId", "arn"],
+
+        diff: effect ({ id, olds = {}, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          if ((try toId(id, olds)) !== (try toId(id, news))) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds = {}, output }) => {
+          const { accountId } = try AWSEnvironment.current
+          const analysisId = output?.analysisId ?? (try toId(id, olds))
+          const analysis = try readAnalysis(accountId, analysisId)
+          if (analysis === undefined) return undefined
+          const attrs = toAttrs(analysis)
+          const tags = try readQuickSightTags(attrs.arn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : (try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (error) => error })))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId } = try AWSEnvironment.current
+          const analysisId = output?.analysisId ?? (try toId(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe.
+          let observed = try readAnalysis(accountId, analysisId)
+
+          // 2. Ensure — create if missing.
+          if (observed === undefined) {
+            quicksight
+              .createAnalysis({
+                AwsAccountId: accountId,
+                AnalysisId: analysisId,
+                Name: news.name,
+                SourceEntity: news.sourceEntity,
+                Definition: news.definition,
+                Parameters: news.parameters,
+                Permissions: news.permissions,
+                ThemeArn: news.themeArn,
+                Tags: toWireTags(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceExistsException" }: undefined as void;
+                default: throw e;
+              }
+          } else {
+            // 3. Sync.
+            try quicksight.updateAnalysis({
+              AwsAccountId: accountId,
+              AnalysisId: analysisId,
+              Name: news.name,
+              SourceEntity: news.sourceEntity,
+              Definition: news.definition,
+              Parameters: news.parameters,
+              ThemeArn: news.themeArn,
+            })
+          }
+
+          observed = try settle(accountId, analysisId)
+          if (observed === undefined) {
+            throw new AnalysisUnexpectedResponse({
+              message: `QuickSight analysis '${analysisId}' not found after reconcile`,
+            })
+          }
+
+          // 3b. Sync tags.
+          try syncQuickSightTags(observed.Arn!, desiredTags)
+
+          try session.note(analysisId)
+          return toAttrs(observed)
+        },
+
+        delete: effect ({ olds, output }) => {
+          const { accountId } = try AWSEnvironment.current
+          quicksight
+            .deleteAnalysis({
+              AwsAccountId: accountId,
+              AnalysisId: output.analysisId,
+              ForceDeleteWithoutRecovery: olds?.forceDeleteWithoutRecovery ?? true,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+        },
+
+        list: effect () => {
+          const { accountId } = try AWSEnvironment.current
+          return Array.from(
+            try (quicksight.listAnalyses.pages({ AwsAccountId: accountId })
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.AnalysisSummaryList ?? [])
+            .flatMap((s) =>
+              s.AnalysisId !== undefined && s.Arn !== undefined && s.Status !== "DELETED"
+                ? [
+                  {
+                    analysisId: s.AnalysisId,
+                    arn: s.Arn,
+                    name: s.Name ?? "",
+                    status: s.Status ?? "",
+                  },
+                ]
+                : []
+            )
+        },
+      })
+    },
+  )

@@ -1,0 +1,277 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  createInternalLabels,
+  encodeOwnership,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  lastSegment,
+  orgIdOf,
+  orgParent,
+  parseOwnership,
+} from "./ownership.ts"
+
+const MAX_ID_LENGTH = 63
+
+export type SpaceProps = {
+  /**
+   * Space id (the `{space}` segment of `organizations/{org}/spaces/{space}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must be 1-63 characters, start with a letter, and match
+   * `[a-z][a-z0-9-]*`. Immutable — changing it replaces the space.
+   */
+  spaceId?: string
+  /**
+   * Apigee organization id. Defaults to the stack GCP project. Immutable —
+   * changing it replaces the space.
+   */
+  organization?: string
+  /**
+   * Human-readable display name. Spaces have no labels field, so Alchemy
+   * ownership (`alchemy-stack` / `alchemy-stage` / `alchemy-id`) is stored
+   * in a `[alchemy …]` prefix for `list` / nuke.
+   */
+  displayName?: string
+}
+
+export type Space = Resource<
+  "GCP.Apigee.Space",
+  SpaceProps,
+  {
+    /** Full resource name `organizations/{org}/spaces/{space}`. */
+    name: string
+    /** Space id (last path segment). */
+    spaceId: string
+    /** Apigee organization id. */
+    organization: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Apigee organization space used to group API proxies, shared flows,
+ * and products for IAM.
+ *
+ * Spaces have no labels field, so Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. `spaceId` and `organization` are
+ * identity — changing either replaces the space. `displayName` updates
+ * in place.
+ *
+ * ### Creating a Space
+ * **Example:** Generated id
+ * ```typescript
+ * const space = yield* GCP.Apigee.Space("Payments", {
+ *   displayName: "payments team",
+ * });
+ * ```
+ *
+ * **Example:** Explicit id
+ * ```typescript
+ * const space = yield* GCP.Apigee.Space("Payments", {
+ *   spaceId: "payments",
+ *   displayName: "payments team",
+ * });
+ * ```
+ *
+ * ### Updating a Space
+ * **Example:** Change the display name
+ * ```typescript
+ * const space = yield* GCP.Apigee.Space("Payments", {
+ *   displayName: "payments and billing",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const Space = Resource<Space>("GCP.Apigee.Space")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SpaceNotResolved extends Data.TaggedError("GCP.Apigee.SpaceNotResolved")<{
+  resourceName: string
+}> {}
+
+const rfc1035 = (name: string): string => {
+  let next = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
+  if (!/^[a-z]/.test(next)) {
+    next = `s${next}`
+  }
+  next = next.slice(0, MAX_ID_LENGTH).replace(/-+$/, "")
+  return next.length > 0 ? next : "space"
+}
+
+const resourceName = (org: string, spaceId: string): infer _ => `${orgParent(org)}/spaces/${spaceId}`
+
+const spaceIdOf = (space: apigee.GoogleCloudApigeeV1Space): infer _ => {
+  const raw = space.name ?? ""
+  return raw.includes("/") ? lastSegment(raw) : raw
+}
+
+const toId = effect (id: string, spaceId: string | undefined, existing?: string) => {
+  if (spaceId !== undefined) return rfc1035(spaceId)
+  if (existing !== undefined) return existing
+  return rfc1035(
+    try createPhysicalName({
+      id,
+      maxLength: MAX_ID_LENGTH,
+      lowercase: true,
+    }),
+  )
+}
+
+const toAttrs = (space: apigee.GoogleCloudApigeeV1Space, org: string): infer _ => {
+  const spaceId = spaceIdOf(space)
+  const parsed = parseOwnership(space.displayName)
+  const name = space.name ?? (spaceId ? resourceName(org, spaceId) : "")
+  return {
+    name,
+    spaceId,
+    organization: orgIdOf(name.startsWith("organizations/") ? name : org, org),
+    displayName: parsed.text,
+    createTime: space.createTime,
+    updateTime: space.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsSpaces({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const SpaceProvider = (): infer _ =>
+  Provider.succeed(Space, {
+    stables: ["name", "spaceId", "organization", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.spaceId ?? output?.spaceId
+      const idChanged = previousId !== undefined
+        && resolved.spaceId !== undefined
+        && rfc1035(resolved.spaceId) !== previousId
+      const previousOrg = olds?.organization ?? output?.organization
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization, previousOrg) !== previousOrg,
+        catch: (e) => e,
+      }))
+      if (idChanged || orgChanged) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const org = try Effect.orDie(
+        Effect.try({ try: () => orgIdOf(olds?.organization ?? output?.organization, env.project), catch: (e) => e }),
+      )
+      const spaceId = try toId(id, olds?.spaceId, output?.spaceId)
+      const name = output?.name ?? resourceName(org, spaceId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, org)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.displayName), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const org = env.project
+      return (effect {
+        return (Array.from(
+          try (apigee.listOrganizationsSpaces
+            .pages({
+              parent: try Effect.orDie(Effect.try({ try: () => orgParent(org), catch: (e) => e })),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.spaces ?? []))
+            |> Stream.filter(%, (space) => hasOwnershipMarker(space.displayName))
+            |> Stream.map(%, (space) => toAttrs(space, org))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const org = try Effect.orDie(
+        Effect.try({ try: () => orgIdOf(news.organization ?? output?.organization, env.project), catch: (e) => e }),
+      )
+      const spaceId = try toId(id, news.spaceId, output?.spaceId)
+      const name = resourceName(org, spaceId)
+      const ownership = try createInternalLabels(id)
+      const desiredDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.displayName), catch: (e) => e }),
+      )
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsSpaces({
+            parent: orgParent(org),
+            spaceId,
+            body: {
+              displayName: desiredDisplayName,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SpaceNotResolved({ resourceName: name })
+      }
+
+      if ((current.displayName ?? "") !== desiredDisplayName) {
+        current = try apigee.patchOrganizationsSpaces({
+          name: current.name ?? name,
+          updateMask: "display_name",
+          body: {
+            displayName: desiredDisplayName,
+          },
+        })
+      }
+
+      return toAttrs(current, org)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsSpaces({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -1,0 +1,413 @@
+import * as vmwareengine from "@distilled.cloud/gcp/vmwareengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_GLOBAL,
+  VmwareengineNotResolved,
+  canonicalizeLink,
+  changedFields,
+  collectPages,
+  createInternalLabels,
+  encodeOwnership,
+  expandName,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  listAcrossLocations,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  rfc1035,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const COLLECTION = "privateConnections"
+const VEN_COLLECTION = "vmwareEngineNetworks"
+const DEFAULT_ROUTING_MODE = "GLOBAL" satisfies vmwareengine.PrivateConnectionRoutingModeEnum
+
+export type PrivateConnectionType = vmwareengine.PrivateConnectionTypeEnum | (string & {})
+
+export type PrivateConnectionRoutingMode =
+  | vmwareengine.PrivateConnectionRoutingModeEnum
+  | (string & {})
+
+export type PrivateConnectionProps = {
+  /**
+   * Connection id (the `{privateConnection}` segment of
+   * `projects/{project}/locations/{location}/privateConnections/{id}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable — changing
+   * it replaces the connection.
+   */
+  privateConnectionId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * connection. `US-CENTRAL1` is accepted and normalized.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Connection type (`PRIVATE_SERVICE_ACCESS`, `NETAPP_CLOUD_VOLUMES`,
+   * `DELL_POWERSCALE`, `THIRD_PARTY_SERVICE`). Immutable — changing it
+   * replaces the connection.
+   */
+  type: PrivateConnectionType
+  /**
+   * VMware Engine network to attach
+   * (`projects/{project}/locations/{location}/vmwareEngineNetworks/{id}`).
+   * Immutable — changing it replaces the connection.
+   */
+  vmwareEngineNetwork: string
+  /**
+   * Service network to peer
+   * (`projects/{project}/global/networks/{network}`). For
+   * `PRIVATE_SERVICE_ACCESS` this is the Service Networking VPC. For
+   * `THIRD_PARTY_SERVICE` it may be a consumer or producer VPC.
+   * Immutable — changing it replaces the connection.
+   */
+  serviceNetwork: string
+  /**
+   * Routing mode. `PRIVATE_SERVICE_ACCESS` accepts `GLOBAL` or
+   * `REGIONAL`; other types only support `GLOBAL`.
+   * @default "GLOBAL"
+   */
+  routingMode?: PrivateConnectionRoutingMode
+  /**
+   * Human-readable description. Private connections have no labels
+   * field, so Alchemy ownership is stored in a `[alchemy …]` prefix and
+   * stripped from attributes.
+   */
+  description?: string
+}
+
+export type PrivateConnection = Resource<
+  "GCP.VMwareEngine.PrivateConnection",
+  PrivateConnectionProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/privateConnections/{id}`. */
+    name: string
+    /** Connection id (last path segment). */
+    privateConnectionId: string
+    /** Project id. */
+    project: string
+    /** Region id. */
+    location: string
+    /** Connection type. */
+    type: string
+    /** Attached VMware Engine network. */
+    vmwareEngineNetwork: string | undefined
+    /** Canonical VMware Engine network name (project number). */
+    vmwareEngineNetworkCanonical: string | undefined
+    /** Peered service network. */
+    serviceNetwork: string | undefined
+    /** Routing mode. */
+    routingMode: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Server-reported state (`ACTIVE`, `CREATING`, …). */
+    state: string | undefined
+    /** VPC peering state (`PEERING_ACTIVE`, `PEERING_INACTIVE`). */
+    peeringState: string | undefined
+    /** VPC network peering id. */
+    peeringId: string | undefined
+    /** Server-generated uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A private connection that peers a service VPC with a VMware Engine
+ * network so private clouds can reach Google Cloud services, NetApp,
+ * Dell PowerScale, or a third-party VPC.
+ *
+ * Changing id, location, type, `vmwareEngineNetwork`, or
+ * `serviceNetwork` replaces the connection. Description and routing
+ * mode update in place.
+ *
+ * ### Creating a Connection
+ * **Example:** Third-party VPC
+ * ```typescript
+ * const connection = yield* GCP.VMwareEngine.PrivateConnection("Peer", {
+ *   type: "THIRD_PARTY_SERVICE",
+ *   vmwareEngineNetwork: ven.name,
+ *   serviceNetwork: "projects/my-project/global/networks/default",
+ *   description: "consumer vpc",
+ * });
+ * ```
+ *
+ * **Example:** Private Service Access
+ * ```typescript
+ * const connection = yield* GCP.VMwareEngine.PrivateConnection("Psa", {
+ *   location: "us-central1",
+ *   type: "PRIVATE_SERVICE_ACCESS",
+ *   vmwareEngineNetwork: ven.name,
+ *   serviceNetwork:
+ *     "projects/my-project/global/networks/servicenetworking",
+ *   routingMode: "GLOBAL",
+ * });
+ * ```
+ *
+ * ### Updating a Connection
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Description and regional routing
+ * ```typescript
+ * const connection = yield* GCP.VMwareEngine.PrivateConnection("Psa", {
+ *   location: "us-central1",
+ *   type: "PRIVATE_SERVICE_ACCESS",
+ *   vmwareEngineNetwork: ven.name,
+ *   serviceNetwork:
+ *     "projects/my-project/global/networks/servicenetworking",
+ *   routingMode: "REGIONAL",
+ *   description: "psa v2",
+ * });
+ * ```
+ *
+ * @resource
+ * @category VMwareEngine
+ */
+export const PrivateConnection = Resource<PrivateConnection>("GCP.VMwareEngine.PrivateConnection")
+
+const resourceName = (project: string, location: string, connectionId: string): infer _ =>
+  `${parentOf(project, location)}/${COLLECTION}/${connectionId}`
+
+const expandVen = (project: string, value: string): infer _ =>
+  expandName(value, project, DEFAULT_GLOBAL, VEN_COLLECTION)
+
+const expandVpc = (project: string, value: string): infer _ => {
+  const canonical = canonicalizeLink(value)
+  if (canonical.includes("/")) return canonical
+  return `projects/${project}/global/networks/${rfc1035(canonical, "network")}`
+}
+
+const routingOf = (value: string | undefined): infer _ => (value ?? DEFAULT_ROUTING_MODE).toUpperCase()
+
+const toAttrs = (connection: vmwareengine.PrivateConnection, project: string, region: string): infer _ => {
+  const name = connection.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  const ownership = parseOwnership(connection.description)
+  return {
+    name,
+    privateConnectionId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    type: (connection.type ?? "").toUpperCase(),
+    vmwareEngineNetwork: connection.vmwareEngineNetwork,
+    vmwareEngineNetworkCanonical: connection.vmwareEngineNetworkCanonical,
+    serviceNetwork: connection.serviceNetwork,
+    routingMode: connection.routingMode,
+    description: ownership.text,
+    state: connection.state,
+    peeringState: connection.peeringState,
+    peeringId: connection.peeringId,
+    uid: connection.uid,
+    createTime: connection.createTime,
+    updateTime: connection.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : vmwareengine
+  .getProjectsLocationsPrivateConnections({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const PrivateConnectionProvider = (): infer _ =>
+  Provider.succeed(PrivateConnection, {
+    stables: ["name", "privateConnectionId", "project", "location", "type", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousVen = try Effect.orDie(Effect.try({
+        try: () =>
+          canonicalizeLink(
+            olds?.vmwareEngineNetwork ?? output?.vmwareEngineNetwork,
+          ),
+        catch: (e) => e,
+      }))
+      const nextVen = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.vmwareEngineNetwork), catch: (e) => e }),
+      )
+      const previousService = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(olds?.serviceNetwork ?? output?.serviceNetwork), catch: (e) => e }),
+      )
+      const nextService = try Effect.orDie(
+        Effect.try({ try: () => canonicalizeLink(resolved.serviceNetwork), catch: (e) => e }),
+      )
+      const previousType = (olds?.type ?? output?.type ?? "").toUpperCase()
+      const nextType = resolved.type.toUpperCase()
+      const input = {
+        previousId: olds?.privateConnectionId ?? output?.privateConnectionId,
+        nextId: resolved.privateConnectionId
+          ? rfc1035(resolved.privateConnectionId, "connection")
+          : (olds?.privateConnectionId ?? output?.privateConnectionId),
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          resolved.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: (previousType.length > 0 && previousType !== nextType)
+          || (previousVen.length > 0 && previousVen !== nextVen)
+          || (previousService.length > 0 && previousService !== nextService),
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const connectionId = try toPhysicalId(
+        id,
+        olds?.privateConnectionId,
+        output?.privateConnectionId,
+        "connection",
+      )
+      const name = output?.name ?? resourceName(env.project, location, connectionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const { labels } = try Effect.orDie(
+        Effect.try({ try: () => parseOwnership(existing.description), catch: (e) => e }),
+      )
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listAcrossLocations(env.project, env.region, effect (parent) =>
+        try collectPages(
+          vmwareengine.listProjectsLocationsPrivateConnections.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.privateConnections,
+        ))
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const connectionId = try toPhysicalId(
+        id,
+        news.privateConnectionId,
+        output?.privateConnectionId,
+        "connection",
+      )
+      const name = resourceName(env.project, location, connectionId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
+      const type = news.type.toUpperCase()
+      const routingMode = routingOf(news.routingMode)
+      const vmwareEngineNetwork = expandVen(env.project, news.vmwareEngineNetwork)
+      const serviceNetwork = expandVpc(env.project, news.serviceNetwork)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (vmwareengine
+            .createProjectsLocationsPrivateConnections({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              privateConnectionId: connectionId,
+              body: {
+                type,
+                vmwareEngineNetwork,
+                serviceNetwork,
+                routingMode,
+                description: desiredDescription,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new VmwareengineNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const updateMask = changedFields([
+        ["description", (current.description ?? "") !== desiredDescription],
+        ["routingMode", routingOf(current.routingMode) !== routingMode],
+      ])
+      if (updateMask.length > 0) {
+        const operation = try vmwareengine.patchProjectsLocationsPrivateConnections({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            description: desiredDescription,
+            routingMode,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (vmwareengine
+          .deleteProjectsLocationsPrivateConnections({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

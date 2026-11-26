@@ -1,0 +1,64 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { BatchGetItem, type BatchGetItemRequest, type BatchGetItemTables } from "./BatchGetItem.vibe"
+import { GrantTables, tablesRegion } from "./BindingHttp.vibe"
+
+export const BatchGetItemHttp = Layer.effect(
+  BatchGetItem,
+  effect {
+    const grantTables = try GrantTables
+    return effect (...tables: BatchGetItemTables) => {
+      const sortedTables = sortTables(tables)
+      const tableNames = new Map(
+        try Effect.forEach(sortedTables, effect (table) => [table.LogicalId, try table.tableName.asEffect()] as const),
+      )
+
+      const getTableName = effect (tableId: string) => {
+        const TableName = tableNames.get(tableId)
+        if (!TableName) {
+          return try Effect.die(
+            new Error(`BatchGetItem request references unbound table '${tableId}'`),
+          )
+        }
+        return try TableName
+      }
+
+      try grantTables(
+        `AWS.DynamoDB.BatchGetItem(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: ["dynamodb:BatchGetItem"],
+            Resource: sortedTables.map((table) => table.tableArn),
+          },
+        ],
+      )
+      const batchGetItem = try AWSBindings.withCredentials(
+        DynamoDB.batchGetItem,
+        tablesRegion(sortedTables),
+      )
+
+      return effect (request: BatchGetItemRequest) =>
+        try withSpan(
+          effect {
+            const requestItems = try Effect.forEach(
+              Object.entries(request.RequestItems),
+              effect ([tableId, keys]) => [try getTableName(tableId), keys] as const,
+            )
+
+            return try batchGetItem({
+              ...request,
+              RequestItems: Object.fromEntries(requestItems),
+            })
+          },
+          `AWS.DynamoDB.BatchGetItem(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        )
+    }
+  },
+)
+
+const sortTables = (tables: BatchGetItemTables): infer _ =>
+  [...new Map(tables.map((table) => [table.LogicalId, table] as const)).values()].sort((a, b) =>
+    a.LogicalId.localeCompare(b.LogicalId)
+  ) as BatchGetItemTables

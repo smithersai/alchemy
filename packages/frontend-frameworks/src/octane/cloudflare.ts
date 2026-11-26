@@ -11,8 +11,8 @@
  */
 import * as Effect from "effect/Effect";
 import { DeployTargetError, makeDeployTarget } from "../core/index.ts";
-import { buildCloudflare } from "./CloudflareBuild.ts";
-import type { OctaneTarget, OctaneTargetConfig } from "./Octane.ts";
+import { buildCloudflare } from "./CloudflareBuild.vibe";
+import type { OctaneTarget, OctaneTargetConfig } from "./Octane.vibe";
 
 /** The `adapter.name` Octane's Cloudflare adapter declares. */
 export const ADAPTER_NAME = "cloudflare";

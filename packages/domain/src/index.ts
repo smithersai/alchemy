@@ -17,20 +17,20 @@
  * Stories (given / when / then specifications) are in `@alchemy.run/domain/Story`;
  * the Cloudflare platform is in `@alchemy.run/cloudflare/Domain`.
  */
-import * as AggregateModule from "./Aggregate.ts";
-import * as ApiModule from "./Api.ts";
-import * as CommandModule from "./Command.ts";
-import * as EventModule from "./Event.ts";
-import * as ExternalSystemModule from "./ExternalSystem.ts";
-import type * as KeyModule from "./Key.ts";
-import * as ModelModule from "./Model.ts";
-import * as PolicyModule from "./Policy.ts";
-import * as ProjectionModule from "./Projection.ts";
-import * as RejectionModule from "./Rejection.ts";
-import * as RequestContextModule from "./RequestContext.ts";
-import * as SagaModule from "./Saga.ts";
-import * as StreamModule from "./Stream.ts";
-import * as ViewModule from "./View.ts";
+import * as AggregateModule from "./Aggregate.vibe";
+import * as ApiModule from "./Api.vibe";
+import * as CommandModule from "./Command.vibe";
+import * as EventModule from "./Event.vibe";
+import * as ExternalSystemModule from "./ExternalSystem.vibe";
+import type * as KeyModule from "./Key.vibe";
+import * as ModelModule from "./Model.vibe";
+import * as PolicyModule from "./Policy.vibe";
+import * as ProjectionModule from "./Projection.vibe";
+import * as RejectionModule from "./Rejection.vibe";
+import * as RequestContextModule from "./RequestContext.vibe";
+import * as SagaModule from "./Saga.vibe";
+import * as StreamModule from "./Stream.vibe";
+import * as ViewModule from "./View.vibe";
 
 export declare namespace Event {
   /** Any Event class. */
@@ -241,15 +241,15 @@ export const Model = ModelModule.make;
 /** Every definition problem in a Model, without hosting it. See {@link ModelModule.verify}. */
 export const verify = ModelModule.verify;
 /** A problem in a Model's definitions, found by {@link verify} or when its Layer is built. */
-export { DefinitionError } from "./Kernel.ts";
+export { DefinitionError } from "./Kernel.vibe";
 
 /** A service middleware provides to a request, carried into the domain. See {@link RequestContextModule.make}. */
 export const RequestContext = RequestContextModule.make;
 
-export type { Filter, OrderBy } from "./Filter.ts";
-export { InMemory } from "./InMemory.ts";
-export type * as Middleware from "./Middleware.ts";
-export { Platform } from "./Platform.ts";
-export * as Read from "./Read.ts";
+export type { Filter, OrderBy } from "./Filter.vibe";
+export { InMemory } from "./InMemory.vibe";
+export type * as Middleware from "./Middleware.vibe";
+export { Platform } from "./Platform.vibe";
+export * as Read from "./Read.vibe";
 /** Trace attributes, hosting options and the metrics a model records. */
-export * as Telemetry from "./Telemetry.ts";
+export * as Telemetry from "./Telemetry.vibe";

@@ -1,0 +1,328 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DialogflowOperationFailed,
+  DialogflowOperationPending,
+  encodeOwnership,
+  listAgents,
+  listFlows,
+  listVersions,
+  ownedByAlchemy,
+  ownershipLabels,
+  ownershipText,
+  parseOwnership,
+  parseResourceName,
+  resourceNameFromOperation,
+  sameText,
+  updateMaskOf,
+  waitForOperation,
+  retryQuota,
+} from "./internal.vibe"
+
+export type AgentsFlowsVersionProps = {
+  /**
+   * Parent flow resource name
+   * `projects/{project}/locations/{location}/agents/{agent}/flows/{flow}`.
+   * Immutable — changing it replaces the version.
+   */
+  flow: string
+  /**
+   * Version id (the `{version}` segment). Server-assigned on create.
+   * Immutable — changing it replaces the version.
+   */
+  versionId?: string
+  /** Human-readable name, unique within the flow. */
+  displayName?: string
+  /**
+   * Description. Versions have no labels field, so Alchemy stamps
+   * ownership into this field for `list` / nuke.
+   */
+  description?: string
+}
+
+export type AgentsFlowsVersion = Resource<
+  "GCP.Dialogflow.AgentsFlowsVersion",
+  AgentsFlowsVersionProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Version id (last path segment). */
+    versionId: string
+    /** Parent flow resource name. */
+    flow: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Version state (`RUNNING`, `SUCCEEDED`, `FAILED`). */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX flow version (snapshot of a flow).
+ *
+ * Versions have no labels field, so Alchemy stamps ownership into
+ * `description` for `list` / nuke. Parent flow and version id are
+ * immutable. Display name and description update in place. Creating a
+ * version is a long-running operation.
+ *
+ * ### Creating a Version
+ * **Example:** Snapshot
+ * ```typescript
+ * const version = yield* GCP.Dialogflow.AgentsFlowsVersion("V1", {
+ *   flow: flow.name,
+ *   displayName: "v1",
+ *   description: "initial snapshot",
+ * });
+ * ```
+ *
+ * ### Updating a Version
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Rename
+ * ```typescript
+ * const version = yield* GCP.Dialogflow.AgentsFlowsVersion("V1", {
+ *   flow: flow.name,
+ *   displayName: "v1-ga",
+ *   description: "ga snapshot",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsFlowsVersion = Resource<AgentsFlowsVersion>("GCP.Dialogflow.AgentsFlowsVersion")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsFlowsVersionNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsFlowsVersionNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toAttrs = (version: dialogflow.GoogleCloudDialogflowCxV3Version, project: string): infer _ => {
+  const name = version.name ?? ""
+  const parsed = parseResourceName(name, "versions")
+  return {
+    name,
+    versionId: parsed.id,
+    flow: parsed.flow || parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: version.displayName,
+    description: parseOwnership(version.description).text,
+    state: version.state,
+    createTime: version.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsFlowsVersions({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const waitUntilReady = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(
+      %,
+      (version): version is dialogflow.GoogleCloudDialogflowCxV3Version => version !== undefined,
+      () => new DialogflowOperationPending({ operation: name }),
+    )
+    |> Effect.filterOrFail(%, (version) => version.state !== "FAILED", () =>
+      new DialogflowOperationFailed({
+        operation: name,
+        message: "flow version failed",
+      }))
+    |> Effect.filterOrFail(
+      %,
+      (version) => version.state === "SUCCEEDED" || version.state === undefined,
+      () => new DialogflowOperationPending({ operation: name }),
+    )
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Dialogflow.OperationPending",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const findOwned = effect (id: string, flow: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const versions = try listVersions(flow)
+  for (const version of versions) {
+    if (
+      try ownedByAlchemy(
+        id,
+        try Effect.orDie(Effect.try({ try: () => ownershipText(version), catch: (e) => e })),
+      )
+    ) return version
+  }
+  return undefined as dialogflow.GoogleCloudDialogflowCxV3Version | undefined
+}
+
+const listOwned = effect (project: string) => {
+  const agents = try listAgents(project)
+  const flows = (try Effect.forEach(
+    agents,
+    effect (agent) => (agent.name ? try listFlows(agent.name) : []),
+    { concurrency: 4 },
+  )).flat()
+  const versions = (try Effect.forEach(
+    flows,
+    effect (flow) => (flow.name ? try listVersions(flow.name) : []),
+    { concurrency: 4 },
+  )).flat()
+  return versions
+    .filter(
+      (version) =>
+        parseOwnership(version.description).labels["alchemy-id"] !== undefined
+        || parseOwnership(version.displayName).labels["alchemy-id"] !== undefined,
+    )
+    .map((version) => toAttrs(version, project))
+}
+
+export const AgentsFlowsVersionProvider = (): infer _ =>
+  Provider.succeed(AgentsFlowsVersion, {
+    stables: ["name", "versionId", "flow", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousFlow = olds?.flow ?? output?.flow
+      const previousId = olds?.versionId ?? output?.versionId
+      if (
+        (previousFlow !== undefined && resolved.flow !== previousFlow)
+        || (previousId !== undefined && resolved.versionId !== undefined && resolved.versionId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousFlow === resolved.flow && previousId !== undefined && resolved.versionId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const flow = olds?.flow ?? output?.flow
+      const existing = output?.name !== undefined
+        ? try getByName(output.name)
+        : flow !== undefined
+        ? try findOwned(id, flow)
+        : undefined
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(
+          id,
+          try Effect.orDie(Effect.try({ try: () => ownershipText(existing), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listOwned(env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const flow = news.flow
+        const ownership = try ownershipLabels(id)
+        const description = try Effect.orDie(
+          Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+        )
+        const displayName = news.displayName ?? "version"
+        const body: dialogflow.GoogleCloudDialogflowCxV3Version = {
+          displayName,
+          description,
+        }
+
+        let current = try findOwned(id, flow, output?.name)
+
+        if (current === undefined) {
+          const operation = dialogflow
+            .createProjectsLocationsAgentsFlowsVersions({
+              parent: flow,
+              body,
+            }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          if (operation !== undefined) {
+            const done = try waitForOperation(operation)
+            const name = (try Effect.orDie(Effect.try({
+              try: () => resourceNameFromOperation(done),
+              catch: (e) => e,
+            }))) ?? (try Effect.orDie(Effect.try({
+              try: () => resourceNameFromOperation(operation),
+              catch: (e) => e,
+            })))
+            if (name !== undefined) {
+              current = try waitUntilReady(name)
+            }
+          }
+          if (current === undefined) {
+            current = try findOwned(id, flow, output?.name)
+          }
+        }
+
+        if (current === undefined) {
+          throw new AgentsFlowsVersionNotResolved({
+            resourceName: output?.name ?? `${flow}/versions/${news.versionId ?? "unknown"}`,
+          })
+        }
+
+        const currentName = current.name ?? output?.name ?? ""
+        if (current.state === "RUNNING") {
+          current = try waitUntilReady(currentName)
+        }
+
+        const displayChanged = !sameText(current.displayName, displayName)
+        const descriptionChanged = !sameText(current.description, description)
+
+        if (displayChanged || descriptionChanged) {
+          current = try dialogflow.patchProjectsLocationsAgentsFlowsVersions({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: { displayName, description, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsFlowsVersions({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+      }
+        |> retryQuota(%)),
+  })

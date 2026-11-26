@@ -1,1 +1,1 @@
-export * from "./PageRule.ts";
+export * from "./PageRule.vibe";

@@ -1,10 +1,10 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Admin from "./src/Admin.ts";
-import { Nightly } from "./src/Nightly.ts";
+import Admin from "./src/Admin.vibe";
+import { Nightly } from "./src/Nightly.vibe";
 import { Orders, Reports } from "./src/resources.ts";
-import Summarize from "./src/Summarize.ts";
+import Summarize from "./src/Summarize.vibe";
 
 export default Alchemy.Stack(
   "GcpScheduledJobExample",

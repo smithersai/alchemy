@@ -28,7 +28,7 @@ Use the printed function name. [Signed HTTP CRUD examples](./test/integ.test.ts)
 
 ## Schema and connections
 
-[Cluster](./src/database.ts) · [Deployment-only bootstrap](./src/bootstrap.ts) · [Non-admin connection and verified TLS](./src/client.ts)
+[Cluster](./src/database.ts) · [Deployment-only bootstrap](./src/bootstrap.vibe) · [Non-admin connection and verified TLS](./src/client.ts)
 
 Initial setup creates `app.todos` and `app_user`. Later schema changes need versioned, [DSQL-compatible migrations](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility.html).
 

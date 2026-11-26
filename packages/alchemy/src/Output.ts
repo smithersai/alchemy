@@ -6,11 +6,11 @@ import type { Pipeable } from "effect/Pipeable";
 import { SingleShotGen } from "effect/Utils";
 import { getRefMetadata, isRef, type Ref } from "./Ref.ts";
 import { isResource, type Resource, type ResourceLike } from "./Resource.ts";
-import { RuntimeContext, sanitizeKey } from "./RuntimeContext.ts";
-import { StackContext } from "./StackContext.ts";
+import { RuntimeContext, sanitizeKey } from "./RuntimeContext.vibe";
+import { StackContext } from "./StackContext.vibe";
 import { Stage } from "./Stage.ts";
 import * as State from "./State/State.ts";
-import { isPlainData, isPrimitive, type Primitive } from "./Util/data.ts";
+import { isPlainData, isPrimitive, type Primitive } from "./Util/data.vibe";
 
 const inspect = Symbol.for("nodejs.util.inspect.custom");
 
@@ -253,8 +253,10 @@ export class ApplyExpr<A, B, Req = never> extends BaseExpr<B, Req> {
   }
 }
 
+/** @throws {never} */
 export const mapEffect =
   <A, B, Req2>(fn: (value: A) => Effect.Effect<B, never, Req2>) =>
+  /** @throws {never} */
   <Req>(output: Output<A, Req>): ToOutput<B, Req | Req2> =>
     new EffectExpr(output as Expr<A, Req>, fn) as any;
 
@@ -342,6 +344,7 @@ export class NamedExpr<A, Req = never> extends BaseExpr<A, Req> {
 export const named = <A, Req>(expr: Output<A, Req>, name: string): Output<A, Req> =>
   new NamedExpr(expr as Expr<A, Req>, name) as any;
 
+/** @throws {never} */
 export const all = <Outs extends (Output | Expr)[]>(...outs: Outs) =>
   new AllExpr(outs as any) as unknown as All<Outs>;
 
@@ -464,6 +467,7 @@ export type FilterTuple<Outs extends (Output | Expr)[], Values extends any[] = [
     : FilterTuple<Tail, Values>
   : Output<Values>;
 
+/** @throws {never} */
 export const interpolate = <Args extends any[]>(
   template: TemplateStringsArray,
   ...args: Args

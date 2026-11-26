@@ -14,9 +14,9 @@ import * as Fly from "@alchemy.run/fly";
  */
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Api from "./src/api.ts";
+import Api from "./src/api.vibe";
 import { Marker, PublicIp, Site } from "./src/shared.ts";
-import Worker from "./src/worker.ts";
+import Worker from "./src/worker.vibe";
 
 export default Alchemy.Stack(
   "FlyService",

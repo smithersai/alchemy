@@ -1,3 +1,3 @@
-export * from "./App.ts";
-export * from "./Preset.ts";
-export * from "./Webhook.ts";
+export * from "./App.vibe";
+export * from "./Preset.vibe";
+export * from "./Webhook.vibe";

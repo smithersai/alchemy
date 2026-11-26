@@ -1,0 +1,93 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import { Stack } from "alchemy/Stack"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import type { PlatformError } from "effect/PlatformError"
+import * as ChildProcess from "effect/process/ChildProcess"
+import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner"
+import * as Stream from "effect/Stream"
+
+export class Sandbox extends Cloudflare.Container<
+  Sandbox,
+  {
+    /**
+     * Execute a command in a sandbox.
+     */
+    shell: (command: string) => Effect.Effect<
+      {
+        exitCode: number
+        stdout: string
+        stderr: string
+      },
+      PlatformError
+    >
+  }
+>()("Sandbox") {}
+
+export const SandboxLive = /* @__PURE__ */ Sandbox.make(
+  Stack.useSync((stack) => ({
+    main: import.meta.url,
+    instanceType: stack.stage === "prod" ? "standard-1" : "dev",
+    observability: {
+      logs: {
+        enabled: true,
+      },
+    },
+  })),
+  effect {
+    //
+    const cp = try ChildProcessSpawner
+
+    let counter = 0
+
+    // Sandbox.of carries no @throws contract; a synchronous throw stays a
+    // defect, as it was inside Effect.gen.
+    return try Effect.orDie(
+      Effect.try({
+        try: () =>
+          Sandbox.of({
+            shell: (command) =>
+              cp
+                .spawn(
+                  ChildProcess.make(command, {
+                    shell: true,
+                  }),
+                )
+                .pipe(
+                  Effect.flatMap((handle) =>
+                    Effect.all(
+                      [
+                        handle.exitCode,
+                        handle.stdout.pipe(Stream.decodeText, Stream.mkString),
+                        handle.stderr.pipe(Stream.decodeText, Stream.mkString),
+                      ],
+                      { concurrency: "unbounded" },
+                    )
+                  ),
+                  Effect.map(([exitCode, stdout, stderr]) => ({
+                    exitCode,
+                    stdout,
+                    stderr,
+                  })),
+                  Effect.scoped,
+                ),
+            fetch: effect {
+              const request = try HttpServerRequest
+              const url = new URL(request.url, "http://localhost")
+
+              if (url.pathname === "/increment") {
+                counter++
+                return try HttpServerResponse.json({ counter })
+              }
+
+              return HttpServerResponse.text("Hello from Sandbox container!")
+            },
+          }),
+        catch: (e) => e,
+      }),
+    )
+  },
+)
+
+export default SandboxLive

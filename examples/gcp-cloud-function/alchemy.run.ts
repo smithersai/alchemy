@@ -1,7 +1,7 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Notes from "./src/Notes.ts";
+import Notes from "./src/Notes.vibe";
 import { NotesDb } from "./src/resources.ts";
 
 export default Alchemy.Stack(

@@ -22,13 +22,13 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { LOG_FORMAT_ENV, logChildLine } from "../Util/LogRecord.ts";
+import { LOG_FORMAT_ENV, logChildLine } from "../Util/LogRecord.vibe";
 import { nodeLoaderArgs } from "../Util/Node.ts";
 import { httpServer } from "../Util/PlatformServices.ts";
-import { timedShutdownStep } from "../Util/Shutdown.ts";
+import { timedShutdownStep } from "../Util/Shutdown.vibe";
 import { pipedColorEnv } from "../Util/Terminal.ts";
-import { traceParentEnv } from "../Util/TraceParent.ts";
-import { SPAWNER_URL_ENV_KEY } from "./RpcProviderProxy.ts";
+import { traceParentEnv } from "../Util/TraceParent.vibe";
+import { SPAWNER_URL_ENV_KEY } from "./RpcProviderProxy.vibe";
 import { RPC_SERVER_ENVIRONMENT_KEY, type RpcServerEnvironment } from "./RpcServerEnvironment.ts";
 
 export class RpcSpawner extends Context.Service<

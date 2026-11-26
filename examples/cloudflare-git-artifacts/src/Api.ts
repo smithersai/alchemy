@@ -43,11 +43,11 @@ export class CloneToken extends Schema.Class<CloneToken>("CloneToken")({
 
 // ─── Errors ─────────────────────────────────────────────────────────
 
-export class RepoNotFound extends Schema.TaggedErrorClass<RepoNotFound>()("RepoNotFound", {
+export class RepoNotFound extends Schema.TaggedError<RepoNotFound>()("RepoNotFound", {
   name: Schema.String,
 }) {}
 
-export class RepoConflict extends Schema.TaggedErrorClass<RepoConflict>()("RepoConflict", {
+export class RepoConflict extends Schema.TaggedError<RepoConflict>()("RepoConflict", {
   message: Schema.String,
 }) {}
 

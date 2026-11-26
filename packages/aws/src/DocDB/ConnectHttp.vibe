@@ -1,0 +1,133 @@
+import * as secretsmanager from "@distilled.cloud/aws/secrets-manager"
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { Connect, connectEnvPrefix, type ConnectOptions, formatMongoConnectionUrl } from "./Connect.vibe"
+import type { DBCluster } from "./DBCluster.vibe"
+
+module secret {
+  import * as Output from "alchemy/Output"
+  import type { DBCluster } from "./DBCluster.vibe"
+
+  /** The cluster's managed master user secret ARN; resolving it fails when the cluster has none. */
+  export const managedSecretArn = (cluster: DBCluster) =>
+    Output.map(cluster.masterUserSecretArn, /** @throws {Error} */ (arn) => {
+      if (arn === undefined) {
+        throw new Error(
+          `AWS.DocDB.Connect(${cluster.LogicalId}): the cluster has no managed master user secret — `
+            + `set manageMasterUserPassword: true on the cluster or pass options.secret`,
+        )
+      }
+      return arn
+    })
+}
+
+import { managedSecretArn } from secret
+
+export const ConnectHttp = Layer.effect(
+  Connect,
+  effect {
+    const bind = try AWSBindings.Bind
+    const getSecretValue = try AWSBindings.withCredentials(secretsmanager.getSecretValue)
+
+    return effect (cluster: DBCluster, options?: ConnectOptions) => {
+      const Host = try cluster.endpoint.asEffect()
+      const Port = try cluster.port.asEffect()
+      // Default credential source: the cluster's managed master user secret
+      // (`manageMasterUserPassword: true`). An explicit Secrets Manager
+      // secret overrides it.
+      const SecretArn = options?.secret
+        ? try options.secret.secretArn.asEffect()
+        : try cluster.masterUserSecretArn.asEffect()
+
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        // DocumentDB is VPC-only: attach the host to the cluster's VPC.
+        const vpc = options?.subnetIds !== undefined || options?.securityGroupIds !== undefined
+          ? {
+            subnetIds: options?.subnetIds ?? [],
+            securityGroupIds: options?.securityGroupIds ?? [],
+          }
+          : undefined
+        const secretResource = options?.secret
+          ? options.secret.secretArn
+          : try Effect.orDie(Effect.try({ try: () => managedSecretArn(cluster), catch: (e) => e }))
+        const prefix = connectEnvPrefix(cluster.LogicalId)
+        try bind`AWS.DocDB.Connect(${cluster})`({
+          env: {
+            [`${prefix}_HOST`]: cluster.endpoint,
+            // Lambda environment variables are strings — stringify the port.
+            [`${prefix}_PORT`]: Output.interpolate`${cluster.port}`,
+          },
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+              Resource: [secretResource],
+            },
+          ],
+        })
+        if (vpc !== undefined) {
+          try AWSBindings.bindVpc`AWS.DocDB.Connect(${cluster})`(vpc)
+        }
+      }
+
+      return effect {
+        const host = try Host
+        const port = try Port
+        const secretArn = try SecretArn
+
+        if (!host) {
+          return try Effect.die(
+            `DocumentDB endpoint for '${cluster.LogicalId}' is not available yet`,
+          )
+        }
+        if (!secretArn) {
+          return try Effect.die(
+            `AWS.DocDB.Connect(${cluster.LogicalId}): the cluster has no managed master user secret — `
+              + `set manageMasterUserPassword: true on the cluster or pass options.secret`,
+          )
+        }
+
+        const value = try getSecretValue({ SecretId: secretArn })
+        const secretString = value.SecretString
+          ? typeof value.SecretString === "string"
+            ? value.SecretString
+            : Redacted.value(value.SecretString)
+          : "{}"
+        const secret = try Effect.orDie(
+          Effect.try({
+            try: () =>
+              JSON.parse(secretString) as {
+                username?: string
+                password?: string
+              },
+            catch: (e) => e,
+          }),
+        )
+
+        const resolvedPort = options?.port ?? port ?? 27017
+        const tls = options?.tls ?? true
+        const password = secret.password !== undefined ? Redacted.make(secret.password) : undefined
+
+        return {
+          host,
+          port: resolvedPort,
+          database: options?.database,
+          username: secret.username,
+          password,
+          tls,
+          url: formatMongoConnectionUrl({
+            host,
+            port: resolvedPort,
+            database: options?.database,
+            username: secret.username,
+            password,
+            tls,
+          }),
+        }
+      }
+    }
+  },
+)

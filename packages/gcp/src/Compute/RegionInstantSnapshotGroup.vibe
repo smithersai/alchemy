@@ -1,0 +1,432 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { waitRegionOperation } from "./operations.vibe"
+
+export type RegionInstantSnapshotGroupProps = {
+  /**
+   * Instant snapshot group name (RFC1035, 1-63 characters). If omitted, a
+   * unique name is generated from the stack, stage, and logical id.
+   * Changing it replaces the group.
+   */
+  instantSnapshotGroupName?: string
+  /**
+   * Region the group lives in (e.g. `us-central1`). Immutable — changing
+   * it replaces the group. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  region?: string
+  /**
+   * Disk consistency-group resource policy used as the source. Accepts a
+   * ResourcePolicy self-link, a
+   * `projects/{project}/regions/{region}/resourcePolicies/{name}` path, or
+   * the policy name. Immutable — changing it replaces the group. Member
+   * disks must already be attached to the consistency group.
+   */
+  sourceConsistencyGroup: string
+  /**
+   * Optional description. Instant snapshot groups have no labels field
+   * and no update API, so Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and any description change replaces the group.
+   */
+  description?: string
+}
+
+export type RegionInstantSnapshotGroup = Resource<
+  "GCP.Compute.RegionInstantSnapshotGroup",
+  RegionInstantSnapshotGroupProps,
+  {
+    /** Instant snapshot group name. */
+    instantSnapshotGroupName: string
+    /** Server-assigned numeric id. */
+    instantSnapshotGroupId: string | undefined
+    /** Project id. */
+    project: string
+    /** Region short name (`us-central1`). */
+    region: string
+    /** Source consistency-group resource policy URL. */
+    sourceConsistencyGroup: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Server-reported status (`READY`, `CREATING`, …). */
+    status: string | undefined
+    /** Server-defined URL. */
+    selfLink: string | undefined
+    /** Server-defined URL including the resource id. */
+    selfLinkWithId: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+    /** Resource kind. */
+    kind: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A regional Compute Engine instant snapshot group.
+ *
+ * An instant snapshot group is a crash-consistent set of instant snapshots
+ * taken from every disk in a disk consistency group (a ResourcePolicy
+ * with `diskConsistencyGroupPolicy`). There is no update API and no
+ * labels field — Alchemy stamps ownership into the description so nuke
+ * can find leaked groups, and every user-facing field change replaces
+ * the resource.
+ *
+ * ### Creating a Regional Instant Snapshot Group
+ * **Example:** Snapshot a consistency group
+ * ```typescript
+ * const policy = yield* GCP.Compute.ResourcePolicy("cg", {
+ *   region: "us-central1",
+ *   diskConsistencyGroupPolicy: {},
+ * });
+ * const group = yield* GCP.Compute.RegionInstantSnapshotGroup("ckpt", {
+ *   region: "us-central1",
+ *   sourceConsistencyGroup: policy.resourcePolicyName,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const RegionInstantSnapshotGroup = Resource<RegionInstantSnapshotGroup>(
+  "GCP.Compute.RegionInstantSnapshotGroup",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class RegionInstantSnapshotGroupNotResolved extends Data.TaggedError(
+  "GCP.Compute.RegionInstantSnapshotGroupNotResolved",
+)<{
+  instantSnapshotGroupName: string
+  region: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class RegionInstantSnapshotGroupNotReady extends Data.TaggedError(
+  "GCP.Compute.RegionInstantSnapshotGroupNotReady",
+)<{
+  instantSnapshotGroupName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class RegionInstantSnapshotGroupFailed extends Data.TaggedError(
+  "GCP.Compute.RegionInstantSnapshotGroupFailed",
+)<{
+  instantSnapshotGroupName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class RegionInstantSnapshotGroupStillExists extends Data.TaggedError(
+  "GCP.Compute.RegionInstantSnapshotGroupStillExists",
+)<{
+  instantSnapshotGroupName: string
+  status: string
+}> {}
+
+const lastSegment = (value: string | undefined): string => {
+  if (value === undefined || value.length === 0) return ""
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+const normalizeRegion = (region: string | undefined, defaultRegion: string): infer _ =>
+  lastSegment(region ?? defaultRegion).toLowerCase()
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  return /^[a-z]/.test(generated) ? generated : `g${generated}`.slice(0, 63)
+}
+
+const encodeDescription = (
+  labels: Record<string, string>,
+  description: string | undefined,
+): string => {
+  const marker = `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${
+    labels[alchemyLabelKeys.stage]
+  } ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`
+  return description ? `${marker}\n${description}` : marker
+}
+
+const parseDescription = (
+  description: string | undefined,
+): {
+  labels: Record<string, string>
+  description: string | undefined
+} => {
+  if (!description?.startsWith("[alchemy ")) {
+    return { labels: {}, description }
+  }
+  const end = description.indexOf("]")
+  if (end < 0) return { labels: {}, description }
+  const labels: Record<string, string> = {}
+  for (const part of description.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = description.slice(end + 1).replace(/^\n/, "")
+  return { labels, description: rest.length > 0 ? rest : undefined }
+}
+
+const hasOwnershipMarker = (description: string | undefined): infer _ =>
+  Object.keys(parseDescription(description).labels).some((key) => key.startsWith("alchemy-"))
+
+const toPolicyRef = (project: string, region: string, policy: string): string => {
+  if (policy.includes("/")) return policy
+  return `projects/${project}/regions/${region}/resourcePolicies/${policy}`
+}
+
+const canonicalizePolicy = (value: string | undefined): string => {
+  if (value === undefined || value.length === 0) return ""
+  const cleaned = value.split("?")[0] ?? value
+  const match = cleaned.match(/(regions\/[^/]+\/resourcePolicies\/[^/]+)$/)
+  if (match?.[1] !== undefined) return match[1]
+  return lastSegment(cleaned)
+}
+
+const toAttrs = (group: compute.InstantSnapshotGroup, project: string): infer _ => {
+  const parsed = parseDescription(group.description)
+  return {
+    instantSnapshotGroupName: group.name ?? group.id ?? "",
+    instantSnapshotGroupId: group.id,
+    project,
+    region: lastSegment(group.region).toLowerCase(),
+    sourceConsistencyGroup: group.sourceConsistencyGroup,
+    description: parsed.description,
+    status: group.status,
+    selfLink: group.selfLink,
+    selfLinkWithId: group.selfLinkWithId,
+    creationTimestamp: group.creationTimestamp,
+    kind: group.kind,
+  }
+}
+
+const getByName = effect (project: string, region: string, instantSnapshotGroup: string) =>
+  compute
+    .getRegionInstantSnapshotGroups({
+      project,
+      region,
+      instantSnapshotGroup,
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+const waitReady = effect (project: string, region: string, instantSnapshotGroupName: string) =>
+  try (effect {
+    return try effect {
+      const group = try getByName(project, region, instantSnapshotGroupName)
+      return (group?.status === "FAILED" || group?.status === "INVALID"
+        ? throw new RegionInstantSnapshotGroupFailed({
+          instantSnapshotGroupName,
+          status: group.status ?? "FAILED",
+        })
+        : group)
+    }
+  }
+    |> Effect.filterOrFail(
+      %,
+      (group): group is compute.InstantSnapshotGroup => group !== undefined && group.status === "READY",
+      (group) =>
+        new RegionInstantSnapshotGroupNotReady({
+          instantSnapshotGroupName,
+          status: group?.status ?? "MISSING",
+        }),
+    )
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Compute.RegionInstantSnapshotGroupNotReady",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const waitGone = effect (project: string, region: string, instantSnapshotGroupName: string) =>
+  try (effect {
+    return try effect {
+      const group = try getByName(project, region, instantSnapshotGroupName)
+      return (group === undefined ? (undefined as void) : throw new RegionInstantSnapshotGroupStillExists({
+        instantSnapshotGroupName,
+        status: group.status ?? "UNKNOWN",
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error instanceof RegionInstantSnapshotGroupStillExists,
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+export const RegionInstantSnapshotGroupProvider = (): infer _ =>
+  Provider.succeed(RegionInstantSnapshotGroup, {
+    stables: [
+      "instantSnapshotGroupName",
+      "instantSnapshotGroupId",
+      "project",
+      "region",
+      "sourceConsistencyGroup",
+      "selfLink",
+      "creationTimestamp",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+
+      const previousName = olds?.instantSnapshotGroupName ?? output?.instantSnapshotGroupName
+      const nextName = resolved.instantSnapshotGroupName ?? previousName
+      const previousRegion = normalizeRegion(olds?.region ?? output?.region, env.region)
+      const nextRegion = normalizeRegion(resolved.region ?? output?.region, env.region)
+      const previousSource = canonicalizePolicy(
+        olds?.sourceConsistencyGroup ?? output?.sourceConsistencyGroup,
+      )
+      const nextSource = canonicalizePolicy(resolved.sourceConsistencyGroup)
+      const previousDescription = olds?.description ?? output?.description ?? ""
+      const nextDescription = resolved.description ?? ""
+
+      const replace = previousRegion !== nextRegion
+        || (previousName !== undefined && nextName !== undefined && previousName !== nextName)
+        || (nextSource.length > 0 && previousSource.length > 0 && previousSource !== nextSource)
+        || previousDescription !== nextDescription
+
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousRegion === nextRegion
+          && previousName !== undefined
+          && nextName !== undefined
+          && previousName === nextName,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const instantSnapshotGroupName = try toName(
+        id,
+        olds?.instantSnapshotGroupName,
+        output?.instantSnapshotGroupName,
+      )
+      const region = normalizeRegion(olds?.region ?? output?.region, env.region)
+      const existing = try getByName(env.project, region, instantSnapshotGroupName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (compute.listRegionInstantSnapshotGroups
+          .items({
+            project: env.project,
+            region: env.region,
+            maxResults: 500,
+            returnPartialSuccess: true,
+          })
+          |> Stream.filter(%, (group) => hasOwnershipMarker(group.description))
+          |> Stream.map(%, (group) => toAttrs(group, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const instantSnapshotGroupName = try toName(
+        id,
+        news.instantSnapshotGroupName,
+        output?.instantSnapshotGroupName,
+      )
+      const region = normalizeRegion(news.region ?? output?.region, env.region)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredSource = toPolicyRef(env.project, region, news.sourceConsistencyGroup)
+
+      let current = try getByName(env.project, region, instantSnapshotGroupName)
+      if (current?.status === "DELETING") {
+        try waitGone(env.project, region, instantSnapshotGroupName)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        const inserted = compute
+          .insertRegionInstantSnapshotGroups({
+            project: env.project,
+            region,
+            sourceConsistencyGroup: desiredSource,
+            body: {
+              name: instantSnapshotGroupName,
+              description: desiredDescription,
+              sourceConsistencyGroup: desiredSource,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        if (inserted !== undefined) {
+          try waitRegionOperation(env.project, region, inserted, {
+            ignore: ["RESOURCE_ALREADY_EXISTS"],
+          })
+        }
+        current = try waitReady(env.project, region, instantSnapshotGroupName)
+      }
+
+      if (current === undefined) {
+        throw new RegionInstantSnapshotGroupNotResolved({
+          instantSnapshotGroupName,
+          region,
+        })
+      }
+
+      if (current.status !== "READY") {
+        current = try waitReady(env.project, region, instantSnapshotGroupName)
+      }
+
+      if (current === undefined) {
+        throw new RegionInstantSnapshotGroupNotResolved({
+          instantSnapshotGroupName,
+          region,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const region = normalizeRegion(output.region, env.region)
+      const deleted = try (effect {
+        return compute
+          .deleteRegionInstantSnapshotGroups({
+            project: output.project,
+            region,
+            instantSnapshotGroup: output.instantSnapshotGroupName,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))
+      if (deleted !== undefined) {
+        try waitRegionOperation(output.project, region, deleted, {
+          ignore: ["RESOURCE_NOT_FOUND"],
+        })
+      }
+      try waitGone(output.project, region, output.instantSnapshotGroupName)
+    },
+  })

@@ -6,7 +6,7 @@ import { Command, Subscription, type Update } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { defineMessageUnion } from "foldkit/message";
 import { NotesApi } from "../NotesApi.api.ts";
-import { UserId } from "../User.id.ts";
+import { UserId } from "../User.id.vibe";
 import { auth } from "./auth.ts";
 
 // The services the app's commands and subscriptions use: the NotesApi client.

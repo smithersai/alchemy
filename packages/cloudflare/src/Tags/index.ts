@@ -1,2 +1,2 @@
-export * from "./AccountResourceTags.ts";
-export * from "./ZoneResourceTags.ts";
+export * from "./AccountResourceTags.vibe";
+export * from "./ZoneResourceTags.vibe";

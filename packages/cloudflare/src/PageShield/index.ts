@@ -1,2 +1,2 @@
-export * from "./Policy.ts";
-export * from "./Settings.ts";
+export * from "./Policy.vibe";
+export * from "./Settings.vibe";

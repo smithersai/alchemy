@@ -2,7 +2,7 @@ import * as AWS from "@alchemy.run/aws";
 import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import JobFunction from "./src/JobFunction.ts";
+import JobFunction from "./src/JobFunction.vibe";
 
 // AWS.providers() already provides AWSEnvironment from the SSO profile
 // named by $AWS_PROFILE (defaults to "default"). To pin a different

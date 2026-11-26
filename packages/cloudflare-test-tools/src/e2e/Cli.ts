@@ -4,9 +4,9 @@ import { Framework } from "@alchemy.run/frontend-frameworks/core";
 import * as Command from "effect/cli/Command";
 import * as Flag from "effect/cli/Flag";
 import * as Effect from "effect/Effect";
-import * as Options from "./Options.ts";
-import * as Runtime from "./Runtime.ts";
-import * as Server from "./Server.ts";
+import * as Options from "./Options.vibe";
+import * as Runtime from "./Runtime.vibe";
+import * as Server from "./Server.vibe";
 
 const build = Command.make(
   "build",

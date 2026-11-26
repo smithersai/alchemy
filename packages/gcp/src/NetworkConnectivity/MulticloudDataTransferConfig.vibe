@@ -1,0 +1,396 @@
+import * as networkconnectivity from "@distilled.cloud/gcp/networkconnectivity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  NetworkConnectivityNotResolved,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  rfc1035,
+  sameJson,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.vibe"
+
+const COLLECTION = "multicloudDataTransferConfigs"
+
+export type StateMetadata = {
+  /** Transient or rest state (`ADDING`, `ACTIVE`, `DELETING`, …). */
+  state?: string
+  /** RFC3339 time when a transient state becomes effective. */
+  effectiveTime?: string
+}
+
+export type StateTimeline = {
+  /** Ordered state/activation entries. */
+  states?: StateMetadata[]
+}
+
+export type MulticloudDataTransferConfigProps = {
+  /**
+   * Config id (the `{multicloud_data_transfer_config}` segment of
+   * `projects/{project}/locations/{location}/multicloudDataTransferConfigs/{multicloud_data_transfer_config}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Immutable — changing it replaces the config.
+   */
+  multicloudDataTransferConfigId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * config. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * Map of Data Transfer Essentials service names to their desired
+   * timeline. Keys are service ids such as `"google-cloud-storage"`.
+   */
+  services?: Record<string, StateTimeline>
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type MulticloudDataTransferConfig = Resource<
+  "GCP.NetworkConnectivity.MulticloudDataTransferConfig",
+  MulticloudDataTransferConfigProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/multicloudDataTransferConfigs/{id}`. */
+    name: string
+    /** Config id (last path segment). */
+    multicloudDataTransferConfigId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-provided description. */
+    description: string | undefined
+    /** Service timelines currently configured. */
+    services: Record<string, StateTimeline>
+    /** Number of Destination resources configured. */
+    destinationsCount: number | undefined
+    /** Number of Destination resources in use. */
+    destinationsActiveCount: number | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Google-generated unique id. */
+    uid: string | undefined
+    /** Server etag. */
+    etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Transfer Essentials `MulticloudDataTransferConfig` — the
+ * billing/metering configuration for services whose traffic is billed
+ * through DTE.
+ *
+ * Changing `multicloudDataTransferConfigId` or `location` replaces the
+ * config. Description, labels, and `services` update in place.
+ *
+ * ### Creating a Config
+ * **Example:** Generated name
+ * ```typescript
+ * const config = yield* GCP.NetworkConnectivity.MulticloudDataTransferConfig(
+ *   "Dte",
+ *   { description: "dte metering", labels: { env: "prod" } },
+ * );
+ * ```
+ *
+ * **Example:** Named config with a service
+ * ```typescript
+ * const config = yield* GCP.NetworkConnectivity.MulticloudDataTransferConfig(
+ *   "Dte",
+ *   {
+ *     multicloudDataTransferConfigId: "app-dte",
+ *     location: "us-central1",
+ *     services: { "google-cloud-storage": {} },
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a Config
+ * **Example:** Description and labels
+ * ```typescript
+ * const config = yield* GCP.NetworkConnectivity.MulticloudDataTransferConfig(
+ *   "Dte",
+ *   {
+ *     multicloudDataTransferConfigId: "app-dte",
+ *     location: "us-central1",
+ *     description: "dte metering v2",
+ *     labels: { env: "prod", role: "dte" },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category NetworkConnectivity
+ */
+export const MulticloudDataTransferConfig = Resource<MulticloudDataTransferConfig>(
+  "GCP.NetworkConnectivity.MulticloudDataTransferConfig",
+)
+
+const resourceName = (project: string, location: string, configId: string): infer _ =>
+  `projects/${project}/locations/${location}/multicloudDataTransferConfigs/${configId}`
+
+const toTimeline = (
+  timeline: StateTimeline | networkconnectivity.StateTimeline | undefined,
+): StateTimeline => ({
+  states: (timeline?.states ?? []).map((entry) => ({
+    state: entry.state,
+    effectiveTime: entry.effectiveTime,
+  })),
+})
+
+const toServices = (
+  services:
+    | Record<string, StateTimeline | undefined>
+    | networkconnectivity.StateTimelineMap
+    | undefined,
+): Record<string, StateTimeline> => {
+  const result: Record<string, StateTimeline> = {}
+  for (const [key, value] of Object.entries(services ?? {})) {
+    if (value !== undefined) {
+      result[key] = toTimeline(value)
+    }
+  }
+  return result
+}
+
+const toAttrs = (
+  config: networkconnectivity.MulticloudDataTransferConfig,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  return {
+    name,
+    multicloudDataTransferConfigId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || region,
+    description: config.description,
+    services: toServices(config.services),
+    destinationsCount: config.destinationsCount,
+    destinationsActiveCount: config.destinationsActiveCount,
+    labels: userLabels(config.labels),
+    uid: config.uid,
+    etag: config.etag,
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkconnectivity
+    .getProjectsLocationsMulticloudDataTransferConfigs({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const MulticloudDataTransferConfigProvider = (): infer _ =>
+  Provider.succeed(MulticloudDataTransferConfig, {
+    stables: ["name", "multicloudDataTransferConfigId", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.multicloudDataTransferConfigId ?? output?.multicloudDataTransferConfigId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.multicloudDataTransferConfigId
+            ? rfc1035(resolved.multicloudDataTransferConfigId, "multicloud-data-transfer-config")
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const configId = try toPhysicalId(
+        id,
+        olds?.multicloudDataTransferConfigId,
+        output?.multicloudDataTransferConfigId,
+        "multicloud-data-transfer-config",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, configId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkconnectivity.listProjectsLocationsMulticloudDataTransferConfigs.pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
+          pageSize: 1000,
+          returnPartialSuccess: true,
+        }),
+        (page) => page.multicloudDataTransferConfigs,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const configId = try toPhysicalId(
+        id,
+        news.multicloudDataTransferConfigId,
+        output?.multicloudDataTransferConfigId,
+        "multicloud-data-transfer-config",
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, configId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const desiredServices = toServices(news.services)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (networkconnectivity
+            .createProjectsLocationsMulticloudDataTransferConfigs({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              multicloudDataTransferConfigId: configId,
+              body: {
+                description: news.description,
+                labels: desiredLabels,
+                services: desiredServices,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new NetworkConnectivityNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const left = toServices(current.services)
+      const servicesChanged = !(try Effect.orDie(Effect.try({
+        try: () => sameJson(left, desiredServices),
+        catch: (e) => e,
+      })))
+      const updateMask = try Effect.orDie(Effect.try({
+        try: () =>
+          changedFields([
+            ["labels", labelsChanged],
+            ["description", descriptionChanged],
+            ["services", servicesChanged],
+          ]),
+        catch: (e) => e,
+      }))
+
+      if (updateMask.length > 0) {
+        const operation = try networkconnectivity.patchProjectsLocationsMulticloudDataTransferConfigs({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            services: desiredServices,
+            etag: current.etag,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (networkconnectivity
+          .deleteProjectsLocationsMulticloudDataTransferConfigs({
+            name: output.name,
+            etag: output.etag,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

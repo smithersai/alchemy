@@ -8,19 +8,19 @@ export default defineScene({
   async run(s) {
     await s.sync({
       except: [
-        "src/Links.ts",
-        "src/Storage.ts",
-        "src/Api.ts",
+        "src/Links.vibe",
+        "src/Storage.vibe",
+        "src/Api.vibe",
         "alchemy.run.ts",
         "test/api.test.ts",
         "src/Db.ts",
       ],
     });
-    await s.editor.show("src/Links.ts");
+    await s.editor.show("src/Links.vibe");
     s.pause(1);
-    await s.editor.show("src/Storage.ts");
+    await s.editor.show("src/Storage.vibe");
     s.pause(1);
-    await s.editor.show("src/Api.ts");
+    await s.editor.show("src/Api.vibe");
     s.pause(0.5);
     await s.editor.remove("src/Db.ts");
     await s.editor.show("alchemy.run.ts");

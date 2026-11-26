@@ -1,0 +1,62 @@
+import * as appsignals from "@distilled.cloud/aws/application-signals"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { GetInstrumentationConfigurationStatus } from "./GetInstrumentationConfigurationStatus.vibe"
+import type { InstrumentationConfiguration } from "./InstrumentationConfiguration.vibe"
+
+/**
+ * Bespoke implementation (not built on the shared scaffolding): the runtime
+ * callable injects the bound configuration's full identity — the
+ * type/service/environment/signal quadruple plus the location hash —
+ * rather than a single identifier field.
+ */
+export const GetInstrumentationConfigurationStatusHttp = Layer.effect(
+  GetInstrumentationConfigurationStatus,
+  effect {
+    const bind = try AWSBindings.Bind
+    const op = try AWSBindings.withCredentials(appsignals.getInstrumentationConfigurationStatus)
+    const tag = "AWS.ApplicationSignals.GetInstrumentationConfigurationStatus"
+
+    return effect (configuration: InstrumentationConfiguration) => {
+      const InstrumentationType = try configuration.instrumentationType.asEffect()
+      const Service = try configuration.service.asEffect()
+      const Environment = try configuration.environment.asEffect()
+      const SignalType = try configuration.signalType.asEffect()
+      const LocationHash = try configuration.locationHash.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`${tag}(${configuration})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["application-signals:GetInstrumentationConfigurationStatus"],
+              // The dynamic-instrumentation actions do not document
+              // resource-level permission support.
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return effect (
+        request?:
+          | Omit<
+            appsignals.GetInstrumentationConfigurationStatusRequest,
+            "InstrumentationType" | "Service" | "Environment" | "SignalType" | "LocationIdentifier"
+          >
+          | undefined,
+      ) =>
+        try withSpan(
+          effect {
+            return try op({
+              ...request,
+              InstrumentationType: try InstrumentationType,
+              Service: try Service,
+              Environment: try Environment,
+              SignalType: try SignalType,
+              LocationIdentifier: { LocationHash: try LocationHash },
+            })
+          },
+          `${tag}(${configuration.LogicalId})`,
+        )
+    }
+  },
+)

@@ -1,4 +1,4 @@
-import { alchemyLabelKeys } from "../Labels.ts";
+import { alchemyLabelKeys } from "../Labels.vibe";
 
 export const lastSegment = (value: string) => {
   const trimmed = value.replace(/\/+$/, "");
@@ -6,7 +6,7 @@ export const lastSegment = (value: string) => {
   return parts[parts.length - 1] || trimmed;
 };
 
-export const parentOf = (project: string) => `projects/${project}`;
+export const parentOf = /** @throws {never} */ (project: string) => `projects/${project}`;
 
 const markerOf = (labels: Record<string, string>) =>
   `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${labels[alchemyLabelKeys.stage]} ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`;

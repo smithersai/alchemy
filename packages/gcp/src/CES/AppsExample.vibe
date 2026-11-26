@@ -1,0 +1,299 @@
+import * as ces from "@distilled.cloud/gcp/ces_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  collectPages,
+  encodeOwnership,
+  expandApp,
+  forEachApp,
+  hasOwnershipMarker,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type AppsExampleProps = {
+  /**
+   * Parent CES app. Full name
+   * `projects/{project}/locations/{location}/apps/{app}` or the app id
+   * (combined with `location`). Immutable — changing it replaces the
+   * example.
+   */
+  app: string
+  /**
+   * Region used when `app` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * Example id. If omitted, a unique name is generated. Immutable —
+   * changing it replaces the example.
+   */
+  exampleId?: string
+  /**
+   * Human-readable name. Required by the API; Alchemy falls back to the
+   * generated example id.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Examples have no labels field, so
+   * Alchemy stamps ownership into this field.
+   */
+  description?: string
+  /**
+   * Entry agent resource name. When omitted, the root agent handles the
+   * conversation.
+   */
+  entryAgent?: string
+  /**
+   * Conversation messages that make up the example.
+   */
+  messages?: ces.MessageList
+}
+
+export type AppsExample = Resource<
+  "GCP.CES.AppsExample",
+  AppsExampleProps,
+  {
+    /** Full resource name `.../apps/{app}/examples/{example}`. */
+    name: string
+    /** Example id (last path segment). */
+    exampleId: string
+    /** Parent app resource name. */
+    app: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Entry agent resource name. */
+    entryAgent: string | undefined
+    /** Conversation messages. */
+    messages: ces.MessageList | undefined
+    /** Whether the example is invalid. */
+    invalid: boolean | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Server-assigned etag. */
+    etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Customer Engagement Suite few-shot example conversation inside an
+ * app.
+ *
+ * Examples have no labels field — Alchemy stamps ownership into
+ * `description` so `list` / nuke can find them. Parent app, location,
+ * and example id are immutable.
+ *
+ * ### Creating an Example
+ * **Example:** Greeting transcript
+ * ```typescript
+ * const example = yield* GCP.CES.AppsExample("Hello", {
+ *   app: app.name,
+ *   displayName: "hello",
+ *   messages: [
+ *     { role: "user", chunks: [{ text: "Hi" }] },
+ *     { role: "agent", chunks: [{ text: "Hello! How can I help?" }] },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category CES
+ */
+export const AppsExample = Resource<AppsExample>("GCP.CES.AppsExample")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppsExampleNotResolved extends Data.TaggedError("GCP.CES.AppsExampleNotResolved")<{
+  resourceName: string
+}> {}
+
+const resourceName = (app: string, exampleId: string): infer _ => `${app}/examples/${exampleId}`
+
+const toAttrs = (example: ces.Example, project: string, region: string, appHint?: string): infer _ => {
+  const name = example.name ?? ""
+  const parsed = parseResourceName(name, "examples", region)
+  return {
+    name,
+    exampleId: parsed.id,
+    app: name.includes("/examples/") ? parsed.app : (appHint ?? parsed.parent),
+    location: parsed.location,
+    project: parsed.project || project,
+    displayName: example.displayName,
+    description: parseOwnership(example.description).text,
+    entryAgent: example.entryAgent,
+    messages: example.messages,
+    invalid: example.invalid,
+    createTime: example.createTime,
+    updateTime: example.updateTime,
+    etag: example.etag,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : ces
+  .getProjectsLocationsAppsExamples({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (try collectPages(
+    ces.listProjectsLocationsAppsExamples.pages({ parent, pageSize: 100 }),
+    (page) => page.examples,
+  ))
+    .filter((example) => hasOwnershipMarker(example.description))
+    .map((example) => toAttrs(example, project, region, parent))
+
+export const AppsExampleProvider = (): infer _ =>
+  Provider.succeed(AppsExample, {
+    stables: ["name", "exampleId", "app", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.exampleId ?? output?.exampleId,
+            nextId: resolved.exampleId,
+            previousParent: olds?.app ?? output?.app,
+            nextParent: resolved.app,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = olds?.app
+        ? try Effect.orDie(Effect.try({ try: () => expandApp(olds.app, env.project, location), catch: (e) => e }))
+        : output?.app
+      const exampleId = try toPhysicalId(id, olds?.exampleId, output?.exampleId)
+      const name = output?.name ?? (app !== undefined ? resourceName(app, exampleId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region, app)
+      return (try ownedByAlchemy(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try forEachApp(
+        env.project,
+        effect (parent) => try listAt(parent, env.project, env.region),
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const app = try Effect.orDie(
+        Effect.try({ try: () => expandApp(news.app, env.project, location), catch: (e) => e }),
+      )
+      const exampleId = try toPhysicalId(id, news.exampleId, output?.exampleId)
+      const name = output?.name ?? resourceName(app, exampleId)
+      const ownership = try createInternalLabels(id)
+      const description = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.description), catch: (e) => e }),
+      )
+      const displayName = news.displayName ?? exampleId
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          ces.createProjectsLocationsAppsExamples({
+            parent: app,
+            exampleId,
+            body: {
+              displayName,
+              description,
+              entryAgent: news.entryAgent,
+              messages: news.messages,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppsExampleNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const entryChanged = !sameText(current.entryAgent, news.entryAgent)
+      const messagesChanged = !(try Effect.orDie(Effect.try({
+        try: sameJson.bind(undefined, current.messages, news.messages),
+        catch: (e) => e,
+      })))
+
+      if (displayChanged || descriptionChanged || entryChanged || messagesChanged) {
+        current = try retryTransient(
+          ces.patchProjectsLocationsAppsExamples({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "display_name" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  entryChanged ? "entry_agent" : undefined,
+                  messagesChanged ? "messages" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: {
+              displayName,
+              description,
+              entryAgent: news.entryAgent,
+              messages: news.messages,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region, app)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryTransient(ces.deleteProjectsLocationsAppsExamples({ name: output.name })) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+      try waitUntilGone(getByName(output.name))
+    },
+  })

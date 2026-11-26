@@ -1,0 +1,139 @@
+import * as firebase from "@distilled.cloud/gcp/firebase_v1beta1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import { waitForOperation as waitForGcpOperation } from "../Operation.ts"
+
+export const MAX_DISPLAY_NAME = 32
+export const MAX_PACKAGE_SUFFIX = 40
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ResourceNotResolved extends Data.TaggedError("GCP.Firebase.ResourceNotResolved")<{
+  resourceName: string
+}> {}
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const projectParent = (project: string): infer _ => `projects/${project}`
+
+export const encodeDisplayName = (
+  labels: Record<string, string>,
+  displayName: string | undefined,
+): string => {
+  const marker = `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${
+    labels[alchemyLabelKeys.stage]
+  } ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`
+  const combined = displayName && displayName.length > 0 ? `${marker} ${displayName}` : marker
+  return combined.slice(0, 1024)
+}
+
+export const parseDisplayName = (
+  displayName: string | undefined,
+): {
+  labels: Record<string, string>
+  displayName: string | undefined
+} => {
+  if (!displayName?.startsWith("[alchemy ")) {
+    return { labels: {}, displayName }
+  }
+  const end = displayName.indexOf("]")
+  if (end < 0) return { labels: {}, displayName }
+  const labels: Record<string, string> = {}
+  for (const part of displayName.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = displayName.slice(end + 1).trim()
+  return { labels, displayName: rest.length > 0 ? rest : undefined }
+}
+
+export const hasOwnershipMarker = (displayName: string | undefined): infer _ =>
+  Object.keys(parseDisplayName(displayName).labels).some((key) => key.startsWith("alchemy-"))
+
+export const ownedByAlchemy = effect (id: string, displayName: string | undefined) => {
+  const { labels } = parseDisplayName(displayName)
+  return try hasAlchemyLabels(id, labels)
+}
+
+export const toDisplayName = effect (id: string, explicit: string | undefined, existing?: string) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  return try createPhysicalName({
+    id,
+    maxLength: MAX_DISPLAY_NAME,
+    lowercase: true,
+  })
+}
+
+export const ownedDisplayName = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+) => {
+  const labels = try createInternalLabels(id)
+  const user = try toDisplayName(id, requested, existing)
+  return encodeDisplayName(labels, user)
+}
+
+export const packageNameOf = effect (id: string, requested: string | undefined, existing?: string) => {
+  if (requested !== undefined) return requested
+  if (existing !== undefined) return existing
+  const suffix = try createPhysicalName({
+    id,
+    maxLength: MAX_PACKAGE_SUFFIX,
+    lowercase: true,
+  })
+  const cleaned = suffix.replace(/[^a-z0-9]/g, "")
+  return `com.alchemy.test.${cleaned || "app"}`
+}
+
+/**
+ * Wait for a Firebase Management operation and return its final state
+ * (the created app name is in `response.name`). An operation that
+ * finished with `ALREADY_EXISTS` (6) is a lost create race. A freshly
+ * started operation can briefly read as NOT_FOUND; keep polling.
+ */
+export const waitForOperation = effect (operation: firebase.Operation) => {
+  let latest = operation
+  return try (effect {
+    return try effect {
+      try waitForGcpOperation(
+        operation,
+        effect (name) =>
+          try (effect {
+            return firebase.getOperations({ name }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" }: { name, done: false };
+              default: throw e;
+            }
+          }
+            |> Effect.tap(%, effect (current) =>
+              try effect {
+                latest = current
+              })),
+        { budget: "5 minutes" },
+      )
+      return latest
+    }
+  }
+    |> Effect.catchIf(%, (error) => error._tag === "GCP.OperationFailed" && error.code === 6, effect () => latest))
+}
+
+export const listAndroidApps = effect (project: string, showDeleted = false) =>
+  (effect {
+    return (Array.from(
+      try (firebase.listProjectsAndroidApps
+        .pages({
+          parent: projectParent(project),
+          pageSize: 100,
+          showDeleted,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.apps ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as firebase.AndroidApp[]; default: throw e; }

@@ -1,1 +1,1 @@
-export * from "./SecurityTxt.ts";
+export * from "./SecurityTxt.vibe";

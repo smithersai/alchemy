@@ -1,1 +1,1 @@
-export * from "./UrlNormalization.ts";
+export * from "./UrlNormalization.vibe";

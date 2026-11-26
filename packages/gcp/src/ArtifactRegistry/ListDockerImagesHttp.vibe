@@ -1,0 +1,55 @@
+import * as artifactregistry from "@distilled.cloud/gcp/artifactregistry_v1"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as GCPBindings from "../GCPBindings.vibe"
+import { grantFor } from "../HttpBinding.vibe"
+import { ListDockerImages, type ListDockerImagesRequest } from "./ListDockerImages.vibe"
+import type { Repository } from "./Repository.vibe"
+
+/**
+ * HTTP implementation of {@link ListDockerImages}.
+ *
+ * @layer
+ * @provides GCP.ArtifactRegistry.ListDockerImages
+ */
+export const ListDockerImagesHttp = Layer.effect(
+  ListDockerImages,
+  effect {
+    const bind = try GCPBindings.Bind
+    const listDockerImages = try GCPBindings.withCredentials(
+      artifactregistry.listProjectsLocationsRepositoriesDockerImages,
+    )
+    return effect (repository: Repository) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`GCP.ArtifactRegistry.ListDockerImages(${repository})`({
+          iam: [
+            try Effect.orDie(Effect.try({
+              try: () =>
+                grantFor(
+                  {
+                    role: "roles/artifactregistry.reader",
+                    on: "artifactregistry.repository",
+                  },
+                  repository.name,
+                ),
+              catch: (e) => e,
+            })),
+          ],
+        })
+      }
+      const name = try repository.name.asEffect()
+      return effect (
+        request?: ListDockerImagesRequest | undefined,
+      ) =>
+        try withSpan(
+          effect {
+            return try listDockerImages({
+              ...request,
+              parent: try name,
+            })
+          },
+          `GCP.ArtifactRegistry.ListDockerImages(${repository.LogicalId})`,
+        )
+    }
+  },
+)

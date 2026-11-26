@@ -1,0 +1,473 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DataplexNotResolved,
+  MAX_NAME_LENGTH,
+  collectPages,
+  expandParent,
+  fingerprint,
+  hasAlchemyLabelMap,
+  lastSegment,
+  listAtLocation,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  retryQuota,
+  rfc1035,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type EntrySource = {
+  /** Name of the resource in the source system. */
+  resource?: string
+  /** Name of the source system. */
+  system?: string
+  /** Platform containing the source system. */
+  platform?: string
+  /** User-friendly display name. */
+  displayName?: string
+  /** Description of the data resource. */
+  description?: string
+  /**
+   * User-defined source labels. Alchemy ownership labels are merged in
+   * automatically — Entries have no top-level labels field.
+   */
+  labels?: Record<string, string>
+  /** Ancestor entries in the source system. */
+  ancestors?: Array<{ name?: string; type?: string }>
+  /** Time the resource was created in the source system. */
+  createTime?: string
+  /** Time the resource was last updated in the source system. */
+  updateTime?: string
+}
+
+export type EntryGroupsEntryProps = {
+  /**
+   * Parent Entry Group. Full name
+   * `projects/{project}/locations/{location}/entryGroups/{entryGroup}`
+   * or the entry-group id (combined with `location`). Immutable —
+   * changing it replaces the entry.
+   */
+  entryGroup: string
+  /**
+   * Entry id (the `{entry}` segment of
+   * `.../entryGroups/{entryGroup}/entries/{entry}`). May contain slashes
+   * (up to 4000 characters). If omitted, a unique name is generated from
+   * the stack, stage, and logical id. Immutable — changing it replaces
+   * the entry.
+   */
+  entryId?: string
+  /**
+   * Region used when `entryGroup` is a bare id. Immutable — changing it
+   * replaces the entry.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Entry type resource name
+   * `projects/{project}/locations/{location}/entryTypes/{entryType}`.
+   * Immutable — changing it replaces the entry.
+   */
+  entryType: string
+  /**
+   * Parent entry resource name. Immutable — changing it replaces the
+   * entry.
+   */
+  parentEntry?: string
+  /**
+   * Fully qualified name used by an external system.
+   */
+  fullyQualifiedName?: string
+  /**
+   * Aspects attached to the entry, keyed by
+   * `{project}.{location}.{aspectType}` (or with `@{path}`).
+   */
+  aspects?: dataplex.GoogleCloudDataplexV1AspectMap
+  /**
+   * Source-system metadata. Labels on `entrySource` receive Alchemy
+   * ownership stamps.
+   */
+  entrySource?: EntrySource
+  /**
+   * Convenience labels merged into `entrySource.labels`.
+   */
+  labels?: Record<string, string>
+}
+
+export type EntryGroupsEntry = Resource<
+  "GCP.Dataplex.EntryGroupsEntry",
+  EntryGroupsEntryProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Entry id (path after `/entries/`). */
+    entryId: string
+    /** Parent entry group resource name. */
+    entryGroup: string
+    /** Parent entry group id. */
+    entryGroupId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Entry type resource name. */
+    entryType: string | undefined
+    /** Parent entry resource name. */
+    parentEntry: string | undefined
+    /** Fully qualified name. */
+    fullyQualifiedName: string | undefined
+    /** Aspects attached to the entry. */
+    aspects: dataplex.GoogleCloudDataplexV1AspectMap | undefined
+    /** Source-system metadata. */
+    entrySource: EntrySource | undefined
+    /** User labels from `entrySource` (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex Universal Catalog Entry — a metadata record for a data
+ * resource.
+ *
+ * Entries have no top-level labels field, so Alchemy stamps ownership
+ * into `entrySource.labels`. Changing `entryId`, `entryGroup`,
+ * `location`, `entryType`, or `parentEntry` replaces the entry. FQN,
+ * aspects, and source metadata update in place.
+ *
+ * ### Creating an Entry
+ * **Example:** Entry in a group
+ * ```typescript
+ * const entry = yield* GCP.Dataplex.EntryGroupsEntry("Orders", {
+ *   entryGroup: group.name,
+ *   entryType:
+ *     "projects/dataplex-types/locations/global/entryTypes/generic",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating an Entry
+ * **Example:** Fully qualified name and labels
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const entry = yield* GCP.Dataplex.EntryGroupsEntry("Orders", {
+ *   entryGroup: group.name,
+ *   entryType:
+ *     "projects/dataplex-types/locations/global/entryTypes/generic",
+ *   fullyQualifiedName: "app.orders",
+ *   labels: { env: "prod", team: "data" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const EntryGroupsEntry = Resource<EntryGroupsEntry>("GCP.Dataplex.EntryGroupsEntry")
+
+const resolveParent = (
+  project: string,
+  entryGroup: string,
+  location: string | undefined,
+  defaultLocation: string,
+): infer _ => {
+  const parent = expandParent(
+    entryGroup,
+    project,
+    normalizeLocation(location, defaultLocation),
+    "entryGroups",
+  )
+  const parsed = parseName(`${parent}/entries/_`, "entries")
+  return {
+    parent: parsed.parent,
+    location: parsed.location,
+    project: parsed.project || project,
+    entryGroupId: lastSegment(parsed.parent),
+  }
+}
+
+const resourceName = (parent: string, entryId: string): infer _ => `${parent}/entries/${entryId}`
+
+const toEntryId = effect (id: string, explicit: string | undefined, existing: string | undefined) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  const name = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return try Effect.orDie(Effect.try({
+    try: () =>
+      rfc1035(
+        name,
+        "entry",
+      ),
+    catch: (e) => e,
+  }))
+}
+
+const sourceLabels = (news: EntryGroupsEntryProps, ownership: Record<string, string>): infer _ => ({
+  ...toLabels(news.entrySource?.labels),
+  ...toLabels(news.labels),
+  ...ownership,
+})
+
+const toSource = (
+  source: dataplex.GoogleCloudDataplexV1EntrySource | undefined,
+): EntrySource | undefined => {
+  if (source === undefined) return undefined
+  return {
+    resource: source.resource,
+    system: source.system,
+    platform: source.platform,
+    displayName: source.displayName,
+    description: source.description,
+    labels: userLabels(source.labels),
+    ancestors: source.ancestors,
+    createTime: source.createTime,
+    updateTime: source.updateTime,
+  }
+}
+
+const toAttrs = (entry: dataplex.GoogleCloudDataplexV1Entry, project: string): infer _ => {
+  const name = entry.name ?? ""
+  const parsed = parseName(name, "entries")
+  const group = parseName(parsed.parent, "entryGroups")
+  return {
+    name,
+    entryId: parsed.id,
+    entryGroup: parsed.parent,
+    entryGroupId: group.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    entryType: entry.entryType,
+    parentEntry: entry.parentEntry,
+    fullyQualifiedName: entry.fullyQualifiedName,
+    aspects: entry.aspects,
+    entrySource: toSource(entry.entrySource),
+    labels: userLabels(entry.entrySource?.labels),
+    createTime: entry.createTime,
+    updateTime: entry.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(dataplex.getProjectsLocationsEntryGroupsEntries({ name, view: "ALL" })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listEntriesUnder = effect (parent: string, project: string) =>
+  (effect {
+    return ((try collectPages(
+      dataplex.listProjectsLocationsEntryGroupsEntries.pages({
+        parent,
+        pageSize: 100,
+      }),
+      (page) => page.entries,
+    ))
+      .filter((item) => hasAlchemyLabelMap(item.entrySource?.labels))
+      .map((item) => toAttrs(item, project)))
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+
+export const EntryGroupsEntryProvider = (): infer _ =>
+  Provider.succeed(EntryGroupsEntry, {
+    stables: [
+      "name",
+      "entryId",
+      "entryGroup",
+      "entryGroupId",
+      "project",
+      "location",
+      "entryType",
+      "parentEntry",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousType = olds?.entryType ?? output?.entryType ?? ""
+      const nextType = resolved_.entryType ?? previousType
+      const previousParentEntry = olds?.parentEntry ?? output?.parentEntry ?? ""
+      const nextParentEntry = resolved_.parentEntry ?? previousParentEntry
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.entryId ?? output?.entryId,
+            nextId: resolved_.entryId ?? olds?.entryId ?? output?.entryId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved_.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            previousParent: olds?.entryGroup ?? output?.entryGroup,
+            nextParent: resolved_.entryGroup ?? olds?.entryGroup ?? output?.entryGroup,
+            extra: nextType !== previousType || nextParentEntry !== previousParentEntry,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = resolveParent(
+        env.project,
+        olds?.entryGroup ?? output?.entryGroup ?? "",
+        olds?.location ?? output?.location,
+        env.region,
+      )
+      const entryId = try toEntryId(id, olds?.entryId, output?.entryId)
+      const name = output?.name ?? resourceName(resolved.parent, entryId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.entrySource?.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const groups = try listAtLocation(env.project, env.region, effect (parent) =>
+        (try collectPages(
+          dataplex.listProjectsLocationsEntryGroups.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.entryGroups,
+        )).filter((item) => hasAlchemyLabelMap(item.labels)))
+      const nested = try Effect.forEach(
+        groups,
+        effect (group) => (group.name ? try listEntriesUnder(group.name, env.project) : []),
+        { concurrency: 4 },
+      )
+      return nested.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const resolved = resolveParent(
+        env.project,
+        news.entryGroup,
+        news.location ?? output?.location,
+        env.region,
+      )
+      const entryId = try toEntryId(id, news.entryId, output?.entryId)
+      const name = resourceName(resolved.parent, entryId)
+      const ownership = try createInternalLabels(id)
+      const desiredSourceLabels = sourceLabels(news, ownership)
+      const desiredSource: dataplex.GoogleCloudDataplexV1EntrySource = {
+        resource: news.entrySource?.resource,
+        system: news.entrySource?.system,
+        platform: news.entrySource?.platform,
+        displayName: news.entrySource?.displayName,
+        description: news.entrySource?.description,
+        labels: desiredSourceLabels,
+        ancestors: news.entrySource?.ancestors,
+        createTime: news.entrySource?.createTime,
+        updateTime: news.entrySource?.updateTime,
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (dataplex
+            .createProjectsLocationsEntryGroupsEntries({
+              parent: resolved.parent,
+              entryId,
+              body: {
+                entryType: news.entryType,
+                parentEntry: news.parentEntry,
+                fullyQualifiedName: news.fullyQualifiedName,
+                aspects: news.aspects,
+                entrySource: desiredSource,
+              },
+            })
+            |> retryQuota(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try getByName(name);
+          default: throw e;
+        }
+        current = created ?? undefined
+        if (current === undefined) {
+          current = try waitUntilExists(getByName(name), name)
+        }
+      }
+
+      if (current === undefined) {
+        throw new DataplexNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.entrySource?.labels)
+      const { upsert, removed } = try Effect.orDie(
+        Effect.try({ try: () => diffLabels(observedLabels, desiredSourceLabels), catch: (e) => e }),
+      )
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const fqnChanged = (current.fullyQualifiedName ?? "") !== (news.fullyQualifiedName ?? "")
+      const aspectsChanged = news.aspects !== undefined
+        && (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, news.aspects), catch: (e) => e })))
+          !== (try Effect.orDie(Effect.try({ try: fingerprint.bind(undefined, current.aspects), catch: (e) => e })))
+      const sourceChanged = (current.entrySource?.resource ?? "") !== (news.entrySource?.resource ?? "")
+        || (current.entrySource?.system ?? "") !== (news.entrySource?.system ?? "")
+        || (current.entrySource?.platform ?? "") !== (news.entrySource?.platform ?? "")
+        || (current.entrySource?.displayName ?? "") !== (news.entrySource?.displayName ?? "")
+        || (current.entrySource?.description ?? "") !== (news.entrySource?.description ?? "")
+
+      if (labelsChanged || fqnChanged || aspectsChanged || sourceChanged) {
+        current = try retryQuota(
+          dataplex.patchProjectsLocationsEntryGroupsEntries({
+            name: current.name ?? name,
+            updateMask: [
+              fqnChanged ? "fullyQualifiedName" : undefined,
+              aspectsChanged ? "aspects" : undefined,
+              labelsChanged || sourceChanged ? "entrySource" : undefined,
+            ]
+              .filter((field): field is string => field !== undefined)
+              .join(","),
+            body: {
+              name: current.name ?? name,
+              fullyQualifiedName: news.fullyQualifiedName,
+              aspects: news.aspects ?? current.aspects,
+              entrySource: desiredSource,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      retryQuota(
+        dataplex.deleteProjectsLocationsEntryGroupsEntries({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

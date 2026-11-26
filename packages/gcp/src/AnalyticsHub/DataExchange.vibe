@@ -1,0 +1,396 @@
+import * as analyticshub from "@distilled.cloud/gcp/analyticshub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  AnalyticshubNotResolved,
+  deleteRetry,
+  displayNameOf,
+  encodeDescription,
+  hasOwnershipMarker,
+  listExchangesInProject,
+  listListings,
+  listQueryTemplates,
+  locationParent,
+  missingGet,
+  normalizeLocation,
+  ownedById,
+  parseDescription,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameBool,
+  sameText,
+  sharingKind,
+  toPhysicalId,
+  updateMaskOf,
+  ownershipLabels,
+} from "./internal.ts"
+
+export type SharingEnvironmentConfig = analyticshub.SharingEnvironmentConfig
+export type DataExchangeDiscoveryType = analyticshub.DataExchangeDiscoveryTypeEnum | (string & {})
+
+export type DataExchangeProps = {
+  /**
+   * Data exchange id (the `{dataExchange}` segment of
+   * `projects/{project}/locations/{location}/dataExchanges/{dataExchange}`).
+   * If omitted, a unique id is generated. Must contain only letters,
+   * numbers, and underscores; max 100 bytes. Immutable — changing it
+   * replaces the exchange.
+   */
+  dataExchangeId?: string
+  /**
+   * BigQuery location (`us-central1`, `US`, `EU`, …). Immutable —
+   * changing it replaces the exchange.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Human-readable display name. Letters, numbers, underscores, dashes,
+   * spaces, and ampersands. Max 63 bytes. Defaults to the exchange id.
+   */
+  displayName?: string
+  /**
+   * Human-readable description (max 2000 bytes). Analytics Hub data
+   * exchanges have no labels field, so Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes.
+   */
+  description?: string
+  /**
+   * Documentation describing the data exchange.
+   */
+  documentation?: string
+  /**
+   * Email or URL of the primary point of contact. Max 1000 bytes.
+   */
+  primaryContact?: string
+  /**
+   * Base64-encoded icon. Max 3.0 MiB encoded.
+   */
+  icon?: string
+  /**
+   * When true, query jobs against linked datasets record the subscriber
+   * email in the logs.
+   * @default false
+   */
+  logLinkedDatasetQueryUserEmail?: boolean
+  /**
+   * Discovery visibility for listings under this exchange
+   * (`DISCOVERY_TYPE_PRIVATE`, `DISCOVERY_TYPE_PUBLIC`). Updating this
+   * also overwrites `discoveryType` on every listing in the exchange.
+   */
+  discoveryType?: DataExchangeDiscoveryType
+  /**
+   * Sharing environment. Set `dcrExchangeConfig` for a data clean room,
+   * or `defaultExchangeConfig` for a standard exchange. Switching kinds
+   * replaces the exchange.
+   */
+  sharingEnvironmentConfig?: SharingEnvironmentConfig
+}
+
+export type DataExchange = Resource<
+  "GCP.AnalyticsHub.DataExchange",
+  DataExchangeProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Data exchange id (last path segment). */
+    dataExchangeId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description (Alchemy ownership marker stripped). */
+    description: string | undefined
+    /** Documentation. */
+    documentation: string | undefined
+    /** Primary contact. */
+    primaryContact: string | undefined
+    /** Base64-encoded icon. */
+    icon: string | undefined
+    /** Whether linked-dataset query emails are logged. */
+    logLinkedDatasetQueryUserEmail: boolean
+    /** Discovery type. */
+    discoveryType: string | undefined
+    /** Sharing environment. */
+    sharingEnvironmentConfig: SharingEnvironmentConfig | undefined
+    /** Number of listings in the exchange. */
+    listingCount: number | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A BigQuery Analytics Hub data exchange — a container for listings
+ * that share datasets or Pub/Sub topics with subscribers.
+ *
+ * Location and id are immutable. Display name, description,
+ * documentation, contact, discovery type, and email logging update in
+ * place. Switching between a default exchange and a data clean room
+ * replaces the exchange.
+ *
+ * Data exchanges have no labels. Alchemy stamps
+ * `alchemy-stack` / `alchemy-stage` / `alchemy-id` into the description
+ * so `list` and `pnpm nuke:gcp` can identify owned exchanges.
+ *
+ * ### Creating a Data Exchange
+ * **Example:** Generated id
+ * ```typescript
+ * const exchange = yield* GCP.AnalyticsHub.DataExchange("Marketplace", {
+ *   displayName: "Marketplace",
+ *   description: "shared datasets",
+ * });
+ * ```
+ *
+ * **Example:** Named exchange with a contact
+ * ```typescript
+ * const exchange = yield* GCP.AnalyticsHub.DataExchange("Marketplace", {
+ *   dataExchangeId: "marketplace",
+ *   location: "us-central1",
+ *   displayName: "Marketplace",
+ *   primaryContact: "data@example.com",
+ * });
+ * ```
+ *
+ * ### Data Clean Rooms
+ * **Example:** Create a data clean room exchange
+ * ```typescript
+ * const dcr = yield* GCP.AnalyticsHub.DataExchange("CleanRoom", {
+ *   displayName: "Clean Room",
+ *   sharingEnvironmentConfig: { dcrExchangeConfig: {} },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AnalyticsHub
+ */
+export const DataExchange = Resource<DataExchange>("GCP.AnalyticsHub.DataExchange")
+
+const resourceName = (project: string, location: string, dataExchangeId: string): infer _ =>
+  `${locationParent(project, location)}/dataExchanges/${dataExchangeId}`
+
+const toAttrs = (exchange: analyticshub.DataExchange, project: string): infer _ => {
+  const name = exchange.name ?? ""
+  const parsed = parseResourceName(name, "dataExchanges")
+  const { description } = parseDescription(exchange.description)
+  return {
+    name,
+    dataExchangeId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: exchange.displayName,
+    description,
+    documentation: exchange.documentation,
+    primaryContact: exchange.primaryContact,
+    icon: exchange.icon,
+    logLinkedDatasetQueryUserEmail: exchange.logLinkedDatasetQueryUserEmail === true,
+    discoveryType: exchange.discoveryType,
+    sharingEnvironmentConfig: exchange.sharingEnvironmentConfig,
+    listingCount: exchange.listingCount,
+  }
+}
+
+const getByName = missingGet
+
+export const DataExchangeProvider = (): infer _ =>
+  Provider.succeed(DataExchange, {
+    nuke: {
+      dependsOn: ["GCP.BigQuery.Dataset"],
+    },
+    stables: ["name", "dataExchangeId", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousKind = try Effect.orDie(Effect.try({
+        try: () =>
+          sharingKind(
+            olds?.sharingEnvironmentConfig ?? output?.sharingEnvironmentConfig,
+          ),
+        catch: (e) => e,
+      }))
+      const nextKind = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.sharingEnvironmentConfig !== undefined
+            ? sharingKind(resolved.sharingEnvironmentConfig)
+            : previousKind,
+        catch: (e) => e,
+      }))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.dataExchangeId ?? output?.dataExchangeId,
+            nextId: resolved.dataExchangeId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location,
+              env.region,
+            ),
+            extra: resolved.sharingEnvironmentConfig !== undefined && nextKind !== previousKind,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const dataExchangeId = try toPhysicalId(id, olds?.dataExchangeId, output?.dataExchangeId)
+      const name = output?.name ?? resourceName(env.project, location, dataExchangeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedById(id, existing.description))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listExchangesInProject(env.project, env.region)
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const parent = try Effect.orDie(
+        Effect.try({ try: () => locationParent(env.project, location), catch: (e) => e }),
+      )
+      const dataExchangeId = try toPhysicalId(id, news.dataExchangeId, output?.dataExchangeId)
+      const name = output?.name ?? resourceName(env.project, location, dataExchangeId)
+      const ownership = try ownershipLabels(id)
+      const desiredDescription = try Effect.orDie(
+        Effect.try({ try: () => encodeDescription(ownership, news.description), catch: (e) => e }),
+      )
+      const displayName = try Effect.orDie(
+        Effect.try({ try: () => displayNameOf(news.displayName, dataExchangeId), catch: (e) => e }),
+      )
+      const body: analyticshub.DataExchange = {
+        displayName,
+        description: desiredDescription,
+        documentation: news.documentation,
+        primaryContact: news.primaryContact,
+        icon: news.icon,
+        logLinkedDatasetQueryUserEmail: news.logLinkedDatasetQueryUserEmail === true ? true : undefined,
+        discoveryType: news.discoveryType,
+        sharingEnvironmentConfig: news.sharingEnvironmentConfig,
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          analyticshub.createProjectsLocationsDataExchanges({
+            parent,
+            dataExchangeId,
+            body,
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AnalyticshubNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, desiredDescription)
+      const documentationChanged = !sameText(current.documentation, news.documentation)
+      const contactChanged = !sameText(current.primaryContact, news.primaryContact)
+      const iconChanged = !sameText(current.icon, news.icon)
+      const emailChanged = news.logLinkedDatasetQueryUserEmail !== undefined
+        && !sameBool(current.logLinkedDatasetQueryUserEmail, news.logLinkedDatasetQueryUserEmail)
+      const discoveryChanged = news.discoveryType !== undefined && !sameText(current.discoveryType, news.discoveryType)
+      const sharingChanged = news.sharingEnvironmentConfig !== undefined
+        && sharingKind(current.sharingEnvironmentConfig)
+          !== sharingKind(news.sharingEnvironmentConfig)
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || documentationChanged
+        || contactChanged
+        || iconChanged
+        || emailChanged
+        || discoveryChanged
+        || sharingChanged
+      ) {
+        current = try retryTransient(
+          analyticshub.patchProjectsLocationsDataExchanges({
+            name: currentName,
+            updateMask: try Effect.orDie(Effect.try({
+              try: () =>
+                updateMaskOf(
+                  displayChanged ? "displayName" : undefined,
+                  descriptionChanged ? "description" : undefined,
+                  documentationChanged ? "documentation" : undefined,
+                  contactChanged ? "primaryContact" : undefined,
+                  iconChanged ? "icon" : undefined,
+                  emailChanged ? "logLinkedDatasetQueryUserEmail" : undefined,
+                  discoveryChanged ? "discoveryType" : undefined,
+                  sharingChanged ? "sharingEnvironmentConfig" : undefined,
+                ),
+              catch: (e) => e,
+            })),
+            body: { name: currentName, ...body },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const listings = try listListings(output.name)
+      try Effect.forEach(
+        listings.filter(effect (listing) => (listing.name ?? "").length > 0),
+        effect (listing) =>
+          try deleteRetry(
+            analyticshub.deleteProjectsLocationsDataExchangesListings({
+              name: listing.name!,
+              deleteCommercial: true,
+            }),
+          ),
+        { concurrency: 2 },
+      )
+      try (listListings(output.name)
+        |> Effect.repeat(%, {
+          schedule: Schedule.spaced("2 seconds"),
+          until: (items) => items.length === 0,
+          times: 12,
+        }))
+      const templates = try listQueryTemplates(output.name)
+      try Effect.forEach(
+        templates.filter(effect (template) => (template.name ?? "").length > 0),
+        effect (template) =>
+          try deleteRetry(
+            analyticshub.deleteProjectsLocationsDataExchangesQueryTemplates({
+              name: template.name!,
+            }),
+          ),
+        { concurrency: 2 },
+      )
+      try deleteRetry(
+        analyticshub.deleteProjectsLocationsDataExchanges({
+          name: output.name,
+        }),
+      )
+    },
+  })

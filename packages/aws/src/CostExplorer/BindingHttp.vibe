@@ -1,0 +1,197 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import type { AnomalyMonitor } from "./AnomalyMonitor.vibe"
+import { pinCe } from "./common.ts"
+import type { CostCategory } from "./CostCategory.vibe"
+
+/**
+ * Shared HTTP scaffolding for the Cost Explorer runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action, and (for the
+ * scoped builders) the injected ARN is boilerplate.
+ *
+ * Cost Explorer is a global service served exclusively from the `us-east-1`
+ * endpoint, so every operation is resolved with the Region pinned via
+ * {@link pinCe} — exactly like the resource providers in `common.ts`.
+ *
+ * Per the `ce` service authorization reference, most query actions support
+ * no resource types, so the account-level builder grants on
+ * `Resource: ["*"]`. `ce:GetAnomalies` authorizes on the `anomalymonitor`
+ * resource type, so the anomaly-monitor builder grants on the bound
+ * monitor's ARN.
+ */
+
+/**
+ * Build the impl Effect for an account-level Cost Explorer operation (the
+ * cost/usage queries, forecasts, recommendations, and cost allocation tag
+ * operations — none of which are resource-scoped).
+ */
+export const makeCostExplorerHttpBinding = effect <
+  I extends object,
+  A,
+  // `{ _tag: string }` bound so `pinCe` (whose throttle retry inspects
+  // `_tag`) applies without collapsing the inferred error union.
+  E extends { _tag: string },
+  R,
+>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"GetCostAndUsage"`.
+   */
+  capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinCe(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.CostExplorer.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          // The region must also be pinned at the call site: the yield-time
+          // snapshot is only a fallback — the calling fiber's ambient Region
+          // (the host Function's own region) wins over it.
+          return try pinCe(op((request ?? {}) as I))
+        },
+        `AWS.CostExplorer.${options.capability}`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an operation scoped to one
+ * {@link AnomalyMonitor}. The runtime callable injects the bound monitor's
+ * ARN as the request's `MonitorArn`; the deploy-time half grants
+ * `iamActions` on the monitor's ARN.
+ */
+export const makeAnomalyMonitorHttpBinding = effect <
+  I extends { MonitorArn?: string },
+  A,
+  // See makeCostExplorerHttpBinding.
+  E extends { _tag: string },
+  R,
+>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"GetAnomalies"`.
+   */
+  capability: string
+  /** IAM actions granted on the monitor ARN. */
+  iamActions: readonly string[]
+  /** The distilled operation; `MonitorArn` is injected. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinCe(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect (monitor: AnomalyMonitor) => {
+    const MonitorArn = try monitor.monitorArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.CostExplorer.${options.capability}(${monitor})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [monitor.monitorArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "MonitorArn">,
+    ) =>
+      try withSpan(
+        effect {
+          // Call-site region pin — see makeCostExplorerHttpBinding above.
+          return try pinCe(
+            op({
+              ...request,
+              MonitorArn: try MonitorArn,
+            } as I),
+          )
+        },
+        `AWS.CostExplorer.${options.capability}(${monitor.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an operation bound to one {@link CostCategory}.
+ * The runtime callable injects the bound category's ARN as the request's
+ * `CostCategoryArn`. The deploy-time half grants `iamActions` on
+ * `Resource: ["*"]` — per the `ce` service authorization reference,
+ * `ce:ListCostCategoryResourceAssociations` supports no resource types, so
+ * a grant scoped to the category ARN would never match.
+ */
+export const makeCostCategoryHttpBinding = effect <
+  I extends { CostCategoryArn?: string },
+  A,
+  // See makeCostExplorerHttpBinding.
+  E extends { _tag: string },
+  R,
+>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"ListCostCategoryResourceAssociations"`.
+   */
+  capability: string
+  /** IAM actions granted on `Resource: ["*"]` (no resource types). */
+  iamActions: readonly string[]
+  /** The distilled operation; `CostCategoryArn` is injected. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinCe(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect (category: CostCategory) => {
+    const CostCategoryArn = try category.costCategoryArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.CostExplorer.${options.capability}(${category})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "CostCategoryArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          // Call-site region pin — see makeCostExplorerHttpBinding above.
+          return try pinCe(
+            op({
+              ...request,
+              CostCategoryArn: try CostCategoryArn,
+            } as I),
+          )
+        },
+        `AWS.CostExplorer.${options.capability}(${category.LogicalId})`,
+      )
+  }
+}

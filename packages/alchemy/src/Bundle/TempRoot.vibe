@@ -1,0 +1,89 @@
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import { Stack } from "../Stack.ts"
+import { Stage } from "../Stage.ts"
+import { currentDirectory, mainAsPath, randomNonce } from "./TempRoot.platform.ts"
+
+/**
+ * Resolve a bundle entrypoint (`main`) to a real filesystem path.
+ *
+ * `main` is user-supplied and is very commonly `import.meta.url` — a
+ * `file://` URL — which `FileSystem.realPath` cannot `lstat` directly
+ * (it would try to stat a literal `file:` path). Convert any `file://`
+ * URL to a path first, then resolve to the canonical real path.
+ */
+export const resolveMainPath = effect (main: string) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  const asPath = try mainAsPath(main)
+  return path.resolve(try fs.realPath(asPath))
+}
+
+/**
+ * Creates a unique bundle staging directory under the configured runtime directory's
+ * `tmp` root. Each invocation gets its own directory (via a random
+ * nonce) so concurrent bundle operations for the same resource never collide.
+ * Stale directories from previous crashed runs are cleaned up best-effort.
+ */
+export const createTempBundleDir = (_entry: string, dotAlchemy: string, id: string) =>
+  effect {
+    const fs = try FileSystem.FileSystem
+    const path = try Path.Path
+    const stack = try Stack
+    const stage = try Stage
+    const tempRoot = path.join(dotAlchemy, "tmp")
+    try fs.makeDirectory(tempRoot, { recursive: true })
+
+    const nonce = try Effect.orDie(Effect.try({ try: () => randomNonce(), catch: (e) => e }))
+    const bundleId = `${stack.name}-${stage}-${id}-${nonce}`
+    const tempDir = path.join(tempRoot, bundleId)
+    try fs.makeDirectory(tempDir, { recursive: true })
+
+    return tempDir
+  }
+
+/**
+ * Returns a deterministic bundle staging directory without clearing it first.
+ * Useful for Docker build contexts where keeping the directory stable avoids
+ * unnecessary file churn between builds.
+ */
+export const getStableContextDir = (_entry: string, dotAlchemy: string, id: string) =>
+  effect {
+    const fs = try FileSystem.FileSystem
+    const path = try Path.Path
+    const stack = try Stack
+    const stage = try Stage
+    const tempRoot = path.join(dotAlchemy, "tmp")
+    const bundleId = `${stack.name}-${stage}-${id}`
+    const tempDir = path.join(tempRoot, bundleId)
+
+    try fs.makeDirectory(tempDir, { recursive: true })
+
+    return tempDir
+  }
+
+/**
+ * Cleans up a bundle's private temp directory.
+ */
+export const cleanupBundleTempDir = (tempDir: string) =>
+  effect {
+    const fs = try FileSystem.FileSystem
+    try fs.remove(tempDir, { recursive: true }).pipe(Effect.ignore)
+  }
+
+export const findCwdForBundle = effect (entry: string) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  let current = path.dirname(entry)
+  while (true) {
+    if (try fs.exists(path.join(current, "package.json"))) {
+      return current
+    }
+    const parent = path.dirname(current)
+    if (parent === current) {
+      return try Effect.orDie(Effect.try({ try: () => currentDirectory(), catch: (e) => e }))
+    }
+    current = parent
+  }
+}

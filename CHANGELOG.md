@@ -1,3 +1,28 @@
+## Unreleased
+
+### Bug fixes
+
+- API documentation ignores declaration sidecars for restored TypeScript modules, and JSDoc checks inspect authored sources without rewriting generated declarations.
+
+- Programmatic Vinext Node builds could fail parsing Redis declarations. The error and runtime-context entries now retain their original TypeScript sources and unchanged public declarations.
+
+- Native test imports under Bun could bind undefined runtime helpers. This checkout now installs the runtime entry fix with unchanged declarations.
+
+- This migration checkout installs its bundled VibeLang packages without waiting for an npm release.
+- Test collection progress could name a file that had already finished when a later import stalled. It now shows the active import and clears it when collection is idle.
+- Loading `alchemy/Phase` with the released compiler could reject its global runtime flags. The module now keeps its original declarations and resolves through the package export.
+- Install the compiler, runtime, and bundler integrations from the published `0.0.12` packages with matching Effect `4.1.1`, so published packages no longer depend on local toolchain archives.
+- Chat examples could leave room and history services unprovided. Every Worker variant now supplies the room implementation, and preview setup reads its stack before construction.
+- Linting could reject the declaration-cache generator. It now spells out the same deterministic source ordering.
+- Test collection progress could name a file that had already loaded. It now identifies the import in progress and clears the filename while idle.
+- Fresh checkouts now generate native declaration caches before TypeScript tooling runs, so generated declarations no longer need to be committed.
+- Export checks could report native package maps as stale after rebuilding. Raw module privacy blocks now keep a stable order across regeneration.
+- SSR website sources could fail to load their shared domain helper. They now resolve its native module.
+- Bun and Node benchmark images could fail to resolve their shared native implementation. Both image sources now import the correct module.
+- Neon credential scope declarations could point at a missing native peer. They now reference the retained TypeScript gateway source.
+- Frozen dependency installs could reject an unchanged workspace hook. The lockfile now records its checksum without changing dependency versions.
+- Compiler-generated inline module helpers could appear as public package subpaths. Named helper implementations now stay private while their public facades remain usable. Development export maps now include every private helper exclusion produced by the current compiler.
+
 ## v2.0.0-beta.84
 
 ### &nbsp;&nbsp;&nbsp;🚨 Breaking Changes

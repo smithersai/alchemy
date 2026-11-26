@@ -1,0 +1,170 @@
+import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { PolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface ResourcePolicyProps {
+  /**
+   * Name of the resource policy. The policy name is the identity of the
+   * policy within the account and region (put semantics upsert by name).
+   * If omitted, a unique name is generated. Changing this value replaces
+   * the policy.
+   */
+  policyName?: string
+  /**
+   * The policy document granting an AWS service principal (e.g.
+   * `route53.amazonaws.com`, `es.amazonaws.com`) permission to write to
+   * CloudWatch Logs, either as a JSON string or a structured document.
+   */
+  policyDocument: PolicyDocument | string
+}
+
+export interface ResourcePolicy extends
+  Resource<
+    "AWS.Logs.ResourcePolicy",
+    ResourcePolicyProps,
+    {
+      policyName: string
+      policyDocument: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An account-scoped CloudWatch Logs resource policy — grants AWS service
+ * principals (Route 53 query logging, API Gateway execution logs, OpenSearch
+ * slow logs, ...) permission to deliver logs into your account.
+ *
+ * :::warning
+ * AWS allows at most **10 resource policies per region per account** and the
+ * quota cannot be raised. Always use a deterministic `policyName` and destroy
+ * policies you no longer need.
+ * :::
+ * ### Granting Log Delivery
+ * **Example:** Allow Route 53 Query Logging
+ * ```typescript
+ * const policy = yield* ResourcePolicy("Route53QueryLogging", {
+ *   policyName: "route53-query-logging",
+ *   policyDocument: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { Service: "route53.amazonaws.com" },
+ *         Action: ["logs:CreateLogStream", "logs:PutLogEvents"],
+ *         Resource: `arn:aws:logs:us-east-1:${accountId}:log-group:/aws/route53/*`,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ResourcePolicy = Resource<ResourcePolicy>("AWS.Logs.ResourcePolicy")
+
+export const ResourcePolicyProvider = (): infer _ =>
+  Provider.effect(
+    ResourcePolicy,
+    effect {
+      const toPolicyName = effect (
+        id: string,
+        props: { policyName?: string } = {},
+      ) => (props.policyName ? props.policyName : try createPhysicalName({ id, maxLength: 255 }))
+
+      const toDocumentString = (document: PolicyDocument | string): infer _ =>
+        typeof document === "string" ? document : JSON.stringify(document)
+
+      // The account quota is 10 policies per region, so a single describe
+      // call (limit 50) is always exhaustive — no pagination needed.
+      const describeAll = effect {
+        return (try logs
+          .describeResourcePolicies({ limit: 50 })).resourcePolicies ?? []
+      }
+
+      const observe = effect (policyName: string) => {
+        const policies = try describeAll
+        return policies.find((policy) => policy.policyName === policyName)
+      }
+
+      return {
+        stables: ["policyName"],
+        list: effect () =>
+          (try describeAll)
+            .filter(
+              (policy): policy is logs.ResourcePolicy & { policyName: string } => policy.policyName != null,
+            )
+            .map((policy) => ({
+              policyName: policy.policyName,
+              policyDocument: policy.policyDocument ?? "",
+            })),
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return
+          if ((try toPolicyName(id, olds)) !== (try toPolicyName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const policyName = output?.policyName ?? (try toPolicyName(id, olds ?? {}))
+          const observed = try observe(policyName)
+          if (!observed) return undefined
+          return {
+            policyName,
+            policyDocument: observed.policyDocument ?? "",
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const policyName = output?.policyName ?? (try toPolicyName(id, news))
+          const desiredDocument = toDocumentString(news.policyDocument)
+
+          // Observe — putResourcePolicy upserts by name; skip the put when the
+          // live document already matches the desired one.
+          const observed = try observe(policyName)
+          if (observed?.policyDocument !== desiredDocument) {
+            try (logs
+              .putResourcePolicy({
+                policyName,
+                policyDocument: desiredDocument,
+              })
+              |> Effect.retry(%, {
+                while: (error) =>
+                  error._tag === "OperationAbortedException"
+                  || error._tag === "ServiceUnavailableException",
+                schedule: Schedule.exponential(100),
+                times: 8,
+              }))
+          }
+
+          try session.note(policyName)
+
+          return {
+            policyName,
+            policyDocument: desiredDocument,
+          }
+        },
+        delete: effect ({ output }) => {
+          ;(effect {
+            return (try (logs.deleteResourcePolicy({ policyName: output.policyName })
+              |> Effect.retry(%, {
+                while: (error) =>
+                  error._tag === "OperationAbortedException"
+                  || error._tag === "ServiceUnavailableException",
+                schedule: Schedule.exponential(100),
+                times: 8,
+              })))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined as void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

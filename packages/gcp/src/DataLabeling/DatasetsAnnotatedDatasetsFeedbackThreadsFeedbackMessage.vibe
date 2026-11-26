@@ -1,0 +1,301 @@
+import * as datalabeling from "@distilled.cloud/gcp/datalabeling_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  encodeOwnership,
+  findOwned,
+  hasOwnershipMarker,
+  ignoreGone,
+  listAllFeedbackMessages,
+  MAX_FEEDBACK_BODY_LENGTH,
+  noRetryLayer,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryDelete,
+  retryTransient,
+  sameText,
+  waitForVisible,
+  waitUntilGone,
+} from "./internal.vibe"
+import { resourceNameFromOperation, waitForOperation } from "./operations.vibe"
+
+export type DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProps = {
+  /**
+   * Parent feedback thread resource name
+   * `projects/{project}/datasets/{dataset}/annotatedDatasets/{annotatedDataset}/feedbackThreads/{feedbackThread}`.
+   * Immutable — changing it replaces the message.
+   */
+  parent: string
+  /**
+   * Feedback message id (the last path segment). Server-assigned on
+   * create. Immutable — changing it replaces the message.
+   */
+  feedbackMessageId?: string
+  /**
+   * String content of the feedback. Maximum 10,000 characters. Messages
+   * have no labels field, so Alchemy stamps ownership into this field.
+   * Immutable — changing it replaces the message.
+   */
+  body?: string
+  /**
+   * Image payload for this feedback, if the comment is an image.
+   * Immutable — changing it replaces the message.
+   */
+  image?: string
+}
+
+export type DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage = Resource<
+  "GCP.DataLabeling.DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage",
+  DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProps,
+  {
+    /**
+     * Full resource name
+     * `.../feedbackThreads/{thread}/feedbackMessages/{message}`.
+     */
+    name: string
+    /** Feedback message id (last path segment). */
+    feedbackMessageId: string
+    /** Parent feedback thread resource name. */
+    parent: string
+    /** Project id. */
+    project: string
+    /** Dataset id. */
+    datasetId: string
+    /** User body with the Alchemy ownership prefix stripped. */
+    body: string | undefined
+    /** Image payload, if any. */
+    image: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Labeling feedback message on a labeling-task feedback thread.
+ *
+ * Create is a long-running operation. Message ids are server-assigned.
+ * Parent thread, body, and image are immutable — changing them replaces
+ * the message. There is no labels API, so Alchemy stamps ownership into
+ * `body` so `list` / nuke can find them.
+ *
+ * ### Creating a Feedback Message
+ * **Example:** Text comment on a thread
+ * ```typescript
+ * const message = yield* GCP.DataLabeling.DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage(
+ *   "Note",
+ *   {
+ *     parent: threadName,
+ *     body: "please relabel the occluded boxes",
+ *   },
+ * );
+ * ```
+ *
+ * **Example:** Ownership-only body
+ * ```typescript
+ * const message = yield* GCP.DataLabeling.DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage(
+ *   "Note",
+ *   {
+ *     parent: threadName,
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DataLabeling
+ */
+export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage = Resource<
+  DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage
+>(
+  "GCP.DataLabeling.DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageNotResolved extends Data.TaggedError(
+  "GCP.DataLabeling.DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceNameOf = (parent: string, feedbackMessageId: string): infer _ =>
+  `${parent}/feedbackMessages/${feedbackMessageId}`
+
+const expandParent = (parent: string, project: string): infer _ =>
+  parent.includes("/")
+    ? parent.replace(/\/+$/, "")
+    : `projects/${project}/datasets/_/annotatedDatasets/_/feedbackThreads/${parent}`
+
+const toAttrs = (
+  message: datalabeling.GoogleCloudDatalabelingV1beta1FeedbackMessage,
+  project: string,
+): infer _ => {
+  const name = message.name ?? ""
+  const parsed = parseResourceName(
+    name.replace(/\/feedbackMessage\//, "/feedbackMessages/"),
+    "feedbackMessages",
+  )
+  const fallback = parseResourceName(name, "feedbackMessage")
+  const collection = parsed.id.length > 0 ? parsed : fallback
+  return {
+    name,
+    feedbackMessageId: collection.id,
+    parent: collection.parent,
+    project: collection.project || project,
+    datasetId: collection.datasetId,
+    body: parseOwnership(message.body).text,
+    image: message.image,
+    createTime: message.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (effect {
+  return (try effect {
+    provide noRetryLayer {
+      return try datalabeling
+        .getProjectsDatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessages({
+          name,
+        })
+    }
+  })
+}) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try Effect.undefined;
+  when { _tag: "BadGateway" }: try Effect.undefined;
+  default: throw e;
+})
+
+const findByOwnership = effect (id: string, project: string) => {
+  const rows = try listAllFeedbackMessages(project)
+  return try findOwned(id, rows, (row) => row.body)
+}
+
+export const DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider = (): infer _ =>
+  Provider.succeed(DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage, {
+    stables: ["name", "feedbackMessageId", "parent", "project", "datasetId", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const extra = (olds !== undefined && !(try Effect.orDie(Effect.try({
+        try: () => sameText(resolved.body, output?.body),
+        catch: (e) => e,
+      }))))
+        || (output !== undefined
+          && !(try Effect.orDie(Effect.try({ try: () => sameText(resolved.image, output.image), catch: (e) => e }))))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.feedbackMessageId ?? output?.feedbackMessageId,
+            nextId: resolved.feedbackMessageId,
+            previousParent: olds?.parent ?? output?.parent,
+            nextParent: resolved.parent,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.parent !== undefined
+        ? expandParent(olds.parent, env.project)
+        : (output?.parent ?? "")
+      const feedbackMessageId = olds?.feedbackMessageId
+        ?? output?.feedbackMessageId
+        ?? (output?.name
+          ? (try Effect.orDie(Effect.try({
+            try: () =>
+              parseResourceName(
+                output.name.replace(/\/feedbackMessage\//, "/feedbackMessages/"),
+                "feedbackMessages",
+              ),
+            catch: (e) => e,
+          }))).id
+          : "")
+      const name = output?.name
+        ?? (parent.length > 0 && feedbackMessageId.length > 0
+          ? resourceNameOf(parent, feedbackMessageId)
+          : "")
+      const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.body))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const rows = try listAllFeedbackMessages(env.project)
+      return rows
+        .filter((row) => hasOwnershipMarker(row.body))
+        .map((row) => toAttrs(row, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = expandParent(news.parent, env.project)
+      const feedbackMessageId = news.feedbackMessageId ?? output?.feedbackMessageId
+      const name = output?.name
+        ?? (feedbackMessageId !== undefined ? resourceNameOf(parent, feedbackMessageId) : "")
+      const ownership = try createInternalLabels(id)
+      const body = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnership(ownership, news.body, MAX_FEEDBACK_BODY_LENGTH), catch: (e) => e }),
+      )
+
+      let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+
+      if (current === undefined) {
+        const created = retryTransient(
+          datalabeling.createProjectsDatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessages({
+            parent,
+            body: {
+              body,
+              image: news.image,
+              requesterFeedbackMetadata: {},
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const done = try waitForOperation(created)
+          const createdName = try Effect.orDie(
+            Effect.try({ try: () => resourceNameFromOperation(done), catch: (e) => e }),
+          )
+          if (createdName !== undefined) {
+            current = try waitForVisible(getByName(createdName))
+          }
+        }
+        if (current === undefined) {
+          current = try findByOwnership(id, env.project)
+        }
+      }
+
+      if (current === undefined) {
+        throw new DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageNotResolved({
+          resourceName: name || parent,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try (datalabeling
+        .deleteProjectsDatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessages({
+          name: output.name,
+        })
+        |> retryDelete(%)
+        |> ignoreGone(%))
+      try waitUntilGone(getByName(output.name))
+    },
+  })

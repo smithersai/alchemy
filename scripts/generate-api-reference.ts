@@ -180,6 +180,33 @@ const isSourceFile = (baseName: string) =>
   !baseName.endsWith(".d.ts") &&
   baseName !== "index.ts";
 
+// A .vibe module's declarations and docs live in its sidecar, x.d.vibe.ts; its source is x.vibe.
+// A sidecar left after restoring TypeScript is stale and must not create a second page.
+const sourceName = (file: string) => normalizeSlashes(file).replace(/\.d\.vibe\.ts$/, ".vibe");
+
+// Documentation must not silently drop native modules on a fresh checkout.
+const isReferenceInput = Effect.fn(function* (directory: string, file: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  if (
+    file.endsWith(".vibe") &&
+    !(yield* fs.exists(path.join(directory, file.slice(0, -5) + ".d.vibe.ts")))
+  ) {
+    return yield* Effect.fail(
+      new Error(
+        "Missing API declaration for " +
+          normalizeSlashes(file) +
+          ". Run pnpm sidecars before generating the reference.",
+      ),
+    );
+  }
+  if (!isSourceFile(path.basename(file))) return false;
+  return (
+    !file.endsWith(".d.vibe.ts") ||
+    (yield* fs.exists(path.join(directory, file.replace(/\.d\.vibe\.ts$/, ".vibe"))))
+  );
+});
+
 const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -191,11 +218,11 @@ const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
   if (root.providerPrefix) {
     const files = yield* fs.readDirectory(srcRoot, { recursive: true });
     for (const file of files) {
-      if (!isSourceFile(path.basename(file))) continue;
+      if (!(yield* isReferenceInput(srcRoot, file))) continue;
       entries.push({
         relativePath: path.join(root.providerPrefix, file),
         absolutePath: path.join(srcRoot, file),
-        sourceDisplay: `${root.sourceDisplayPrefix}/${normalizeSlashes(file)}`,
+        sourceDisplay: `${root.sourceDisplayPrefix}/${sourceName(file)}`,
       });
     }
     entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
@@ -211,13 +238,13 @@ const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
       .pipe(Effect.orElseSucceed((): string[] => []));
 
     for (const file of files) {
-      if (!isSourceFile(path.basename(file))) continue;
+      if (!(yield* isReferenceInput(dirPath, file))) continue;
 
       const relativePath = path.join(dir, file);
       entries.push({
         relativePath,
         absolutePath: path.join(srcRoot, relativePath),
-        sourceDisplay: `${root.sourceDisplayPrefix}/${normalizeSlashes(relativePath)}`,
+        sourceDisplay: `${root.sourceDisplayPrefix}/${sourceName(relativePath)}`,
       });
     }
   }
@@ -593,7 +620,7 @@ export function findTaggedPrimary(
       ? normalizeSlashes(sourceFile.fileName)
           .split("/")
           .pop()!
-          .replace(/\.tsx?$/, "")
+          .replace(/(?:\.d\.vibe)?\.tsx?$/, "")
       : declName(node);
     if (!exportName) continue;
     const name = doc.title || exportName;

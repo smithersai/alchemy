@@ -1,0 +1,408 @@
+import * as networkconnectivity from "@distilled.cloud/gcp/networkconnectivity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  NetworkConnectivityNotResolved,
+  canonicalizeLink,
+  collectPages,
+  hasAlchemyLabelKeys,
+  lastSegment,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  rfc1035,
+  toNetworkResource,
+  toPhysicalId,
+  toSubnetworkResource,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.vibe"
+
+const COLLECTION = "regionalEndpoints"
+const MAX_ID_LENGTH = 46
+
+export type RegionalEndpointAccessType =
+  | networkconnectivity.RegionalEndpointAccessTypeEnum
+  | (string & {})
+
+export type RegionalEndpointProps = {
+  /**
+   * RegionalEndpoint id (the `{regional_endpoint}` segment of
+   * `projects/{project}/locations/{location}/regionalEndpoints/{regional_endpoint}`).
+   * If omitted, a unique name is generated. Must match
+   * `[-a-z0-9]([-a-z0-9]{0,44})[a-z0-9]`. Immutable — changing it
+   * replaces the endpoint.
+   */
+  regionalEndpointId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * endpoint. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Service endpoint this private regional endpoint connects to, e.g.
+   * `"storage.us-central1.p.rep.googleapis.com"`. Immutable — changing
+   * it replaces the endpoint.
+   */
+  targetGoogleApi: string
+  /**
+   * Access type reflected on the PSC forwarding rule (`REGIONAL` or
+   * `GLOBAL`). Immutable — changing it replaces the endpoint.
+   */
+  accessType: RegionalEndpointAccessType
+  /**
+   * VPC network
+   * (`projects/{project}/global/networks/{network}` or a Compute
+   * self-link). Immutable — changing it replaces the endpoint.
+   */
+  network?: string
+  /**
+   * Subnetwork used to allocate the IP
+   * (`projects/{project}/regions/{region}/subnetworks/{subnetwork}` or a
+   * Compute self-link). Immutable — changing it replaces the endpoint.
+   */
+  subnetwork?: string
+  /**
+   * IP address or Address resource URI. When omitted, an IP is allocated
+   * from `subnetwork`. Immutable — changing it replaces the endpoint.
+   */
+  address?: string
+  /**
+   * Human-readable description. Set at create; the API has no update.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type RegionalEndpoint = Resource<
+  "GCP.NetworkConnectivity.RegionalEndpoint",
+  RegionalEndpointProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/regionalEndpoints/{regional_endpoint}`. */
+    name: string
+    /** RegionalEndpoint id (last path segment). */
+    regionalEndpointId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Target Google API hostname. */
+    targetGoogleApi: string | undefined
+    /** Access type (`REGIONAL` or `GLOBAL`). */
+    accessType: string | undefined
+    /** VPC network resource path. */
+    network: string | undefined
+    /** Subnetwork resource path. */
+    subnetwork: string | undefined
+    /** Allocated address or Address resource URI. */
+    address: string | undefined
+    /** Literal IP of the PSC forwarding rule (deprecated; prefer `address`). */
+    ipAddress: string | undefined
+    /** PSC forwarding rule created on behalf of the customer. */
+    pscForwardingRule: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Private Service Connect regional endpoint for a Google API.
+ *
+ * Identity fields (`regionalEndpointId`, `location`, `targetGoogleApi`,
+ * `accessType`, `network`, `subnetwork`, `address`) replace the
+ * endpoint. The API has no patch method.
+ *
+ * ### Creating a RegionalEndpoint
+ * **Example:** Regional access to Cloud Storage
+ * ```typescript
+ * const network = yield* GCP.Compute.Network("AppVpc", {
+ *   autoCreateSubnetworks: false,
+ * });
+ * const subnet = yield* GCP.Compute.Subnetwork("AppSubnet", {
+ *   network: network.selfLink ?? network.networkName,
+ *   ipCidrRange: "10.20.0.0/24",
+ *   privateIpGoogleAccess: true,
+ * });
+ * const endpoint = yield* GCP.NetworkConnectivity.RegionalEndpoint("Storage", {
+ *   targetGoogleApi: "storage.us-central1.p.rep.googleapis.com",
+ *   accessType: "REGIONAL",
+ *   network: network.selfLink ?? network.networkName,
+ *   subnetwork: subnet.selfLink ?? subnet.subnetworkName,
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkConnectivity
+ */
+export const RegionalEndpoint = Resource<RegionalEndpoint>(
+  "GCP.NetworkConnectivity.RegionalEndpoint",
+)
+
+const resourceName = (project: string, location: string, regionalEndpointId: string): infer _ =>
+  `projects/${project}/locations/${location}/regionalEndpoints/${regionalEndpointId}`
+
+const identityKey = (props: {
+  targetGoogleApi?: string
+  accessType?: string
+  network?: string
+  subnetwork?: string
+  address?: string
+}): infer _ =>
+  JSON.stringify({
+    targetGoogleApi: (props.targetGoogleApi ?? "").toLowerCase(),
+    accessType: (props.accessType ?? "").toUpperCase(),
+    network: lastSegment(canonicalizeLink(props.network)),
+    subnetwork: lastSegment(canonicalizeLink(props.subnetwork)),
+    address: canonicalizeLink(props.address),
+  })
+
+const toAttrs = (
+  endpoint: networkconnectivity.RegionalEndpoint,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = endpoint.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  return {
+    name,
+    regionalEndpointId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || region,
+    targetGoogleApi: endpoint.targetGoogleApi,
+    accessType: endpoint.accessType,
+    network: endpoint.network,
+    subnetwork: endpoint.subnetwork,
+    address: endpoint.address,
+    ipAddress: endpoint.ipAddress,
+    pscForwardingRule: endpoint.pscForwardingRule,
+    description: endpoint.description,
+    labels: userLabels(endpoint.labels),
+    createTime: endpoint.createTime,
+    updateTime: endpoint.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkconnectivity
+    .getProjectsLocationsRegionalEndpoints({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const RegionalEndpointProvider = (): infer _ =>
+  Provider.succeed(RegionalEndpoint, {
+    stables: [
+      "name",
+      "regionalEndpointId",
+      "project",
+      "location",
+      "targetGoogleApi",
+      "accessType",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.regionalEndpointId ?? output?.regionalEndpointId
+      const nextId = try Effect.orDie(Effect.try({
+        try: () =>
+          resolved.regionalEndpointId
+            ? rfc1035(resolved.regionalEndpointId, "regional-endpoint", MAX_ID_LENGTH)
+            : previousId,
+        catch: (e) => e,
+      }))
+      const previousLocation = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const nextLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const previousKey = identityKey({
+        targetGoogleApi: olds?.targetGoogleApi ?? output?.targetGoogleApi,
+        accessType: olds?.accessType ?? output?.accessType,
+        network: olds?.network ?? output?.network,
+        subnetwork: olds?.subnetwork ?? output?.subnetwork,
+        address: olds?.address ?? output?.address,
+      })
+      const nextKey = identityKey({
+        targetGoogleApi: resolved.targetGoogleApi,
+        accessType: resolved.accessType,
+        network: resolved.network,
+        subnetwork: resolved.subnetwork,
+        address: resolved.address,
+      })
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || previousKey !== nextKey
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const regionalEndpointId = try toPhysicalId(
+        id,
+        olds?.regionalEndpointId,
+        output?.regionalEndpointId,
+        "regional-endpoint",
+        MAX_ID_LENGTH,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, regionalEndpointId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkconnectivity.listProjectsLocationsRegionalEndpoints.pages({
+          parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, "-"), catch: (e) => e })),
+          pageSize: 1000,
+        }),
+        (page) => page.regionalEndpoints,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const regionalEndpointId = try toPhysicalId(
+        id,
+        news.regionalEndpointId,
+        output?.regionalEndpointId,
+        "regional-endpoint",
+        MAX_ID_LENGTH,
+      )
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, regionalEndpointId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const network = try Effect.orDie(
+        Effect.try({
+          try: () => news.network !== undefined ? toNetworkResource(env.project, news.network) : undefined,
+          catch: (e) => e,
+        }),
+      )
+      const subnetwork = try Effect.orDie(Effect.try({
+        try: () =>
+          news.subnetwork !== undefined
+            ? toSubnetworkResource(env.project, location, news.subnetwork)
+            : undefined,
+        catch: (e) => e,
+      }))
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (effect {
+          return (try (networkconnectivity
+            .createProjectsLocationsRegionalEndpoints({
+              parent: try Effect.orDie(Effect.try({ try: () => parentOf(env.project, location), catch: (e) => e })),
+              regionalEndpointId,
+              body: {
+                targetGoogleApi: news.targetGoogleApi,
+                accessType: news.accessType,
+                network,
+                subnetwork,
+                address: news.address,
+                description: news.description,
+                labels: desiredLabels,
+              },
+            })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              times: 5,
+              schedule: Schedule.spaced("2 seconds"),
+            })))
+        }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new NetworkConnectivityNotResolved({ resourceName: name })
+      }
+
+      current = try (getByName(current.name ?? name)
+        |> Effect.filterOrFail(%, (value): value is networkconnectivity.RegionalEndpoint =>
+          value !== undefined
+          && (value.pscForwardingRule !== undefined
+            || value.address !== undefined
+            || value.ipAddress !== undefined), () => new NetworkConnectivityNotResolved({ resourceName: name }))
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "GCP.NetworkConnectivity.NotResolved",
+          times: 10,
+          schedule: Schedule.spaced("4 seconds"),
+        }))
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (networkconnectivity
+          .deleteProjectsLocationsRegionalEndpoints({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

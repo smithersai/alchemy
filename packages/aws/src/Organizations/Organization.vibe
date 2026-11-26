@@ -1,0 +1,218 @@
+import * as organizations from "@distilled.cloud/aws/organizations"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { retryOrganizations, unredact } from "./common.vibe"
+
+export error OrganizationInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error OrganizationOperationFailed {
+  message: string
+  cause?: unknown
+}
+
+export error OrganizationUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type OrganizationId = string
+export type OrganizationArn = string
+
+export interface OrganizationProps {
+  /**
+   * Organization feature set.
+   * `ALL` unlocks the full AWS Organizations feature set.
+   * @default "ALL"
+   */
+  featureSet?: organizations.OrganizationFeatureSet
+}
+
+export interface Organization extends
+  Resource<
+    "AWS.Organizations.Organization",
+    OrganizationProps,
+    {
+      /**
+       * ID of the organization (e.g. `o-exampleorgid`).
+       */
+      organizationId: OrganizationId
+      /**
+       * ARN of the organization.
+       */
+      organizationArn: OrganizationArn
+      /**
+       * Feature set enabled on the organization (`ALL` or
+       * `CONSOLIDATED_BILLING`).
+       */
+      featureSet: organizations.OrganizationFeatureSet | undefined
+      /**
+       * ARN of the management account.
+       */
+      managementAccountArn: string | undefined
+      /**
+       * 12-digit ID of the management account.
+       */
+      managementAccountId: string | undefined
+      /**
+       * Email address of the management account.
+       */
+      managementAccountEmail: string | undefined
+      /**
+       * Policy types available to the organization.
+       */
+      availablePolicyTypes: organizations.PolicyTypeSummary[]
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The AWS Organization for the current management account.
+ *
+ * This is a singleton-style resource. If an organization already exists,
+ * Alchemy adopts and reconciles it instead of creating a second one.
+ * ### Creating An Organization
+ * **Example:** Full Features Organization
+ * ```typescript
+ * const organization = yield* Organization("Org", {
+ *   featureSet: "ALL",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Organization = Resource<Organization>("AWS.Organizations.Organization")
+
+export const OrganizationProvider = (): infer _ =>
+  Provider.effect(
+    Organization,
+    effect {
+      return {
+        stables: ["organizationId", "organizationArn", "managementAccountId"],
+        diff: effect () => {},
+        read: effect () => {
+          const org = try readOrganization()
+          return org?.Id && org.Arn ? toAttrs(org) : undefined
+        },
+        // Account singleton: there is at most one organization per management
+        // account and no list API. `describeOrganization` (via `readOrganization`)
+        // returns the single org, or the typed `AWSOrganizationsNotInUseException`
+        // is caught to `undefined` when the account isn't a management account.
+        list: effect () => {
+          const org = try readOrganization()
+          return org?.Id && org.Arn ? [toAttrs(org)] : []
+        },
+        reconcile: effect ({ news, session }) => {
+          const desiredFeatureSet = news.featureSet ?? "ALL"
+
+          // Observe — fetch the live singleton organization. There's at most
+          // one organization per management account, and `read` may have
+          // surfaced an existing one for adoption.
+          let org = try readOrganization()
+
+          // Ensure — create the organization if it's missing. Tolerate
+          // `AlreadyInOrganizationException` as a race with a concurrent
+          // creator (e.g. another tool, or a peer reconciler).
+          if (!org) {
+            org = (effect {
+              return (try retryOrganizations(
+                organizations.createOrganization({
+                  FeatureSet: desiredFeatureSet,
+                }),
+              )).Organization
+            }) catch effect (e) => match (e) {
+              when { _tag: "AlreadyInOrganizationException" }: try readOrganization();
+              default: throw e;
+            }
+          }
+
+          if (!org?.Id || !org.Arn) {
+            throw new OrganizationUnexpectedResponse({
+              message: "failed to resolve organization after reconcile",
+            })
+          }
+
+          const orgArn = org.Arn
+
+          // Sync feature set — observed ↔ desired. `ensureFeatureSet`
+          // handles the only legal transition (CONSOLIDATED_BILLING -> ALL)
+          // and rejects anything else.
+          org = try ensureFeatureSet({
+            desired: desiredFeatureSet,
+            current: org,
+          })
+
+          try session.note(orgArn)
+          return toAttrs(org)
+        },
+        delete: effect () => {
+          try retryOrganizations(
+            effect {
+              return organizations
+                .deleteOrganization({}) catch effect (e) => match (e) {
+                  when { _tag: "AWSOrganizationsNotInUseException" }: undefined as void;
+                  default: throw e;
+                }
+            },
+          )
+        },
+      }
+    },
+  )
+
+const toAttrs = (org: organizations.Organization): Organization["Attributes"] => ({
+  organizationId: org.Id ?? "",
+  organizationArn: org.Arn ?? "",
+  featureSet: org.FeatureSet,
+  managementAccountArn: org.MasterAccountArn,
+  managementAccountId: org.MasterAccountId,
+  managementAccountEmail: unredact(org.MasterAccountEmail),
+  availablePolicyTypes: org.AvailablePolicyTypes ?? [],
+})
+
+const readOrganization = effect () =>
+  try retryOrganizations(
+    effect {
+      return (effect {
+        return (try organizations.describeOrganization({})).Organization
+      }) catch effect (e) => match (e) {
+        when { _tag: "AWSOrganizationsNotInUseException" }: undefined;
+        default: throw e;
+      }
+    },
+  )
+
+const ensureFeatureSet = effect ({
+  desired,
+  current,
+}: {
+  desired: organizations.OrganizationFeatureSet | undefined
+  current: organizations.Organization
+}) => {
+  const desiredFeatureSet = desired ?? "ALL"
+  if (current.FeatureSet === desiredFeatureSet) {
+    return current
+  }
+
+  if (desiredFeatureSet === "ALL" && current.FeatureSet === "CONSOLIDATED_BILLING") {
+    try retryOrganizations(organizations.enableAllFeatures({}))
+
+    const updated = try readOrganization()
+    if (updated?.FeatureSet === "ALL") {
+      return updated
+    }
+
+    throw new OrganizationOperationFailed({
+      message: "Organization upgrade to ALL features requires handshake completion before deployment can converge",
+    })
+  }
+
+  throw new OrganizationInvalidProps({
+    message: `Organization feature set cannot be changed from '${current.FeatureSet}' to '${desiredFeatureSet}'`,
+  })
+}

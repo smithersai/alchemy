@@ -2,8 +2,9 @@
 // here, the AWS Lambda wrapper is managed by `AWS.Website.ReactRouter`.
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
+import vibelang from "vibelang-vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [tailwindcss(), reactRouter()],
+  plugins: [vibelang(), tailwindcss(), reactRouter()],
 });

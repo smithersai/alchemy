@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import * as Effect from "effect/Effect";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import type Backend from "../backend.ts";
+import type Backend from "../backend.vibe";
 import { env } from "../env.ts";
 
 const VIAS = ["binding", "fetch", "rpc", "http-client"] as const;

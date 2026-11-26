@@ -11,9 +11,9 @@
  * vinext log and fall back to the in-memory handler.
  */
 import { fileURLToPath } from "node:url";
-import type { RedisAdapterOptions } from "./redis-runtime.ts";
+import type { RedisAdapterOptions } from "./redis-runtime.vibe";
 
-export type { RedisAdapterOptions } from "./redis-runtime.ts";
+export type { RedisAdapterOptions } from "./redis-runtime.vibe";
 
 export const DEFAULT_REDIS_URL_ENV = "REDIS_URL";
 

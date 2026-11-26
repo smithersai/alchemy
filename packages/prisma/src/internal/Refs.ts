@@ -2,10 +2,10 @@ import type { Input } from "alchemy/Input";
 import * as Output from "alchemy/Output";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { App } from "../App.ts";
-import type { Bucket } from "../Bucket.ts";
-import type { Database } from "../Database.ts";
-import type { Project } from "../Project.ts";
+import type { App } from "../App.vibe";
+import type { Bucket } from "../Bucket.vibe";
+import type { Database } from "../Database.vibe";
+import type { Project } from "../Project.vibe";
 
 export class RefsOperationFailed extends Data.TaggedError("RefsOperationFailed")<{
   readonly message: string;

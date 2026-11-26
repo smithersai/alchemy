@@ -8,14 +8,14 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import Agent from "./Agent.ts";
+import Agent from "./Agent.vibe";
 import { Gateway } from "./AiGateway.ts";
 import { Bucket } from "./Bucket.ts";
 import { KV } from "./KV.ts";
-import NotifyWorkflow from "./NotifyWorkflow.ts";
+import NotifyWorkflow from "./NotifyWorkflow.vibe";
 import { Queue } from "./Queue.ts";
 import { Repos } from "./Repos.ts";
-import Room from "./Room.ts";
+import Room from "./Room.vibe";
 
 interface QueueMessageBody {
   id: string;

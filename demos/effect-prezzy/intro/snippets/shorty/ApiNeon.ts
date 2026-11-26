@@ -4,8 +4,8 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as Layer from "effect/Layer";
 import { dieOnStore } from "./errors.ts";
 import { Links, LinksSql } from "./Links.ts";
-import { serve } from "./serve.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { serve } from "./serve.vibe";
+import { ShortyApi } from "./ShortyApi.vibe";
 import { NeonStorage } from "./Storage.ts";
 
 // #region show

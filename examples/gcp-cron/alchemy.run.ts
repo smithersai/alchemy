@@ -1,8 +1,8 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Monitor from "./src/Monitor.ts";
-import { Heartbeats } from "./src/resources.ts";
+import Monitor from "./src/Monitor.vibe";
+import { Heartbeats } from "./src/resources.vibe";
 
 export default Alchemy.Stack(
   "GcpCronExample",

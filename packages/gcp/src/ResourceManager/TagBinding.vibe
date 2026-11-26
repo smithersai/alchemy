@@ -1,0 +1,397 @@
+import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import { waitForOperation } from "./internal.vibe"
+
+const CRM_PREFIX = "//cloudresourcemanager.googleapis.com/"
+const PROJECT_PARENT = /^\/\/cloudresourcemanager\.googleapis\.com\/projects\/([^/]+)$/
+
+export type TagBindingProps = {
+  /**
+   * Full resource name of the resource to bind the TagValue to, e.g.
+   * `//cloudresourcemanager.googleapis.com/projects/{project}`. Accepts
+   * `projects/{project}`, `folders/{folder}`, or `organizations/{org}`
+   * and expands them. If omitted, the current project is used (as a
+   * project-number full name). Immutable — changing it replaces the
+   * binding.
+   */
+  parent?: string
+  /**
+   * TagValue to bind. Accepts `tagValues/{id}` or the namespaced name
+   * `{parent}/{tag-key}/{tag-value}`. Immutable — changing it replaces
+   * the binding.
+   */
+  tagValue: string
+}
+
+export type TagBinding = Resource<
+  "GCP.ResourceManager.TagBinding",
+  TagBindingProps,
+  {
+    /**
+     * Resource name
+     * `tagBindings/{full-resource-name}/{tag-value-name}`.
+     */
+    name: string
+    /** Full resource name of the bound resource. */
+    parent: string
+    /** TagValue resource name `tagValues/{id}`. */
+    tagValue: string
+    /**
+     * Namespaced TagValue
+     * (`{parent}/{tag-key-short-name}/{tag-value-short-name}`).
+     */
+    tagValueNamespacedName: string | undefined
+    /** Project id used to default `parent`. */
+    project: string
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Resource Manager TagBinding — a connection between a TagValue and a
+ * Google Cloud resource (project, folder, or organization). Creating the
+ * binding applies the TagValue to the resource and its descendants.
+ *
+ * TagBindings have no labels and no update API. Identity is
+ * `(parent, tagValue)`; changing either replaces the binding
+ * (delete-first, because a resource may only hold one value per TagKey).
+ * A binding found without prior state is reported as unowned and only
+ * taken over with `--adopt`.
+ *
+ * ### Creating a Tag Binding
+ * **Example:** Bind a TagValue to the current project
+ * ```typescript
+ * const binding = yield* GCP.ResourceManager.TagBinding("Env", {
+ *   tagValue: "tagValues/456",
+ * });
+ * ```
+ *
+ * **Example:** Explicit parent and namespaced TagValue
+ * ```typescript
+ * const binding = yield* GCP.ResourceManager.TagBinding("Env", {
+ *   parent: "//cloudresourcemanager.googleapis.com/projects/123456789",
+ *   tagValue: "my-project/environment/prod",
+ * });
+ * ```
+ *
+ * @resource
+ * @category ResourceManager
+ */
+export const TagBinding = Resource<TagBinding>("GCP.ResourceManager.TagBinding")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TagBindingNotResolved extends Data.TaggedError(
+  "GCP.ResourceManager.TagBindingNotResolved",
+)<{
+  parent: string
+  tagValue: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TagBindingStillExists extends Data.TaggedError(
+  "GCP.ResourceManager.TagBindingStillExists",
+)<{
+  resourceName: string
+}> {}
+
+const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+const unique = (values: string[]): infer _ => [...new Set(values.filter((value) => value.length > 0))]
+
+const expandParent = (parent: string | undefined, project: string, projectNumber: string): infer _ => {
+  if (parent === undefined || parent.length === 0) {
+    return `${CRM_PREFIX}projects/${projectNumber || project}`
+  }
+  if (parent.startsWith("//")) return parent
+  if (
+    parent.startsWith("projects/")
+    || parent.startsWith("folders/")
+    || parent.startsWith("organizations/")
+  ) {
+    return `${CRM_PREFIX}${parent}`
+  }
+  return parent
+}
+
+const isProjectParent = (parent: string): infer _ => PROJECT_PARENT.test(parent)
+
+const projectAliases = (parent: string, project: string, projectNumber: string): infer _ => {
+  const expanded = expandParent(parent, project, projectNumber)
+  if (!isProjectParent(expanded)) return [expanded]
+  return unique([
+    expanded,
+    `${CRM_PREFIX}projects/${project}`,
+    `${CRM_PREFIX}projects/${projectNumber}`,
+  ])
+}
+
+const sameParent = (left: string, right: string, project: string, projectNumber: string): infer _ => {
+  const aliases = new Set(projectAliases(left, project, projectNumber))
+  return projectAliases(right, project, projectNumber).some((alias) => aliases.has(alias))
+}
+
+const sameTagValue = (binding: resourcemanager.TagBinding, desired: string): infer _ =>
+  desired === (binding.tagValue ?? "") || desired === (binding.tagValueNamespacedName ?? "")
+
+const toAttrs = (binding: resourcemanager.TagBinding, project: string): infer _ => ({
+  name: binding.name ?? "",
+  parent: binding.parent ?? "",
+  tagValue: binding.tagValue ?? "",
+  tagValueNamespacedName: binding.tagValueNamespacedName,
+  project,
+})
+
+const isTagValueId = (tagValue: string): infer _ => tagValue.startsWith("tagValues/")
+
+const createBody = (parent: string, tagValue: string): resourcemanager.TagBinding =>
+  isTagValueId(tagValue) ? { parent, tagValue } : { parent, tagValueNamespacedName: tagValue }
+
+const parseBindingName = (name: string): infer _ => {
+  if (!name.startsWith("tagBindings/")) {
+    return {
+      parent: undefined as string | undefined,
+      tagValue: undefined as string | undefined,
+    }
+  }
+  const rest = name.slice("tagBindings/".length)
+  const tagValuesAt = rest.lastIndexOf("/tagValues/")
+  const tagKeysAt = rest.lastIndexOf("/tagKeys/")
+  const at = tagValuesAt >= 0 ? tagValuesAt : tagKeysAt
+  if (at < 0) {
+    return {
+      parent: undefined as string | undefined,
+      tagValue: undefined as string | undefined,
+    }
+  }
+  return {
+    parent: $invoke(decodeURIComponent, rest.slice(0, at)),
+    tagValue: rest.slice(at + 1),
+  }
+}
+
+const bindingNameOf = (parent: string, tagValue: string): infer _ =>
+  `tagBindings/${encodeURIComponent(parent)}/${tagValue}`
+
+const projectNumberOf = effect (project: string) =>
+  (effect {
+    return (try effect {
+      const resource = try resourcemanager.getProjects({ name: `projects/${project}` })
+
+      const number = lastSegment(resource.name ?? "")
+      return /^\d+$/.test(number) ? number : project
+    })
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: project; default: throw e; }
+
+const listBindings = effect (parent: string) =>
+  (effect {
+    return (Array.from(
+      try (resourcemanager.listTagBindings.pages({ parent, pageSize: 300 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tagBindings ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as resourcemanager.TagBinding[]; default: throw e; }
+
+const listBindingsOn = effect (parents: string[]) => {
+  const pages = try Effect.forEach(parents, listBindings, {
+    concurrency: 2,
+  })
+  const byName = new Map<string, resourcemanager.TagBinding>()
+  for (const binding of pages.flat()) {
+    const name = binding.name
+    if (name) byName.set(name, binding)
+  }
+  return [...byName.values()]
+}
+
+const findBinding = effect (
+  parent: string,
+  tagValue: string | undefined,
+  name: string | undefined,
+  project: string,
+  projectNumber: string,
+) => {
+  const parsed = name ? parseBindingName(name) : undefined
+  const parents = projectAliases(parent || parsed?.parent || "", project, projectNumber)
+  const bindings = try listBindingsOn(parents)
+  const desired = tagValue || parsed?.tagValue
+  if (desired !== undefined && desired.length > 0) {
+    const byValue = bindings.find((binding) => sameTagValue(binding, desired))
+    if (byValue) return byValue
+  }
+  if (name) {
+    return bindings.find((binding) => binding.name === name)
+  }
+  return undefined
+}
+
+const waitUntilExists = effect (
+  parent: string,
+  tagValue: string,
+  project: string,
+  projectNumber: string,
+  name?: string,
+) =>
+  try (effect {
+    return try effect {
+      const binding = try findBinding(parent, tagValue, name, project, projectNumber)
+      return (binding ? binding : throw new TagBindingNotResolved({ parent, tagValue }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.ResourceManager.TagBindingNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+const waitUntilGone = effect (
+  parent: string,
+  tagValue: string,
+  project: string,
+  projectNumber: string,
+  name?: string,
+) =>
+  try (effect {
+    return try effect {
+      const binding = try findBinding(parent, tagValue, name, project, projectNumber)
+      return (binding === undefined ? (undefined as void) : throw new TagBindingStillExists({
+        resourceName: binding.name ?? name ?? "",
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.ResourceManager.TagBindingStillExists",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+export const TagBindingProvider = (): infer _ =>
+  Provider.succeed(TagBinding, {
+    stables: ["name", "parent", "tagValue", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const projectNumber = try projectNumberOf(env.project)
+      const previousParent = olds?.parent ?? output?.parent
+      const nextParent = expandParent(resolved.parent ?? previousParent, env.project, projectNumber)
+      const parentChanged = previousParent !== undefined
+        && !sameParent(previousParent, nextParent, env.project, projectNumber)
+
+      const previousValue = olds?.tagValue ?? output?.tagValue
+      const previousNs = output?.tagValueNamespacedName
+      const tagValueChanged = previousValue !== undefined
+        && resolved.tagValue !== previousValue
+        && resolved.tagValue !== previousNs
+
+      if (!parentChanged && !tagValueChanged) return undefined
+      return { action: "replace" as const, deleteFirst: true }
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const projectNumber = try projectNumberOf(env.project)
+      const parsed = output?.name ? parseBindingName(output.name) : undefined
+      const parent = expandParent(
+        output?.parent ?? olds?.parent ?? parsed?.parent,
+        env.project,
+        projectNumber,
+      )
+      const tagValue = output?.tagValue ?? olds?.tagValue ?? parsed?.tagValue
+      if (!parent && !tagValue && !output?.name) return undefined
+      const existing = try findBinding(
+        parent,
+        tagValue,
+        output?.name,
+        env.project,
+        projectNumber,
+      )
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    reconcile: effect ({ news }) => {
+      const env = try GcpEnvironment.current
+      const projectNumber = try projectNumberOf(env.project)
+      const parent = expandParent(news.parent, env.project, projectNumber)
+      const tagValue = news.tagValue
+
+      let current = try findBinding(parent, tagValue, undefined, env.project, projectNumber)
+
+      if (current === undefined) {
+        const created = resourcemanager
+          .createTagBindings({
+            body: createBody(parent, tagValue),
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(parent, tagValue, env.project, projectNumber)
+      }
+
+      if (current === undefined) {
+        throw new TagBindingNotResolved({ parent, tagValue })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const projectNumber = try projectNumberOf(env.project)
+      const parsed = parseBindingName(output.name)
+      const parent = expandParent(output.parent || parsed.parent, env.project, projectNumber)
+      const tagValue = output.tagValue || parsed.tagValue || ""
+      let name = output.name
+      if (!name) {
+        const existing = try findBinding(
+          parent,
+          tagValue,
+          undefined,
+          env.project,
+          projectNumber,
+        )
+        name = existing?.name ?? ""
+      }
+      if (!name && parent && isTagValueId(tagValue)) {
+        name = bindingNameOf(parent, tagValue)
+      }
+      if (!name) return
+
+      const operation = resourcemanager
+        .deleteTagBindings({ name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(parent, tagValue, env.project, projectNumber, name)
+    },
+  })
+
+module $call$ts {
+  export function invoke<T extends Function>(
+    target: T,
+    arg0: Parameters<Extract<T, (...args: any[]) => any>>[0],
+  ): ReturnType<Extract<T, (...args: any[]) => any>> {
+    return target(arg0)
+  }
+}
+import { invoke as $invoke } from $call$ts

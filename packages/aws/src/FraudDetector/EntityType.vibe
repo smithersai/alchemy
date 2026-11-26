@@ -1,0 +1,142 @@
+import * as frauddetector from "@distilled.cloud/aws/frauddetector"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readFraudDetectorTags, syncFraudDetectorTags } from "./internal.vibe"
+
+export interface EntityTypeProps {
+  /**
+   * Name of the entity type. If omitted, a unique lowercase name is generated
+   * from the app, stage, and logical ID. Changing the name replaces the entity
+   * type.
+   */
+  name?: string
+  /**
+   * Human-readable description. This is an in-place update.
+   */
+  description?: string
+  /**
+   * User-defined tags for the entity type.
+   */
+  tags?: Record<string, string>
+}
+
+export interface EntityType extends
+  Resource<
+    "AWS.FraudDetector.EntityType",
+    EntityTypeProps,
+    {
+      /** The name of the entity type. */
+      name: string
+      /** The ARN of the entity type. */
+      arn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Fraud Detector entity type — the classification of who or what an
+ * event is about (e.g. `customer`, `merchant`). Event types reference entity
+ * types; they are cheap metadata objects.
+ *
+ * ### Creating an Entity Type
+ * **Example:** Basic Entity Type
+ * ```typescript
+ * const customer = yield* FraudDetector.EntityType("customer", {
+ *   description: "the buyer placing an order",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const EntityType = Resource<EntityType>("AWS.FraudDetector.EntityType")
+
+export const EntityTypeProvider = (): infer _ =>
+  Provider.effect(
+    EntityType,
+    effect {
+      const createName = effect (id: string, props: EntityTypeProps) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 64, lowercase: true }))
+
+      /** Look an entity type up by name; typed not-found → undefined. */
+      const get = effect (name: string) => {
+        const response = frauddetector
+          .getEntityTypes({ name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: undefined;
+            default: throw e;
+          }
+        return response?.entityTypes?.[0]
+      }
+
+      const toAttrs = (entityType: frauddetector.EntityType): infer _ => ({
+        name: entityType.name!,
+        arn: entityType.arn!,
+      })
+
+      return {
+        stables: ["name", "arn"],
+
+        diff: effect ({ id, olds = {}, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, resolved)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.name ?? (try createName(id, olds ?? {}))
+          const entityType = try get(name)
+          if (entityType === undefined) return undefined
+          const attrs = toAttrs(entityType)
+          const tags = try readFraudDetectorTags(entityType.arn!)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news = {}, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // putEntityType is an idempotent upsert — call it to converge whether
+          // creating or updating the description.
+          try frauddetector.putEntityType({
+            name,
+            description: news.description,
+          })
+
+          const entityType = try get(name)
+          // Sync tags — diff against OBSERVED cloud tags.
+          try syncFraudDetectorTags(entityType!.arn!, desiredTags)
+
+          try session.note(name)
+          return toAttrs(entityType!)
+        },
+
+        delete: effect ({ output }) => {
+          frauddetector.deleteEntityType({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "ValidationException" }: undefined as void;
+            default: throw e;
+          }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (frauddetector.getEntityTypes.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => (page.entityTypes ?? []).map(toAttrs)),
+      }
+    },
+  )

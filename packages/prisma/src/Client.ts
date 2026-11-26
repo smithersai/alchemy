@@ -10,7 +10,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { type ObservedConnection, secretValue } from "./internal/Observed.ts";
-import { PrismaEnvironment } from "./PrismaEnvironment.ts";
+import { PrismaEnvironment } from "./PrismaEnvironment.vibe";
 import type {
   App,
   AccelerateRegion,

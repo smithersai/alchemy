@@ -1,7 +1,7 @@
-export * from "./Workflow.ts";
-export { makeWorkflowBridge } from "./WorkflowBridge.ts";
+export * from "./Workflow.vibe";
+export { makeWorkflowBridge } from "./WorkflowBridge.vibe";
 export {
   layerDurableObjectEngine,
   type DurableObjectEngineOptions,
-} from "./DurableObjectEngine.ts";
-export { NativeEngine } from "./NativeEngine.ts";
+} from "./DurableObjectEngine.vibe";
+export { NativeEngine } from "./NativeEngine.vibe";

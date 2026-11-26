@@ -1,1 +1,1 @@
-export * from "./DetectionSettings.ts";
+export * from "./DetectionSettings.vibe";

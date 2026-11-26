@@ -1,2 +1,2 @@
-export * from "./CmbConfig.ts";
-export * from "./RetentionFlag.ts";
+export * from "./CmbConfig.vibe";
+export * from "./RetentionFlag.vibe";

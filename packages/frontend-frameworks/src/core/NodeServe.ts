@@ -14,7 +14,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { toOutputFile, type BuildOutput, type OutputFile } from "./BuildOutput.ts";
-import { DeployTargetError } from "./DeployTarget.ts";
+import { DeployTargetError } from "./DeployTarget.vibe";
 
 /** Node resolve conditions for server code (no `workerd`). */
 export const NODE_BUNDLE_CONDITIONS = ["node", "import", "module", "default"] as const;

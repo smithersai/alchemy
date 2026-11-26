@@ -1,4 +1,4 @@
-import { frameworkSite, staticConfigFromAssets, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { frameworkSite, staticConfigFromAssets, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /** The framework-integration package that drives the Vite build. */
 export const VITE_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/vite";

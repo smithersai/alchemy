@@ -3,7 +3,7 @@ import * as Neon from "@alchemy.run/neon";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import Api from "./src/Api.ts";
+import Api from "./src/Api.vibe";
 
 export default Alchemy.Stack(
   "Shorty",

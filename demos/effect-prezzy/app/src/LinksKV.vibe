@@ -1,0 +1,57 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { LinkNotFound, Links, LinkStoreError, newCode, type Link } from "./Links.vibe"
+
+/** `Links` stored in a Cloudflare KV namespace that this Layer owns. */
+export const LinksKV = Layer.effect(
+  Links,
+  effect {
+    const namespace = try Cloudflare.KV.Namespace("Links")
+    const kv = try Cloudflare.KV.ReadWriteNamespace(namespace)
+
+    const get = effect (code: string) => {
+      const link = try kv.get<Link>(code, "json")
+      if (!link) return try new LinkNotFound({ code })
+      return link
+    }
+
+    return {
+      create: Effect.fn(
+        effect (url: string) => {
+          const link: Link = {
+            code: try Effect.orDie(Effect.try({ try: () => newCode(), catch: (e) => e })),
+            url,
+            createdAt: Date.now(),
+          }
+          try kv.put(link.code, JSON.stringify(link))
+          return link
+        },
+        Effect.mapError((cause) => new LinkStoreError({ cause })),
+      ),
+      get: (code: string) =>
+        get(code).pipe(
+          Effect.catchTag("NamespaceError", (cause) => Effect.fail(new LinkStoreError({ cause }))),
+        ),
+      list: Effect.fn(
+        effect () => {
+          const { keys } = try kv.list()
+          const links = try Effect.forEach(keys, (key) => kv.get<Link>(key.name, "json"), {
+            concurrency: 10,
+          })
+          return links
+            .filter((link): link is Link => link !== null)
+            .sort((a, b) => b.createdAt - a.createdAt)
+        },
+        Effect.mapError((cause) => new LinkStoreError({ cause })),
+      ),
+      setPreview: Effect.fn(
+        effect (code: string, preview: Link["preview"] & {}) => {
+          const link = try get(code)
+          try kv.put(code, JSON.stringify({ ...link, preview }))
+        },
+        Effect.catchTag("NamespaceError", (cause) => Effect.fail(new LinkStoreError({ cause }))),
+      ),
+    }
+  },
+).pipe(Layer.provide(Cloudflare.KV.ReadWriteNamespaceBinding))

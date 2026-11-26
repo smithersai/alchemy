@@ -12,7 +12,7 @@ import {
   beforeAll as vitestBeforeAll,
   beforeEach as vitestBeforeEach,
 } from "vitest";
-import * as Core from "./Core.ts";
+import * as Core from "./Core.vibe";
 
 export {
   executeWhenReady,
@@ -23,7 +23,7 @@ export {
   WorkerNotReady,
   type EdgeGuardOptions,
   type WhenReadyOptions,
-} from "./Http.ts";
+} from "./Http.vibe";
 
 export type MakeOptions<ROut = any> = Core.MakeOptions<ROut>;
 export type ScratchStack = Core.ScratchStack;

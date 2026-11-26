@@ -40,7 +40,7 @@
 import { afterAll, expect, test } from "bun:test";
 import * as path from "node:path";
 import { DevCli, fetchOk } from "@alchemy.run/test/DevCli";
-import { WORKFLOW_SECRET_VALUE } from "../src/NotifyWorkflow.ts";
+import { WORKFLOW_SECRET_VALUE } from "../src/NotifyWorkflow.vibe";
 
 const root = path.resolve(import.meta.dirname, "..");
 const STAGE = "dev-cli-test";

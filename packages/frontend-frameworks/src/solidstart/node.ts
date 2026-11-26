@@ -26,7 +26,7 @@ import {
   relativeClientDirExpression,
   writeNodeServeEntry,
 } from "../core/NodeServe.ts";
-import { make, type SolidStartTarget, type SolidStartTargetConfig } from "./SolidStart.ts";
+import { make, type SolidStartTarget, type SolidStartTargetConfig } from "./SolidStart.vibe";
 
 /** The nitro deployment preset this target builds with. */
 export const NITRO_PRESET = "node";

@@ -1,0 +1,90 @@
+import { randomUUID } from "./crypto.platform.ts"
+import * as HttpApi from "effect/http-api/HttpApi"
+import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint"
+import * as HttpApiGroup from "effect/http-api/HttpApiGroup"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+import { Job, JobId } from "./Job.vibe"
+import { JobNotifications, NotifyJobError } from "./JobNotifications.vibe"
+import { GetJobError, JobStorage, PutJobError } from "./JobStorage.vibe"
+
+export const getJob = HttpApiEndpoint.get("getJob", "/", {
+  success: Job,
+  query: {
+    jobId: JobId.pipe(Schema.optional),
+  },
+})
+
+export const createJob = HttpApiEndpoint.post("createJob", "/", {
+  success: JobId,
+  payload: Schema.Struct({
+    content: Schema.String,
+  }),
+})
+
+export const JobApi = HttpApi.make("JobApi").add(HttpApiGroup.make("Jobs").add(getJob, createJob))
+
+export const JobApiLive = HttpApiBuilder.layer(JobApi).pipe(
+  Layer.provide(
+    HttpApiBuilder.group(JobApi, "Jobs", effect (handlers) => {
+      const jobService = try JobStorage
+      const notifications = try JobNotifications
+
+      return handlers
+        .handle(
+          "getJob",
+          effect (req) => {
+            if (!req.query.jobId) {
+              return HttpServerResponse.text("Job ID is required", {
+                status: 400,
+              })
+            }
+            const job = jobService.getJob(req.query.jobId) catch (error) => match (error) {
+              when { _tag: "GetJobError" }: HttpServerResponse.text(error.message, {
+                status: 500,
+              });
+            }
+            if (job instanceof GetJobError) {
+              return HttpServerResponse.text(job.message, {
+                status: 500,
+              })
+            }
+            if (!job) {
+              return HttpServerResponse.text("Job not found", {
+                status: 404,
+              })
+            }
+            return job!
+          },
+        )
+        .handle(
+          "createJob",
+          effect (req) => {
+            const jobId = try randomUUID()
+            const job = jobService
+              .putJob({
+                id: jobId,
+                content: req.payload.content,
+              }) catch effect (error) => match (error) {
+                when { _tag: "PutJobError" }: try Effect.succeed(error);
+              }
+            if (job instanceof PutJobError) {
+              return HttpServerResponse.text(job.message, {
+                status: 500,
+              })
+            }
+            const notificationResult = notifications
+              .notifyJobCreated(job) catch effect (error) => match (error) {
+                when { _tag: "NotifyJobError" }: try Effect.succeed(error);
+              }
+            if (notificationResult instanceof NotifyJobError) {
+              return HttpServerResponse.text(notificationResult.message, {
+                status: 500,
+              })
+            }
+            return job.id
+          },
+        )
+    }),
+  ),
+)

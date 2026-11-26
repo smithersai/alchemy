@@ -52,7 +52,7 @@ import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
-import { createComputeArchive, normalizeEntrypoint } from "./ComputeArchive.ts";
+import { createComputeArchive, normalizeEntrypoint } from "./ComputeArchive.vibe";
 import {
   runBuildCommand,
   runComputeAutoBuild,
@@ -65,17 +65,17 @@ import {
   toDeploymentUrl,
   waitForDeploymentStatus,
 } from "./ComputeLifecycle.ts";
-import { readUploadArtifact, uploadArtifact } from "./Deployment.ts";
-import { ensureAppImmutableIdentity } from "./internal/AppIdentity.ts";
-import { promoteAppObserved, waitForAppDeploymentTarget } from "./internal/AppPromotion.ts";
+import { readUploadArtifact, uploadArtifact } from "./Deployment.vibe";
+import { ensureAppImmutableIdentity } from "./internal/AppIdentity.vibe";
+import { promoteAppObserved, waitForAppDeploymentTarget } from "./internal/AppPromotion.vibe";
 import { normalizeBundleFilePath } from "./internal/BundlePaths.ts";
 import { aggregateCleanupFailure } from "./internal/CleanupFailure.ts";
 import {
   startDeploymentIdempotent,
   stopDeploymentIdempotent,
 } from "./internal/DeploymentActions.ts";
-import { ensureDeploymentMembership } from "./internal/DeploymentIdentity.ts";
-import { observeDeployment } from "./internal/DeploymentObserve.ts";
+import { ensureDeploymentMembership } from "./internal/DeploymentIdentity.vibe";
+import { observeDeployment } from "./internal/DeploymentObserve.vibe";
 import type {
   ObservedApp,
   ObservedDeployment,
@@ -90,8 +90,8 @@ import {
   unresolvedProjectIdOf,
 } from "./internal/Refs.ts";
 import { tailDeploymentLogs } from "./PrismaLogs.ts";
-import type { Project } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Project } from "./Project.vibe";
+import type { Providers } from "./Providers.vibe";
 import type { PrismaRegionId } from "./Types.ts";
 
 export class ComputeConflict extends Data.TaggedError("ComputeConflict")<{

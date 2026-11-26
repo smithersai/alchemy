@@ -1,0 +1,35 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.vibe"
+import { grantFor, type BindingIam, type GcpHttpOp } from "../HttpBinding.vibe"
+import type { CryptoKey } from "./CryptoKey.vibe"
+
+/**
+ * Shared HTTP scaffolding for Cloud KMS CryptoKey bindings.
+ * NOT exported from index.ts.
+ */
+export const makeCryptoKeyHttpBinding = effect <I extends { name?: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (key: CryptoKey) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${key})`({
+        iam: [try Effect.orDie(Effect.try({ try: () => grantFor(options.iam, key.name), catch: (e) => e }))],
+      })
+    }
+    const name = try key.name.asEffect()
+    return effect (request?: Omit<I, "name"> | undefined) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...(request as I),
+            name: try name,
+          } as I)
+        },
+        `${options.tag}(${key.LogicalId})`,
+      )
+  }
+}

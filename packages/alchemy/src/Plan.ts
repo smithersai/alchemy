@@ -8,24 +8,24 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
-import { asEffect } from ".//Util/types.ts";
-import { isAction, type ActionLike } from "./Action.ts";
+import { asEffect } from ".//Util/types.vibe";
+import { isAction, type ActionLike } from "./Action.vibe";
 import {
   AdoptPolicy,
   OwnedBySomeoneElse,
   stripUnowned,
   Unowned,
   UnverifiableReplacement,
-} from "./AdoptPolicy.ts";
-import { AlchemyContext } from "./AlchemyContext.ts";
+} from "./AdoptPolicy.vibe";
+import { AlchemyContext } from "./AlchemyContext.vibe";
 import {
   Artifacts,
   ArtifactStore,
   createArtifactStore,
   ensureArtifactStore,
   makeScopedArtifacts,
-} from "./Artifacts.ts";
-import { demandRemoteCredentials, failCredentialsRequired } from "./Auth/Demand.ts";
+} from "./Artifacts.vibe";
+import { demandRemoteCredentials, failCredentialsRequired } from "./Auth/Demand.vibe";
 import {
   dedupeBindings,
   diffBindings,
@@ -35,9 +35,9 @@ import {
   type ReplaceDiff,
   type UpdateDiff,
 } from "./Diff.ts";
-import { emit, type PlannedAction, type PlannedBinding, type PlannedResource } from "./Events.ts";
+import { emit, type PlannedAction, type PlannedBinding, type PlannedResource } from "./Events.vibe";
 import { parseFqn } from "./FQN.ts";
-import { generateInstanceId } from "./InstanceId.ts";
+import { generateInstanceId } from "./InstanceId.vibe";
 import * as Output from "./Output.ts";
 import {
   tryFindProviderRegistrationByType,
@@ -47,24 +47,24 @@ import {
   tryFindProviderByType,
   type ProviderService,
 } from "./Provider.ts";
-import { defaultProviderMode, stampedMode, type ProviderMode } from "./ProviderMode.ts";
+import { defaultProviderMode, stampedMode, type ProviderMode } from "./ProviderMode.vibe";
 import {
   isResource,
   missingImplementation,
   type ResourceBinding,
   type ResourceLike,
 } from "./Resource.ts";
-import { ResourceContext } from "./ResourceContext.ts";
+import { ResourceContext } from "./ResourceContext.vibe";
 import {
   InvalidResourceSelection,
   UnsafeSelectionBoundary,
   selectResources,
   type ResourceSelection,
   type SelectionOutput,
-} from "./ResourceSelection.ts";
-import { capturedEnvKeys } from "./RuntimeContext.ts";
-import { cachedInScope } from "./Util/Memoize.ts";
-export { InvalidResourceSelection, UnsafeSelectionBoundary } from "./ResourceSelection.ts";
+} from "./ResourceSelection.vibe";
+import { capturedEnvKeys } from "./RuntimeContext.vibe";
+import { cachedInScope } from "./Util/Memoize.vibe";
+export { InvalidResourceSelection, UnsafeSelectionBoundary } from "./ResourceSelection.vibe";
 import { type StackSpec } from "./Stack.ts";
 import {
   isActionState,
@@ -80,9 +80,9 @@ import {
   type UpdatedResourceState,
   type UpdatingReourceState,
 } from "./State/index.ts";
-import { isPlainData, mapPlainData } from "./Util/data.ts";
+import { isPlainData, mapPlainData } from "./Util/data.vibe";
 import { findCycleMembers } from "./Util/scc.ts";
-import { hashInput } from "./Util/sha256.ts";
+import { hashInput } from "./Util/sha256.vibe";
 
 export type PlanError = never;
 

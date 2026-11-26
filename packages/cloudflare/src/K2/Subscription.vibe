@@ -1,0 +1,256 @@
+import * as k2 from "@distilled.cloud/cloudflare/k2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import type { StartAt } from "./K2Types.vibe"
+import type { Stream } from "./Stream.vibe"
+
+const SubscriptionTypeId = "Cloudflare.K2.Subscription" as const
+type SubscriptionTypeId = typeof SubscriptionTypeId
+
+export interface SubscriptionProps {
+  /**
+   * The stream to read from: a `Cloudflare.K2.Stream` resource (orders the
+   * subscription after the stream) or a stream ID. Changing it replaces the
+   * subscription.
+   */
+  stream: string | Stream<any>
+  /**
+   * Name of the subscription: 1 to 128 letters, numbers, underscores, or
+   * hyphens, unique within the stream (not case-sensitive). If omitted, a
+   * unique name is generated from the app, stage, and logical ID. Changing
+   * it replaces the subscription.
+   * @default ${app}-${id}-${stage}-${suffix}
+   */
+  name?: string
+  /**
+   * Where the subscription starts reading: `earliest` from the oldest
+   * retained record, `latest` from after the newest one. Changing it
+   * replaces the subscription.
+   * @default "latest"
+   */
+  startAt?: StartAt
+}
+
+export interface SubscriptionAttributes {
+  /** The subscription ID. */
+  subscriptionId: string
+  /** The subscription name (unique within the stream). */
+  subscriptionName: string
+  /** ID of the stream the subscription reads from. */
+  streamId: string
+  /** Where the subscription started reading. */
+  startAt: StartAt
+  /** When the subscription was created. */
+  createdAt: string
+  /** When the subscription was last modified. */
+  modifiedAt: string
+}
+
+export type Subscription = Resource<
+  SubscriptionTypeId,
+  SubscriptionProps,
+  SubscriptionAttributes,
+  never,
+  Providers
+>
+
+/**
+ * A K2 subscription — a named read position on a {@link Stream}. Consumers
+ * lease batches of records from a subscription, then acknowledge them to
+ * advance it. Every subscription on a stream reads every record
+ * independently; consumers sharing one subscription compete for batches.
+ *
+ * Subscriptions are immutable: changing the stream, name, or start position
+ * replaces the subscription.
+ * ### Creating a Subscription
+ * **Example:** Read new records
+ * ```typescript
+ * const orders = yield* Cloudflare.K2.Stream("Orders");
+ * const analytics = yield* Cloudflare.K2.Subscription("Analytics", {
+ *   stream: orders,
+ * });
+ * ```
+ *
+ * **Example:** Read from the oldest retained record
+ * ```typescript
+ * const backfill = yield* Cloudflare.K2.Subscription("Backfill", {
+ *   stream: orders,
+ *   startAt: "earliest",
+ * });
+ * ```
+ *
+ * ### Pulling Records
+ * **Example:** Lease, process, and acknowledge a batch
+ * ```typescript
+ * const inbox = yield* Cloudflare.K2.ReadSubscription(analytics);
+ * const batch = yield* inbox.consume({ workerId: "worker-1", maxRecords: 100 });
+ * if (Option.isSome(batch)) {
+ *   yield* Effect.forEach(batch.value.records, handle);
+ *   yield* inbox.ack(batch.value);
+ * }
+ * ```
+ *
+ * @resource
+ * @product K2
+ * @category Storage & Databases
+ */
+export const Subscription = Resource<Subscription>(SubscriptionTypeId)
+
+/** Returns true if the given value is a K2 Subscription resource. */
+export const isSubscription = (value: unknown): value is Subscription =>
+  Predicate.hasProperty(value, "Type") && value.Type === SubscriptionTypeId
+
+export const SubscriptionProvider = (): infer _ =>
+  Provider.succeed(Subscription, {
+    stables: ["subscriptionId", "subscriptionName", "streamId", "startAt", "createdAt"],
+
+    diff: effect ({ id, olds, news, output }) => {
+      const resolved_ = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved_ === undefined) return undefined
+      const oldName = output?.subscriptionName ?? (try subscriptionName(id, olds?.name))
+      const newName = resolved_.name ?? oldName
+      const oldStartAt = output?.startAt ?? olds?.startAt ?? "latest"
+      const streamChanged = (output?.streamId ?? streamIdOf(olds?.stream)) !== streamIdOf(resolved_.stream)
+      if (
+        streamChanged
+        || newName.toLowerCase() !== oldName.toLowerCase()
+        || (resolved_.startAt ?? "latest") !== oldStartAt
+      ) {
+        // An explicit name is reused by the replacement; K2 rejects the same
+        // name with different settings, so delete the old one first.
+        return {
+          action: "replace",
+          deleteFirst: resolved_.name !== undefined && !streamChanged,
+        } as const
+      }
+      return undefined
+    },
+
+    read: effect ({ id, output, olds }) => {
+      const streamId = output?.streamId ?? streamIdOf(olds?.stream)
+      if (!streamId) return undefined
+      if (output?.subscriptionId) {
+        const observed = try getSubscription(streamId, output.subscriptionId)
+        if (observed) return toAttributes(observed, streamId)
+      }
+      const name = try subscriptionName(id, olds?.name)
+      const match = try findSubscriptionByName(streamId, name)
+      if (match) {
+        const attrs = toAttributes(match, streamId)
+        return olds?.name !== undefined
+          ? try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+          : attrs
+      }
+      return undefined
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const streamId = streamIdOf(news.stream)
+      if (streamId === undefined) {
+        throw new SubscriptionStreamUnresolved({
+          message: "`stream` did not resolve to a stream ID",
+        })
+      }
+      const name = output?.streamId === streamId
+        ? output.subscriptionName
+        : try subscriptionName(id, news.name)
+      const startAt = news.startAt ?? "latest"
+
+      // Observe — the cached id is only valid on the same stream.
+      let observed = output?.subscriptionId && output.streamId === streamId
+        ? try getSubscription(streamId, output.subscriptionId)
+        : undefined
+
+      // Ensure — creating with the same name and settings returns the
+      // existing subscription's id, so a lost state write converges here.
+      if (!observed) {
+        const created = try k2.createSubscription({
+          streamId,
+          name,
+          startAt: { type: startAt },
+        })
+        observed = try k2.getSubscription({ streamId, subscriptionId: created.id })
+      }
+
+      // Subscriptions have no mutable settings; every change is a replace.
+      return toAttributes(observed, streamId)
+    },
+
+    delete: effect ({ output }) => {
+      k2
+        .deleteSubscription({
+          streamId: output.streamId,
+          subscriptionId: output.subscriptionId,
+        }) catch effect (e) => match (e) {
+          when { _tag: "K2SubscriptionNotFound" } or { _tag: "K2StreamNotFound" }: undefined as void;
+          default: throw e;
+        }
+    },
+  })
+
+interface ObservedSubscription {
+  id: string
+  name: string
+  startAt: k2.SubscriptionStartAt
+  createdAt: string
+  modifiedAt: string
+}
+
+const subscriptionName = effect (id: string, name: string | undefined) => {
+  if (name) return name
+  const generated = try createPhysicalName({ id, maxLength: 128 })
+  return generated.replaceAll(/[^a-zA-Z0-9_-]/g, "-")
+}
+
+/** The `stream` prop did not resolve to a stream ID. */
+// @vibelang-diagnostics-next-line EK4830:off
+export class SubscriptionStreamUnresolved extends Data.TaggedError(
+  "K2SubscriptionStreamUnresolved",
+)<{ message: string }> {}
+
+/**
+ * The stream ID behind a `stream` prop: the string itself, or the `streamId`
+ * attribute of a resolved `Cloudflare.K2.Stream`.
+ */
+const streamIdOf = (stream: unknown): string | undefined =>
+  typeof stream === "string"
+    ? stream
+    : stream !== null
+        && typeof stream === "object"
+        && typeof (stream as { streamId?: unknown }).streamId === "string"
+    ? (stream as { streamId: string }).streamId
+    : undefined
+
+const getSubscription = effect (streamId: string, subscriptionId: string) =>
+  (effect {
+    return (try k2.getSubscription({ streamId, subscriptionId }))
+  }) catch effect (e) => match (e) {
+    when { _tag: "K2SubscriptionNotFound" } or { _tag: "K2StreamNotFound" }: undefined;
+    default: throw e;
+  }
+
+/** `listSubscriptions` filters by name server-side (at most one match). */
+const findSubscriptionByName = effect (streamId: string, name: string) =>
+  (effect {
+    return ((try k2.listSubscriptions({ streamId, name })).find((s) => s.name.toLowerCase() === name.toLowerCase()))
+  }) catch effect (
+    e,
+  ) => match (e) { when { _tag: "K2StreamNotFound" }: undefined; default: throw e; }
+
+const toAttributes = (
+  observed: ObservedSubscription,
+  streamId: string,
+): SubscriptionAttributes => ({
+  subscriptionId: observed.id,
+  subscriptionName: observed.name,
+  streamId,
+  startAt: observed.startAt.type === "earliest" ? "earliest" : "latest",
+  createdAt: observed.createdAt,
+  modifiedAt: observed.modifiedAt,
+})

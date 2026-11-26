@@ -1,0 +1,451 @@
+import * as beyondcorp from "@distilled.cloud/gcp/beyondcorp_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  DEFAULT_GLOBAL,
+  ResourceNotResolved,
+  collectPages,
+  encodeOwnershipLine,
+  expandName,
+  fieldMask,
+  fingerprint,
+  hasOwnershipMarker,
+  listAtLocation,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  rfc1035,
+  toPhysicalId,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+const COLLECTION = "applications"
+
+export type SecurityGatewaysApplicationEndpointMatcher = {
+  /** Hostname pattern (`example.com`, `*.example.com`). */
+  hostname?: string
+  /** Ports that match this hostname. */
+  ports?: number[]
+}
+
+export type SecurityGatewaysApplicationUpstream = {
+  /** VPC network to forward traffic to. */
+  network?: { name?: string }
+  /** External endpoints to forward traffic to. */
+  external?: {
+    endpoints?: Array<{ hostname?: string; port?: number }>
+  }
+  /** Optional proxy-protocol configuration for the upstream. */
+  proxyProtocol?: beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1ProxyProtocolConfig
+  /** Regions where the application sends traffic. */
+  egressPolicy?: { regions?: string[] }
+}
+
+export type SecurityGatewaysApplicationProps = {
+  /**
+   * Parent SecurityGateway resource name
+   * (`projects/{project}/locations/{location}/securityGateways/{securityGateway}`)
+   * or gateway id. Immutable — changing it replaces the application.
+   */
+  securityGateway: string
+  /**
+   * Application id (the `{application}` segment of
+   * `.../securityGateways/{securityGateway}/applications/{application}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable —
+   * changing it replaces the application.
+   */
+  applicationId?: string
+  /**
+   * Location of the parent gateway. Inferred from `securityGateway`
+   * when that value is a full resource name. Defaults to `global`.
+   * Immutable — changing it replaces the application.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Endpoint matchers. The application matches when any matcher is
+   * satisfied.
+   */
+  endpointMatchers: SecurityGatewaysApplicationEndpointMatcher[]
+  /**
+   * External application schema (`PROXY_GATEWAY`, `API_GATEWAY`).
+   */
+  schema?: beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1ApplicationSchemaEnum | (string & {})
+  /**
+   * Upstream resources that receive matched traffic.
+   */
+  upstreams?: SecurityGatewaysApplicationUpstream[]
+  /**
+   * Human-readable name. Cannot exceed 64 characters. Application has
+   * no labels field, so Alchemy stamps ownership into this value and
+   * strips it from attributes.
+   */
+  displayName?: string
+}
+
+export type SecurityGatewaysApplication = Resource<
+  "GCP.BeyondCorp.SecurityGatewaysApplication",
+  SecurityGatewaysApplicationProps,
+  {
+    /** Full resource name `.../securityGateways/{securityGateway}/applications/{application}`. */
+    name: string
+    /** Application id (last path segment). */
+    applicationId: string
+    /** Parent SecurityGateway resource name. */
+    securityGateway: string
+    /** Project id. */
+    project: string
+    /** Location id (`global`). */
+    location: string
+    /** Endpoint matchers. */
+    endpointMatchers: SecurityGatewaysApplicationEndpointMatcher[]
+    /** External application schema. */
+    schema: string | undefined
+    /** Upstream resources. */
+    upstreams: SecurityGatewaysApplicationUpstream[]
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A BeyondCorp Security Gateway application that matches host and
+ * port combinations and forwards traffic to upstreams.
+ *
+ * The API has no labels field, so Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. Changing the parent gateway,
+ * application id, or location replaces the application. Display
+ * name, endpoint matchers, schema, and upstreams update in place.
+ *
+ * ### Creating a SecurityGatewaysApplication
+ * **Example:** Match HTTPS for a hostname
+ * ```typescript
+ * const app = yield* GCP.BeyondCorp.SecurityGatewaysApplication("Web", {
+ *   securityGateway: gateway.name,
+ *   endpointMatchers: [{ hostname: "app.example.com", ports: [443] }],
+ * });
+ * ```
+ *
+ * **Example:** External upstreams
+ * ```typescript
+ * const app = yield* GCP.BeyondCorp.SecurityGatewaysApplication("Web", {
+ *   securityGateway: gateway.name,
+ *   applicationId: "app-web",
+ *   displayName: "prod web",
+ *   endpointMatchers: [{ hostname: "app.example.com", ports: [80, 443] }],
+ *   upstreams: [
+ *     {
+ *       external: {
+ *         endpoints: [{ hostname: "origin.example.com", port: 443 }],
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category BeyondCorp
+ */
+export const SecurityGatewaysApplication = Resource<SecurityGatewaysApplication>(
+  "GCP.BeyondCorp.SecurityGatewaysApplication",
+)
+
+const parentGatewayName = (project: string, location: string, securityGateway: string): infer _ =>
+  expandName(securityGateway, project, location, "securityGateways")
+
+const resourceNameOf = (parent: string, applicationId: string): infer _ => `${parent}/applications/${applicationId}`
+
+const parentFromName = (name: string): infer _ => {
+  const index = name.lastIndexOf("/applications/")
+  return index >= 0 ? name.slice(0, index) : name
+}
+
+const locationFromParent = (securityGateway: string, fallback: string): infer _ => {
+  if (!securityGateway.includes("/locations/")) return fallback
+  return parseName(securityGateway, "securityGateways", fallback).location
+}
+
+const toMatchers = (
+  matchers: beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1EndpointMatcherList | undefined,
+): SecurityGatewaysApplicationEndpointMatcher[] =>
+  (matchers ?? []).map((matcher) => ({
+    hostname: matcher.hostname,
+    ports: matcher.ports ? [...matcher.ports] : undefined,
+  }))
+
+const toUpstreams = (
+  upstreams: beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1ApplicationUpstreamList | undefined,
+): SecurityGatewaysApplicationUpstream[] =>
+  (upstreams ?? []).map((upstream) => ({
+    network: upstream.network ? { name: upstream.network.name } : undefined,
+    external: upstream.external
+      ? {
+        endpoints: (upstream.external.endpoints ?? []).map((endpoint) => ({
+          hostname: endpoint.hostname,
+          port: endpoint.port,
+        })),
+      }
+      : undefined,
+    proxyProtocol: upstream.proxyProtocol,
+    egressPolicy: upstream.egressPolicy
+      ? {
+        regions: upstream.egressPolicy.regions ? [...upstream.egressPolicy.regions] : undefined,
+      }
+      : undefined,
+  }))
+
+const toAttrs = (
+  item: beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1Application,
+  project: string,
+): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_GLOBAL)
+  const ownership = parseOwnership(item.displayName)
+  const parent = parentFromName(name)
+  return {
+    name,
+    applicationId: parsed.id,
+    securityGateway: parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    endpointMatchers: toMatchers(item.endpointMatchers),
+    schema: item.schema === undefined ? undefined : `${item.schema}`,
+    upstreams: toUpstreams(item.upstreams),
+    displayName: ownership.text,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  beyondcorp
+    .getProjectsLocationsSecurityGatewaysApplications({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) => {
+  const gateways = try listAtLocation(project, effect (parent) =>
+    try collectPages(
+      beyondcorp.listProjectsLocationsSecurityGateways.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (
+        page,
+      ):
+        | readonly beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1SecurityGateway[]
+        | undefined => page.securityGateways,
+    ))
+  const nested = try Effect.forEach(
+    gateways.filter((gateway) => (gateway.name ?? "").length > 0),
+    effect (gateway) =>
+      try collectPages(
+        beyondcorp.listProjectsLocationsSecurityGatewaysApplications.pages({
+          parent: gateway.name!,
+          pageSize: 1000,
+        }),
+        (
+          page,
+        ): readonly beyondcorp.GoogleCloudBeyondcorpSecuritygatewaysV1Application[] | undefined => page.applications,
+      ),
+    { concurrency: 4 },
+  )
+  return nested.flat().filter((item) => hasOwnershipMarker(item.displayName))
+}
+
+export const SecurityGatewaysApplicationProvider = (): infer _ =>
+  Provider.succeed(SecurityGatewaysApplication, {
+    stables: ["name", "applicationId", "securityGateway", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousLocation = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            olds?.location ?? output?.location,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const input = {
+        previousId: olds?.applicationId ?? output?.applicationId,
+        nextId: resolved.applicationId
+          ? rfc1035(resolved.applicationId, "application")
+          : (olds?.applicationId ?? output?.applicationId),
+        previousLocation,
+        nextLocation: normalizeLocation(
+          resolved.location ?? locationFromParent(resolved.securityGateway, previousLocation),
+          DEFAULT_GLOBAL,
+        ),
+        previousParent: olds?.securityGateway ?? output?.securityGateway,
+        nextParent: resolved.securityGateway,
+      }
+      return try Effect.orDie(Effect.try({ try: () => replaceOnIdentity(input), catch: (e) => e }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location2 = olds?.location
+        ?? output?.location
+        ?? (olds?.securityGateway
+          ? locationFromParent(olds.securityGateway, DEFAULT_GLOBAL)
+          : undefined)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const applicationId = try toPhysicalId(
+        id,
+        olds?.applicationId,
+        output?.applicationId,
+        "application",
+      )
+      const parent = olds?.securityGateway
+        ? parentGatewayName(env.project, location, olds.securityGateway)
+        : output?.securityGateway
+      const name = output?.name ?? (parent ? resourceNameOf(parent, applicationId) : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.displayName))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location2 = news.location
+        ?? output?.location
+        ?? locationFromParent(news.securityGateway, DEFAULT_GLOBAL)
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            location2,
+            DEFAULT_GLOBAL,
+          ),
+        catch: (e) => e,
+      }))
+      const applicationId = try toPhysicalId(
+        id,
+        news.applicationId,
+        output?.applicationId,
+        "application",
+      )
+      const parent = parentGatewayName(env.project, location, news.securityGateway)
+      const name = resourceNameOf(parent, applicationId)
+      const ownership = try createInternalLabels(id)
+      const desiredDisplayName = try Effect.orDie(
+        Effect.try({ try: () => encodeOwnershipLine(ownership, news.displayName), catch: (e) => e }),
+      )
+      const endpointMatchers = news.endpointMatchers.map((matcher) => ({
+        hostname: matcher.hostname,
+        ports: matcher.ports,
+      }))
+      const upstreams = news.upstreams
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = beyondcorp
+          .createProjectsLocationsSecurityGatewaysApplications({
+            parent,
+            applicationId,
+            body: {
+              displayName: desiredDisplayName,
+              endpointMatchers,
+              schema: news.schema,
+              upstreams,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const fields = [
+        (current.displayName ?? "") !== desiredDisplayName && "display_name",
+        (try Effect.orDie(
+          Effect.try({ try: fingerprint.bind(undefined, toMatchers(current.endpointMatchers)), catch: (e) => e }),
+        ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(endpointMatchers), catch: (e) => e })))
+        && "endpoint_matchers",
+        (current.schema ?? "") !== (news.schema ?? "") && "schema",
+        (try Effect.orDie(
+          Effect.try({ try: fingerprint.bind(undefined, toUpstreams(current.upstreams)), catch: (e) => e }),
+        ))
+          !== (try Effect.orDie(Effect.try({ try: () => fingerprint(upstreams), catch: (e) => e }))) && "upstreams",
+      ]
+      const mask = try Effect.orDie(Effect.try({ try: () => fieldMask(fields), catch: (e) => e }))
+
+      if (mask.length > 0) {
+        const operation = try beyondcorp.patchProjectsLocationsSecurityGatewaysApplications({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            displayName: desiredDisplayName,
+            endpointMatchers,
+            schema: news.schema,
+            upstreams,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (beyondcorp
+          .deleteProjectsLocationsSecurityGatewaysApplications({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

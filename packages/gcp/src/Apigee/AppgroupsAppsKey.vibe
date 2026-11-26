@@ -1,0 +1,424 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  attributesToRecord,
+  childName,
+  collectPages,
+  createOwnership,
+  defaultOrgName,
+  desiredAttributes,
+  lastSegment,
+  listOrgNames,
+  orgIdOf,
+  orgNameOf,
+  ownedBy,
+  recordToAttributes,
+  sameRecord,
+  sameStringList,
+  userAttributes,
+} from "./operations.vibe"
+
+export type AppgroupsAppsKeyProps = {
+  /**
+   * Apigee organization id or `organizations/{org}`. Defaults to the
+   * current GCP project id. Immutable — changing it replaces the key.
+   */
+  organization?: string
+  /**
+   * Parent AppGroup name or `organizations/{org}/appgroups/{appgroup}`.
+   * Immutable — changing it replaces the key.
+   */
+  appGroup: string
+  /**
+   * Parent AppGroup app name or full resource name. Immutable — changing
+   * it replaces the key.
+   */
+  app: string
+  /**
+   * Consumer key. If omitted, a unique key is generated. Immutable —
+   * changing it replaces the key.
+   */
+  consumerKey?: string
+  /**
+   * Consumer secret. If omitted, a unique secret is generated. Immutable —
+   * changing it replaces the key.
+   */
+  consumerSecret?: string
+  /**
+   * Scopes to apply to the key.
+   */
+  scopes?: string[]
+  /**
+   * API products associated with the key. Applied after create via
+   * UpdateAppGroupAppKey.
+   */
+  apiProducts?: string[]
+  /**
+   * Credential status (`approved` or `revoked`).
+   * @default "approved"
+   */
+  status?: string
+  /**
+   * Expiration time in seconds. `-1` (default) never expires. Immutable
+   * after create.
+   */
+  expiresInSeconds?: string
+  /**
+   * Custom attributes. Alchemy ownership attributes are merged in
+   * automatically.
+   */
+  attributes?: Record<string, string>
+}
+
+export type AppgroupsAppsKey = Resource<
+  "GCP.Apigee.AppgroupsAppsKey",
+  AppgroupsAppsKeyProps,
+  {
+    /** Full resource name `organizations/{org}/appgroups/{appgroup}/apps/{app}/keys/{key}`. */
+    name: string
+    /** Consumer key. */
+    consumerKey: string
+    /** Consumer secret. */
+    consumerSecret: string | undefined
+    /** Parent AppGroup id. */
+    appGroup: string
+    /** Parent app name. */
+    app: string
+    /** Apigee organization id. */
+    organization: string
+    /** Scopes. */
+    scopes: string[]
+    /** Associated API products. */
+    apiProducts: apigee.GoogleCloudApigeeV1APIProductAssociation[]
+    /** Credential status. */
+    status: string | undefined
+    /** User attributes (Alchemy ownership attributes stripped). */
+    attributes: Record<string, string>
+    /** Issued-at time in milliseconds since epoch. */
+    issuedAt: string | undefined
+    /** Expiration time in milliseconds since epoch. */
+    expiresAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A custom consumer key and secret for an Apigee AppGroup app.
+ *
+ * Apigee keys have no labels field, so Alchemy stamps ownership into
+ * custom attributes for `list` / nuke. The consumer key is identity —
+ * changing it replaces the key. Scopes, API products, status, and
+ * attributes update in place.
+ *
+ * ### Creating an AppGroup App Key
+ * **Example:** Generated key under an AppGroup app
+ * ```typescript
+ * const key = yield* GCP.Apigee.AppgroupsAppsKey("GroupKey", {
+ *   appGroup: "partners",
+ *   app: "partner-portal",
+ * });
+ * ```
+ *
+ * **Example:** Custom key and secret
+ * ```typescript
+ * const key = yield* GCP.Apigee.AppgroupsAppsKey("GroupKey", {
+ *   appGroup: "partners",
+ *   app: "partner-portal",
+ *   consumerKey: "partner-key",
+ *   consumerSecret: "partner-secret",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const AppgroupsAppsKey = Resource<AppgroupsAppsKey>("GCP.Apigee.AppgroupsAppsKey")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppgroupsAppsKeyNotResolved extends Data.TaggedError(
+  "GCP.Apigee.AppgroupsAppsKeyNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const appGroupIdOf = (appGroup: string): infer _ => appGroup.includes("/appgroups/") ? lastSegment(appGroup) : appGroup
+
+const appNameOf = (app: string): infer _ => (app.includes("/apps/") ? lastSegment(app) : app)
+
+const appParentOf = (organization: string, appGroup: string, app: string): infer _ =>
+  `${childName(orgNameOf(organization), "appgroups", appGroupIdOf(appGroup))}/apps/${appNameOf(app)}`
+
+const resourceName = (organization: string, appGroup: string, app: string, consumerKey: string): infer _ =>
+  `${appParentOf(organization, appGroup, app)}/keys/${consumerKey}`
+
+const toKeyId = effect (id: string, explicit: string | undefined, existing?: string) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  return try createPhysicalName({ id, maxLength: 64, lowercase: true })
+}
+
+const toSecret = effect (id: string, explicit: string | undefined) => {
+  if (explicit !== undefined) return explicit
+  return try createPhysicalName({
+    id: `${id}-secret`,
+    maxLength: 64,
+    lowercase: true,
+  })
+}
+
+const toAttrs = (
+  key: apigee.GoogleCloudApigeeV1AppGroupAppKey,
+  organization: string,
+  appGroup: string,
+  app: string,
+): infer _ => {
+  const consumerKey = key.consumerKey ?? ""
+  return {
+    name: resourceName(organization, appGroup, app, consumerKey),
+    consumerKey,
+    consumerSecret: key.consumerSecret,
+    appGroup: appGroupIdOf(appGroup),
+    app: appNameOf(app),
+    organization: orgIdOf(organization),
+    scopes: key.scopes ?? [],
+    apiProducts: key.apiProducts ?? [],
+    status: key.status,
+    attributes: userAttributes(attributesToRecord(key.attributes)),
+    issuedAt: key.issuedAt,
+    expiresAt: key.expiresAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsAppgroupsAppsKeys({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listAppGroups = effect (organization: string) =>
+  collectPages(
+    apigee.listOrganizationsAppgroups.pages({
+      parent: organization,
+      pageSize: 1000,
+    }),
+    (page) => page.appGroups,
+  ) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as apigee.GoogleCloudApigeeV1AppGroup[];
+    default: throw e;
+  }
+
+const listApps = effect (parent: string) =>
+  collectPages(
+    apigee.listOrganizationsAppgroupsApps.pages({
+      parent,
+      pageSize: 1000,
+    }),
+    (page) => page.appGroupApps,
+  ) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as apigee.GoogleCloudApigeeV1AppGroupApp[];
+    default: throw e;
+  }
+
+export const AppgroupsAppsKeyProvider = (): infer _ =>
+  Provider.succeed(AppgroupsAppsKey, {
+    stables: ["name", "consumerKey", "appGroup", "app", "organization", "issuedAt"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousKey = olds?.consumerKey ?? output?.consumerKey
+      const previousSecret = olds?.consumerSecret ?? output?.consumerSecret
+      const previousGroup = olds?.appGroup ?? output?.appGroup
+      const previousApp = olds?.app ?? output?.app
+      const previousOrg = olds?.organization ?? output?.organization
+      const keyChanged = previousKey !== undefined
+        && resolved.consumerKey !== undefined
+        && resolved.consumerKey !== previousKey
+      const secretChanged = previousSecret !== undefined
+        && resolved.consumerSecret !== undefined
+        && resolved.consumerSecret !== previousSecret
+      const groupChanged = previousGroup !== undefined
+        && appGroupIdOf(resolved.appGroup) !== appGroupIdOf(previousGroup)
+      const appChanged = previousApp !== undefined && appNameOf(resolved.app) !== appNameOf(previousApp)
+      const orgChanged = try Effect.orDie(Effect.try({
+        try: () =>
+          previousOrg !== undefined
+          && resolved.organization !== undefined
+          && orgIdOf(resolved.organization) !== orgIdOf(previousOrg),
+        catch: (e) => e,
+      }))
+      if (keyChanged || secretChanged || groupChanged || appChanged || orgChanged) {
+        return {
+          action: "replace" as const,
+          deleteFirst: keyChanged && !groupChanged && !appChanged && !orgChanged,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try Effect.orDie(
+        Effect.try({
+          try: () => defaultOrgName(env.project, olds?.organization ?? output?.organization),
+          catch: (e) => e,
+        }),
+      )
+      const appGroup = olds?.appGroup ?? output?.appGroup
+      const app = olds?.app ?? output?.app
+      if (appGroup === undefined || app === undefined) return undefined
+      const consumerKey = try toKeyId(id, olds?.consumerKey, output?.consumerKey)
+      const name = output?.name ?? resourceName(organization, appGroup, app, consumerKey)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, appGroup, app)
+      return (try ownedBy(
+          id,
+          try Effect.orDie(Effect.try({ try: () => attributesToRecord(existing.attributes), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const orgs = try listOrgNames()
+      const rows: AppgroupsAppsKey["Attributes"][] = []
+      for (const organization of orgs) {
+        const groups = try listAppGroups(organization)
+        for (const group of groups) {
+          const groupId = group.name ?? ""
+          if (groupId.length === 0) continue
+          const parent = try Effect.orDie(
+            Effect.try({ try: () => childName(organization, "appgroups", groupId), catch: (e) => e }),
+          )
+          const apps = try listApps(parent)
+          for (const app of apps) {
+            const appName = app.name ?? ""
+            const fetched = (app.credentials?.length ?? 0) > 0
+              ? app
+              : apigee
+                .getOrganizationsAppgroupsApps({
+                  name: `${parent}/apps/${appName}`,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: app;
+                  default: throw e;
+                }
+            for (const credential of fetched.credentials ?? []) {
+              const labels = try Effect.orDie(
+                Effect.try({ try: () => attributesToRecord(credential.attributes), catch: (e) => e }),
+              )
+              if (!Object.keys(labels).some((key) => key.startsWith("alchemy-"))) {
+                continue
+              }
+              rows.push(
+                toAttrs(
+                  {
+                    consumerKey: credential.consumerKey,
+                    consumerSecret: credential.consumerSecret,
+                    scopes: credential.scopes,
+                    status: credential.status,
+                    attributes: credential.attributes,
+                    issuedAt: credential.issuedAt,
+                    expiresAt: credential.expiresAt,
+                    apiProducts: (credential.apiProducts ?? []).map((product) => ({
+                      apiproduct: product.apiproduct,
+                      status: product.status,
+                    })),
+                  },
+                  organization,
+                  groupId,
+                  appName,
+                ),
+              )
+            }
+          }
+        }
+      }
+      return rows
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try Effect.orDie(
+        Effect.try({ try: () => defaultOrgName(env.project, news.organization), catch: (e) => e }),
+      )
+      const appGroup = appGroupIdOf(news.appGroup)
+      const app = appNameOf(news.app)
+      const consumerKey = try toKeyId(id, news.consumerKey, output?.consumerKey)
+      const consumerSecret = try toSecret(id, news.consumerSecret ?? output?.consumerSecret)
+      const parent = appParentOf(organization, appGroup, app)
+      const name = `${parent}/keys/${consumerKey}`
+      const ownership = try createOwnership(id)
+      const attributes = try Effect.orDie(
+        Effect.try({ try: () => desiredAttributes(news.attributes, ownership), catch: (e) => e }),
+      )
+      const status = news.status ?? "approved"
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsAppgroupsAppsKeys({
+            parent,
+            body: {
+              consumerKey,
+              consumerSecret,
+              expiresInSeconds: news.expiresInSeconds,
+              attributes: recordToAttributes(attributes),
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppgroupsAppsKeyNotResolved({ resourceName: name })
+      }
+
+      const observedAttributes = attributesToRecord(current.attributes)
+      const scopesChanged = !sameStringList(current.scopes, news.scopes)
+      const productsChanged = !sameStringList(
+        (current.apiProducts ?? []).map((product) => product.apiproduct ?? ""),
+        news.apiProducts ?? [],
+      )
+      const statusChanged = (current.status ?? "") !== status
+      const attributesChanged = !(try Effect.orDie(Effect.try({
+        try: sameRecord.bind(undefined, observedAttributes, attributes),
+        catch: (e) => e,
+      })))
+
+      if (scopesChanged || productsChanged || statusChanged || attributesChanged) {
+        current = try apigee.updateAppGroupAppKeyOrganizationsAppgroupsAppsKeys({
+          name,
+          body: {
+            action: statusChanged ? status : undefined,
+            apiProducts: news.apiProducts,
+            appGroupAppKey: {
+              consumerKey,
+              scopes: news.scopes,
+              attributes: recordToAttributes(attributes),
+            },
+          },
+        })
+      }
+
+      return toAttrs(current, organization, appGroup, app)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsAppgroupsAppsKeys({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

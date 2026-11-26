@@ -1,9 +1,9 @@
 import * as Domain from "@alchemy.run/domain";
-import { MfaChallenge } from "../MfaChallenge.middleware.ts";
-import { Cents } from "../Money.ts";
+import { MfaChallenge } from "../MfaChallenge.middleware.vibe";
+import { Cents } from "../Money.vibe";
 import { Session } from "../Session.middleware.ts";
-import { AccountId } from "./Account.id.ts";
-import { Frozen } from "./Frozen.rejection.ts";
+import { AccountId } from "./Account.id.vibe";
+import { Frozen } from "./Frozen.rejection.vibe";
 import { InsufficientFunds } from "./InsufficientFunds.rejection.ts";
 import { NotOpen } from "./NotOpen.rejection.ts";
 import { NotOwner } from "./NotOwner.rejection.ts";

@@ -1,1 +1,1 @@
-export * from "./UsersSshPublicKey.ts";
+export * from "./UsersSshPublicKey.vibe";

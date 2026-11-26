@@ -1,4 +1,4 @@
-import type { NamespaceNode } from "./Namespace.ts";
+import type { NamespaceNode } from "./Namespace.vibe";
 
 /**
  * Separator used in FQN strings.

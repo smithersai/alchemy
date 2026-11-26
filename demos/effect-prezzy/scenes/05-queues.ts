@@ -6,10 +6,10 @@ export default defineScene({
   notes:
     "The redirect now sends a click event to the Clicks queue and returns immediately. consumeQueueMessages receives each batch as an Effect Stream; we fold it into one count per link and call each LinkRoom once per batch. Producer binding plus a Consumer resource: a cycle (Api → Clicks → Api) that Alchemy resolves. retryDelay covers batches delivered while a fresh deploy is still rolling out.",
   async run(s) {
-    await s.sync({ except: ["src/Clicks.ts", "src/Api.ts"] });
+    await s.sync({ except: ["src/Clicks.ts", "src/Api.vibe"] });
     await s.editor.show("src/Clicks.ts");
     s.pause(0.5);
-    await s.editor.show("src/Api.ts");
+    await s.editor.show("src/Api.vibe");
     s.pause(1);
 
     await s.terminal(async (t) => {

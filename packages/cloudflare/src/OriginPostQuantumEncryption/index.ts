@@ -1,1 +1,1 @@
-export * from "./OriginPostQuantumEncryption.ts";
+export * from "./OriginPostQuantumEncryption.vibe";

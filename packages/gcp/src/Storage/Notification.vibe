@@ -1,0 +1,478 @@
+import * as pubsub from "@distilled.cloud/gcp/pubsub_v1"
+import * as storage from "@distilled.cloud/gcp/storage_v1"
+import * as serviceusage from "@distilled.cloud/gcp/unstable/serviceusage_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { DeleteNotConfirmed } from "../Errors.vibe"
+import { ALCHEMY_LABEL_PREFIX, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.vibe"
+import { waitForOperation } from "../Operation.ts"
+import type { Providers } from "../Providers.vibe"
+
+const DEFAULT_PAYLOAD_FORMAT = "JSON_API_V1"
+const CANONICAL_TOPIC_PREFIX = "//pubsub.googleapis.com/"
+const PUBLISHER_ROLE = "roles/pubsub.publisher"
+
+export type NotificationPayloadFormat = "JSON_API_V1" | "NONE"
+
+export type NotificationProps = {
+  /**
+   * Name of the Cloud Storage bucket this notification is attached to.
+   * Immutable — changing it replaces the notification.
+   */
+  bucketName: string
+  /**
+   * Cloud Pub/Sub topic to publish events to. Accepts a topic id, a
+   * resource name (`projects/{project}/topics/{topic}`), or the canonical
+   * URI (`//pubsub.googleapis.com/projects/{project}/topics/{topic}`).
+   * Immutable — changing it replaces the notification.
+   */
+  topic: string
+  /**
+   * Payload included in each Pub/Sub message.
+   * @default "JSON_API_V1"
+   */
+  payloadFormat?: NotificationPayloadFormat
+  /**
+   * Event types to publish. Omit (or pass an empty list) to receive every
+   * event (`OBJECT_FINALIZE`, `OBJECT_METADATA_UPDATE`, `OBJECT_DELETE`,
+   * `OBJECT_ARCHIVE`). Immutable — changing it replaces the notification.
+   */
+  eventTypes?: string[]
+  /**
+   * If set, only objects whose names start with this prefix generate
+   * notifications. Immutable — changing it replaces the notification.
+   */
+  objectNamePrefix?: string
+  /**
+   * Extra attributes attached to every published Pub/Sub message. Alchemy
+   * writes no ownership markers here (they would reach every subscriber);
+   * the config is tracked by its server-assigned id. Immutable — changing
+   * attributes replaces the notification.
+   */
+  customAttributes?: Record<string, string>
+}
+
+export type Notification = Resource<
+  "GCP.Storage.Notification",
+  NotificationProps,
+  {
+    /** Parent bucket name. */
+    bucketName: string
+    /** Server-assigned notification id. */
+    notificationId: string
+    /** Canonical Pub/Sub topic URI. */
+    topic: string
+    /** Topic id (last path segment). */
+    topicId: string
+    /** Project id used when normalizing the topic. */
+    project: string
+    /** Payload format (`JSON_API_V1` or `NONE`). */
+    payloadFormat: string
+    /** Event types this notification is subscribed to (empty = all). */
+    eventTypes: string[]
+    /** Object-name prefix filter, if any. */
+    objectNamePrefix: string | undefined
+    /** User custom attributes (Alchemy ownership keys stripped). */
+    customAttributes: Record<string, string>
+    /** GCS self-link. */
+    selfLink: string | undefined
+    /** HTTP etag. */
+    etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Storage Pub/Sub notification configuration on a bucket.
+ *
+ * GCS has no update API for notifications — every user-facing field is
+ * immutable and changing it replaces the config. The Cloud Storage
+ * service account is granted `roles/pubsub.publisher` on the topic
+ * during reconcile so events can actually be published.
+ *
+ * Notifications carry no labels, and `customAttributes` are delivered on
+ * every message, so Alchemy does not stamp ownership markers. `read` finds
+ * the config by its recorded id; without one, an identical config on the
+ * bucket is reported as unowned.
+ *
+ * ### Creating a Notification
+ * **Example:** Notify on every object event
+ * ```typescript
+ * const bucket = yield* GCP.Storage.Bucket("assets", {
+ *   forceDestroy: true,
+ * });
+ * const topic = yield* GCP.PubSub.Topic("events", {});
+ * const notification = yield* GCP.Storage.Notification("object-events", {
+ *   bucketName: bucket.bucketName,
+ *   topic: topic.name,
+ * });
+ * ```
+ *
+ * **Example:** Filtered events, prefix, and custom attributes
+ * ```typescript
+ * const notification = yield* GCP.Storage.Notification("uploads", {
+ *   bucketName: bucket.bucketName,
+ *   topic: topic.name,
+ *   payloadFormat: "JSON_API_V1",
+ *   eventTypes: ["OBJECT_FINALIZE"],
+ *   objectNamePrefix: "uploads/",
+ *   customAttributes: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Storage
+ */
+export const Notification = Resource<Notification>("GCP.Storage.Notification")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class NotificationNotResolved extends Data.TaggedError(
+  "GCP.Storage.NotificationNotResolved",
+)<{
+  bucketName: string
+  notificationId?: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class NotificationServiceAccountMissing extends Data.TaggedError(
+  "GCP.Storage.NotificationServiceAccountMissing",
+)<{
+  project: string
+}> {}
+
+const topicIdOf = (topic: string): infer _ => topic.split("/").pop() ?? topic
+
+const toCanonicalTopic = (topic: string, project: string): infer _ => {
+  if (topic.startsWith(CANONICAL_TOPIC_PREFIX)) return topic
+  if (topic.startsWith("projects/")) {
+    return `${CANONICAL_TOPIC_PREFIX}${topic}`
+  }
+  return `${CANONICAL_TOPIC_PREFIX}projects/${project}/topics/${topic}`
+}
+
+const toPubsubName = (topic: string, project: string): infer _ => {
+  const canonical = toCanonicalTopic(topic, project)
+  return canonical.startsWith(CANONICAL_TOPIC_PREFIX)
+    ? canonical.slice(CANONICAL_TOPIC_PREFIX.length)
+    : canonical
+}
+
+const topicKey = (topic: string, project: string): infer _ => toPubsubName(topic, project)
+
+const userAttributes = (
+  attributes: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(attributes))
+
+const sameAttributes = (
+  left: Record<string, string> | undefined,
+  right: Record<string, string> | undefined,
+): infer _ => {
+  const a = left ?? {}
+  const b = right ?? {}
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    if (a[key] !== b[key]) return false
+  }
+  return true
+}
+
+const normalizeEventTypes = (eventTypes: string[] | undefined): infer _ =>
+  [...(eventTypes ?? [])].map((event) => event.toUpperCase()).sort()
+
+const sameEventTypes = (left: string[] | undefined, right: string[] | undefined): infer _ =>
+  normalizeEventTypes(left).join("\0") === normalizeEventTypes(right).join("\0")
+
+const toAttrs = (notification: storage.Notification, bucketName: string, project: string): infer _ => {
+  const topic = notification.topic ?? ""
+  return {
+    bucketName,
+    notificationId: notification.id ?? "",
+    topic,
+    topicId: topicIdOf(topic),
+    project,
+    payloadFormat: notification.payload_format ?? DEFAULT_PAYLOAD_FORMAT,
+    eventTypes: notification.event_types ?? [],
+    objectNamePrefix: notification.object_name_prefix,
+    customAttributes: userAttributes(notification.custom_attributes),
+    selfLink: notification.selfLink,
+    etag: notification.etag,
+  }
+}
+
+const matchesDesired = (
+  notification: storage.Notification,
+  news: NotificationProps,
+  project: string,
+): infer _ => {
+  const desiredTopic = toCanonicalTopic(news.topic, project)
+  const observedTopic = notification.topic ?? ""
+  const payloadFormat = news.payloadFormat ?? DEFAULT_PAYLOAD_FORMAT
+  return (
+    topicKey(observedTopic, project) === topicKey(desiredTopic, project)
+    && (notification.payload_format ?? DEFAULT_PAYLOAD_FORMAT) === payloadFormat
+    && sameEventTypes(notification.event_types, news.eventTypes)
+    && (notification.object_name_prefix ?? "") === (news.objectNamePrefix ?? "")
+    && sameAttributes(userAttributes(notification.custom_attributes), toLabels(news.customAttributes))
+  )
+}
+
+const immutableChanged = (
+  news: NotificationProps,
+  olds: Partial<NotificationProps> | undefined,
+  output: Notification["Attributes"] | undefined,
+  project: string,
+): infer _ => {
+  const previousBucket = olds?.bucketName ?? output?.bucketName
+  if (previousBucket !== undefined && news.bucketName !== previousBucket) {
+    return true
+  }
+  const previousTopic = olds?.topic ?? output?.topic
+  if (
+    previousTopic !== undefined
+    && topicKey(news.topic, project) !== topicKey(previousTopic, project)
+  ) {
+    return true
+  }
+  const previousPayload = olds?.payloadFormat ?? output?.payloadFormat ?? DEFAULT_PAYLOAD_FORMAT
+  if ((news.payloadFormat ?? DEFAULT_PAYLOAD_FORMAT) !== previousPayload) {
+    return true
+  }
+  if (!sameEventTypes(news.eventTypes, olds?.eventTypes ?? output?.eventTypes)) {
+    return true
+  }
+  const previousPrefix = olds?.objectNamePrefix ?? output?.objectNamePrefix ?? ""
+  if ((news.objectNamePrefix ?? "") !== previousPrefix) {
+    return true
+  }
+  const previousAttrs = olds?.customAttributes ?? output?.customAttributes
+  if (!sameAttributes(toLabels(news.customAttributes), previousAttrs)) {
+    return true
+  }
+  return false
+}
+
+const getById = effect (bucketName: string, notificationId: string) =>
+  storage
+    .getNotifications({
+      bucket: bucketName,
+      notification: notificationId,
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined; default: throw e; }
+
+const listOnBucket = effect (bucketName: string) =>
+  (effect {
+    return ((try storage.listNotifications({ bucket: bucketName })).items ?? [])
+  }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as Array<storage.Notification>;
+    default: throw e;
+  }
+
+/** A config on the bucket identical to the desired one (props match). */
+const findMatching = effect (bucketName: string, props: NotificationProps, project: string) =>
+  (try listOnBucket(bucketName)).find((item) => matchesDesired(item, props, project))
+
+const waitUntilGone = effect (bucketName: string, notificationId: string) =>
+  try ((try (effect {
+      return ((try getById(bucketName, notificationId)) === undefined ? ("gone" as const) : ("found" as const))
+    }
+      |> Effect.repeat(%, {
+        schedule: Schedule.spaced("1 second"),
+        until: (status) => status === "gone",
+        times: 30,
+      }))) === "gone"
+    ? Effect.void
+    : throw new DeleteNotConfirmed({
+      resource: `${bucketName}/notificationConfigs/${notificationId}`,
+    }))
+
+const deleteById = effect (bucketName: string, notificationId: string) =>
+  storage
+    .deleteNotifications({
+      bucket: bucketName,
+      notification: notificationId,
+    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: undefined as void; default: throw e; }
+
+const ensureGcsServiceIdentity = effect (project: string, email: string) => {
+  const projectNumber = email.match(/^service-(\d+)@/)?.[1] ?? project
+  const operation = serviceusage
+    .generateServiceIdentityServices({
+      parent: `projects/${projectNumber}/services/storage.googleapis.com`,
+    }) catch effect (e) => match (e) { when { _tag: "Conflict" }: undefined; default: throw e; }
+  if (operation === undefined) return
+  try waitForOperation(operation, effect (name) => try serviceusage.getOperations({ name }), {
+    budget: "2 minutes",
+    interval: "2 seconds",
+  })
+}
+
+const ensureTopicPublisher = effect (project: string, topic: string) => {
+  const serviceAccount = try storage.getProjectsServiceAccount({
+    projectId: project,
+  })
+  const email = serviceAccount.email_address
+  if (!email) {
+    throw new NotificationServiceAccountMissing({ project })
+  }
+  try ensureGcsServiceIdentity(project, email)
+  const resource = toPubsubName(topic, project)
+  const member = `serviceAccount:${email}`
+  const grant = effect {
+    const policy = try pubsub.getIamPolicyProjectsTopics({
+      resource,
+    })
+    const bindings = (policy.bindings ?? []).map((binding) => ({
+      ...binding,
+      members: [...(binding.members ?? [])],
+    }))
+    const publisher = bindings.find((binding) => binding.role === PUBLISHER_ROLE)
+    if (publisher?.members?.includes(member)) {
+      return
+    }
+    if (publisher) {
+      publisher.members = [...(publisher.members ?? []), member]
+    } else {
+      bindings.push({ role: PUBLISHER_ROLE, members: [member] })
+    }
+    try pubsub.setIamPolicyProjectsTopics({
+      resource,
+      body: {
+        policy: {
+          ...policy,
+          bindings,
+        },
+      },
+    })
+  }
+  try (grant
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "Conflict" || error._tag === "IamMemberNotFound",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+}
+
+export const NotificationProvider = (): infer _ =>
+  Provider.succeed(Notification, {
+    stables: ["notificationId", "bucketName", "project", "selfLink"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      if (output === undefined && olds === undefined) return undefined
+      const env = try GcpEnvironment.current
+      if (immutableChanged(resolved, olds, output, env.project)) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const bucketName = olds?.bucketName ?? output?.bucketName
+      if (!bucketName) return undefined
+      let existing = output?.notificationId !== undefined
+        ? try getById(bucketName, output.notificationId)
+        : undefined
+      if (existing === undefined && olds !== undefined) {
+        existing = try findMatching(bucketName, olds, env.project)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, bucketName, env.project)
+      // Configs created before markers were dropped still carry them.
+      const owned = (existing.id !== undefined && existing.id === output?.notificationId)
+        || (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.custom_attributes), catch: (e) => e })),
+        ))
+      return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const buckets = Array.from(
+        try (storage.listBuckets
+          .items({ project: env.project, maxResults: 1000 })
+          |> Stream.runCollect(%)),
+      )
+      const pages = try Effect.forEach(
+        buckets,
+        effect (bucket) => {
+          const bucketName = bucket.name
+          if (!bucketName) {
+            return [] as Array<Notification["Attributes"]>
+          }
+          // Only configs from before ownership markers were dropped are
+          // identifiable; the rest go away with their bucket.
+          return (try listOnBucket(bucketName))
+            .filter((item) =>
+              Object.keys(item.custom_attributes ?? {}).some((key) => key.startsWith(ALCHEMY_LABEL_PREFIX))
+            )
+            .map((item) => toAttrs(item, bucketName, env.project))
+        },
+        { concurrency: 8 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      const bucketName = news.bucketName
+      const payloadFormat = news.payloadFormat ?? DEFAULT_PAYLOAD_FORMAT
+      const canonicalTopic = toCanonicalTopic(news.topic, env.project)
+      const desiredAttributes = try Effect.orDie(
+        Effect.try({ try: () => toLabels(news.customAttributes), catch: (e) => e }),
+      )
+
+      let current: storage.Notification | undefined
+      if (output?.notificationId) {
+        current = try getById(output.bucketName ?? bucketName, output.notificationId)
+      }
+      if (current === undefined) {
+        current = try findMatching(bucketName, news, env.project)
+      }
+
+      if (current === undefined) {
+        try ensureTopicPublisher(env.project, canonicalTopic)
+        const created = try (storage
+          .insertNotifications({
+            bucket: bucketName,
+            body: {
+              topic: canonicalTopic,
+              payload_format: payloadFormat,
+              event_types: news.eventTypes && news.eventTypes.length > 0 ? news.eventTypes : undefined,
+              object_name_prefix: news.objectNamePrefix,
+              custom_attributes: desiredAttributes,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "NotificationTopicUnavailable",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          }))
+        current = created
+      }
+
+      if (current === undefined || !current.id) {
+        throw new NotificationNotResolved({
+          bucketName,
+          notificationId: output?.notificationId,
+        })
+      }
+
+      return toAttrs(current, bucketName, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const bucketName = output.bucketName
+      const notificationId = output.notificationId
+      if (!bucketName || !notificationId) return
+      try deleteById(bucketName, notificationId)
+      try waitUntilGone(bucketName, notificationId)
+    },
+  })

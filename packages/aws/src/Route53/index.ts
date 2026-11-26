@@ -1,44 +1,44 @@
-export { Adapter, AdapterLive, ROUTE53_DNS, type AdapterOptions } from "./Adapter.ts";
+export { Adapter, AdapterLive, ROUTE53_DNS, type AdapterOptions } from "./Adapter.vibe";
 export {
   ChangeResourceRecordSets,
   type ChangeResourceRecordSetsRequest,
-} from "./ChangeResourceRecordSets.ts";
-export { ChangeResourceRecordSetsHttp } from "./ChangeResourceRecordSetsHttp.ts";
-export { GetChange } from "./GetChange.ts";
-export { GetChangeHttp } from "./GetChangeHttp.ts";
-export { GetHealthCheckLastFailureReason } from "./GetHealthCheckLastFailureReason.ts";
-export { GetHealthCheckLastFailureReasonHttp } from "./GetHealthCheckLastFailureReasonHttp.ts";
-export { GetHealthCheckStatus } from "./GetHealthCheckStatus.ts";
-export { GetHealthCheckStatusHttp } from "./GetHealthCheckStatusHttp.ts";
-export { GetHostedZone } from "./GetHostedZone.ts";
-export { GetHostedZoneHttp } from "./GetHostedZoneHttp.ts";
-export { HealthCheck, HealthCheckProvider } from "./HealthCheck.ts";
-export { HostedZone, HostedZoneProvider } from "./HostedZone.ts";
-export { ListHostedZones } from "./ListHostedZones.ts";
-export { ListHostedZonesByName } from "./ListHostedZonesByName.ts";
-export { ListHostedZonesByNameHttp } from "./ListHostedZonesByNameHttp.ts";
-export { ListHostedZonesByVPC } from "./ListHostedZonesByVPC.ts";
-export { ListHostedZonesByVPCHttp } from "./ListHostedZonesByVPCHttp.ts";
-export { ListHostedZonesHttp } from "./ListHostedZonesHttp.ts";
+} from "./ChangeResourceRecordSets.vibe";
+export { ChangeResourceRecordSetsHttp } from "./ChangeResourceRecordSetsHttp.vibe";
+export { GetChange } from "./GetChange.vibe";
+export { GetChangeHttp } from "./GetChangeHttp.vibe";
+export { GetHealthCheckLastFailureReason } from "./GetHealthCheckLastFailureReason.vibe";
+export { GetHealthCheckLastFailureReasonHttp } from "./GetHealthCheckLastFailureReasonHttp.vibe";
+export { GetHealthCheckStatus } from "./GetHealthCheckStatus.vibe";
+export { GetHealthCheckStatusHttp } from "./GetHealthCheckStatusHttp.vibe";
+export { GetHostedZone } from "./GetHostedZone.vibe";
+export { GetHostedZoneHttp } from "./GetHostedZoneHttp.vibe";
+export { HealthCheck, HealthCheckProvider } from "./HealthCheck.vibe";
+export { HostedZone, HostedZoneProvider } from "./HostedZone.vibe";
+export { ListHostedZones } from "./ListHostedZones.vibe";
+export { ListHostedZonesByName } from "./ListHostedZonesByName.vibe";
+export { ListHostedZonesByNameHttp } from "./ListHostedZonesByNameHttp.vibe";
+export { ListHostedZonesByVPC } from "./ListHostedZonesByVPC.vibe";
+export { ListHostedZonesByVPCHttp } from "./ListHostedZonesByVPCHttp.vibe";
+export { ListHostedZonesHttp } from "./ListHostedZonesHttp.vibe";
 export {
   ListResourceRecordSets,
   type ListResourceRecordSetsRequest,
-} from "./ListResourceRecordSets.ts";
-export { ListResourceRecordSetsHttp } from "./ListResourceRecordSetsHttp.ts";
-export { QueryLoggingConfig, QueryLoggingConfigProvider } from "./QueryLoggingConfig.ts";
+} from "./ListResourceRecordSets.vibe";
+export { ListResourceRecordSetsHttp } from "./ListResourceRecordSetsHttp.vibe";
+export { QueryLoggingConfig, QueryLoggingConfigProvider } from "./QueryLoggingConfig.vibe";
 export { Record, RecordProvider } from "./Record.ts";
 export {
   RecordList,
   RecordListProvider,
   type RecordListEntry,
   type RecordListProps,
-} from "./RecordList.ts";
-export { Records, RecordsProvider, type RecordsBinding } from "./Records.ts";
-export { TestDNSAnswer, type TestDNSAnswerRequest } from "./TestDNSAnswer.ts";
-export { TestDNSAnswerHttp } from "./TestDNSAnswerHttp.ts";
+} from "./RecordList.vibe";
+export { Records, RecordsProvider, type RecordsBinding } from "./Records.vibe";
+export { TestDNSAnswer, type TestDNSAnswerRequest } from "./TestDNSAnswer.vibe";
+export { TestDNSAnswerHttp } from "./TestDNSAnswerHttp.vibe";
 export {
   VpcAssociationAuthorization,
   VpcAssociationAuthorizationProvider,
-} from "./VpcAssociationAuthorization.ts";
-export { ZoneVpcAssociation, ZoneVpcAssociationProvider } from "./ZoneVpcAssociation.ts";
+} from "./VpcAssociationAuthorization.vibe";
+export { ZoneVpcAssociation, ZoneVpcAssociationProvider } from "./ZoneVpcAssociation.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

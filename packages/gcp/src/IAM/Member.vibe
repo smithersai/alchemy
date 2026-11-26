@@ -1,0 +1,96 @@
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { hasIamMembership, revokeIamMembership, updateIamMembership, type GcpIamResourceKind } from "../IamPolicy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export type MemberProps = {
+  /**
+   * Kind of resource whose IAM policy receives the member, e.g.
+   * `run.service`, `pubsub.topic`, `storage.bucket`, or `project`.
+   * Changing it replaces the grant.
+   */
+  kind: GcpIamResourceKind
+  /**
+   * Full resource name (`projects/p/locations/l/services/s`), a bucket name
+   * for `storage.bucket`, or a project id for `project`. Changing it
+   * replaces the grant.
+   */
+  name: string
+  /** Role to grant, e.g. `roles/run.invoker`. Changing it replaces the grant. */
+  role: string
+  /**
+   * Principal, e.g. `serviceAccount:x@p.iam.gserviceaccount.com`. A bare
+   * email is treated as a service account. Changing it replaces the grant.
+   */
+  member: string
+}
+
+/**
+ * One `role` → `member` edge on a single resource's IAM policy — the GCP
+ * analog of a Terraform `google_*_iam_member`. Only this edge is managed:
+ * other members of the role, other roles, and conditional bindings are
+ * left alone. Updates are etag-guarded and retried on concurrent writes.
+ *
+ * Event sources use it to let a push identity invoke its Cloud Run host.
+ *
+ * ### Granting a role
+ * **Example:** Let a service account invoke a Cloud Run service
+ * ```typescript
+ * yield* GCP.IAM.Member("Invoker", {
+ *   kind: "run.service",
+ *   name: service.name,
+ *   role: "roles/run.invoker",
+ *   member: Output.interpolate`serviceAccount:${caller.email}`,
+ * });
+ * ```
+ *
+ * @resource
+ * @category IAM
+ */
+export type Member = Resource<"GCP.IAM.Member", MemberProps, MemberProps, never, Providers>
+
+export const Member = Resource<Member>("GCP.IAM.Member")
+
+export const MemberProvider = (): infer _ =>
+  Provider.succeed(Member, {
+    stables: ["kind", "name", "role", "member"],
+
+    diff: effect ({ news, olds }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined || olds === undefined) return undefined
+      const changed = resolved.kind !== olds.kind
+        || resolved.name !== olds.name
+        || resolved.role !== olds.role
+        || resolved.member !== olds.member
+      return changed ? { action: "replace" as const, deleteFirst: false } : undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const props = output ?? olds
+      if (props === undefined) return undefined
+      const present = try hasIamMembership(props)
+      return present ? { ...props } : undefined
+    },
+
+    reconcile: effect ({ news }) => {
+      try updateIamMembership({
+        kind: news.kind,
+        name: news.name,
+        member: news.member,
+        add: [news.role],
+      })
+      return { ...news }
+    },
+
+    delete: effect ({ output }) => {
+      try revokeIamMembership({
+        kind: output.kind,
+        name: output.name,
+        member: output.member,
+        roles: [output.role],
+      })
+    },
+  })

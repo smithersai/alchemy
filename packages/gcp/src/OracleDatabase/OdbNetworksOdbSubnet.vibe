@@ -1,0 +1,339 @@
+import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  expandParent,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const DEFAULT_PURPOSE = "CLIENT_SUBNET" satisfies oracle.OdbSubnetPurposeEnum
+
+export type OdbNetworksOdbSubnetProps = {
+  /**
+   * Parent ODB Network. Full name
+   * `projects/{project}/locations/{location}/odbNetworks/{odb_network}`
+   * or the network id (combined with `location`). Immutable — changing
+   * it replaces the subnet.
+   */
+  odbNetwork: string
+  /**
+   * Region used when `odbNetwork` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * ODB Subnet id (the `{odb_subnet}` segment of
+   * `.../odbNetworks/{odb_network}/odbSubnets/{odb_subnet}`). If omitted,
+   * a unique RFC1035 name is generated. Immutable — changing it
+   * replaces the subnet.
+   */
+  odbSubnetId?: string
+  /**
+   * CIDR range of the subnet. Must be RFC1918 and between `/27` and
+   * `/22`. Immutable — changing it replaces the subnet.
+   */
+  cidrRange: string
+  /**
+   * Subnet purpose. `CLIENT_SUBNET` is used by databases and GoldenGate;
+   * `BACKUP_SUBNET` is used by Exadata VM Clusters. Immutable —
+   * changing it replaces the subnet.
+   * @default "CLIENT_SUBNET"
+   */
+  purpose?: oracle.OdbSubnetPurposeEnum | (string & {})
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type OdbNetworksOdbSubnet = Resource<
+  "GCP.OracleDatabase.OdbNetworksOdbSubnet",
+  OdbNetworksOdbSubnetProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** ODB Subnet id (last path segment). */
+    odbSubnetId: string
+    /** Parent ODB Network resource name. */
+    odbNetwork: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** CIDR range. */
+    cidrRange: string | undefined
+    /** Subnet purpose. */
+    purpose: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-reported state. */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Oracle Database@Google Cloud ODB Subnet inside an ODB Network.
+ *
+ * Changing `odbNetwork`, `odbSubnetId`, `location`, `cidrRange`, or
+ * `purpose` replaces the subnet. Labels are set at create; the API has
+ * no update. Requires an Oracle Database@Google Cloud entitlement and
+ * a parent ODB Network.
+ *
+ * ### Creating an ODB Subnet
+ * **Example:** Client subnet under an ODB Network
+ * ```typescript
+ * const subnet = yield* GCP.OracleDatabase.OdbNetworksOdbSubnet("Client", {
+ *   odbNetwork: net.name,
+ *   cidrRange: "10.250.0.0/27",
+ *   purpose: "CLIENT_SUBNET",
+ * });
+ * ```
+ *
+ * **Example:** Backup subnet with labels
+ * ```typescript
+ * const subnet = yield* GCP.OracleDatabase.OdbNetworksOdbSubnet("Backup", {
+ *   odbNetwork: net.name,
+ *   cidrRange: "10.250.0.32/27",
+ *   purpose: "BACKUP_SUBNET",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category OracleDatabase
+ */
+export const OdbNetworksOdbSubnet = Resource<OdbNetworksOdbSubnet>(
+  "GCP.OracleDatabase.OdbNetworksOdbSubnet",
+)
+
+const desiredPurpose = (purpose: string | undefined): infer _ => (purpose ?? DEFAULT_PURPOSE).toUpperCase()
+
+const networkOf = (odbNetwork: string, project: string, location: string): infer _ =>
+  expandParent(odbNetwork, project, location, "odbNetworks")
+
+const resourceName = (odbNetwork: string, odbSubnetId: string): infer _ => `${odbNetwork}/odbSubnets/${odbSubnetId}`
+
+const toAttrs = (subnet: oracle.OdbSubnet, project: string): infer _ => {
+  const name = subnet.name ?? ""
+  const parsed = parseName(name, "odbSubnets")
+  return {
+    name,
+    odbSubnetId: parsed.id,
+    odbNetwork: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    cidrRange: subnet.cidrRange,
+    purpose: subnet.purpose,
+    labels: userLabels(subnet.labels),
+    state: subnet.state,
+    createTime: subnet.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 || name.includes("//") ? try Effect.undefined : oracle
+  .getProjectsLocationsOdbNetworksOdbSubnets({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listSubnets = effect (parent: string) =>
+  (effect {
+    return (Array.from(
+      try (oracle.listProjectsLocationsOdbNetworksOdbSubnets.pages({ parent, pageSize: 1000 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.odbSubnets ?? []))
+        |> Stream.runCollect(%)),
+    ))
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as oracle.OdbSubnet[]; default: throw e; }
+
+const listOwned = effect (project: string, region: string) => {
+  const wildcard = try listSubnets(`projects/${project}/locations/-/odbNetworks/-`)
+  const labeledWildcard = wildcard.filter((item) => hasAlchemyLabelMap(item.labels))
+  if (labeledWildcard.length > 0) return labeledWildcard
+
+  const networks = try listAtLocation(
+    project,
+    region,
+    effect (parent) =>
+      (effect {
+        return (Array.from(
+          try (oracle.listProjectsLocationsOdbNetworks.pages({ parent, pageSize: 1000 })
+            |> Stream.flatMap(%, (page) => Stream.fromIterable(page.odbNetworks ?? []))
+            |> Stream.runCollect(%)),
+        ))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+  )
+  const nested = try Effect.forEach(
+    networks,
+    effect (network) => (network.name ? try listSubnets(network.name) : [] as oracle.OdbSubnet[]),
+    { concurrency: 4 },
+  )
+  return nested.flat().filter((item) => hasAlchemyLabelMap(item.labels))
+}
+
+export const OdbNetworksOdbSubnetProvider = (): infer _ =>
+  Provider.succeed(OdbNetworksOdbSubnet, {
+    stables: [
+      "name",
+      "odbSubnetId",
+      "odbNetwork",
+      "project",
+      "location",
+      "cidrRange",
+      "purpose",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const previousPurpose = desiredPurpose(olds?.purpose ?? output?.purpose)
+      const nextPurpose = desiredPurpose(resolved.purpose ?? previousPurpose)
+      const previousCidr = olds?.cidrRange ?? output?.cidrRange ?? ""
+      const nextCidr = resolved.cidrRange ?? previousCidr
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.odbSubnetId ?? output?.odbSubnetId,
+            nextId: resolved.odbSubnetId ?? olds?.odbSubnetId ?? output?.odbSubnetId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+            nextLocation: normalizeLocation(
+              resolved.location ?? olds?.location ?? output?.location ?? env.region,
+            ),
+            previousParent: olds?.odbNetwork ?? output?.odbNetwork,
+            nextParent: resolved.odbNetwork ?? olds?.odbNetwork ?? output?.odbNetwork,
+            extra: previousPurpose !== nextPurpose || previousCidr !== nextCidr,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const odbNetwork = networkOf(
+        olds?.odbNetwork ?? output?.odbNetwork ?? "",
+        env.project,
+        location,
+      )
+      const odbSubnetId = try toPhysicalId(
+        id,
+        olds?.odbSubnetId,
+        output?.odbSubnetId,
+        "odbsubnet",
+      )
+      const name = output?.name ?? resourceName(odbNetwork, odbSubnetId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location ?? env.region), catch: (e) => e }),
+      )
+      const odbNetwork = networkOf(news.odbNetwork, env.project, location)
+      const odbSubnetId = try toPhysicalId(
+        id,
+        news.odbSubnetId,
+        output?.odbSubnetId,
+        "odbsubnet",
+      )
+      const name = resourceName(odbNetwork, odbSubnetId)
+      const purpose = desiredPurpose(news.purpose)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = oracle
+          .createProjectsLocationsOdbNetworksOdbSubnets({
+            parent: odbNetwork,
+            odbSubnetId,
+            body: {
+              cidrRange: news.cidrRange,
+              purpose,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const ready = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      return toAttrs(ready, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name || output.name.includes("//")) return
+      const operation = (effect {
+        return (try (oracle
+          .deleteProjectsLocationsOdbNetworksOdbSubnets({ name: output.name })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("5 seconds"),
+          })))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        when { _tag: "BadRequest" }: try Effect.undefined;
+        default: throw e;
+      }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

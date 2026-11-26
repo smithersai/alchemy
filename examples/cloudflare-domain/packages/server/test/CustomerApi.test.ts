@@ -15,10 +15,10 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { SiftFraudCheck } from "../src/Fraud/SiftFraudCheck.ts";
+import { SiftFraudCheck } from "../src/Fraud/SiftFraudCheck.vibe";
 import { MfaChallengeLive } from "../src/MfaChallenge.ts";
 import { SessionLive, signSession } from "../src/Session.ts";
-import { StripePayments } from "../src/Settlement/StripePayments.ts";
+import { StripePayments } from "../src/Settlement/StripePayments.vibe";
 import { mfa, register, transfer } from "./flows.ts";
 import { SessionKeyTest, signedInAs } from "./session.ts";
 

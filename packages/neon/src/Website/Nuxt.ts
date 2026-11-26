@@ -1,5 +1,5 @@
 import * as Namespace from "alchemy/Namespace";
-import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
+import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.vibe";
 
 /** Configuration for a Neon Nuxt website. */
 export type NuxtProps = FrameworkSiteProps & {

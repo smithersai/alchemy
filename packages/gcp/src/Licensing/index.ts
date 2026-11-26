@@ -1,1 +1,1 @@
-export * from "./LicenseAssignment.ts";
+export * from "./LicenseAssignment.vibe";

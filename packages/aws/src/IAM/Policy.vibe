@@ -1,0 +1,515 @@
+import * as iam from "@distilled.cloud/aws/iam"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasTags } from "alchemy/Tags"
+import type { AccountID } from "../Environment.vibe"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { Providers } from "../Providers.vibe"
+import type { IamAction } from "./actions.generated.ts"
+import {
+  oldestNondefaultPolicyVersion,
+  parsePolicyDocument,
+  policyArnFromParts,
+  stringifyPolicyDocument,
+  toTagRecord,
+} from "./common.vibe"
+
+export error PolicyConflict {
+  message: string
+  cause?: unknown
+}
+
+export type { IamAction } from "./actions.generated.ts"
+export { stringifyPolicyDocument } from "./common.vibe"
+
+export interface PolicyDocument {
+  Version: "2012-10-17"
+  Statement: PolicyStatement[]
+}
+
+export interface PolicyStatement {
+  Effect: "Allow" | "Deny"
+  Sid?: string
+  Action?: IamAction[] | string[]
+  Resource?: string | string[]
+  Condition?: Record<string, Record<string, string | string[]>>
+  Principal?: string | Record<string, string | string[]>
+  NotPrincipal?: string | Record<string, string | string[]>
+  NotAction?: string[]
+  NotResource?: string[]
+}
+
+/**
+ * A single statement in a Service Control Policy (SCP) or Resource Control
+ * Policy (RCP) — the restricted IAM dialect accepted by AWS Organizations.
+ *
+ * SCP statements never carry a `Principal`/`NotPrincipal` (they apply to the
+ * accounts the policy is attached to), and Allow statements are further
+ * restricted by Organizations at write time (`Resource` must be `"*"`, no
+ * `Condition`, no `NotAction`). This interface narrows {@link PolicyStatement}
+ * to the SCP-legal field set; the Allow-statement value restrictions are
+ * enforced by the Organizations API.
+ */
+export interface ServiceControlPolicyStatement {
+  Sid?: string
+  Effect: "Allow" | "Deny"
+  Action?: IamAction[] | string[]
+  NotAction?: string[]
+  Resource?: string | string[]
+  NotResource?: string[]
+  Condition?: Record<string, Record<string, string | string[]>>
+}
+
+/**
+ * A Service Control Policy document — the SCP-legal subset of
+ * {@link PolicyDocument} used by AWS Organizations policies
+ * (`SERVICE_CONTROL_POLICY` / `RESOURCE_CONTROL_POLICY`).
+ */
+export interface ServiceControlPolicyDocument {
+  Version: "2012-10-17"
+  Statement: ServiceControlPolicyStatement[]
+}
+
+/**
+ * Canonicalize an IAM policy document for drift comparison.
+ *
+ * Accepts either the raw JSON string a cloud API returned (IAM returns
+ * URL-encoded documents; both encoded and plain strings are handled) or an
+ * in-memory document object, and produces a deterministic string — object keys
+ * sorted recursively, arrays kept in order, no whitespace — so two equivalent
+ * documents compare equal regardless of key ordering or encoding.
+ *
+ * Single-element arrays are collapsed to their element: the IAM policy
+ * grammar treats `["x"]` and `"x"` as equivalent in every list-valued
+ * position (`Action`, `Resource`, principal values, condition values, even
+ * `Statement` itself), and several AWS services (e.g. Secrets Manager)
+ * store the scalar form — without collapsing, a typed document that uses
+ * arrays would spuriously diff against the stored policy on every deploy.
+ *
+ * Unparseable strings are returned unchanged so a diff still fires (and shows
+ * the offending value) instead of throwing inside a provider.
+ */
+export const normalizePolicyDocument = (json: string | object): string => {
+  const stable = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.length === 1
+        ? stable(value[0])
+        : value.map(stable)
+      : value !== null && typeof value === "object"
+      ? Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([k, v]) => [k, stable(v)]),
+      )
+      : value
+  if (typeof json === "string") {
+    try {
+      return JSON.stringify(stable(JSON.parse(json)))
+    } catch {
+      try {
+        return JSON.stringify(stable(JSON.parse(decodeURIComponent(json))))
+      } catch {
+        return json
+      }
+    }
+  }
+  return JSON.stringify(stable(json))
+}
+
+export type PolicyName = string
+export type PolicyArn = `arn:aws:iam::${AccountID}:policy/${string}`
+
+export interface PolicyProps {
+  /**
+   * Name of the managed policy. If omitted, a deterministic name is generated.
+   */
+  policyName?: string
+  /**
+   * Optional IAM path prefix for the policy.
+   * @default "/"
+   */
+  path?: string
+  /**
+   * The JSON IAM policy document.
+   */
+  policyDocument: PolicyDocument
+  /**
+   * Optional description for the policy.
+   */
+  description?: string
+  /**
+   * User-defined tags to apply to the managed policy.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Policy extends
+  Resource<
+    "AWS.IAM.Policy",
+    PolicyProps,
+    {
+      /** The ARN of the policy. */
+      policyArn: PolicyArn
+      /** The name of the policy. */
+      policyName: PolicyName
+      /** The stable unique ID of the policy. */
+      policyId: string | undefined
+      /** The IAM path of the policy. */
+      path: string | undefined
+      /** The version currently set as the default (e.g. `v2`). */
+      defaultVersionId: string | undefined
+      /** How many IAM identities the policy is attached to. */
+      attachmentCount: number | undefined
+      /** How many IAM identities use the policy as a permissions boundary. */
+      permissionsBoundaryUsageCount: number | undefined
+      /** Whether the policy can be attached to IAM identities. */
+      isAttachable: boolean | undefined
+      /** The description of the policy. */
+      description: string | undefined
+      /** The policy document of the default version. */
+      policyDocument: PolicyDocument
+      /** The tags applied to the policy. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A customer-managed IAM policy.
+ *
+ * `Policy` owns the lifecycle of the policy metadata and its default version,
+ * rotating versions on updates while keeping the current document attached to a
+ * stable policy ARN.
+ * ### Creating Policies
+ * **Example:** Managed Policy
+ * ```typescript
+ * const policy = yield* Policy("AppPolicy", {
+ *   policyDocument: {
+ *     Version: "2012-10-17",
+ *     Statement: [{
+ *       Effect: "Allow",
+ *       Action: ["s3:GetObject"],
+ *       Resource: ["arn:aws:s3:::my-bucket/*"],
+ *     }],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Policy = Resource<Policy>("AWS.IAM.Policy")
+
+export const PolicyProvider = (): infer _ =>
+  Provider.effect(
+    Policy,
+    effect {
+      const toPolicyName = effect (
+        id: string,
+        props: PolicyProps,
+      ) => (props.policyName ? props.policyName : try createPhysicalName({ id, maxLength: 128 }))
+
+      const toPolicyArn = effect (id: string, props: PolicyProps) => {
+        const { accountId } = try AWSEnvironment.current
+        const policyName = try toPolicyName(id, props)
+        return policyArnFromParts({
+          accountId,
+          path: props.path,
+          policyName,
+        }) as PolicyArn
+      }
+
+      const readPolicy = effect (policyArn: string) => {
+        const response = iam
+          .getPolicy({ PolicyArn: policyArn }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined;
+            default: throw e;
+          }
+        return response?.Policy
+      }
+
+      const readPolicyDocument = effect ({
+        policyArn,
+        versionId,
+      }: {
+        policyArn: string
+        versionId: string | undefined
+      }) => {
+        if (!versionId) {
+          return undefined
+        }
+        const response = iam
+          .getPolicyVersion({
+            PolicyArn: policyArn,
+            VersionId: versionId,
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: undefined;
+            default: throw e;
+          }
+        return parsePolicyDocument(response?.PolicyVersion?.Document)
+      }
+
+      const prunePolicyVersions = effect (policyArn: string) => {
+        const versions = try iam.listPolicyVersions({
+          PolicyArn: policyArn,
+        })
+        if ((versions.Versions?.length ?? 0) < 5) {
+          return
+        }
+        const removable = oldestNondefaultPolicyVersion(versions.Versions)
+        if (!removable?.VersionId) {
+          return
+        }
+        try iam.deletePolicyVersion({
+          PolicyArn: policyArn,
+          VersionId: removable.VersionId,
+        })
+      }
+
+      return {
+        stables: ["policyArn", "policyName", "policyId"],
+        list: effect () => {
+          // IAM is global; enumerate only customer-managed ("Local")
+          // policies, paginating exhaustively.
+          const policies = Array.from(
+            try (iam.listPolicies.pages({ Scope: "Local" })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Policies ?? [])
+          const rows = try Effect.forEach(
+            policies,
+            effect (policy) =>
+              (effect {
+                return (try effect {
+                  if (!policy.Arn || !policy.PolicyName) {
+                    return undefined
+                  }
+                  const tags = try iam.listPolicyTags({
+                    PolicyArn: policy.Arn,
+                  })
+                  const policyDocument = try readPolicyDocument({
+                    policyArn: policy.Arn,
+                    versionId: policy.DefaultVersionId,
+                  })
+                  if (!policyDocument) {
+                    return undefined
+                  }
+                  return {
+                    policyArn: policy.Arn as PolicyArn,
+                    policyName: policy.PolicyName,
+                    policyId: policy.PolicyId,
+                    path: policy.Path,
+                    defaultVersionId: policy.DefaultVersionId,
+                    attachmentCount: policy.AttachmentCount,
+                    permissionsBoundaryUsageCount: policy.PermissionsBoundaryUsageCount,
+                    isAttachable: policy.IsAttachable,
+                    description: policy.Description,
+                    policyDocument,
+                    tags: toTagRecord(tags.Tags),
+                  }
+                })
+              }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchEntityException" }: undefined;
+                default: throw e;
+              },
+            { concurrency: 10 },
+          )
+          return rows.filter((row): row is NonNullable<typeof row> => row !== undefined)
+        },
+        diff: effect ({ id, olds, news }) => {
+          const resolved_ = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved_ === undefined) return
+          if (
+            (try toPolicyName(id, olds ?? ({} as PolicyProps)))
+            !== (try toPolicyName(id, resolved_))
+          ) {
+            return { action: "replace" } as const
+          }
+          if ((olds?.path ?? "/") !== (resolved_.path ?? "/")) {
+            return { action: "replace" } as const
+          }
+          if ((olds?.description ?? undefined) !== (resolved_.description ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const policyArn = output?.policyArn ?? (try toPolicyArn(id, olds ?? ({} as PolicyProps)))
+          const policy = try readPolicy(policyArn)
+          if (!policy?.Arn || !policy.PolicyName) {
+            return undefined
+          }
+
+          const tags = try iam.listPolicyTags({
+            PolicyArn: policy.Arn,
+          })
+          const policyDocument = try readPolicyDocument({
+            policyArn: policy.Arn,
+            versionId: policy.DefaultVersionId,
+          })
+
+          if (!policyDocument) {
+            return undefined
+          }
+
+          return {
+            policyArn: policy.Arn as PolicyArn,
+            policyName: policy.PolicyName,
+            policyId: policy.PolicyId,
+            path: policy.Path,
+            defaultVersionId: policy.DefaultVersionId,
+            attachmentCount: policy.AttachmentCount,
+            permissionsBoundaryUsageCount: policy.PermissionsBoundaryUsageCount,
+            isAttachable: policy.IsAttachable,
+            description: policy.Description,
+            policyDocument,
+            tags: toTagRecord(tags.Tags),
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const policyName = output?.policyName ?? (try toPolicyName(id, news))
+          const policyArn = output?.policyArn ?? (try toPolicyArn(id, news))
+          const desiredTags = {
+            ...(try createInternalTags(id)),
+            ...news.tags,
+          }
+
+          // Observe — fetch the policy metadata, current default-version
+          // document, and tags. Each piece feeds an independent sync step.
+          let observed = try readPolicy(policyArn)
+
+          // Ensure — create the managed policy when it is missing. We
+          // pass the desired document as the initial version so first
+          // create lands fully configured. On race, adopt by reading
+          // existing.
+          if (!observed?.Arn) {
+            const created = iam
+              .createPolicy({
+                PolicyName: policyName,
+                Path: news.path,
+                PolicyDocument: stringifyPolicyDocument(news.policyDocument),
+                Description: news.description,
+                Tags: createTagsList(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "EntityAlreadyExistsException" }: try effect {
+                  const existing = try readPolicy(policyArn)
+                  if (!existing?.Arn) {
+                    throw new PolicyConflict({
+                      message: `Policy '${policyName}' already exists but could not be described`,
+                    })
+                  }
+                  const existingTags = try iam.listPolicyTags({
+                    PolicyArn: existing.Arn,
+                  })
+                  if (!hasTags(desiredTags, existingTags.Tags)) {
+                    throw new PolicyConflict({
+                      message: `Policy '${policyName}' already exists and is not managed by alchemy`,
+                    })
+                  }
+                  return { Policy: existing }
+                };
+                default: throw e;
+              }
+            observed = created.Policy
+          }
+
+          // Sync default-version document — IAM managed policies are
+          // immutable per version, so any document change requires
+          // creating a new default version (and pruning the oldest non-
+          // default if we're at the 5-version cap).
+          const observedDocument = try readPolicyDocument({
+            policyArn,
+            versionId: observed?.DefaultVersionId,
+          })
+          if (JSON.stringify(observedDocument ?? null) !== JSON.stringify(news.policyDocument)) {
+            try prunePolicyVersions(policyArn)
+            const createdVersion = try iam.createPolicyVersion({
+              PolicyArn: policyArn,
+              PolicyDocument: stringifyPolicyDocument(news.policyDocument),
+              SetAsDefault: true,
+            })
+            if (createdVersion.PolicyVersion?.VersionId) {
+              try iam.setDefaultPolicyVersion({
+                PolicyArn: policyArn,
+                VersionId: createdVersion.PolicyVersion.VersionId,
+              })
+            }
+          }
+
+          // Sync tags against the cloud's actual tags so adoption /
+          // out-of-band tag changes converge.
+          const observedTagsResp = try iam.listPolicyTags({
+            PolicyArn: policyArn,
+          })
+          const observedTags = toTagRecord(observedTagsResp.Tags)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try iam.tagPolicy({
+              PolicyArn: policyArn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0) {
+            try iam.untagPolicy({
+              PolicyArn: policyArn,
+              TagKeys: removed,
+            })
+          }
+
+          // Re-read for fresh metadata and the now-current document.
+          const fresh = try readPolicy(policyArn)
+          const freshDocument = (try readPolicyDocument({
+            policyArn,
+            versionId: fresh?.DefaultVersionId,
+          })) ?? news.policyDocument
+
+          try session.note(policyArn)
+          return {
+            policyArn,
+            policyName,
+            policyId: fresh?.PolicyId ?? observed?.PolicyId,
+            path: fresh?.Path ?? observed?.Path ?? news.path ?? "/",
+            defaultVersionId: fresh?.DefaultVersionId ?? observed?.DefaultVersionId,
+            attachmentCount: fresh?.AttachmentCount ?? observed?.AttachmentCount,
+            permissionsBoundaryUsageCount: fresh?.PermissionsBoundaryUsageCount
+              ?? observed?.PermissionsBoundaryUsageCount,
+            isAttachable: fresh?.IsAttachable ?? observed?.IsAttachable,
+            description: fresh?.Description ?? observed?.Description ?? news.description,
+            policyDocument: freshDocument,
+            tags: desiredTags,
+          }
+        },
+        delete: effect ({ output }) => {
+          const versions = iam
+            .listPolicyVersions({
+              PolicyArn: output.policyArn,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: undefined;
+              default: throw e;
+            }
+          for (const version of versions?.Versions ?? []) {
+            if (!version.IsDefaultVersion && version.VersionId) {
+              iam
+                .deletePolicyVersion({
+                  PolicyArn: output.policyArn,
+                  VersionId: version.VersionId,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NoSuchEntityException" }: undefined as void;
+                  default: throw e;
+                }
+            }
+          }
+          iam
+            .deletePolicy({
+              PolicyArn: output.policyArn,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: undefined as void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

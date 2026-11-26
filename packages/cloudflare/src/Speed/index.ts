@@ -1,1 +1,1 @@
-export * from "./TestSchedule.ts";
+export * from "./TestSchedule.vibe";

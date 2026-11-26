@@ -1,0 +1,189 @@
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags, stripInternalTags } from "alchemy/Tags"
+import { Docker, dockerEngineContextName, dockerPhysicalName } from "./Docker.vibe"
+import type { Providers } from "./Providers.vibe"
+
+export interface NetworkProps {
+  /**
+   * Docker network name.
+   *
+   * @default Generated from stack, stage, logical id, and instance id.
+   */
+  name?: string
+  /** Network driver. @default "bridge" */
+  driver?: "bridge" | "host" | "none" | "overlay" | "macvlan" | (string & {})
+  /** Enable IPv6 on the network. @default false */
+  enableIPv6?: boolean
+  /** Network labels. */
+  labels?: Record<string, string>
+  /**
+   * The engine the network is created on: a Docker context name, a
+   * `Docker.Context` resource, or a `Docker.Swarm` — overlay networks
+   * require a swarm manager, and passing the swarm orders the network after
+   * the swarm is initialized.
+   */
+  context?: Docker.EngineRef
+}
+
+export interface Network extends
+  Resource<
+    "Docker.Network",
+    NetworkProps,
+    {
+      /** Docker network ID. */
+      id: string
+      /** Docker network name. */
+      name: string
+      /** Network driver. */
+      driver: string
+      /** Whether IPv6 is enabled. */
+      enableIPv6: boolean
+      /** Labels reported by Docker. */
+      labels: Record<string, string>
+      /** Creation timestamp in milliseconds since epoch. */
+      createdAt: number
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A Docker network managed through the active Docker context.
+ *
+ * Existing same-name networks are treated as foreign unless the engine is
+ * explicitly allowed to adopt them with `--adopt` or `adopt(true)`.
+ *
+ * ### Creating Networks
+ * **Example:** Basic bridge network
+ * ```typescript
+ * const network = yield* Docker.Network("app-network", {
+ *   name: "app-network",
+ * });
+ * ```
+ *
+ * ### Adoption
+ * **Example:** Adopt a pre-existing network
+ * ```typescript
+ * const network = yield* Docker.Network("app-network", {
+ *   name: "shared-app-network",
+ * }).pipe(adopt(true));
+ * ```
+ *
+ * @resource
+ * @product Network
+ */
+export const Network = Resource<Network>("Docker.Network")
+
+export const NetworkProvider = (): infer _ =>
+  Provider.effect(
+    Network,
+    effect {
+      const docker = try Effect.service(Docker)
+
+      return Network.Provider.of({
+        list: effect () => [],
+        read: effect ({ id, instanceId, olds, output }) => {
+          const context = try Effect.orDie(
+            Effect.try({ try: () => dockerEngineContextName(olds?.context), catch: (e) => e }),
+          )
+          const name = try dockerPhysicalName(id, olds, instanceId)
+          const info = try (docker.network
+            .inspect(name, context)
+            |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => undefined))
+          if (!info) return undefined
+          const attrs = toNetworkAttributes(info)
+          if (output) return attrs
+          // Without prior state, only adopt a network that carries our branding;
+          // anything else is foreign and gated behind `--adopt`.
+          const owned = try hasAlchemyTags(id, info.Labels ?? undefined)
+          return owned ? attrs : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+        diff: effect ({ id, output, instanceId, news, olds }) => {
+          const resolved = try Effect.orDie(Effect.try({
+            try: () => isResolved(news) ? { value: news } : undefined,
+            catch: (cause) => cause,
+          }))
+          if (!resolved || !output) return undefined
+          const resolvedNews = resolved.value
+          if (
+            (try Effect.orDie(Effect.try({ try: () => dockerEngineContextName(olds?.context), catch: (e) => e })))
+            !== (try Effect.orDie(Effect.try({
+              try: () => dockerEngineContextName(resolvedNews?.context),
+              catch: (e) => e,
+            })))
+          ) {
+            return { action: "replace", deleteFirst: true }
+          }
+          const args = try makeNetworkArgs(id, resolvedNews, instanceId)
+          // Auto-generated names are engine-owned: the deployed name stays
+          // authoritative even if the generator would name this id differently
+          // today. Only an explicit user-provided name can force a replace.
+          const desiredName = resolvedNews?.name ?? output.name
+          if (
+            output.name !== desiredName
+            || output.driver !== args.driver
+            || output.enableIPv6 !== args.ipv6
+            // Compare only user labels; internal `alchemy::*` branding lives on
+            // the observed network but must not drive replacement.
+            || !Equal.equals(
+              try Effect.orDie(Effect.try({ try: () => stripInternalTags(output.labels), catch: (e) => e })),
+              args.label ?? {},
+            )
+          ) {
+            return { action: "replace", deleteFirst: true }
+          }
+        },
+        reconcile: effect ({ output, id, instanceId, news }) => {
+          const context = try Effect.orDie(
+            Effect.try({ try: () => dockerEngineContextName(news?.context), catch: (e) => e }),
+          )
+          if (output) {
+            const refreshed = try (effect {
+              return toNetworkAttributes(try docker.network.inspect(output.id, context))
+            }
+              |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => undefined))
+            if (refreshed) return refreshed
+          }
+          const args = try makeNetworkArgs(id, news, instanceId)
+          const internalTags = try createInternalTags(id)
+          const { stdout: createdId } = try docker.network.create({
+            ...args,
+            label: { ...internalTags, ...args.label },
+            context,
+          })
+          return toNetworkAttributes(try docker.network.inspect(createdId, context))
+        },
+        delete: effect ({ olds, output }) =>
+          try (docker.network
+            .remove(
+              output.id,
+              try Effect.orDie(Effect.try({ try: () => dockerEngineContextName(olds?.context), catch: (e) => e })),
+            )
+            |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => (undefined as void))),
+      })
+    },
+  )
+
+const makeNetworkArgs = effect (id: string, props: NetworkProps | undefined, instanceId: string) =>
+  try effect {
+    const name = try dockerPhysicalName(id, props, instanceId)
+    return ({
+      name,
+      driver: props?.driver ?? "bridge",
+      ipv6: props?.enableIPv6 ?? false,
+      label: props?.labels ?? {},
+    })
+  }
+
+export const toNetworkAttributes = (info: Docker.Network): Network["Attributes"] => ({
+  id: info.Id,
+  name: info.Name,
+  driver: info.Driver,
+  enableIPv6: info.EnableIPv6,
+  labels: info.Labels ?? {},
+  createdAt: Date.parse(info.Created) || Date.now(),
+})

@@ -4,8 +4,8 @@ import * as Planetscale from "@alchemy.run/planetscale";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import Api from "./src/Api.ts";
-import { Hyperdrive, PlanetscaleDb } from "./src/Db.ts";
+import Api from "./src/Api.vibe";
+import { Hyperdrive, PlanetscaleDb } from "./src/Db.vibe";
 
 export default Alchemy.Stack(
   "CloudflarePlanetscalePostgresDrizzleExample",

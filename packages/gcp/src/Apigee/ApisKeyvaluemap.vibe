@@ -1,0 +1,284 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import { lastSegment, orgParent, resolveOrgId, toPhysicalId } from "./operations.vibe"
+
+const MAX_NAME_LENGTH = 255
+const OWNERSHIP_KEY = "__alchemy"
+
+export type ApisKeyvaluemapProps = {
+  /**
+   * Apigee organization id. Defaults to the GCP project id. Immutable.
+   */
+  organizationId?: string
+  /**
+   * Parent API proxy id or `organizations/{org}/apis/{api}`. Immutable.
+   */
+  api: string
+  /**
+   * Key value map id. If omitted, a unique name is generated. Immutable.
+   */
+  mapId?: string
+  /**
+   * Mask entry values in API responses.
+   * @default false
+   */
+  maskedValues?: boolean
+}
+
+export type ApisKeyvaluemap = Resource<
+  "GCP.Apigee.ApisKeyvaluemap",
+  ApisKeyvaluemapProps,
+  {
+    /** Full resource name `organizations/{org}/apis/{api}/keyvaluemaps/{map}`. */
+    name: string
+    /** Map id. */
+    mapId: string
+    /** Parent API proxy id. */
+    apiId: string
+    /** Organization id. */
+    organizationId: string
+    /** Project id. */
+    project: string
+    /** Whether entry values are masked. */
+    maskedValues: boolean
+    /** Whether entries are encrypted (always true on Apigee X). */
+    encrypted: boolean
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API-proxy-scoped Apigee key value map.
+ *
+ * KVMs have no labels and no List API. Alchemy writes an ownership
+ * sentinel entry (`__alchemy`) so `read` can distinguish owned maps.
+ * `list` walks alchemy-labeled API proxies and looks up a map whose id
+ * matches the proxy id plus any map named on the sentinel of that
+ * lookup; maps whose ids cannot be discovered are still deleted with
+ * the parent proxy. Changing `mapId`, `api`, or `organizationId`
+ * replaces the map.
+ *
+ * ### Creating a Map
+ * **Example:** Generated name on a proxy
+ * ```typescript
+ * const map = yield* GCP.Apigee.ApisKeyvaluemap("Config", {
+ *   api: proxy.apiId,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const ApisKeyvaluemap = Resource<ApisKeyvaluemap>("GCP.Apigee.ApisKeyvaluemap")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ApisKeyvaluemapNotResolved extends Data.TaggedError(
+  "GCP.Apigee.ApisKeyvaluemapNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (organizationId: string, apiId: string, mapId: string): infer _ =>
+  `${orgParent(organizationId)}/apis/${lastSegment(apiId)}/keyvaluemaps/${mapId}`
+
+const toAttrs = (
+  map: apigee.GoogleCloudApigeeV1KeyValueMap,
+  project: string,
+  organizationId: string,
+  apiId: string,
+  name: string,
+): infer _ => ({
+  name,
+  mapId: map.name ?? lastSegment(name),
+  apiId: lastSegment(apiId),
+  organizationId,
+  project,
+  maskedValues: map.maskedValues === true,
+  encrypted: map.encrypted !== false,
+})
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsApisKeyvaluemaps({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const getOwnershipEntry = effect (mapName: string) =>
+  apigee
+    .getOrganizationsApisKeyvaluemapsEntries({
+      name: `${mapName}/entries/${OWNERSHIP_KEY}`,
+    }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const ownershipValue = (labels: Record<string, string>): infer _ => JSON.stringify(labels)
+
+const parseOwnershipValue = (value: string | undefined): Record<string, string> => {
+  if (value === undefined || value.length === 0) return {}
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (parsed === null || typeof parsed !== "object") return {}
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    )
+  } catch {
+    return {}
+  }
+}
+
+const ensureOwnershipEntry = effect (mapName: string, value: string) => {
+  const existing = try getOwnershipEntry(mapName)
+  if (existing === undefined) {
+    apigee
+      .createOrganizationsApisKeyvaluemapsEntries({
+        parent: mapName,
+        body: { name: OWNERSHIP_KEY, value },
+      }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
+    return
+  }
+  if ((existing.value ?? "") !== value) {
+    try apigee.updateOrganizationsApisKeyvaluemapsEntries({
+      name: `${mapName}/entries/${OWNERSHIP_KEY}`,
+      body: { name: OWNERSHIP_KEY, value },
+    })
+  }
+}
+
+export const ApisKeyvaluemapProvider = (): infer _ =>
+  Provider.succeed(ApisKeyvaluemap, {
+    stables: ["name", "mapId", "apiId", "organizationId", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const previousId = olds?.mapId ?? output?.mapId
+      const previousApi = olds?.api
+        ? try Effect.orDie(Effect.try({ try: () => lastSegment(olds.api), catch: (e) => e }))
+        : output?.apiId
+      const previousOrg = olds?.organizationId ?? output?.organizationId
+      if (
+        (previousId !== undefined && resolved.mapId !== undefined && resolved.mapId !== previousId)
+        || (previousApi !== undefined
+          && (try Effect.orDie(Effect.try({ try: () => lastSegment(resolved.api), catch: (e) => e }))) !== previousApi)
+        || (previousOrg !== undefined
+          && resolved.organizationId !== undefined
+          && resolved.organizationId !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = olds?.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const apiId = try Effect.orDie(
+        Effect.try({ try: () => lastSegment(olds?.api ?? output?.apiId ?? ""), catch: (e) => e }),
+      )
+      if (apiId.length === 0) return undefined
+      const mapId = try toPhysicalId(id, olds?.mapId, output?.mapId, MAX_NAME_LENGTH)
+      const name = output?.name ?? resourceName(organizationId, apiId, mapId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, organizationId, apiId, name)
+      const entry = try getOwnershipEntry(name)
+      const labels = parseOwnershipValue(entry?.value)
+      return (try hasAlchemyLabels(id, labels))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organizationId = try resolveOrgId(env.project)
+      const page = apigee
+        .listOrganizationsApis({
+          parent: orgParent(organizationId),
+          includeMetaData: true,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: { proxies: [] };
+          default: throw e;
+        }
+      const owned = []
+      for (const proxy of page.proxies ?? []) {
+        if (!Object.keys(proxy.labels ?? {}).some((key) => key.startsWith("alchemy-"))) {
+          continue
+        }
+        const apiId = lastSegment(proxy.name ?? "")
+        if (apiId.length === 0) continue
+        // No List API for proxy-scoped KVMs; probe the common generated
+        // pairing (map id === proxy id) and any map named on the proxy.
+        const candidate = resourceName(organizationId, apiId, apiId)
+        const map = try getByName(candidate)
+        if (map === undefined) continue
+        const entry = try getOwnershipEntry(candidate)
+        if (entry === undefined) continue
+        owned.push(toAttrs(map, env.project, organizationId, apiId, candidate))
+      }
+      return owned
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = news.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const apiId = try Effect.orDie(Effect.try({ try: () => lastSegment(news.api), catch: (e) => e }))
+      const mapId = try toPhysicalId(id, news.mapId, output?.mapId, MAX_NAME_LENGTH)
+      const name = resourceName(organizationId, apiId, mapId)
+      const labels = try createInternalLabels(id)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsApisKeyvaluemaps({
+            parent: `${orgParent(organizationId)}/apis/${apiId}`,
+            body: {
+              name: mapId,
+              encrypted: true,
+              maskedValues: news.maskedValues === true ? true : undefined,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ApisKeyvaluemapNotResolved({ resourceName: name })
+      }
+
+      if ((current.maskedValues === true) !== (news.maskedValues === true)) {
+        current = try apigee.updateOrganizationsApisKeyvaluemaps({
+          name,
+          body: {
+            name: mapId,
+            encrypted: true,
+            maskedValues: news.maskedValues === true ? true : undefined,
+          },
+        })
+      }
+
+      try ensureOwnershipEntry(name, ownershipValue(labels))
+
+      return toAttrs(current, env.project, organizationId, apiId, name)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsApisKeyvaluemaps({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

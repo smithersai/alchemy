@@ -1,0 +1,362 @@
+import * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import {
+  inFleetWiseRegion,
+  readFleetWiseTags,
+  retryObservation,
+  retryWhileConflict,
+  stableEquals,
+  syncFleetWiseTags,
+  toFleetWiseTagList,
+} from "./internal.vibe"
+
+export error DecoderManifestUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DecoderManifestProps {
+  /**
+   * Name of the decoder manifest. Must be 1-100 characters of
+   * `[a-zA-Z0-9:_-]`. If omitted, a deterministic physical name is
+   * generated. Changing the name replaces the manifest.
+   */
+  decoderManifestName?: string
+  /**
+   * ARN of the {@link ModelManifest} the decoder manifest decodes signals
+   * for. Changing the model manifest replaces the decoder manifest.
+   */
+  modelManifestArn: string
+  /**
+   * Human-readable description of the decoder manifest.
+   */
+  description?: string
+  /**
+   * Network interfaces (CAN, OBD, vehicle middleware or custom decoding)
+   * the signal decoders reference, keyed by `interfaceId`. Updated in
+   * place via add/update/remove deltas (only while the manifest is in
+   * `DRAFT` status).
+   */
+  networkInterfaces?: iotfleetwise.NetworkInterface[]
+  /**
+   * Decoding rules mapping model-manifest signals onto network-interface
+   * messages, keyed by `fullyQualifiedName`. Updated in place via
+   * add/update/remove deltas (only while the manifest is in `DRAFT`
+   * status).
+   */
+  signalDecoders?: iotfleetwise.SignalDecoder[]
+  /**
+   * Use `"CUSTOM_DECODING"` to default any unmapped model-manifest signal
+   * to a custom decoding signal.
+   */
+  defaultForUnmappedSignals?: iotfleetwise.DefaultForUnmappedSignalsType
+  /**
+   * Status of the manifest. Vehicles can only be created from an `ACTIVE`
+   * manifest; decoder/interface changes require `DRAFT`.
+   * @default "DRAFT"
+   */
+  status?: "ACTIVE" | "DRAFT"
+  /**
+   * User-defined tags for the decoder manifest.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DecoderManifest extends
+  Resource<
+    "AWS.IoTFleetWise.DecoderManifest",
+    DecoderManifestProps,
+    {
+      /** The name of the decoder manifest. */
+      decoderManifestName: string
+      /** The ARN of the decoder manifest. */
+      decoderManifestArn: string
+      /** The current status of the manifest (`ACTIVE`, `DRAFT`, ...). */
+      status: string
+      /** The model manifest the decoders map to. */
+      modelManifestArn: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT FleetWise decoder manifest — the decoding rules (network
+ * interfaces + signal decoders) that turn raw bus data from a vehicle
+ * modeled by a {@link ModelManifest} into standardized signals.
+ *
+ * A manifest is created in `DRAFT` status; set `status: "ACTIVE"` to make
+ * it usable by vehicles. AWS IoT FleetWise is allowlist-gated and offered
+ * in `us-east-1`/`eu-central-1` only.
+ * ### Creating a Decoder Manifest
+ * **Example:** OBD Decoder for a Speed Signal
+ * ```typescript
+ * const decoder = yield* DecoderManifest("SedanDecoder", {
+ *   modelManifestArn: model.modelManifestArn,
+ *   networkInterfaces: [
+ *     {
+ *       interfaceId: "obd0",
+ *       type: "OBD_INTERFACE",
+ *       obdInterface: { name: "obd", requestMessageId: 2015 },
+ *     },
+ *   ],
+ *   signalDecoders: [
+ *     {
+ *       fullyQualifiedName: "Vehicle.Speed",
+ *       type: "OBD_SIGNAL",
+ *       interfaceId: "obd0",
+ *       obdSignal: {
+ *         pidResponseLength: 1,
+ *         serviceMode: 1,
+ *         pid: 13,
+ *         scaling: 1,
+ *         offset: 0,
+ *         startByte: 0,
+ *         byteLength: 1,
+ *       },
+ *     },
+ *   ],
+ *   status: "ACTIVE",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DecoderManifest = Resource<DecoderManifest>("AWS.IoTFleetWise.DecoderManifest")
+
+export const DecoderManifestProvider = (): infer _ =>
+  Provider.effect(
+    DecoderManifest,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { decoderManifestName?: string },
+      ) => (props.decoderManifestName ? props.decoderManifestName : try createPhysicalName({ id, maxLength: 100 }))
+
+      const readManifest = effect (name: string) =>
+        (effect {
+          return (try (iotfleetwise.getDecoderManifest({ name })
+            |> inFleetWiseRegion(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: undefined;
+          default: throw e;
+        }
+
+      const observeAfterWrite = effect (name: string) =>
+        try (effect {
+          return try effect {
+            const manifest = try readManifest(name)
+            return (manifest === undefined
+              ? throw new DecoderManifestUnexpectedResponse({
+                message: `Decoder manifest '${name}' not found`,
+              })
+              : manifest)
+          }
+        }
+          |> retryObservation(%))
+
+      const readInterfaces = effect (name: string) =>
+        try (effect {
+          return Array.from(
+            try (iotfleetwise.listDecoderManifestNetworkInterfaces.items({ name })
+              |> Stream.runCollect(%)),
+          )
+        }
+          |> inFleetWiseRegion(%))
+
+      const readDecoders = effect (name: string) =>
+        try (effect {
+          return Array.from(
+            try (iotfleetwise.listDecoderManifestSignals.items({ name })
+              |> Stream.runCollect(%)),
+          )
+        }
+          |> inFleetWiseRegion(%))
+
+      const toAttrs = (manifest: iotfleetwise.GetDecoderManifestResponse): infer _ => ({
+        decoderManifestName: manifest.name,
+        decoderManifestArn: manifest.arn,
+        status: manifest.status ?? "DRAFT",
+        modelManifestArn: manifest.modelManifestArn,
+      })
+
+      return {
+        stables: ["decoderManifestName", "decoderManifestArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          const resolved = try Effect.orDie(
+            Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+          )
+          if (resolved === undefined) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, resolved))) {
+            return { action: "replace" } as const
+          }
+          // The update API cannot change the model manifest.
+          if (resolved.modelManifestArn !== olds.modelManifestArn) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.decoderManifestName ?? (try toName(id, olds ?? {}))
+          const found = try readManifest(name)
+          if (found === undefined) return undefined
+          const attrs = toAttrs(found)
+          const tags = try readFleetWiseTags(found.arn)
+          return (try hasAlchemyTags(id, tags))
+            ? attrs
+            : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.decoderManifestName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredStatus = news.status ?? "DRAFT"
+          const desiredInterfaces = news.networkInterfaces ?? []
+          const desiredDecoders = news.signalDecoders ?? []
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readManifest(name)
+
+          // 2. Ensure — create if missing; tolerate the AlreadyExists race.
+          if (observed === undefined) {
+            ;(effect {
+              return (try (iotfleetwise
+                .createDecoderManifest({
+                  name,
+                  modelManifestArn: news.modelManifestArn,
+                  description: news.description,
+                  networkInterfaces: desiredInterfaces.length > 0 ? desiredInterfaces : undefined,
+                  signalDecoders: desiredDecoders.length > 0 ? desiredDecoders : undefined,
+                  defaultForUnmappedSignals: news.defaultForUnmappedSignals,
+                  tags: try Effect.orDie(Effect.try({ try: () => toFleetWiseTagList(desiredTags), catch: (e) => e })),
+                })
+                |> inFleetWiseRegion(%)))
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: undefined as void;
+              default: throw e;
+            }
+            observed = try observeAfterWrite(name)
+          }
+
+          // 3. Sync interfaces + decoders + description — diff OBSERVED
+          //    lists against desired, keyed by interfaceId /
+          //    fullyQualifiedName. Structural changes require DRAFT status,
+          //    so they run before any DRAFT -> ACTIVE transition.
+          const observedInterfaces = try readInterfaces(name)
+          const observedDecoders = try readDecoders(name)
+          const observedInterfaceById = new Map(observedInterfaces.map((i) => [i.interfaceId, i]))
+          const desiredInterfaceById = new Map(desiredInterfaces.map((i) => [i.interfaceId, i]))
+          const observedDecoderByFqn = new Map(
+            observedDecoders.map((d) => [d.fullyQualifiedName, d]),
+          )
+          const desiredDecoderByFqn = new Map(
+            desiredDecoders.map((d) => [d.fullyQualifiedName, d]),
+          )
+
+          const interfacesToAdd = desiredInterfaces.filter(
+            (i) => !observedInterfaceById.has(i.interfaceId),
+          )
+          const interfacesToUpdate = desiredInterfaces.filter((i) => {
+            const current = observedInterfaceById.get(i.interfaceId)
+            return current !== undefined && !stableEquals(current, i)
+          })
+          const interfacesToRemove = observedInterfaces
+            .map((i) => i.interfaceId)
+            .filter((id_) => !desiredInterfaceById.has(id_))
+          const decodersToAdd = desiredDecoders.filter(
+            (d) => !observedDecoderByFqn.has(d.fullyQualifiedName),
+          )
+          const decodersToUpdate = desiredDecoders.filter((d) => {
+            const current = observedDecoderByFqn.get(d.fullyQualifiedName)
+            return current !== undefined && !stableEquals(current, d)
+          })
+          const decodersToRemove = observedDecoders
+            .map((d) => d.fullyQualifiedName)
+            .filter((fqn) => !desiredDecoderByFqn.has(fqn))
+          const descriptionChanged = news.description !== undefined && news.description !== observed.description
+
+          if (
+            interfacesToAdd.length > 0
+            || interfacesToUpdate.length > 0
+            || interfacesToRemove.length > 0
+            || decodersToAdd.length > 0
+            || decodersToUpdate.length > 0
+            || decodersToRemove.length > 0
+            || descriptionChanged
+          ) {
+            try (iotfleetwise
+              .updateDecoderManifest({
+                name,
+                description: descriptionChanged ? news.description : undefined,
+                networkInterfacesToAdd: interfacesToAdd.length > 0 ? interfacesToAdd : undefined,
+                networkInterfacesToUpdate: interfacesToUpdate.length > 0 ? interfacesToUpdate : undefined,
+                networkInterfacesToRemove: interfacesToRemove.length > 0 ? interfacesToRemove : undefined,
+                signalDecodersToAdd: decodersToAdd.length > 0 ? decodersToAdd : undefined,
+                signalDecodersToUpdate: decodersToUpdate.length > 0 ? decodersToUpdate : undefined,
+                signalDecodersToRemove: decodersToRemove.length > 0 ? decodersToRemove : undefined,
+                defaultForUnmappedSignals: news.defaultForUnmappedSignals,
+              })
+              |> inFleetWiseRegion(%))
+            observed = try observeAfterWrite(name)
+          }
+
+          // 3b. Sync status (e.g. activate a draft).
+          if ((observed.status ?? "DRAFT") !== desiredStatus) {
+            try (iotfleetwise
+              .updateDecoderManifest({ name, status: desiredStatus })
+              |> inFleetWiseRegion(%))
+            observed = try observeAfterWrite(name)
+          }
+
+          // 3c. Sync tags against OBSERVED cloud tags.
+          try syncFleetWiseTags(observed.arn, desiredTags)
+
+          try session.note(name)
+          return toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // Idempotent: deleting a missing manifest succeeds. Vehicles
+          // still detaching surface as ConflictException — retry through
+          // the window (bounded).
+          ;(effect {
+            return (try (iotfleetwise.deleteDecoderManifest({ name: output.decoderManifestName })
+              |> inFleetWiseRegion(%)
+              |> retryWhileConflict(%)))
+          }) catch effect (e) => match (e) {
+            when { _tag: "ConflictException" }: undefined as void;
+            default: throw e;
+          }
+        },
+
+        list: effect () =>
+          try iotfleetwise.listDecoderManifests.items({}).pipe(
+            Stream.runCollect,
+            Effect.map((chunk) =>
+              Array.from(chunk).flatMap((summary) =>
+                summary.name !== undefined && summary.arn !== undefined
+                  ? [
+                    {
+                      decoderManifestName: summary.name,
+                      decoderManifestArn: summary.arn,
+                      status: summary.status ?? "DRAFT",
+                      modelManifestArn: summary.modelManifestArn,
+                    },
+                  ]
+                  : []
+              )
+            ),
+            inFleetWiseRegion,
+          ),
+      }
+    },
+  )

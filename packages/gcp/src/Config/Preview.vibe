@@ -1,0 +1,436 @@
+import * as config from "@distilled.cloud/gcp/config_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.vibe"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  expandNamed,
+  fingerprint,
+  listAtLocation,
+  listLabeledPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  serviceAccountName,
+  stringMap,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type PreviewProps = {
+  /**
+   * Preview id (the `{preview}` segment of
+   * `projects/{project}/locations/{location}/previews/{preview}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Immutable — changing it replaces the preview.
+   */
+  previewId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the preview. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Terraform blueprint to preview. Required unless `deployment` is set.
+   * There is no update API — changing the blueprint replaces the preview.
+   */
+  terraformBlueprint?: config.TerraformBlueprint
+  /**
+   * Existing deployment whose current state is used as the preview
+   * baseline, as
+   * `projects/{project}/locations/{location}/deployments/{deployment}`
+   * or a deployment id. Changing it replaces the preview.
+   */
+  deployment?: string
+  /**
+   * Preview mode (`DEFAULT` or `DELETE`). Changing it replaces the
+   * preview.
+   */
+  previewMode?: config.PreviewPreviewModeEnum | (string & {})
+  /**
+   * Service account used to preview resources. Format
+   * `projects/{project}/serviceAccounts/{email}`, or an email / account
+   * id which is expanded. Required by the API. Changing it replaces the
+   * preview.
+   */
+  serviceAccount: string
+  /**
+   * GCS prefix for Cloud Build logs and artifacts (`gs://{bucket}/{folder}`).
+   * Changing it replaces the preview.
+   */
+  artifactsGcsBucket?: string
+  /**
+   * Cloud Build worker pool
+   * `projects/{project}/locations/{location}/workerPools/{workerPoolId}`.
+   * Changing it replaces the preview.
+   */
+  workerPool?: string
+  /**
+   * Terraform version constraint (e.g. `"=1.5.7"`). Changing it replaces
+   * the preview.
+   */
+  tfVersionConstraint?: string
+  /**
+   * Terraform provider source configuration. Changing it replaces the
+   * preview.
+   */
+  providerConfig?: config.ProviderConfig
+  /**
+   * User annotations. Changing them replaces the preview (no patch API).
+   */
+  annotations?: Record<string, string>
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   * Changing them replaces the preview (no patch API).
+   */
+  labels?: Record<string, string>
+}
+
+export type Preview = Resource<
+  "GCP.Config.Preview",
+  PreviewProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Preview id (last path segment). */
+    previewId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Terraform blueprint that was previewed. */
+    terraformBlueprint: config.TerraformBlueprint | undefined
+    /** Baseline deployment resource name. */
+    deployment: string | undefined
+    /** Preview mode. */
+    previewMode: string | undefined
+    /** Service account used for the preview. */
+    serviceAccount: string | undefined
+    /** Artifacts bucket prefix. */
+    artifactsGcsBucket: string | undefined
+    /** Cloud Build worker pool. */
+    workerPool: string | undefined
+    /** Terraform version constraint. */
+    tfVersionConstraint: string | undefined
+    /** Provider configuration. */
+    providerConfig: config.ProviderConfig | undefined
+    /** Server-reported preview state. */
+    state: string | undefined
+    /** Server-reported error code. */
+    errorCode: string | undefined
+    /** Cloud Build id. */
+    build: string | undefined
+    /** Preview artifacts. */
+    previewArtifacts: config.PreviewArtifacts | undefined
+    /** Preview logs GCS URI. */
+    logs: string | undefined
+    /** Resolved Terraform version. */
+    tfVersion: string | undefined
+    /** User annotations. */
+    annotations: Record<string, string>
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Infrastructure Manager preview — the Terraform plan Infra Manager
+ * would apply to reach the desired blueprint (or to delete a
+ * deployment).
+ *
+ * Previews have no patch API. Changing identity (`previewId`,
+ * `location`) or any input (blueprint, service account, labels, …)
+ * replaces the preview. Create and delete are long-running operations
+ * and typically invoke Cloud Build.
+ *
+ * ### Creating a Preview
+ * **Example:** Git blueprint
+ * ```typescript
+ * const preview = yield* GCP.Config.Preview("Plan", {
+ *   serviceAccount:
+ *     "projects/my-project/serviceAccounts/sa@my-project.iam.gserviceaccount.com",
+ *   terraformBlueprint: {
+ *     gitSource: {
+ *       repo: "https://github.com/terraform-google-modules/terraform-docs-samples.git",
+ *       directory: "storage/quickstart",
+ *     },
+ *   },
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Preview against an existing deployment
+ * ```typescript
+ * const preview = yield* GCP.Config.Preview("Plan", {
+ *   serviceAccount:
+ *     "projects/my-project/serviceAccounts/sa@my-project.iam.gserviceaccount.com",
+ *   deployment: existingDeployment,
+ *   previewMode: "DEFAULT",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Config
+ */
+export const Preview = Resource<Preview>("GCP.Config.Preview")
+
+const resourceName = (project: string, location: string, previewId: string): infer _ =>
+  `projects/${project}/locations/${location}/previews/${previewId}`
+
+const toAttrs = (item: config.Preview, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "previews", region)
+  return {
+    name,
+    previewId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    terraformBlueprint: item.terraformBlueprint,
+    deployment: item.deployment,
+    previewMode: item.previewMode,
+    serviceAccount: item.serviceAccount,
+    artifactsGcsBucket: item.artifactsGcsBucket,
+    workerPool: item.workerPool,
+    tfVersionConstraint: item.tfVersionConstraint,
+    providerConfig: item.providerConfig,
+    state: item.state,
+    errorCode: item.errorCode,
+    build: item.build,
+    previewArtifacts: item.previewArtifacts,
+    logs: item.logs,
+    tfVersion: item.tfVersion,
+    annotations: stringMap(item.annotations),
+    labels: userLabels(item.labels),
+    createTime: item.createTime,
+  }
+}
+
+const snapshotOf = (input: {
+  terraformBlueprint?: config.TerraformBlueprint
+  deployment?: string
+  previewMode?: string
+  serviceAccount?: string
+  artifactsGcsBucket?: string
+  workerPool?: string
+  tfVersionConstraint?: string
+  providerConfig?: config.ProviderConfig
+  annotations?: Record<string, string>
+  labels?: Record<string, string>
+}): infer _ => ({
+  terraformBlueprint: input.terraformBlueprint,
+  deployment: input.deployment,
+  previewMode: input.previewMode,
+  serviceAccount: input.serviceAccount,
+  artifactsGcsBucket: input.artifactsGcsBucket,
+  workerPool: input.workerPool,
+  tfVersionConstraint: input.tfVersionConstraint,
+  providerConfig: input.providerConfig,
+  annotations: input.annotations ?? {},
+  labels: toLabels(input.labels),
+})
+
+const getByName = effect (name: string) =>
+  config
+    .getProjectsLocationsPreviews({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string, region: string) =>
+  try listAtLocation(project, region, effect (parent) =>
+    try listLabeledPages(
+      config.listProjectsLocationsPreviews.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.previews,
+      (item) => item.labels,
+    ))
+
+export const PreviewProvider = (): infer _ =>
+  Provider.succeed(Preview, {
+    stables: ["name", "previewId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return undefined
+      const env = try GcpEnvironment.current
+      const location = try Effect.orDie(Effect.try({
+        try: () =>
+          normalizeLocation(
+            resolved.location ?? olds?.location ?? output?.location,
+            env.region,
+          ),
+        catch: (e) => e,
+      }))
+      const extra = olds === undefined
+        ? false
+        : (try Effect.orDie(Effect.try({
+          try: fingerprint.bind(
+            undefined,
+            snapshotOf({
+              terraformBlueprint: olds.terraformBlueprint,
+              deployment: olds.deployment === undefined
+                ? undefined
+                : expandNamed(olds.deployment, env.project, location, "deployments"),
+              previewMode: olds.previewMode,
+              serviceAccount: serviceAccountName(olds.serviceAccount, env.project),
+              artifactsGcsBucket: olds.artifactsGcsBucket,
+              workerPool: olds.workerPool,
+              tfVersionConstraint: olds.tfVersionConstraint,
+              providerConfig: olds.providerConfig,
+              annotations: olds.annotations,
+              labels: olds.labels,
+            }),
+          ),
+          catch: (e) => e,
+        })))
+          !== (try Effect.orDie(Effect.try({
+            try: fingerprint.bind(
+              undefined,
+              snapshotOf({
+                terraformBlueprint: resolved.terraformBlueprint,
+                deployment: resolved.deployment === undefined
+                  ? undefined
+                  : expandNamed(resolved.deployment, env.project, location, "deployments"),
+                previewMode: resolved.previewMode,
+                serviceAccount: serviceAccountName(resolved.serviceAccount, env.project),
+                artifactsGcsBucket: resolved.artifactsGcsBucket,
+                workerPool: resolved.workerPool,
+                tfVersionConstraint: resolved.tfVersionConstraint,
+                providerConfig: resolved.providerConfig,
+                annotations: resolved.annotations,
+                labels: resolved.labels,
+              }),
+            ),
+            catch: (e) => e,
+          })))
+      return try Effect.orDie(Effect.try({
+        try: () =>
+          replaceOnIdentity({
+            previousId: olds?.previewId ?? output?.previewId,
+            nextId: resolved.previewId ?? olds?.previewId ?? output?.previewId,
+            previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+            nextLocation: location,
+            extra,
+          }),
+        catch: (e) => e,
+      }))
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const previewId = try toPhysicalId(id, olds?.previewId, output?.previewId, "preview")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(olds?.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = output?.name ?? resourceName(env.project, location, previewId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(
+          id,
+          try Effect.orDie(Effect.try({ try: () => tagRecord(existing.labels), catch: (e) => e })),
+        ))
+        ? attrs
+        : try Effect.orDie(Effect.try({ try: () => Unowned(attrs), catch: (e) => e }))
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const previewId = try toPhysicalId(id, news.previewId, output?.previewId, "preview")
+      const location = try Effect.orDie(
+        Effect.try({ try: () => normalizeLocation(news.location ?? output?.location, env.region), catch: (e) => e }),
+      )
+      const name = resourceName(env.project, location, previewId)
+      const desiredLabels = {
+        ...try Effect.orDie(Effect.try({ try: () => toLabels(news.labels), catch: (e) => e })),
+        ...(try createInternalLabels(id)),
+      }
+      const desiredAnnotations = news.annotations ?? {}
+      const serviceAccount = try Effect.orDie(
+        Effect.try({ try: () => serviceAccountName(news.serviceAccount, env.project), catch: (e) => e }),
+      )
+      const deployment = try Effect.orDie(Effect.try({
+        try: () =>
+          news.deployment === undefined
+            ? undefined
+            : expandNamed(news.deployment, env.project, location, "deployments"),
+        catch: (e) => e,
+      }))
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = config
+          .createProjectsLocationsPreviews({
+            parent: parentOf(env.project, location),
+            previewId,
+            body: {
+              terraformBlueprint: news.terraformBlueprint,
+              deployment,
+              previewMode: news.previewMode,
+              serviceAccount,
+              artifactsGcsBucket: news.artifactsGcsBucket,
+              workerPool: news.workerPool,
+              tfVersionConstraint: news.tfVersionConstraint,
+              providerConfig: news.providerConfig,
+              annotations: desiredAnnotations,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (effect {
+        return (try (config
+          .deleteProjectsLocationsPreviews({
+            name: output.name,
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

@@ -1,0 +1,202 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { AWSEnvironment } from "../Environment.vibe"
+import type { EventBus } from "./EventBus.vibe"
+import type { Rule } from "./Rule.vibe"
+
+/**
+ * Shared scaffolding for the EventBridge runtime bindings.
+ *
+ * NOT exported from `index.ts` — every single-operation `{Op}Http.ts` in
+ * this service is a thin `Layer.effect(Cap, makeEventBridge…HttpBinding({ … }))`
+ * over one of the three builders below. Everything except the operation, the
+ * IAM action list, and the injected identifier(s) is boilerplate:
+ *
+ * - {@link makeEventBridgeAccountHttpBinding} — account-level operations
+ *   (`ListEventBuses`, `TestEventPattern`, `ListRuleNamesByTarget`, replay
+ *   reads). The runtime callable passes the caller's request through
+ *   unchanged; the deploy-time half grants `actions` on `resources`
+ *   (default `*` — most EventBridge list/test actions do not support
+ *   resource-level permissions).
+ * - {@link makeEventBridgeBusHttpBinding} — operations scoped to an optional
+ *   bound {@link EventBus} (`DescribeEventBus`, `ListRules`). The runtime
+ *   callable injects the bus name under `busNameKey` (omitted for the
+ *   default bus); the deploy-time half grants `actions` on the bus ARN, or
+ *   the account default bus ARN when no bus is bound.
+ * - {@link makeEventBridgeRuleHttpBinding} — operations scoped to a bound
+ *   {@link Rule} (`DescribeRule`, `ListTargetsByRule`, `EnableRule`,
+ *   `DisableRule`). The runtime callable injects the rule name under
+ *   `ruleNameKey` and the bus name under `EventBusName` (omitted for the
+ *   default bus); the deploy-time half grants `actions` on the rule ARN.
+ *
+ * Genuinely-different bindings stay bespoke: `PutEvents` (per-entry bus-name
+ * injection), `BusSink` (a batching sink over `PutEvents`), and
+ * `StartReplay` (archive-scoped with a replay-wildcard grant).
+ */
+
+/**
+ * Build the impl Effect for an account-level EventBridge operation. The
+ * runtime callable passes the caller's request through unchanged; the
+ * deploy-time half grants `actions` on `resources` (default `*`).
+ */
+export const makeEventBridgeAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.EventBridge.ListEventBuses`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `resources`. */
+  actions: readonly string[]
+  /**
+   * Resolve the IAM resources the actions are granted on, given the ambient
+   * account and region (e.g. a `replay/*` ARN). Defaults to `["*"]`.
+   */
+  resources?: (env: { accountId: string; region: string }) => readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId, region } = try (AWSEnvironment.current as unknown as {
+        accountId: string;
+        region: string;
+      }!!)
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: options.resources ? [...options.resources({ accountId, region })] : ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an EventBridge operation scoped to an optional
+ * bound {@link EventBus}. The runtime callable injects the bus name under
+ * `busNameKey` (omitted for the default bus); the deploy-time half grants
+ * `actions` on the bus ARN, or the account default bus ARN when no bus is
+ * bound.
+ */
+export const makeEventBridgeBusHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.EventBridge.DescribeEventBus`. */
+  tag: string
+  /** The distilled operation; the bus name is injected from the bound bus. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the bus ARN. */
+  actions: readonly string[]
+  /** Request field the bound bus's name is injected under. */
+  busNameKey: string
+  /**
+   * Override the IAM resources the actions are granted on. Some bus-scoped
+   * operations (`events:ListRules`) do not support resource-level
+   * permissions and must be granted on `*`; the default is the bound bus's
+   * ARN (or the account default bus ARN when no bus is bound).
+   */
+  resources?: (env: { accountId: string; region: string }) => readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (bus?: EventBus | undefined) => {
+    const EventBusName = bus ? try bus.eventBusName.asEffect() : undefined
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId, region } = try (AWSEnvironment.current as unknown as {
+        accountId: string;
+        region: string;
+      }!!)
+      // Pass the ARN as an unresolved Output — binding data is resolved
+      // by the engine before the host reconciles. Eagerly yielding here
+      // (during plan) produces a deferred object that serializes into an
+      // invalid IAM policy (MalformedPolicyDocumentException).
+      const resource = bus
+        ? Output.interpolate`${bus.eventBusArn}`
+        : (`arn:aws:events:${region}:${accountId}:event-bus/default` as const)
+
+      try bind`${options.tag}(${bus ?? "default"})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: options.resources
+              ? [...options.resources({ accountId, region })]
+              : [resource],
+          },
+        ],
+      })
+    }
+    return effect (request?: Partial<I> | undefined) =>
+      try withSpan(
+        effect {
+          const eventBusName = EventBusName ? try EventBusName : undefined
+          const input: Record<string, unknown> = { ...request }
+          if (eventBusName !== undefined && eventBusName !== "default") {
+            input[options.busNameKey] = eventBusName
+          }
+          return try op(input as I)
+        },
+        `${options.tag}(${bus?.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an EventBridge operation scoped to a bound
+ * {@link Rule}. The runtime callable injects the rule name under
+ * `ruleNameKey` and the rule's bus name under `EventBusName` (omitted for
+ * the default bus); the deploy-time half grants `actions` on the rule ARN.
+ */
+export const makeEventBridgeRuleHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.EventBridge.DescribeRule`. */
+  tag: string
+  /** The distilled operation; the rule and bus names are injected. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the rule ARN. */
+  actions: readonly string[]
+  /** Request field the bound rule's name is injected under. */
+  ruleNameKey: string
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (rule: Rule) => {
+    const RuleName = try rule.ruleName.asEffect()
+    const EventBusName = try rule.eventBusName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${rule})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [rule.ruleArn],
+          },
+        ],
+      })
+    }
+    return effect (request?: Partial<I> | undefined) =>
+      try withSpan(
+        effect {
+          const ruleName = try RuleName
+          const eventBusName = try EventBusName
+          const input: Record<string, unknown> = { ...request }
+          input[options.ruleNameKey] = ruleName
+          if (eventBusName !== "default") {
+            input.EventBusName = eventBusName
+          }
+          return try op(input as I)
+        },
+        `${options.tag}(${rule.LogicalId})`,
+      )
+  }
+}

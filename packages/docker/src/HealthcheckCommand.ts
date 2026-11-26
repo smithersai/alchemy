@@ -10,6 +10,7 @@
  * - `["NONE"]`: no command (the caller disables the healthcheck).
  * - any other array: joined with spaces and run in the shell, as before, so
  *   `["curl -f localhost || exit 1"]` keeps working.
+ * @throws {never}
  */
 export const healthcheckCommand = (cmd: string[] | string): string | undefined => {
   if (typeof cmd === "string") return cmd;
@@ -26,7 +27,9 @@ export const healthcheckCommand = (cmd: string[] | string): string | undefined =
   }
 };
 
-/** True when `cmd` is Docker's `["NONE"]` form, which disables the healthcheck. */
+/** True when `cmd` is Docker's `["NONE"]` form, which disables the healthcheck.
+ * @throws {never}
+ */
 export const isHealthcheckDisabled = (cmd: string[] | string): boolean =>
   Array.isArray(cmd) && cmd[0] === "NONE";
 

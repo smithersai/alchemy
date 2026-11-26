@@ -757,7 +757,7 @@ FunctionName: chat-dev-sam-history`,
       "      FilesR2,",
     ],
     notes:
-      "The Worker asks for the rooms, History and Files. join hands the WebSocket to that room's Durable Object, uploads go to Files, and history comes from History. At the bottom it wires the Layers: HistoryLive on DatabaseLive, and FilesR2. That one expression is the whole app's wiring, and it's the only place that decides which implementation each module gets. The rooms get History from here too.",
+      "The Worker asks for the rooms, History and Files. join hands the WebSocket to that room's Durable Object, uploads go to Files, and history comes from History. At the bottom it provides RoomLive, then wires HistoryLive on DatabaseLive and FilesR2. That one expression is the whole app's wiring, and it's the only place that decides which implementation each module gets. RoomLive captures the same History service when it constructs the room implementation.",
   }),
   chat({
     snippet: "ChatMissing.error.ts",

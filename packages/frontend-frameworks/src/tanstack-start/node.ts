@@ -36,7 +36,7 @@ import {
   make,
   type TanStackStartTarget,
   type TanStackStartTargetConfig,
-} from "./TanStackStart.ts";
+} from "./TanStackStart.vibe";
 
 /** The server entry file name the SSR environment emits. */
 export const SERVER_ENTRY_FILE_NAME = DEFAULT_SERVER_ENTRY_FILE_NAME;

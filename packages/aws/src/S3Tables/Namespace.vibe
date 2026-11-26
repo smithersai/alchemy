@@ -1,0 +1,179 @@
+import * as s3tables from "@distilled.cloud/aws/s3tables"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface NamespaceProps {
+  /**
+   * ARN of the table bucket that owns the namespace. Changing it replaces
+   * the namespace.
+   */
+  tableBucket: string
+  /**
+   * Name of the namespace. Must be 1-255 characters of lowercase letters,
+   * numbers, and underscores, beginning with a letter or number. Changing
+   * the name replaces the namespace.
+   * @default a deterministic name derived from the app, stage, and logical ID
+   */
+  namespace?: string
+}
+
+export interface Namespace extends
+  Resource<
+    "AWS.S3Tables.Namespace",
+    NamespaceProps,
+    {
+      tableBucketArn: string
+      namespace: string
+      namespaceId: string | undefined
+      createdAt: Date
+      createdBy: string
+      ownerAccountId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A namespace within an Amazon S3 Tables {@link TableBucket} — a logical
+ * grouping of {@link Table}s, equivalent to a database in an Iceberg catalog.
+ * ### Creating Namespaces
+ * **Example:** Basic Namespace
+ * ```typescript
+ * import * as S3Tables from "@alchemy.run/aws/S3Tables";
+ *
+ * const bucket = yield* S3Tables.TableBucket("Analytics");
+ * const ns = yield* S3Tables.Namespace("Events", {
+ *   tableBucket: bucket.tableBucketArn,
+ * });
+ * ```
+ *
+ * **Example:** Named Namespace
+ * ```typescript
+ * const ns = yield* S3Tables.Namespace("Events", {
+ *   tableBucket: bucket.tableBucketArn,
+ *   namespace: "raw_events",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Namespace = Resource<Namespace>("AWS.S3Tables.Namespace")
+
+const createNamespaceName = effect (id: string, props: { namespace?: string | undefined }) => {
+  if (props.namespace) {
+    return props.namespace
+  }
+  // Namespace names allow lowercase letters, numbers, and underscores only —
+  // no hyphens — so translate the DNS-style physical name. Namespace names
+  // must not start with the reserved prefix `aws`.
+  const base = try createPhysicalName({
+    id,
+    maxLength: 60,
+    lowercase: true,
+    forbiddenPrefixes: ["aws"],
+  })
+  return base.replaceAll("-", "_")
+}
+
+export const NamespaceProvider = (): infer _ =>
+  Provider.succeed(Namespace, {
+    stables: ["tableBucketArn", "namespace"],
+    // Namespaces are scoped to a parent table bucket; there is no ambient
+    // enumeration without a bucket ARN, so the engine drives lifecycle from
+    // state alone.
+    list: effect () => [],
+    read: effect ({ id, olds, output }) => {
+      const tableBucketArn = output?.tableBucketArn ?? olds?.tableBucket
+      if (typeof tableBucketArn !== "string") return undefined
+      const namespace = output?.namespace ?? (try createNamespaceName(id, olds ?? {}))
+      return (effect {
+        return (try effect {
+          const n = try s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace })
+          return ({
+            tableBucketArn,
+            namespace: n.namespace[0] ?? namespace,
+            namespaceId: n.namespaceId,
+            createdAt: n.createdAt,
+            createdBy: n.createdBy,
+            ownerAccountId: n.ownerAccountId,
+          })
+        })
+      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined; default: throw e; }
+    },
+    diff: effect ({ id, news, olds }) => {
+      const resolved = try Effect.orDie(
+        Effect.try({ try: () => isResolved(news) ? news : undefined, catch: (e) => e }),
+      )
+      if (resolved === undefined) return
+      if (resolved.tableBucket !== olds?.tableBucket) {
+        return { action: "replace" } as const
+      }
+      const oldName = try createNamespaceName(id, olds ?? {})
+      const newName = try createNamespaceName(id, resolved)
+      if (oldName !== newName) {
+        return { action: "replace" } as const
+      }
+    },
+    reconcile: effect ({ id, news, output, session }) => {
+      const tableBucketArn = news.tableBucket as string
+      const namespace = output?.namespace ?? (try createNamespaceName(id, news))
+
+      // Observe — read live state; the namespace may have been removed
+      // out-of-band even if `output` cached it.
+      let ns = (effect {
+        return (try s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace }))
+      }) catch effect (e) => match (e) {
+        when { _tag: "NotFoundException" }: undefined;
+        default: throw e;
+      }
+
+      // Ensure — create if missing, tolerating a concurrent create.
+      if (ns === undefined) {
+        ;(effect {
+          return (try (s3tables
+            .createNamespace({
+              tableBucketARN: tableBucketArn,
+              namespace: [namespace],
+            })
+            |> Effect.asVoid(%)))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ConflictException" }: undefined as void;
+          default: throw e;
+        }
+        // Eventual consistency: getNamespace can briefly 404 a namespace that
+        // createNamespace just returned.
+        ns = try (s3tables.getNamespace({ tableBucketARN: tableBucketArn, namespace })
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "NotFoundException",
+            schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+          }))
+      }
+
+      try session.note(namespace)
+      return {
+        tableBucketArn,
+        namespace: ns.namespace[0] ?? namespace,
+        namespaceId: ns.namespaceId,
+        createdAt: ns.createdAt,
+        createdBy: ns.createdBy,
+        ownerAccountId: ns.ownerAccountId,
+      }
+    },
+    delete: effect ({ output }) => {
+      ;(effect {
+        return (try (s3tables
+          .deleteNamespace({
+            tableBucketARN: output.tableBucketArn,
+            namespace: output.namespace,
+          })
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "ConflictException",
+            schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+          })))
+      }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: undefined as void; default: throw e; }
+    },
+  })

@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as EffectStream from "effect/Stream";
-import { AWSEnvironment } from "../Environment.ts";
+import { AWSEnvironment } from "../Environment.vibe";
 
 /**
  * Unwrap distilled `SensitiveString` values (`string | Redacted<string>`)
@@ -23,7 +23,9 @@ export const asPlain = (
  */
 export const deadlineArnOf = Effect.gen(function* () {
   const { accountId, region } = yield* AWSEnvironment.current;
-  return (path: string) => `arn:aws:deadline:${region}:${accountId}:${path}`;
+  const arnOf = /** @throws {never} */ (path: string) =>
+    `arn:aws:deadline:${region}:${accountId}:${path}`;
+  return arnOf;
 });
 
 /**

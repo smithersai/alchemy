@@ -1,0 +1,162 @@
+import * as Effect from "effect/Effect"
+import * as servicecatalog from "@distilled.cloud/aws/service-catalog"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { awaitVisible, retryWhileResourceInUse } from "./internal.vibe"
+
+export interface PortfolioProductAssociationProps {
+  /**
+   * ID of the portfolio the product is added to. Changing it replaces the
+   * association.
+   */
+  portfolioId: string
+  /**
+   * ID of the product to add to the portfolio. Changing it replaces the
+   * association.
+   */
+  productId: string
+}
+
+export interface PortfolioProductAssociation extends
+  Resource<
+    "AWS.ServiceCatalog.PortfolioProductAssociation",
+    PortfolioProductAssociationProps,
+    {
+      /** ID of the portfolio. */
+      portfolioId: string
+      /** ID of the associated product. */
+      productId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Associates a Service Catalog product with a portfolio, making the product
+ * launchable by the portfolio's principals.
+ *
+ * ### Associating a Product
+ * **Example:** Add a product to a portfolio
+ * ```typescript
+ * import * as ServiceCatalog from "@alchemy.run/aws/ServiceCatalog";
+ *
+ * yield* ServiceCatalog.PortfolioProductAssociation("ToolsVpc", {
+ *   portfolioId: portfolio.portfolioId,
+ *   productId: product.productId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PortfolioProductAssociation = Resource<PortfolioProductAssociation>(
+  "AWS.ServiceCatalog.PortfolioProductAssociation",
+)
+
+export const PortfolioProductAssociationProvider = (): infer _ =>
+  Provider.effect(
+    PortfolioProductAssociation,
+    effect {
+      // Enumerate the product's portfolios and check for ours. A missing
+      // product means the association is gone too.
+      const isAssociated = effect (productId: string, portfolioId: string) =>
+        (effect {
+          return (Array.from(
+            try (servicecatalog.listPortfoliosForProduct.pages({ ProductId: productId })
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.PortfolioDetails ?? [])
+            .some((d) => d.Id === portfolioId))
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: false;
+          default: throw e;
+        }
+
+      return PortfolioProductAssociation.Provider.of({
+        stables: ["portfolioId", "productId"],
+        // Service Catalog has no account-wide association API. Walk every
+        // product and enumerate its portfolios so unsafe nuke can remove
+        // associations before attempting to delete their parents.
+        list: effect () => {
+          const productIds = Array.from(
+            try (servicecatalog.searchProductsAsAdmin.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.ProductViewDetails ?? [])
+            .flatMap((detail) => {
+              const productId = detail.ProductViewSummary?.ProductId
+              return productId === undefined ? [] : [productId]
+            })
+
+          const associations = try Effect.forEach(
+            productIds,
+            effect (productId) =>
+              (effect {
+                return (Array.from(
+                  try (servicecatalog.listPortfoliosForProduct.pages({ ProductId: productId })
+                    |> Stream.runCollect(%)),
+                )
+                  .flatMap((page) => page.PortfolioDetails ?? [])
+                  .flatMap((portfolio) =>
+                    portfolio.Id === undefined
+                      ? []
+                      : [{ productId, portfolioId: portfolio.Id }]
+                  ))
+              }) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+            { concurrency: 5 },
+          )
+          return associations.flat()
+        },
+        // Existence-only resource — every property is part of its identity.
+        diff: effect ({ olds, news: _newsInput }) => {
+          if (!(try Effect.orDie(Effect.try({ try: () => isResolved(_newsInput), catch: (e) => e })))) return undefined
+          const news = _newsInput as typeof olds
+          if (olds.portfolioId !== news.portfolioId || olds.productId !== news.productId) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const portfolioId = output?.portfolioId ?? olds?.portfolioId
+          const productId = output?.productId ?? olds?.productId
+          if (portfolioId === undefined || productId === undefined) {
+            return undefined
+          }
+          return (try isAssociated(productId, portfolioId))
+            ? { portfolioId, productId }
+            : undefined
+        },
+        // Existence-only: observe → if missing, associate. No sync step.
+        reconcile: effect ({ news, session }) => {
+          if (!(try isAssociated(news.productId, news.portfolioId))) {
+            try servicecatalog.associateProductWithPortfolio({
+              ProductId: news.productId,
+              PortfolioId: news.portfolioId,
+            })
+            // The association list is eventually consistent — wait (bounded)
+            // until it is visible so a subsequent read converges.
+            try awaitVisible(isAssociated(news.productId, news.portfolioId))
+          }
+          try session.note(`${news.portfolioId}/${news.productId}`)
+          return {
+            portfolioId: news.portfolioId,
+            productId: news.productId,
+          }
+        },
+        delete: effect ({ output }) => {
+          if (try isAssociated(output.productId, output.portfolioId)) {
+            retryWhileResourceInUse(
+              servicecatalog.disassociateProductFromPortfolio({
+                ProductId: output.productId,
+                PortfolioId: output.portfolioId,
+              }),
+            ) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: undefined as void;
+              default: throw e;
+            }
+          }
+        },
+      })
+    },
+  )

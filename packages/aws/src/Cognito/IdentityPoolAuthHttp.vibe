@@ -1,0 +1,60 @@
+import * as ci from "@distilled.cloud/aws/cognito-identity"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.vibe"
+import { cognitoMethods } from "./BindingHttp.vibe"
+import type { IdentityPool } from "./IdentityPool.vibe"
+import { IdentityPoolAuth, type GetIdRequest, type IdentityPoolAuthClient } from "./IdentityPoolAuth.vibe"
+
+/**
+ * HTTP implementation of {@link IdentityPoolAuth}. The credentials-vending
+ * flows are unauthenticated (Cognito does not evaluate IAM for them), so the
+ * deploy-time half only records the binding — no policy statements are
+ * attached.
+ */
+export const IdentityPoolAuthHttp = Layer.effect(
+  IdentityPoolAuth,
+  effect {
+    const bind = try AWSBindings.Bind
+    const getId = try AWSBindings.withCredentials(ci.getId)
+    const getCredentialsForIdentity = try AWSBindings.withCredentials(
+      ci.getCredentialsForIdentity,
+    )
+    const getOpenIdToken = try AWSBindings.withCredentials(ci.getOpenIdToken)
+    const unlinkIdentity = try AWSBindings.withCredentials(ci.unlinkIdentity)
+
+    return effect <P extends IdentityPool>(pool: P) => {
+      const IdentityPoolId = try pool.identityPoolId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        // No IAM is required for the public identity flows; the binding is
+        // recorded so the identity pool deploys before the function.
+        try bind`AWS.Cognito.IdentityPoolAuth(${pool})`({
+          policyStatements: [],
+        })
+      }
+      const methods = cognitoMethods("AWS.Cognito.IdentityPoolAuth", pool.LogicalId)
+      const authClient: IdentityPoolAuthClient = {
+        // optional-request operation stays bespoke (the helper's wrapped
+        // methods take a required request object)
+        getId: effect (
+          request: GetIdRequest = {},
+        ) =>
+          try withSpan(
+            effect {
+              return try getId({
+                ...request,
+                IdentityPoolId: try IdentityPoolId,
+              })
+            },
+            `AWS.Cognito.IdentityPoolAuth.getId(${pool.LogicalId})`,
+          ),
+        getCredentialsForIdentity: methods.plain(
+          "getCredentialsForIdentity",
+          getCredentialsForIdentity,
+        ),
+        getOpenIdToken: methods.plain("getOpenIdToken", getOpenIdToken),
+        unlinkIdentity: methods.plain("unlinkIdentity", unlinkIdentity),
+      }
+      return authClient
+    }
+  },
+)

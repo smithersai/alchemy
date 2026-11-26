@@ -1,1 +1,1 @@
-export * from "./KeylessCertificate.ts";
+export * from "./KeylessCertificate.vibe";
