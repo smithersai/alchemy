@@ -17,7 +17,7 @@ const actualFile = corpus.file;
 const source = readFileSync(process.env.ALCHEMY_DOC_SOURCE_FILE ?? join(root, actualFile), "utf8");
 const prefix = source.slice(0, source.indexOf("export interface ClusterObjectProps"));
 const header = prefix.match(/\/\*\*[\s\S]*?\*\//)[0];
-const native = join(root, "node_modules/vibelang/native/vibelang");
+const native = join(root, "node_modules/.bin/vibelang");
 
 function emit(samples, declarationDoc = false) {
   const dir = mkdtempSync(join(tmpdir(), "alchemy-module-doc-"));
@@ -47,6 +47,7 @@ function emit(samples, declarationDoc = false) {
           skipLibCheck: true,
           declaration: true,
           allowArbitraryExtensions: true,
+          rewriteRelativeImportExtensions: true,
           rootDir: "./src",
           outDir: "./out",
         },

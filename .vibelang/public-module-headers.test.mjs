@@ -83,7 +83,7 @@ void test("module header placement preserves the written public contract", () =>
       }),
     );
     const result = spawnSync(
-      join(root, "node_modules/vibelang/native/vibelang"),
+      join(root, "node_modules/.bin/vibelang"),
       ["-p", join(dir, "tsconfig.json")],
       { encoding: "utf8" },
     );

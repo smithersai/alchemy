@@ -14,11 +14,11 @@ const corpus = JSON.parse(
 );
 const locators = corpus.map((entry) => {
   const source = readFileSync(join(root, entry.test), "utf8");
-  const parsed = spawnSync(
-    join(root, "node_modules/vibelang/native/vibelang"),
-    ["--estree", entry.test],
-    { input: source, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
-  );
+  const parsed = spawnSync(join(root, "node_modules/.bin/vibelang"), ["--estree", entry.test], {
+    input: source,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
   assert.equal(parsed.status, 0, parsed.stderr);
   const values = new Map();
   function visit(node) {

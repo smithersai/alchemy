@@ -80,7 +80,7 @@ void test("declaration emission preserves prose across Effect names and TypeScri
       }),
     );
     const result = spawnSync(
-      join(root, "node_modules/vibelang/native/vibelang"),
+      join(root, "node_modules/.bin/vibelang"),
       ["-p", join(dir, "tsconfig.json")],
       { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
     );
